@@ -32,7 +32,10 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
 - `POST /api/v1/auth/login`
 - `POST /api/v1/access-events/scan`
 - `POST /api/v1/circuit-requests`
+- `PATCH /api/v1/circuit-requests/:id/gps` (padre solicitante)
 - `GET /api/v1/circuit-requests/today`
+- `GET /api/v1/school/groups` (gestión escolar)
+- `GET /api/v1/exports/attendance.csv` (CSV)
 
 ## Variables de entorno
 
@@ -92,7 +95,10 @@ Swagger: `http://localhost:3000/docs` — usar **Authorize** con `Bearer <access
 
 - `POST /access-events/scan`: JWT + roles `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - `POST /circuit-requests`: JWT + `PADRE`, `ADMIN`, `ADMINISTRATIVO`.
+- `PATCH /circuit-requests/:id/gps`: JWT + `PADRE` (solo el padre que creó la solicitud).
 - `GET /circuit-requests/today`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
+- Rutas bajo `/school/*`: JWT + `ADMIN`, `ADMINISTRATIVO` (grupos, materias, alumnos, docentes, asignaciones `teacher_groups`).
+- `GET /exports/attendance.csv` y `GET /exports/grades.csv`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` (misma regla de grupo que reportes para docentes).
 
 ### Seguridad HTTP
 
@@ -312,6 +318,40 @@ Notas:
    - Query `status` (opcional): `PENDIENTE` / `NOTIFICADO_LLEGADA` / `AUTORIZADO_SALIR` / `EN_CAMINO` / `ENTREGADO` / `CONSENTIDO_SOLO` / `CANCELADO`
    - Query `date` (opcional): `2026-04-02`
 5. Login docente (`docente1@...`) y prueba `GET /reports/attendance/today?groupId=...` para su grupo asignado.
+
+---
+
+## Gestión escolar (`/school`)
+
+Prefijo `api/v1`. Requiere JWT con rol `ADMIN` o `ADMINISTRATIVO`.
+
+Incluye CRUD de grupos (`groups`), materias (`subjects`), altas y actualizaciones de alumnos y docentes (tablas `users` + `students` / `teachers`), y asignaciones docente–grupo–materia (`teacher-assignments` → tabla `teacher_groups`).
+
+Ejemplos:
+
+- `GET /school/groups`
+- `POST /school/teacher-assignments` con `teacherId`, `groupId`, `subjectId` (opcional), `isMainTeacher`, `canAuthorizeDepartures`
+
+---
+
+## Exportaciones CSV (`/exports`)
+
+Respuesta `Content-Type: text/csv; charset=utf-8` (UTF-8 con BOM para Excel).
+
+| Metodo | Ruta | Rol |
+|--------|------|-----|
+| GET | `/exports/attendance.csv?groupId=UUID&date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| GET | `/exports/grades.csv?groupId=UUID&period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
+
+Los filtros `period` y `subject` en calificaciones son opcionales. Para `DOCENTE` aplica la misma regla que en reportes: solo grupos donde tenga fila en `teacher_groups`.
+
+---
+
+## Circuito: GPS en ruta (`PATCH /circuit-requests/:id/gps`)
+
+El padre que creó la solicitud puede enviar o actualizar coordenadas mientras el circuito está activo:
+
+- Body JSON: `{ "parentGpsLatitude": number, "parentGpsLongitude": number }` (latitud [-90, 90], longitud [-180, 180]).
 
 ---
 

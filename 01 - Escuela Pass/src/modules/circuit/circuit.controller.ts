@@ -6,6 +6,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CircuitService } from './circuit.service';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
+import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
@@ -25,6 +26,16 @@ export class CircuitController {
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   findToday() {
     return this.circuitService.findToday();
+  }
+
+  @Patch(':id/gps')
+  @Roles(UserRole.PADRE)
+  updateGps(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateCircuitGpsDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.circuitService.updateParentGps(id, req.user.userId, dto);
   }
 
   @Get(':id')

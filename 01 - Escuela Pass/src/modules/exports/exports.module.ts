@@ -1,0 +1,18 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
+import { GradeEntity } from '../../database/entities/grade.entity';
+import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { AuthModule } from '../auth/auth.module';
+import { ExportsController } from './exports.controller';
+import { ExportsService } from './exports.service';
+
+@Module({
+  imports: [
+    AuthModule,
+    TypeOrmModule.forFeature([AttendanceRecordEntity, GradeEntity, TeacherEntity])
+  ],
+  controllers: [ExportsController],
+  providers: [ExportsService]
+})
+export class ExportsModule {}

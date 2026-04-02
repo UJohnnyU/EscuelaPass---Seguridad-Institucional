@@ -326,4 +326,75 @@ describe('App (e2e)', () => {
       .set(authHeader(padre.accessToken))
       .expect(403);
   });
+
+  it('school: administrativo lista grupos', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const res = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/school/groups`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it('exports: CSV asistencia y calificaciones (text/csv)', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const group = await sqlOne<{ group_id: string }>(
+      `SELECT g.id AS group_id FROM groups g WHERE g.name = '1A' AND g.school_year = '2026-2027'`
+    );
+    const date = new Date().toISOString().slice(0, 10);
+
+    const att = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/exports/attendance.csv`)
+      .query({ groupId: group.group_id, date })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(String(att.headers['content-type'] ?? '')).toMatch(/text\/csv/);
+    expect(att.text).toContain('matricula');
+
+    const gr = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/exports/grades.csv`)
+      .query({ groupId: group.group_id })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(String(gr.headers['content-type'] ?? '')).toMatch(/text\/csv/);
+    expect(gr.text).toContain('matricula');
+  });
+
+  it('circuit: padre actualiza GPS de su solicitud', async () => {
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const parent = await sqlOne<{ parent_id: string }>(
+      `SELECT p.id AS parent_id
+       FROM parents p
+       INNER JOIN users u ON u.id = p.user_id
+       WHERE u.email = $1`,
+      ['padre1@escuelapass.local']
+    );
+    const student = await sqlOne<{ id: string }>(
+      `SELECT s.id
+       FROM students s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE u.email = $1`,
+      ['alumno1@escuelapass.local']
+    );
+
+    const created = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/circuit-requests`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        studentId: student.id,
+        requestedByParentId: parent.parent_id,
+        pickupMethod: 'A_PIE'
+      })
+      .expect(201);
+
+    const patch = await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/gps`)
+      .set(authHeader(padre.accessToken))
+      .send({ parentGpsLatitude: 4.6097, parentGpsLongitude: -74.0817 })
+      .expect(200);
+
+    expect(patch.body.parentGpsLatitude).toBeDefined();
+    expect(patch.body.parentGpsLongitude).toBeDefined();
+  });
 });

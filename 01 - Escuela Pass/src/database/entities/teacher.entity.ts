@@ -7,4 +7,7 @@ export class TeacherEntity {
 
   @Column({ name: 'user_id', type: 'uuid', unique: true })
   userId!: string;
+
+  @Column({ name: 'employee_number', type: 'varchar', length: 50, unique: true })
+  employeeNumber!: string;
 }

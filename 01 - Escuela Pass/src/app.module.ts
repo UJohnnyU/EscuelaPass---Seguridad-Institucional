@@ -14,6 +14,8 @@ import { HealthModule } from './modules/health/health.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { GradesModule } from './modules/grades/grades.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SchoolModule } from './modules/school/school.module';
+import { ExportsModule } from './modules/exports/exports.module';
 
 @Module({
   imports: [
@@ -39,7 +41,9 @@ import { ReportsModule } from './modules/reports/reports.module';
     PaymentsModule,
     AttendanceModule,
     GradesModule,
-    ReportsModule
+    ReportsModule,
+    SchoolModule,
+    ExportsModule
   ],
   providers: [
     {

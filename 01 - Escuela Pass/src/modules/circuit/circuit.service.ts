@@ -6,6 +6,7 @@ import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
+import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
 
 @Injectable()
@@ -40,6 +41,24 @@ export class CircuitService {
       message: 'Solicitud de circuito creada',
       requestId: saved.id,
       status: saved.status
+    };
+  }
+
+  async updateParentGps(id: string, parentUserId: string, dto: UpdateCircuitGpsDto) {
+    const req = await this.findById(id);
+    const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
+    if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+    if (req.requestedByParentId !== parent.id) {
+      throw new ForbiddenException('Solo el padre solicitante puede actualizar el GPS');
+    }
+    req.parentGpsLatitude = dto.parentGpsLatitude.toString();
+    req.parentGpsLongitude = dto.parentGpsLongitude.toString();
+    const saved = await this.circuitRepository.save(req);
+    return {
+      message: 'Ubicación actualizada',
+      id: saved.id,
+      parentGpsLatitude: saved.parentGpsLatitude,
+      parentGpsLongitude: saved.parentGpsLongitude
     };
   }
 

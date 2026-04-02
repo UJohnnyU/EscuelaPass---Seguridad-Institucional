@@ -13,4 +13,7 @@ export class StudentEntity {
 
   @Column({ name: 'group_id', type: 'uuid', nullable: true })
   groupId!: string | null;
+
+  @Column({ name: 'can_leave_alone', type: 'boolean', default: false })
+  canLeaveAlone!: boolean;
 }

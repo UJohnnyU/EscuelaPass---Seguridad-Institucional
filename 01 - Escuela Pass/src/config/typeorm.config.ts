@@ -9,6 +9,8 @@ import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
 import { GradeEntity } from '../database/entities/grade.entity';
+import { SubjectEntity } from '../database/entities/subject.entity';
+import { TeacherGroupEntity } from '../database/entities/teacher-group.entity';
 import { PaymentConceptEntity } from '../database/entities/payment-concept.entity';
 import { PaymentRecordEntity } from '../database/entities/payment-record.entity';
 import { ParentEntity } from '../database/entities/parent.entity';
@@ -49,7 +51,9 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       DebtEntity,
       PaymentRecordEntity,
       AttendanceRecordEntity,
-      GradeEntity
+      GradeEntity,
+      SubjectEntity,
+      TeacherGroupEntity
     ]
   };
 }
