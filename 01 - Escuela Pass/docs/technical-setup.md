@@ -338,6 +338,33 @@ Prerequisito de permisos (usuario de DB que ejecuta migraciones):
 GRANT USAGE, CREATE ON SCHEMA public TO escuela_pass_app;
 ```
 
+---
+
+## Checklist de release MVP (backend)
+
+Antes de cierre/entrega:
+
+1. Variables de entorno
+   - Copiar `.env.example` -> `.env`.
+   - Confirmar `DB_*`, `JWT_*`, `API_PREFIX`, `CORS_ORIGIN`.
+2. Base de datos (dev)
+   - Ejecutar `escuela_pass_schema_v3.sql`.
+   - Ejecutar `scripts/database/seed_dev.sql`.
+3. Pruebas locales de humo
+   - `npm run smoke:build`
+   - `npm run smoke:e2e`
+4. Verificacion API manual
+   - `npm run start:dev` y revisar `GET /api/v1/health`.
+   - Abrir Swagger en `http://localhost:3000/docs` y validar login + flujo base.
+5. CI
+   - Confirmar workflow `.github/workflows/backend-ci.yml` en verde en push/PR.
+
+### Riesgos abiertos y notas
+
+- Vulnerabilidades npm: revisar con `npm audit` (planificado para fase de hardening final).
+- Migraciones TypeORM requieren permisos `USAGE, CREATE` sobre schema `public`.
+- Auth en MVP mantiene 1 refresh activo por usuario (multi-dispositivo queda como mejora futura por `sessionId`).
+
 ## Siguiente fase recomendada (producto)
 
 1. Circuito vial (transiciones completas) y dashboard/reportes minimos.
