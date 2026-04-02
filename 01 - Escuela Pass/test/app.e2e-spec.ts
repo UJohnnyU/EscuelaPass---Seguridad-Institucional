@@ -232,4 +232,39 @@ describe('App (e2e)', () => {
 
     expect(created.body.requestId).toBeDefined();
   });
+
+  it('authz: padre no puede registrar asistencia (403)', async () => {
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/attendance/register`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        studentId: '11111111-1111-4111-8111-111111111111',
+        status: 'PRESENTE'
+      })
+      .expect(403);
+  });
+
+  it('validation: asistencia con studentId invalido responde 400', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/attendance/register`)
+      .set(authHeader(admin.accessToken))
+      .send({
+        studentId: 'no-es-uuid',
+        status: 'PRESENTE'
+      })
+      .expect(400);
+  });
+
+  it('authz: padre no puede consultar reportes de pagos pendientes (403)', async () => {
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/reports/payments/pending`)
+      .set(authHeader(padre.accessToken))
+      .expect(403);
+  });
 });
