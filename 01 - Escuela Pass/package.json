@@ -10,7 +10,13 @@
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "pretest:e2e": "node ./test/setup-e2e-db.js",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "typeorm": "node -r ts-node/register ./node_modules/typeorm/cli.js -d src/config/typeorm.datasource.ts",
+    "migration:generate": "npm run typeorm -- migration:generate src/database/migrations/AutoMigration",
+    "migration:create": "npm run typeorm -- migration:create src/database/migrations/ManualMigration",
+    "migration:run": "npm run typeorm -- migration:run",
+    "migration:revert": "npm run typeorm -- migration:revert",
+    "migration:show": "npm run typeorm -- migration:show"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.7",

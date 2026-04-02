@@ -305,6 +305,32 @@ Notas:
    - Query `date` (opcional): `2026-04-02`
 5. Login docente (`docente1@...`) y prueba `GET /reports/attendance/today?groupId=...` para su grupo asignado.
 
+---
+
+## Migraciones TypeORM (baseline)
+
+El proyecto mantiene `escuela_pass_schema_v3.sql` como esquema inicial y, desde ahora, usa migraciones TypeORM para cambios incrementales.
+
+Comandos:
+
+- `npm run migration:show`
+- `npm run migration:create`
+- `npm run migration:generate`
+- `npm run migration:run`
+- `npm run migration:revert`
+
+Archivos clave:
+
+- DataSource CLI: `src/config/typeorm.datasource.ts`
+- Carpeta de migraciones: `src/database/migrations`
+- Baseline inicial: `src/database/migrations/1712050000000-BaselineSchema.ts`
+
+Prerequisito de permisos (usuario de DB que ejecuta migraciones):
+
+```sql
+GRANT USAGE, CREATE ON SCHEMA public TO escuela_pass_app;
+```
+
 ## Siguiente fase recomendada (producto)
 
 1. Circuito vial (transiciones completas) y dashboard/reportes minimos.
