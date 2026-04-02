@@ -77,9 +77,14 @@ export class AuthService {
   }
 
   async logout(payload: LogoutDto) {
-    const decoded = this.jwtService.verify(payload.refreshToken, {
-      secret: process.env.JWT_REFRESH_SECRET
-    }) as { sub: string };
+    let decoded: { sub: string } | null = null;
+    try {
+      decoded = this.jwtService.verify(payload.refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET
+      }) as { sub: string };
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
     const tokens = await this.refreshTokensRepository.find({
       where: { userId: decoded.sub },
       order: { expiresAt: 'DESC' },

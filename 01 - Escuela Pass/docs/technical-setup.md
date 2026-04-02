@@ -74,9 +74,16 @@ Endpoints bajo prefijo `api/v1`:
 
 | Metodo | Ruta | Auth | Descripcion |
 |--------|------|------|-------------|
-| POST | `/auth/login` | No | Email/password; devuelve `accessToken`, `refreshToken`, `user`. Al hacer login se invalidan refresh tokens anteriores del usuario. |
-| POST | `/auth/refresh` | No | Body `{ "refreshToken": "..." }`. Rotacion: el refresh usado se elimina en BD y se emiten tokens nuevos. |
+| POST | `/auth/login` | No | Email/password; devuelve `accessToken`, `refreshToken`, `user`. Cada login invalida tokens refresh anteriores del usuario y deja 1 refresh activo. |
+| POST | `/auth/refresh` | No | Body `{ "refreshToken": "..." }`. Si el token es valido, rota la sesion y emite nuevo par de tokens. |
 | POST | `/auth/logout` | No | Body `{ "refreshToken": "..." }`. Revoca **todos** los refresh tokens del usuario en BD. |
+
+Politica actual (MVP):
+
+- Un usuario mantiene **un refresh activo** en BD.
+- Tras `logout`, cualquier refresh previo responde `401`.
+- Si se envia un refresh mal formado/invalido en `refresh` o `logout`, responde `401`.
+- Evolucion recomendada (fase siguiente): sesion por dispositivo (`sessionId`) para soporte multi-dispositivo con rotacion estricta por sesion.
 
 Swagger: `http://localhost:3000/docs` — usar **Authorize** con `Bearer <accessToken>` en rutas protegidas.
 

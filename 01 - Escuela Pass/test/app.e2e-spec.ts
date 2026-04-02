@@ -96,6 +96,18 @@ describe('App (e2e)', () => {
       .expect(401);
   });
 
+  it('auth: refresh token invalido y logout invalido responden 401', async () => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/auth/refresh`)
+      .send({ refreshToken: 'token-invalido' })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/auth/logout`)
+      .send({ refreshToken: 'token-invalido' })
+      .expect(401);
+  });
+
   it('attendance: admin registra y upsert actualiza', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
 
