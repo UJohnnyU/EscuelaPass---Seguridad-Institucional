@@ -137,6 +137,53 @@ describe('App (e2e)', () => {
     expect(second.body.status).toBe('RETARDO');
   });
 
+  it('access scan: ENTRY de alumno por QR marca asistencia automatica', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+
+    const student = await sqlOne<{ id: string; user_id: string }>(
+      `SELECT s.id, s.user_id
+       FROM students s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE u.email = $1`,
+      ['alumno1@escuelapass.local']
+    );
+
+    const date = new Date().toISOString().slice(0, 10);
+    await db.query(
+      `DELETE FROM access_events
+       WHERE user_id = $1
+         AND event_date = $2
+         AND event_type = 'ENTRY'`,
+      [student.user_id, date]
+    );
+    await db.query(
+      `DELETE FROM attendance_records
+       WHERE student_id = $1
+         AND attendance_date = $2`,
+      [student.id, date]
+    );
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/access-events/scan`)
+      .set(authHeader(admin.accessToken))
+      .send({
+        method: 'QR',
+        credentialValue: 'QR_ALUMNO_0001',
+        eventType: 'ENTRY'
+      })
+      .expect(201);
+
+    const attendance = await sqlOne<{ status: string; notes: string | null }>(
+      `SELECT status::text AS status, notes
+       FROM attendance_records
+       WHERE student_id = $1
+         AND attendance_date = $2`,
+      [student.id, date]
+    );
+    expect(attendance.status).toBe('PRESENTE');
+    expect(attendance.notes ?? '').toContain('AUTO_ACCESS_SCAN:QR:ENTRY');
+  });
+
   it('grades: docente registra y padre puede leer', async () => {
     // Preparar asignación docente -> grupo (si falta)
     const teacher = await sqlOne<{ teacher_id: string }>(

@@ -7,6 +7,12 @@ import {
   CredentialType
 } from '../../database/entities/access-credential.entity';
 import { AccessEventEntity } from '../../database/entities/access-event.entity';
+import {
+  AttendanceRecordEntity,
+  AttendanceStatus
+} from '../../database/entities/attendance-record.entity';
+import { AccessEventType } from '../../database/entities/access-event.entity';
+import { StudentEntity } from '../../database/entities/student.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { RegisterAccessEventDto } from './dto/register-access-event.dto';
 
@@ -17,6 +23,10 @@ export class AccessService {
     private readonly credentialsRepository: Repository<AccessCredentialEntity>,
     @InjectRepository(AccessEventEntity)
     private readonly eventsRepository: Repository<AccessEventEntity>,
+    @InjectRepository(AttendanceRecordEntity)
+    private readonly attendanceRepository: Repository<AttendanceRecordEntity>,
+    @InjectRepository(StudentEntity)
+    private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>
   ) {}
@@ -65,6 +75,11 @@ export class AccessService {
       registeredBy: payload.registeredBy ?? null
     });
     const saved = await this.eventsRepository.save(event);
+
+    if (user.role === UserRole.ALUMNO && payload.eventType === AccessEventType.ENTRY) {
+      await this.upsertAttendanceFromAccessScan(user.id, today, payload.method);
+    }
+
     return {
       message: 'Acceso registrado correctamente',
       eventId: saved.id,
@@ -74,5 +89,37 @@ export class AccessService {
         role: user.role
       }
     };
+  }
+
+  private async upsertAttendanceFromAccessScan(
+    userId: string,
+    dateStr: string,
+    method: 'QR' | 'NFC' | 'MANUAL'
+  ) {
+    const student = await this.studentsRepository.findOne({ where: { userId } });
+    if (!student) return;
+
+    const autoNote = `AUTO_ACCESS_SCAN:${method}:ENTRY`;
+    const existing = await this.attendanceRepository.findOne({
+      where: { studentId: student.id, attendanceDate: dateStr }
+    });
+
+    if (existing) {
+      existing.status = AttendanceStatus.PRESENTE;
+      existing.groupId = student.groupId ?? null;
+      existing.notes = existing.notes ? `${existing.notes} | ${autoNote}` : autoNote;
+      await this.attendanceRepository.save(existing);
+      return;
+    }
+
+    const created = this.attendanceRepository.create({
+      studentId: student.id,
+      groupId: student.groupId ?? null,
+      attendanceDate: dateStr,
+      status: AttendanceStatus.PRESENTE,
+      notes: autoNote,
+      registeredBy: null
+    });
+    await this.attendanceRepository.save(created);
   }
 }

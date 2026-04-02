@@ -63,6 +63,7 @@ Editar `.env` (o copiar desde `.env.example`):
 3. Backend valida en `access_credentials`.
 4. Si es valido, registra en `access_events`.
 5. Para alumno, se respeta 1 `ENTRY` y 1 `EXIT` por dia.
+6. Si el alumno escanea `ENTRY` por QR/NFC, se crea/actualiza automaticamente su asistencia del dia en `attendance_records` con estado `PRESENTE` (traza en `notes`).
 
 Referencia: [qrcode.js](https://davidshimjs.github.io/qrcodejs/)
 
