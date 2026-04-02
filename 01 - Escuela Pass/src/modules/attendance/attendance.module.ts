@@ -1,0 +1,24 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
+import { ParentEntity } from '../../database/entities/parent.entity';
+import { StudentEntity } from '../../database/entities/student.entity';
+import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { AuthModule } from '../auth/auth.module';
+import { AttendanceController } from './attendance.controller';
+import { AttendanceService } from './attendance.service';
+
+@Module({
+  imports: [
+    AuthModule,
+    TypeOrmModule.forFeature([
+      AttendanceRecordEntity,
+      StudentEntity,
+      TeacherEntity,
+      ParentEntity
+    ])
+  ],
+  controllers: [AttendanceController],
+  providers: [AttendanceService]
+})
+export class AttendanceModule {}

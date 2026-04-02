@@ -1,0 +1,78 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import {
+  AccessCredentialEntity,
+  CredentialStatus,
+  CredentialType
+} from '../../database/entities/access-credential.entity';
+import { AccessEventEntity } from '../../database/entities/access-event.entity';
+import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { RegisterAccessEventDto } from './dto/register-access-event.dto';
+
+@Injectable()
+export class AccessService {
+  constructor(
+    @InjectRepository(AccessCredentialEntity)
+    private readonly credentialsRepository: Repository<AccessCredentialEntity>,
+    @InjectRepository(AccessEventEntity)
+    private readonly eventsRepository: Repository<AccessEventEntity>,
+    @InjectRepository(UserEntity)
+    private readonly usersRepository: Repository<UserEntity>
+  ) {}
+
+  async scanAccess(payload: RegisterAccessEventDto) {
+    const credentialType =
+      payload.method === 'NFC' ? CredentialType.NFC : CredentialType.QR;
+    const credential = await this.credentialsRepository.findOne({
+      where: {
+        credentialType,
+        credentialValue: payload.credentialValue,
+        status: CredentialStatus.ACTIVE
+      }
+    });
+    if (!credential) {
+      throw new NotFoundException('Credencial no encontrada o inactiva');
+    }
+    const user = await this.usersRepository.findOne({ where: { id: credential.userId } });
+    if (!user) {
+      throw new NotFoundException('Usuario de credencial no existe');
+    }
+    if (!user.canAccessCampus) {
+      throw new BadRequestException('Usuario sin permiso de acceso al campus');
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (user.role === UserRole.ALUMNO) {
+      const already = await this.eventsRepository.findOne({
+        where: {
+          userId: user.id,
+          eventDate: today,
+          eventType: payload.eventType
+        }
+      });
+      if (already) {
+        throw new BadRequestException('Alumno ya registró este tipo de acceso hoy');
+      }
+    }
+    const event = this.eventsRepository.create({
+      userId: user.id,
+      roleSnapshot: user.role,
+      eventType: payload.eventType,
+      method: payload.method,
+      eventTime: new Date(),
+      eventDate: today,
+      accessCredentialId: credential.id,
+      registeredBy: payload.registeredBy ?? null
+    });
+    const saved = await this.eventsRepository.save(event);
+    return {
+      message: 'Acceso registrado correctamente',
+      eventId: saved.id,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        role: user.role
+      }
+    };
+  }
+}
