@@ -321,7 +321,26 @@ CREATE TABLE IF NOT EXISTS attendance_records (
     UNIQUE (student_id, attendance_date)
 );
 
+CREATE TABLE IF NOT EXISTS grades (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
+    subject VARCHAR(100) NOT NULL,
+    period VARCHAR(50) NOT NULL,
+    assessment_name VARCHAR(120) NOT NULL,
+    score DECIMAL(5, 2) NOT NULL,
+    max_score DECIMAL(5, 2) NOT NULL DEFAULT 100,
+    notes TEXT,
+    graded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    graded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (student_id, subject, period, assessment_name)
+);
+
 CREATE INDEX IF NOT EXISTS idx_access_events_user_date ON access_events(user_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_debts_student ON debts(student_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, attendance_date);
+CREATE INDEX IF NOT EXISTS idx_grades_student ON grades(student_id);
+CREATE INDEX IF NOT EXISTS idx_grades_group ON grades(group_id);

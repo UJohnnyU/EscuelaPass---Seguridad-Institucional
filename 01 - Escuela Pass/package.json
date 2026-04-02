@@ -9,6 +9,7 @@
     "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
+    "pretest:e2e": "node ./test/setup-e2e-db.js",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
     "@types/jest": "^29.5.12",
     "@types/multer": "^2.1.0",
     "@types/node": "^20.16.10",
+    "@types/pg": "^8.20.0",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^8.8.1",
     "@typescript-eslint/parser": "^8.8.1",

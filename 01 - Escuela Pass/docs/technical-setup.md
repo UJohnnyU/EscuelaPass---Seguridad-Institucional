@@ -233,8 +233,80 @@ Valores de `status`: `PRESENTE`, `AUSENTE`, `RETARDO`.
 
 ---
 
+## Calificaciones (MVP implementado)
+
+Tabla: `grades` (upsert por `student_id` + `subject` + `period` + `assessment_name`).
+
+| Metodo | Ruta | Rol |
+|--------|------|-----|
+| POST | `/grades/register` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| GET | `/grades/student/:studentId?period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE, PADRE |
+| GET | `/grades/groups/:groupId?period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| GET | `/grades/parent/my-children?period=...&subject=...` | PADRE |
+
+- **Docente:** solo puede registrar/ver calificaciones de alumnos de grupos asignados en `teacher_groups`.
+- **Padre:** en `GET /grades/student/:studentId` solo puede ver estudiantes vinculados por `student_parents`.
+- Si se repite la misma combinacion de alumno + materia + periodo + evaluacion, se actualiza la fila existente (no duplica).
+
+Body ejemplo `POST /grades/register`:
+
+```json
+{
+  "studentId": "UUID_DEL_ALUMNO",
+  "subject": "Matematicas",
+  "period": "BIM1-2026",
+  "assessmentName": "Parcial 1",
+  "score": 18.5,
+  "maxScore": 20,
+  "notes": "Buen desempeño",
+  "gradedAt": "2026-04-02T10:30:00.000Z"
+}
+```
+
+### Pruebas paso a paso (Swagger)
+
+1. Login `admin@escuelapass.local` / `Admin123*` y **Authorize**.
+2. `POST /grades/register` con un `studentId` valido y body como el ejemplo.
+3. `GET /grades/student/{studentId}` (opcional `period` y `subject`) para confirmar registro.
+4. `GET /grades/groups/{groupId}` (opcional `period` y `subject`) para ver notas del grupo.
+5. Login `docente1@escuelapass.local` / `Docente123*` (con asignacion en `teacher_groups`) y repetir `register` / `groups`.
+6. Login `padre1@escuelapass.local` / `Padre123*` y ejecutar:
+   - `GET /grades/parent/my-children`
+   - `GET /grades/student/{studentId_de_su_hijo}`
+7. Repetir `POST /grades/register` con misma materia/periodo/evaluacion y distinto `score` → debe actualizar (upsert).
+
+---
+
+## Reportes (implementado)
+
+Endpoints bajo prefijo `api/v1`:
+
+| Metodo | Ruta | Rol |
+|--------|------|-----|
+| GET | `/reports/attendance/today?groupId=...&date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| GET | `/reports/payments/pending` | ADMIN, ADMINISTRATIVO |
+| GET | `/reports/circuit/today?status=...&date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO, DOCENTE |
+
+Notas:
+
+- `attendance/today`: para DOCENTE aplica la misma regla de `teacher_groups` (solo sus grupos).
+- `payments/pending`: devuelve conteos y un listado corto de deudas pendientes (prioriza por `uploadedAt`/`dueDate`).
+- `circuit/today`: lista solicitudes del día, con filtro opcional por `status`.
+
+### Pruebas paso a paso (Swagger)
+
+1. Login admin (`admin@escuelapass.local` / `Admin123*`) y **Authorize**.
+2. **Asistencia por grupo (GET)**: `GET /reports/attendance/today`
+   - Query `groupId`: `UUID_DEL_GRUPO`
+   - Query `date` (opcional): `2026-04-02`
+3. **Pagos pendientes (GET)**: `GET /reports/payments/pending` (sin body).
+4. **Circuito de hoy (GET)**: `GET /reports/circuit/today`
+   - Query `status` (opcional): `PENDIENTE` / `NOTIFICADO_LLEGADA` / `AUTORIZADO_SALIR` / `EN_CAMINO` / `ENTREGADO` / `CONSENTIDO_SOLO` / `CANCELADO`
+   - Query `date` (opcional): `2026-04-02`
+5. Login docente (`docente1@...`) y prueba `GET /reports/attendance/today?groupId=...` para su grupo asignado.
+
 ## Siguiente fase recomendada (producto)
 
-1. Calificaciones (minimo viable) y/o circuito vial completo.
+1. Circuito vial (transiciones completas) y dashboard/reportes minimos.
 2. Frontend web responsive consumiendo estos endpoints.
-3. Pruebas e2e minimas sobre pagos + avisos + auth + asistencia.
+3. Pruebas e2e minimas sobre pagos + avisos + auth + asistencia + calificaciones.

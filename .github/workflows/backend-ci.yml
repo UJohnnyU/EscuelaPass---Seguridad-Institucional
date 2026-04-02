@@ -1,0 +1,80 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: 01 - Escuela Pass
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: 01 - Escuela Pass/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create CI env files
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          NODE_ENV=test
+          PORT=3000
+          API_PREFIX=api/v1
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_NAME=escuela_pass
+          DB_USER=postgres
+          DB_PASS=postgres
+          DB_SSL=false
+          JWT_SECRET=ci-access-secret
+          JWT_EXPIRES_IN=1d
+          JWT_REFRESH_SECRET=ci-refresh-secret
+          JWT_REFRESH_EXPIRES_IN=7d
+          CORS_ORIGIN=http://localhost:3000
+          THROTTLE_TTL=60
+          THROTTLE_LIMIT=100
+          EOF
+          cat > .env.e2e <<'EOF'
+          NODE_ENV=test
+          DB_NAME=escuela_pass_test
+          EOF
+
+      - name: Create e2e database
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d postgres -c "CREATE DATABASE escuela_pass_test;"
+
+      - name: Build
+        run: npm run build
+
+      - name: E2E tests
+        run: npm run test:e2e

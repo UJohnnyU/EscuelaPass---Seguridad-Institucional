@@ -12,6 +12,8 @@ import { NoticesModule } from './modules/notices/notices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './modules/health/health.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { GradesModule } from './modules/grades/grades.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -35,7 +37,9 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
     CircuitModule,
     NoticesModule,
     PaymentsModule,
-    AttendanceModule
+    AttendanceModule,
+    GradesModule,
+    ReportsModule
   ],
   providers: [
     {
@@ -45,3 +49,4 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
   ]
 })
 export class AppModule {}
+

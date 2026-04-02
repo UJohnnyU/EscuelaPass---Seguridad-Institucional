@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { RefreshTokenEntity } from '../../database/entities/refresh-token.entity';
@@ -64,7 +65,14 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Usuario inválido');
     }
-    await this.refreshTokensRepository.delete({ id: matchedToken.id });
+    // Rotación estricta: al refrescar, revocamos todos los refresh tokens del usuario.
+    // Usamos query SQL explícita para evitar problemas de mapeo en filtros.
+    await this.refreshTokensRepository
+      .createQueryBuilder()
+      .delete()
+      .from(RefreshTokenEntity)
+      .where('user_id = :userId', { userId: decoded.sub })
+      .execute();
     return this.issueTokens(user);
   }
 
@@ -103,12 +111,23 @@ export class AuthService {
       secret: process.env.JWT_SECRET,
       expiresIn: this.parseDurationToSeconds(process.env.JWT_EXPIRES_IN ?? '1d')
     });
-    const refreshToken = await this.jwtService.signAsync(jwtPayload, {
+    // Refresh token único (aunque se emita en el mismo segundo).
+    // Agregamos un claim aleatorio (`nonce`) para evitar tokens idénticos.
+    const refreshToken = await this.jwtService.signAsync({ ...jwtPayload, nonce: randomUUID() }, {
       secret: process.env.JWT_REFRESH_SECRET,
       expiresIn: this.parseDurationToSeconds(process.env.JWT_REFRESH_EXPIRES_IN ?? '7d')
     });
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date(Date.now() + this.parseDurationToMs(process.env.JWT_REFRESH_EXPIRES_IN ?? '7d'));
+
+    // Mantener un solo refresh activo por usuario (simplifica rotación y sesiones en dev).
+    await this.refreshTokensRepository
+      .createQueryBuilder()
+      .delete()
+      .from(RefreshTokenEntity)
+      .where('user_id = :userId', { userId: user.id })
+      .execute();
+
     const tokenEntity = this.refreshTokensRepository.create({
       userId: user.id,
       tokenHash: refreshTokenHash,
