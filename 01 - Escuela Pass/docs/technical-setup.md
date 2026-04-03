@@ -331,6 +331,27 @@ Ejemplos:
 
 - `GET /school/groups`
 - `POST /school/teacher-assignments` con `teacherId`, `groupId`, `subjectId` (opcional), `isMainTeacher`, `canAuthorizeDepartures`
+- Importación masiva CSV (multipart, campo `file`):
+  - `POST /school/import/groups/csv`
+  - `POST /school/import/students/csv`
+  - `POST /school/import/teachers/csv`
+  - `POST /school/import/teacher-assignments/csv`
+  - Query opcional `dryRun=true` para validar sin escribir en BD.
+
+- Plantillas CSV de descarga:
+  - `GET /school/import/templates/groups.csv`
+  - `GET /school/import/templates/students.csv`
+  - `GET /school/import/templates/teachers.csv`
+  - `GET /school/import/templates/teacher-assignments.csv`
+- Historial de cargas (memoria de ejecución):
+  - `GET /school/import/history?limit=20`
+
+Cabeceras esperadas por CSV:
+
+- Grupos: `name,grade,shift,schoolYear,classroom,capacity`
+- Alumnos: `email,password,fullName,matricula,groupId,canAccessCampus,canLeaveAlone`
+- Docentes: `email,password,fullName,employeeNumber,canAccessCampus`
+- Asignaciones: `teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures`
 
 ---
 

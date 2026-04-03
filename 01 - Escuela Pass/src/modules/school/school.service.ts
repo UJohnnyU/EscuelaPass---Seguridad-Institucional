@@ -23,8 +23,27 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 
+type CsvImportResult = {
+  totalRows: number;
+  created: number;
+  errors: Array<{ row: number; message: string }>;
+  dryRun: boolean;
+};
+
+type CsvImportLogEntry = {
+  id: string;
+  kind: 'groups' | 'students' | 'teachers' | 'teacher-assignments';
+  createdAt: string;
+  totalRows: number;
+  created: number;
+  errorCount: number;
+  dryRun: boolean;
+};
+
 @Injectable()
 export class SchoolService {
+  private readonly importHistory: CsvImportLogEntry[] = [];
+
   constructor(
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
@@ -338,5 +357,240 @@ export class SchoolService {
     if (!row) throw new NotFoundException('Asignación no encontrada');
     await this.teacherGroupsRepository.delete({ id });
     return { message: 'Asignación eliminada', id };
+  }
+
+  // --- Cargas masivas CSV ---
+  async importGroupsCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
+    const rows = this.parseCsv(csvText);
+    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+    for (let i = 0; i < rows.length; i++) {
+      const line = i + 2;
+      const row = rows[i];
+      try {
+        const dto: CreateGroupDto = {
+          name: this.required(row, 'name'),
+          schoolYear: this.required(row, 'schoolYear'),
+          grade: this.optional(row, 'grade'),
+          shift: this.parseShift(this.optional(row, 'shift')),
+          classroom: this.optional(row, 'classroom'),
+          capacity: this.parseIntOptional(this.optional(row, 'capacity'))
+        };
+        if (!dryRun) await this.createGroup(dto);
+        result.created += 1;
+      } catch (error) {
+        result.errors.push({ row: line, message: this.errorMessage(error) });
+      }
+    }
+    this.pushImportLog('groups', result);
+    return result;
+  }
+
+  async importStudentsCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
+    const rows = this.parseCsv(csvText);
+    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+    for (let i = 0; i < rows.length; i++) {
+      const line = i + 2;
+      const row = rows[i];
+      try {
+        const dto: CreateStudentDto = {
+          email: this.required(row, 'email'),
+          password: this.required(row, 'password'),
+          fullName: this.required(row, 'fullName'),
+          matricula: this.required(row, 'matricula'),
+          groupId: this.optional(row, 'groupId'),
+          canAccessCampus: this.parseBoolOptional(this.optional(row, 'canAccessCampus')),
+          canLeaveAlone: this.parseBoolOptional(this.optional(row, 'canLeaveAlone'))
+        };
+        if (!dryRun) await this.createStudent(dto);
+        result.created += 1;
+      } catch (error) {
+        result.errors.push({ row: line, message: this.errorMessage(error) });
+      }
+    }
+    this.pushImportLog('students', result);
+    return result;
+  }
+
+  async importTeachersCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
+    const rows = this.parseCsv(csvText);
+    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+    for (let i = 0; i < rows.length; i++) {
+      const line = i + 2;
+      const row = rows[i];
+      try {
+        const dto: CreateTeacherDto = {
+          email: this.required(row, 'email'),
+          password: this.required(row, 'password'),
+          fullName: this.required(row, 'fullName'),
+          employeeNumber: this.required(row, 'employeeNumber'),
+          canAccessCampus: this.parseBoolOptional(this.optional(row, 'canAccessCampus'))
+        };
+        if (!dryRun) await this.createTeacher(dto);
+        result.created += 1;
+      } catch (error) {
+        result.errors.push({ row: line, message: this.errorMessage(error) });
+      }
+    }
+    this.pushImportLog('teachers', result);
+    return result;
+  }
+
+  async importTeacherAssignmentsCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
+    const rows = this.parseCsv(csvText);
+    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+    for (let i = 0; i < rows.length; i++) {
+      const line = i + 2;
+      const row = rows[i];
+      try {
+        const dto: AssignTeacherGroupDto = {
+          teacherId: this.required(row, 'teacherId'),
+          groupId: this.required(row, 'groupId'),
+          subjectId: this.optional(row, 'subjectId'),
+          isMainTeacher: this.parseBoolOptional(this.optional(row, 'isMainTeacher')),
+          canAuthorizeDepartures: this.parseBoolOptional(this.optional(row, 'canAuthorizeDepartures'))
+        };
+        if (!dryRun) await this.assignTeacherGroup(dto);
+        result.created += 1;
+      } catch (error) {
+        result.errors.push({ row: line, message: this.errorMessage(error) });
+      }
+    }
+    this.pushImportLog('teacher-assignments', result);
+    return result;
+  }
+
+  getImportHistory(limit = 20) {
+    const safeLimit = Math.max(1, Math.min(200, limit));
+    return this.importHistory.slice(0, safeLimit);
+  }
+
+  getTemplateGroupsCsv() {
+    return (
+      '\uFEFF' +
+      'name,grade,shift,schoolYear,classroom,capacity\r\n' +
+      '1A,1,MATUTINO,2026-2027,A-101,30\r\n'
+    );
+  }
+
+  getTemplateStudentsCsv() {
+    return (
+      '\uFEFF' +
+      'email,password,fullName,matricula,groupId,canAccessCampus,canLeaveAlone\r\n' +
+      'alumno.nuevo@escuelapass.local,Alumno123*,Alumno Nuevo,MAT-1001,,false,false\r\n'
+    );
+  }
+
+  getTemplateTeachersCsv() {
+    return (
+      '\uFEFF' +
+      'email,password,fullName,employeeNumber,canAccessCampus\r\n' +
+      'docente.nuevo@escuelapass.local,Docente123*,Docente Nuevo,EMP-1001,true\r\n'
+    );
+  }
+
+  getTemplateTeacherAssignmentsCsv() {
+    return (
+      '\uFEFF' +
+      'teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures\r\n' +
+      '11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222,,true,false\r\n'
+    );
+  }
+
+  private parseCsv(text: string): Array<Record<string, string>> {
+    const lines = text
+      .replace(/^\uFEFF/, '')
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter((x) => x.length > 0);
+    if (lines.length < 2) return [];
+
+    const headers = this.splitCsvLine(lines[0]).map((x) => x.trim());
+    return lines.slice(1).map((line) => {
+      const values = this.splitCsvLine(line);
+      const row: Record<string, string> = {};
+      for (let i = 0; i < headers.length; i++) row[headers[i]] = values[i]?.trim() ?? '';
+      return row;
+    });
+  }
+
+  private splitCsvLine(line: string) {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        const next = line[i + 1];
+        if (inQuotes && next === '"') {
+          current += '"';
+          i++;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (ch === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+        continue;
+      }
+      current += ch;
+    }
+    result.push(current);
+    return result;
+  }
+
+  private required(row: Record<string, string>, key: string) {
+    const value = row[key]?.trim();
+    if (!value) throw new Error(`Campo obligatorio faltante: ${key}`);
+    return value;
+  }
+
+  private optional(row: Record<string, string>, key: string) {
+    const value = row[key]?.trim();
+    return value ? value : undefined;
+  }
+
+  private parseShift(value: string | undefined): ShiftType | undefined {
+    if (!value) return undefined;
+    if (value === ShiftType.MATUTINO || value === ShiftType.VESPERTINO || value === ShiftType.NOCTURNO) {
+      return value;
+    }
+    throw new Error('shift inválido (usa MATUTINO|VESPERTINO|NOCTURNO)');
+  }
+
+  private parseIntOptional(value: string | undefined): number | undefined {
+    if (!value) return undefined;
+    const n = Number.parseInt(value, 10);
+    if (Number.isNaN(n)) throw new Error('capacity debe ser número entero');
+    return n;
+  }
+
+  private parseBoolOptional(value: string | undefined): boolean | undefined {
+    if (!value) return undefined;
+    const normalized = value.toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'si' || normalized === 'sí') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+    throw new Error(`Valor booleano inválido: ${value}`);
+  }
+
+  private errorMessage(error: unknown) {
+    if (error instanceof Error) return error.message;
+    return 'Error desconocido al procesar fila';
+  }
+
+  private pushImportLog(kind: CsvImportLogEntry['kind'], result: CsvImportResult) {
+    this.importHistory.unshift({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      kind,
+      createdAt: new Date().toISOString(),
+      totalRows: result.totalRows,
+      created: result.created,
+      errorCount: result.errors.length,
+      dryRun: result.dryRun
+    });
+    if (this.importHistory.length > 500) {
+      this.importHistory.length = 500;
+    }
   }
 }

@@ -427,4 +427,78 @@ describe('App (e2e)', () => {
       .set(authHeader(padre.accessToken))
       .expect(403);
   });
+
+  it('school import: admin carga grupos por CSV y padre no puede', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const schoolYear = `E2E-${Date.now()}`;
+    const csv = `name,grade,shift,schoolYear,classroom,capacity\nE2E-GRUPO,1,MATUTINO,${schoolYear},A-1,25`;
+
+    const imported = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/school/import/groups/csv`)
+      .set(authHeader(admin.accessToken))
+      .attach('file', Buffer.from(csv, 'utf8'), 'groups.csv')
+      .expect(201);
+
+    expect(imported.body.totalRows).toBe(1);
+    expect(imported.body.created).toBe(1);
+    expect(Array.isArray(imported.body.errors)).toBe(true);
+    expect(imported.body.errors.length).toBe(0);
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/school/import/groups/csv`)
+      .set(authHeader(padre.accessToken))
+      .attach('file', Buffer.from(csv, 'utf8'), 'groups.csv')
+      .expect(403);
+  });
+
+  it('school import: asignaciones por CSV y plantillas CSV', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const teacher = await sqlOne<{ teacher_id: string }>(
+      `SELECT t.id AS teacher_id
+       FROM teachers t
+       INNER JOIN users u ON u.id = t.user_id
+       WHERE u.email = $1`,
+      ['docente1@escuelapass.local']
+    );
+    const group = await sqlOne<{ group_id: string }>(
+      `SELECT g.id AS group_id
+       FROM groups g
+       WHERE g.name = '1A' AND g.school_year = '2026-2027'`
+    );
+    const csv = `teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures\n${teacher.teacher_id},${group.group_id},,true,true`;
+
+    const imported = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/school/import/teacher-assignments/csv`)
+      .set(authHeader(admin.accessToken))
+      .attach('file', Buffer.from(csv, 'utf8'), 'assignments.csv')
+      .expect(201);
+    expect(imported.body.totalRows).toBe(1);
+    expect(imported.body.created).toBe(1);
+    expect(imported.body.errors.length).toBe(0);
+
+    const tpl = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/school/import/templates/teacher-assignments.csv`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(String(tpl.headers['content-type'] ?? '')).toMatch(/text\/csv/);
+    expect(tpl.text).toContain('teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures');
+  });
+
+  it('school import: historial de importaciones disponible para admin', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const res = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/school/import/history`)
+      .query({ limit: 5 })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body[0]).toHaveProperty('kind');
+    expect(res.body[0]).toHaveProperty('totalRows');
+    expect(res.body[0]).toHaveProperty('created');
+    expect(res.body[0]).toHaveProperty('errorCount');
+    expect(res.body[0]).toHaveProperty('createdAt');
+  });
 });
