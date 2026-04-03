@@ -403,6 +403,7 @@ El padre que creó la solicitud puede enviar o actualizar coordenadas mientras e
   - `CIRCUIT_ARRIVAL_RADIUS_KM`
 - Si Mapbox no está configurado o falla, se usa fallback local con fórmula Haversine para no romper el flujo.
 - Confirmación de entrega: `PATCH /circuit-requests/:id/confirm-delivered` (padre dueño de la solicitud o staff) para cerrar el flujo en `ENTREGADO`.
+- **Push FCM (padre solicitante):** si Firebase está configurado y el padre tiene token registrado (`POST /notifications/fcm/register`), recibe notificaciones ante cambios de estado del circuito (incluye llegada por GPS al radio del plantel, autorización de salida, en camino, entrega, cancelación, etc.). Payload `data`: `type=circuit`, `circuitRequestId`, `status`.
 
 ---
 

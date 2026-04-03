@@ -68,6 +68,27 @@ export class FcmService implements OnModuleInit {
   /**
    * Envía push por cada fila de notificación in-app (misma fuente que la bandeja).
    */
+  /**
+   * Push directo a un usuario (p. ej. circuito vial sin fila en `notifications`).
+   */
+  async sendPushToUser(
+    userId: string,
+    title: string,
+    body: string,
+    data: Record<string, string>
+  ): Promise<void> {
+    if (!this.messaging) {
+      return;
+    }
+    const rows = await this.tokenRepository.find({ where: { userId } });
+    if (rows.length === 0) {
+      return;
+    }
+    const tokens = rows.map((r) => r.token);
+    const bodyText = this.truncate(body, MAX_BODY);
+    await this.sendMulticastChunks(tokens, title, bodyText, data);
+  }
+
   async sendPushForNotifications(rows: NotificationEntity[]): Promise<void> {
     if (!this.messaging || rows.length === 0) {
       return;

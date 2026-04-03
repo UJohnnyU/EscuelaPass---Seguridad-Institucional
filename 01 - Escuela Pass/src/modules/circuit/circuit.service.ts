@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CircuitRequestEntity, CircuitStatus } from '../../database/entities/circuit-request.entity';
@@ -8,6 +14,7 @@ import { UserRole } from '../../database/entities/user.entity';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
+import { FcmService } from '../fcm/fcm.service';
 
 type DistanceResult = {
   distanceKm: number;
@@ -17,13 +24,16 @@ type DistanceResult = {
 
 @Injectable()
 export class CircuitService {
+  private readonly logger = new Logger(CircuitService.name);
+
   constructor(
     @InjectRepository(CircuitRequestEntity)
     private readonly circuitRepository: Repository<CircuitRequestEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(ParentEntity)
-    private readonly parentsRepository: Repository<ParentEntity>
+    private readonly parentsRepository: Repository<ParentEntity>,
+    private readonly fcmService: FcmService
   ) {}
 
   async create(payload: CreateCircuitRequestDto) {
@@ -48,6 +58,81 @@ export class CircuitService {
       requestId: saved.id,
       status: saved.status
     };
+  }
+
+  private async studentDisplayName(studentId: string): Promise<string> {
+    const row = await this.studentsRepository
+      .createQueryBuilder('s')
+      .innerJoin('users', 'u', 'u.id = s.user_id')
+      .select('u.full_name', 'fullName')
+      .where('s.id = :id', { id: studentId })
+      .getRawOne<{ fullName: string }>();
+    const n = row?.fullName?.trim();
+    return n || 'el estudiante';
+  }
+
+  private async parentUserIdByPk(parentPk: string): Promise<string | null> {
+    const p = await this.parentsRepository.findOne({ where: { id: parentPk } });
+    return p?.userId ?? null;
+  }
+
+  private pushCircuitToParent(
+    parentUserId: string | null,
+    requestId: string,
+    status: CircuitStatus,
+    title: string,
+    body: string
+  ) {
+    if (!parentUserId) return;
+    void this.fcmService
+      .sendPushToUser(parentUserId, title, body, {
+        type: 'circuit',
+        circuitRequestId: requestId,
+        status
+      })
+      .catch((err: unknown) => {
+        this.logger.warn(`FCM circuito no enviado: ${String(err)}`);
+      });
+  }
+
+  private circuitPushCopy(
+    status: CircuitStatus,
+    studentName: string
+  ): { title: string; body: string } | null {
+    switch (status) {
+      case CircuitStatus.NOTIFICADO_LLEGADA:
+        return {
+          title: 'Llegada notificada',
+          body: `Actualización del circuito: llegada al plantel (${studentName}).`
+        };
+      case CircuitStatus.AUTORIZADO_SALIR:
+        return {
+          title: 'Autorizado a salir',
+          body: `Puedes acercarte a recoger a ${studentName}.`
+        };
+      case CircuitStatus.EN_CAMINO:
+        return {
+          title: 'En camino',
+          body: `El circuito marcó "en camino" para ${studentName}.`
+        };
+      case CircuitStatus.ENTREGADO:
+        return {
+          title: 'Entrega completada',
+          body: `Se cerró el circuito: ${studentName} — entregado.`
+        };
+      case CircuitStatus.CONSENTIDO_SOLO:
+        return {
+          title: 'Consentimiento registrado',
+          body: `Consentimiento sin circuito de recogida (${studentName}).`
+        };
+      case CircuitStatus.CANCELADO:
+        return {
+          title: 'Circuito cancelado',
+          body: `La solicitud de recogida de ${studentName} fue cancelada.`
+        };
+      default:
+        return null;
+    }
   }
 
   async updateParentGps(id: string, parentUserId: string, dto: UpdateCircuitGpsDto) {
@@ -77,6 +162,19 @@ export class CircuitService {
     }
 
     const saved = await this.circuitRepository.save(req);
+
+    if (autoTransitioned && saved.status === CircuitStatus.NOTIFICADO_LLEGADA) {
+      const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
+      const name = await this.studentDisplayName(saved.studentId);
+      this.pushCircuitToParent(
+        parentUid,
+        saved.id,
+        saved.status,
+        'Llegada al colegio',
+        `Tu ubicación entró en el radio del plantel (${name}).`
+      );
+    }
+
     return {
       message: 'Ubicación actualizada',
       id: saved.id,
@@ -123,6 +221,14 @@ export class CircuitService {
 
     req.status = CircuitStatus.CANCELADO;
     const saved = await this.circuitRepository.save(req);
+
+    const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
+    const name = await this.studentDisplayName(saved.studentId);
+    const copy = this.circuitPushCopy(CircuitStatus.CANCELADO, name);
+    if (copy) {
+      this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+    }
+
     return { message: 'Solicitud cancelada', id: saved.id, status: saved.status };
   }
 
@@ -148,6 +254,14 @@ export class CircuitService {
 
     req.status = CircuitStatus.ENTREGADO;
     const saved = await this.circuitRepository.save(req);
+
+    const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
+    const name = await this.studentDisplayName(saved.studentId);
+    const copy = this.circuitPushCopy(CircuitStatus.ENTREGADO, name);
+    if (copy) {
+      this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+    }
+
     return {
       message: 'Entrega confirmada',
       id: saved.id,
@@ -173,6 +287,14 @@ export class CircuitService {
     req.status = next;
     // Nota: el esquema actual no tiene columna notes; dto.notes se deja para futuro
     const saved = await this.circuitRepository.save(req);
+
+    const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
+    const name = await this.studentDisplayName(saved.studentId);
+    const copy = this.circuitPushCopy(next, name);
+    if (copy) {
+      this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+    }
+
     return { message: 'Estado actualizado', id: saved.id, status: saved.status, changedBy: userId };
   }
 
