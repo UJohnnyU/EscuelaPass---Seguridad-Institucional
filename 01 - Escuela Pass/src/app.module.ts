@@ -16,6 +16,7 @@ import { GradesModule } from './modules/grades/grades.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolModule } from './modules/school/school.module';
 import { ExportsModule } from './modules/exports/exports.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -43,7 +44,8 @@ import { ExportsModule } from './modules/exports/exports.module';
     GradesModule,
     ReportsModule,
     SchoolModule,
-    ExportsModule
+    ExportsModule,
+    DashboardModule
   ],
   providers: [
     {

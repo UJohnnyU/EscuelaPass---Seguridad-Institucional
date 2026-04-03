@@ -363,6 +363,24 @@ El padre que creó la solicitud puede enviar o actualizar coordenadas mientras e
 
 ---
 
+## Dashboard administrativo (`/dashboard`)
+
+Resumen operativo para panel principal (RF8) bajo prefijo `api/v1`:
+
+| Metodo | Ruta | Rol |
+|--------|------|-----|
+| GET | `/dashboard/summary?date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO |
+
+Retorna KPI agregados para la fecha solicitada (o día actual):
+
+- Entidades activas (alumnos, docentes, grupos, usuarios activos y usuarios por rol).
+- Asistencia del día (total y distribución por estado).
+- Pagos (deudas pendientes, vencidas y pendientes con comprobante).
+- Circuito vial del día (total y distribución por estado).
+- Accesos del día (total y por tipo `ENTRY/EXIT`).
+
+---
+
 ## Migraciones TypeORM (baseline)
 
 El proyecto mantiene `escuela_pass_schema_v3.sql` como esquema inicial y, desde ahora, usa migraciones TypeORM para cambios incrementales.

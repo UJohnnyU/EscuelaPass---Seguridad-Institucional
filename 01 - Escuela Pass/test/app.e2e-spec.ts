@@ -405,4 +405,26 @@ describe('App (e2e)', () => {
     expect(typeof patch.body.distanceToSchoolKm).toBe('number');
     expect(['mapbox', 'haversine']).toContain(patch.body.distanceSource);
   });
+
+  it('dashboard: admin consulta resumen y padre recibe 403', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+
+    const summary = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/dashboard/summary`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+
+    expect(summary.body).toHaveProperty('date');
+    expect(summary.body).toHaveProperty('entities');
+    expect(summary.body).toHaveProperty('attendanceToday');
+    expect(summary.body).toHaveProperty('payments');
+    expect(summary.body).toHaveProperty('circuitToday');
+    expect(summary.body).toHaveProperty('accessToday');
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/dashboard/summary`)
+      .set(authHeader(padre.accessToken))
+      .expect(403);
+  });
 });
