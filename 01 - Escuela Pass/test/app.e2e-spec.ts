@@ -28,6 +28,10 @@ describe('App (e2e)', () => {
   };
 
   beforeAll(async () => {
+    // Hacemos determinística la regla de llegada por radio para esta suite:
+    // con un radio muy amplio, cualquier GPS reportado debe entrar a "NOTIFICADO_LLEGADA".
+    process.env.CIRCUIT_ARRIVAL_RADIUS_KM = '9999';
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule]
     }).compile();
@@ -396,5 +400,9 @@ describe('App (e2e)', () => {
 
     expect(patch.body.parentGpsLatitude).toBeDefined();
     expect(patch.body.parentGpsLongitude).toBeDefined();
+    expect(patch.body.status).toBe('NOTIFICADO_LLEGADA');
+    expect(patch.body.autoTransitioned).toBe(true);
+    expect(typeof patch.body.distanceToSchoolKm).toBe('number');
+    expect(['mapbox', 'haversine']).toContain(patch.body.distanceSource);
   });
 });

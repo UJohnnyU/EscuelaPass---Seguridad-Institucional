@@ -352,6 +352,14 @@ Los filtros `period` y `subject` en calificaciones son opcionales. Para `DOCENTE
 El padre que creó la solicitud puede enviar o actualizar coordenadas mientras el circuito está activo:
 
 - Body JSON: `{ "parentGpsLatitude": number, "parentGpsLongitude": number }` (latitud [-90, 90], longitud [-180, 180]).
+- Integración preferida: **Mapbox Directions API** (`MAPBOX_ACCESS_TOKEN`).
+- El backend calcula distancia al colegio y, si entra al radio (`CIRCUIT_ARRIVAL_RADIUS_KM`), cambia estado automáticamente a `NOTIFICADO_LLEGADA`.
+- Variables recomendadas:
+  - `MAPBOX_ACCESS_TOKEN`
+  - `SCHOOL_LATITUDE`
+  - `SCHOOL_LONGITUDE`
+  - `CIRCUIT_ARRIVAL_RADIUS_KM`
+- Si Mapbox no está configurado o falla, se usa fallback local con fórmula Haversine para no romper el flujo.
 
 ---
 
