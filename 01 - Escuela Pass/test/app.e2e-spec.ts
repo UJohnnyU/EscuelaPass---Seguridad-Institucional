@@ -536,4 +536,104 @@ describe('App (e2e)', () => {
     expect(res.body[0]).toHaveProperty('errorCount');
     expect(res.body[0]).toHaveProperty('createdAt');
   });
+
+  it('visitas, reuniones y horarios: padre solicita y staff responde', async () => {
+    const teacher = await sqlOne<{ teacher_id: string }>(
+      `SELECT t.id AS teacher_id
+       FROM teachers t
+       INNER JOIN users u ON u.id = t.user_id
+       WHERE u.email = $1`,
+      ['docente1@escuelapass.local']
+    );
+    const group = await sqlOne<{ group_id: string }>(
+      `SELECT g.id AS group_id
+       FROM groups g
+       WHERE g.name = '1A' AND g.school_year = '2026-2027'`
+    );
+    await db.query(
+      `INSERT INTO teacher_groups (teacher_id, group_id)
+       SELECT $1::uuid, $2::uuid
+       WHERE NOT EXISTS (
+         SELECT 1 FROM teacher_groups tg WHERE tg.teacher_id = $1::uuid AND tg.group_id = $2::uuid
+       )`,
+      [teacher.teacher_id, group.group_id]
+    );
+
+    const student = await sqlOne<{ id: string }>(
+      `SELECT s.id
+       FROM students s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE u.email = $1`,
+      ['alumno1@escuelapass.local']
+    );
+
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const docente = await login('docente1@escuelapass.local', 'Docente123*');
+
+    const visitDt = new Date();
+    visitDt.setDate(visitDt.getDate() + 7);
+
+    const visitRes = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/visits`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        studentId: student.id,
+        visitDatetime: visitDt.toISOString(),
+        reason: 'Entrega de documentos'
+      })
+      .expect(201);
+
+    const mineVisits = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/visits/me`)
+      .set(authHeader(padre.accessToken))
+      .expect(200);
+    expect(Array.isArray(mineVisits.body)).toBe(true);
+    expect(mineVisits.body.some((v: { id: string }) => v.id === visitRes.body.id)).toBe(true);
+
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/visits/${visitRes.body.id}/status`)
+      .set(authHeader(admin.accessToken))
+      .send({ status: 'APROBADA' })
+      .expect(200);
+
+    const meetDt = new Date();
+    meetDt.setDate(meetDt.getDate() + 14);
+
+    const meetingRes = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/meetings`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        teacherId: teacher.teacher_id,
+        studentId: student.id,
+        meetingDatetime: meetDt.toISOString(),
+        topic: 'Progreso académico'
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/meetings/${meetingRes.body.id}/status`)
+      .set(authHeader(docente.accessToken))
+      .send({ status: 'CONFIRMADA' })
+      .expect(200);
+
+    const slot = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/schedules`)
+      .set(authHeader(admin.accessToken))
+      .send({
+        groupId: group.group_id,
+        weekday: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+        room: 'A-101'
+      })
+      .expect(201);
+
+    const sched = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/schedules/groups/${group.group_id}`)
+      .set(authHeader(padre.accessToken))
+      .expect(200);
+    expect(Array.isArray(sched.body)).toBe(true);
+    expect(sched.body.some((s: { id: string }) => s.id === slot.body.id)).toBe(true);
+  });
 });

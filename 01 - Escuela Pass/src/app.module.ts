@@ -17,6 +17,9 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolModule } from './modules/school/school.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { VisitsModule } from './modules/visits/visits.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
+import { SchedulesModule } from './modules/schedules/schedules.module';
 
 @Module({
   imports: [
@@ -45,7 +48,10 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     ReportsModule,
     SchoolModule,
     ExportsModule,
-    DashboardModule
+    DashboardModule,
+    VisitsModule,
+    MeetingsModule,
+    SchedulesModule
   ],
   providers: [
     {

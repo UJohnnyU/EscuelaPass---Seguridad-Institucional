@@ -5,7 +5,9 @@ import { AccessEventEntity } from '../database/entities/access-event.entity';
 import { AdministrativeStaffEntity } from '../database/entities/administrative-staff.entity';
 import { CircuitRequestEntity } from '../database/entities/circuit-request.entity';
 import { GroupEntity } from '../database/entities/group.entity';
+import { ClassScheduleSlotEntity } from '../database/entities/class-schedule-slot.entity';
 import { ImportJobEntity } from '../database/entities/import-job.entity';
+import { ParentTeacherMeetingEntity } from '../database/entities/parent-teacher-meeting.entity';
 import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
@@ -21,6 +23,7 @@ import { StudentDepartureConsentEntity } from '../database/entities/student-depa
 import { StudentEntity } from '../database/entities/student.entity';
 import { TeacherEntity } from '../database/entities/teacher.entity';
 import { UserEntity } from '../database/entities/user.entity';
+import { VisitRequestEntity } from '../database/entities/visit-request.entity';
 
 export function buildTypeOrmConfig(): TypeOrmModuleOptions {
   return {
@@ -55,7 +58,10 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       GradeEntity,
       SubjectEntity,
       TeacherGroupEntity,
-      ImportJobEntity
+      ImportJobEntity,
+      VisitRequestEntity,
+      ParentTeacherMeetingEntity,
+      ClassScheduleSlotEntity
     ]
   };
 }

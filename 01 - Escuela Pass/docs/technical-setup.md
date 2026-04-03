@@ -25,6 +25,9 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
   - `notices` / `notifications`
   - `payments`
   - `attendance`
+  - `visits` (solicitudes de visita al plantel)
+  - `meetings` (reuniones padre-docente)
+  - `schedules` (franjas de horario por grupo)
 
 ## Endpoints iniciales
 
@@ -37,6 +40,9 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
 - `GET /api/v1/circuit-requests/today`
 - `GET /api/v1/school/groups` (gestión escolar)
 - `GET /api/v1/exports/attendance.csv` (CSV)
+- `POST /api/v1/visits`, `GET /api/v1/visits/me`, `GET /api/v1/visits`, `PATCH /api/v1/visits/:id/status`
+- `POST /api/v1/meetings`, `GET /api/v1/meetings/me`, `GET /api/v1/meetings`, `PATCH /api/v1/meetings/:id/status`
+- `GET /api/v1/schedules/groups/:groupId`, `POST|PATCH|DELETE /api/v1/schedules` (franjas)
 
 ## Variables de entorno
 
@@ -57,8 +63,10 @@ Editar `.env` (o copiar desde `.env.example`):
 
 1. Crear base de datos en PostgreSQL (ej. `escuela_pass`).
 2. Ejecutar en orden:
-   - `escuela_pass_schema_v3.sql`
+   - `escuela_pass_schema_v3.sql` (incluye tablas `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`)
    - `scripts/database/seed_dev.sql` (datos de prueba)
+
+   Bases ya creadas antes de esta versión: aplicar migración TypeORM `1775221171718-VisitsMeetingsSchedules` (`npm run migration:run`) o ejecutar manualmente el bloque SQL equivalente del esquema.
 
 ## Flujo QR/NFC web
 
@@ -101,6 +109,9 @@ Swagger: `http://localhost:3000/docs` — usar **Authorize** con `Bearer <access
 - `GET /circuit-requests/today`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - Rutas bajo `/school/*`: JWT + `ADMIN`, `ADMINISTRATIVO` (grupos, materias, alumnos, docentes, asignaciones `teacher_groups`).
 - `GET /exports/attendance.csv` y `GET /exports/grades.csv`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` (misma regla de grupo que reportes para docentes).
+- Visitas (`/visits`): `POST` y `GET /me` + `PADRE`; listado y cambio de estado + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` (este solo filas de alumnos de sus grupos en `teacher_groups`).
+- Reuniones (`/meetings`): `POST` y `GET /me` + `PADRE`; listado staff (`ADMIN`/`ADMINISTRATIVO` todo, `DOCENTE` solo donde es convocado); `PATCH :id/status` + docente convocado o administración.
+- Horarios (`/schedules`): alta/edición/baja + `ADMIN`, `ADMINISTRATIVO`; lectura por grupo + `PADRE` (hijo en el grupo), `DOCENTE` (asignación al grupo) o administración.
 
 ### Seguridad HTTP
 
@@ -405,6 +416,45 @@ Retorna KPI agregados para la fecha solicitada (o día actual):
 
 ---
 
+## Visitas, reuniones y horarios
+
+Tablas: `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`.
+
+**Visitas al plantel**
+
+| Metodo | Ruta | Rol |
+|--------|------|-----|
+| POST | `/visits` | PADRE (solo hijos en `student_parents`) |
+| GET | `/visits/me` | PADRE |
+| GET | `/visits` | ADMIN, ADMINISTRATIVO (todo); DOCENTE (solicitudes de alumnos de sus grupos) |
+| PATCH | `/visits/:id/status` | ADMIN, ADMINISTRATIVO; DOCENTE con misma regla de grupo |
+
+Estados `status`: `PENDIENTE`, `APROBADA`, `RECHAZADA`, `REALIZADA`, `CANCELADA`. El padre crea en `PENDIENTE`; staff actualiza con `PATCH` (body `{ "status": "APROBADA" }`, etc.).
+
+**Reuniones padre-docente**
+
+| Metodo | Ruta | Rol |
+|--------|------|-----|
+| POST | `/meetings` | PADRE; el `teacherId` debe tener fila en `teacher_groups` para el grupo del alumno |
+| GET | `/meetings/me` | PADRE |
+| GET | `/meetings` | ADMIN, ADMINISTRATIVO (todo); DOCENTE (solo reuniones donde es convocado) |
+| PATCH | `/meetings/:id/status` | ADMIN, ADMINISTRATIVO; DOCENTE solo en sus reuniones |
+
+Estados: `PENDIENTE`, `CONFIRMADA`, `REALIZADA`, `CANCELADA`. Body `PATCH`: `{ "status": "CONFIRMADA" }` (también `REALIZADA`, `CANCELADA`).
+
+**Horario por grupo**
+
+| Metodo | Ruta | Rol |
+|--------|------|-----|
+| GET | `/schedules/groups/:groupId` | ADMIN, ADMINISTRATIVO; DOCENTE con `teacher_groups`; PADRE con hijo en ese grupo |
+| POST | `/schedules` | ADMIN, ADMINISTRATIVO |
+| PATCH | `/schedules/:id` | ADMIN, ADMINISTRATIVO |
+| DELETE | `/schedules/:id` | ADMIN, ADMINISTRATIVO |
+
+Body `POST`: `groupId`, `weekday` (0=domingo … 6=sábado), `startTime` / `endTime` (`HH:mm` o `HH:mm:ss`), opcional `subjectId`, `teacherId`, `room`.
+
+---
+
 ## Migraciones TypeORM (baseline)
 
 El proyecto mantiene `escuela_pass_schema_v3.sql` como esquema inicial y, desde ahora, usa migraciones TypeORM para cambios incrementales.
@@ -422,6 +472,7 @@ Archivos clave:
 - DataSource CLI: `src/config/typeorm.datasource.ts`
 - Carpeta de migraciones: `src/database/migrations`
 - Baseline inicial: `src/database/migrations/1712050000000-BaselineSchema.ts`
+- Visitas/reuniones/horarios: `src/database/migrations/1775221171718-VisitsMeetingsSchedules.ts`
 
 Prerequisito de permisos (usuario de DB que ejecuta migraciones):
 
