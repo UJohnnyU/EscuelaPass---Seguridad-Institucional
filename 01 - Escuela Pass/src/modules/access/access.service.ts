@@ -15,6 +15,7 @@ import { AccessEventType } from '../../database/entities/access-event.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { RegisterAccessEventDto } from './dto/register-access-event.dto';
+import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
 @Injectable()
 export class AccessService {
@@ -28,7 +29,8 @@ export class AccessService {
     @InjectRepository(StudentEntity)
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(UserEntity)
-    private readonly usersRepository: Repository<UserEntity>
+    private readonly usersRepository: Repository<UserEntity>,
+    private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
   async scanAccess(payload: RegisterAccessEventDto) {
@@ -98,6 +100,12 @@ export class AccessService {
   ) {
     const student = await this.studentsRepository.findOne({ where: { userId } });
     if (!student) return;
+
+    const cal = await this.schoolCalendarService.getNonInstructionalForDate(
+      dateStr,
+      student.groupId ?? null
+    );
+    if (cal.nonInstructional) return;
 
     const autoNote = `AUTO_ACCESS_SCAN:${method}:ENTRY`;
     const existing = await this.attendanceRepository.findOne({

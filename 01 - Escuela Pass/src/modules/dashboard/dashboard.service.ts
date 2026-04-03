@@ -18,6 +18,7 @@ import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
 @Injectable()
 export class DashboardService {
@@ -37,11 +38,13 @@ export class DashboardService {
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
     @InjectRepository(UserEntity)
-    private readonly usersRepository: Repository<UserEntity>
+    private readonly usersRepository: Repository<UserEntity>,
+    private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
   async summary(dateStr?: string) {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const nonInstructionalDay = await this.schoolCalendarService.isGloballyNonInstructional(date);
 
     const [students, teachers, groups, usersActive] = await Promise.all([
       this.studentsRepository.count(),
@@ -117,6 +120,7 @@ export class DashboardService {
     return {
       generatedAt: new Date().toISOString(),
       date,
+      nonInstructionalDay,
       entities: {
         students,
         teachers,

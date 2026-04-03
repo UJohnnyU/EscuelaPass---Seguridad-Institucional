@@ -141,6 +141,51 @@ describe('App (e2e)', () => {
     expect(second.body.status).toBe('RETARDO');
   });
 
+  it('calendario: día sin clases bloquea registro de asistencia y export CSV', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+
+    const student = await sqlOne<{ id: string; group_id: string | null }>(
+      `SELECT s.id, s.group_id
+       FROM students s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE u.email = $1`,
+      ['alumno1@escuelapass.local']
+    );
+
+    const date = new Date().toISOString().slice(0, 10);
+
+    const created = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/calendar/non-instructional-days`)
+      .set(authHeader(admin.accessToken))
+      .send({ exceptionDate: date, reason: 'e2e calendario' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/attendance/register`)
+      .set(authHeader(admin.accessToken))
+      .send({ studentId: student.id, status: 'PRESENTE', attendanceDate: date })
+      .expect(400);
+
+    if (student.group_id) {
+      await request(app.getHttpServer())
+        .get(`/${apiPrefix}/exports/attendance.csv`)
+        .query({ groupId: student.group_id, date })
+        .set(authHeader(admin.accessToken))
+        .expect(400);
+    }
+
+    await request(app.getHttpServer())
+      .delete(`/${apiPrefix}/calendar/non-instructional-days/${created.body.id}`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/attendance/register`)
+      .set(authHeader(admin.accessToken))
+      .send({ studentId: student.id, status: 'PRESENTE', attendanceDate: date, notes: 'post-cal' })
+      .expect(201);
+  });
+
   it('access scan: ENTRY de alumno por QR marca asistencia automatica', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
 

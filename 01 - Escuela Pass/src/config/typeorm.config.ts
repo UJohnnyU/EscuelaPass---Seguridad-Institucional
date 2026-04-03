@@ -19,10 +19,12 @@ import { PaymentRecordEntity } from '../database/entities/payment-record.entity'
 import { ParentEntity } from '../database/entities/parent.entity';
 import { PickupAuthorizationEntity } from '../database/entities/pickup-authorization.entity';
 import { RefreshTokenEntity } from '../database/entities/refresh-token.entity';
+import { SchoolNonInstructionalDayEntity } from '../database/entities/school-non-instructional-day.entity';
 import { StudentDepartureConsentEntity } from '../database/entities/student-departure-consent.entity';
 import { StudentEntity } from '../database/entities/student.entity';
 import { TeacherEntity } from '../database/entities/teacher.entity';
 import { UserEntity } from '../database/entities/user.entity';
+import { UserFcmTokenEntity } from '../database/entities/user-fcm-token.entity';
 import { VisitRequestEntity } from '../database/entities/visit-request.entity';
 
 export function buildTypeOrmConfig(): TypeOrmModuleOptions {
@@ -61,7 +63,9 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       ImportJobEntity,
       VisitRequestEntity,
       ParentTeacherMeetingEntity,
-      ClassScheduleSlotEntity
+      ClassScheduleSlotEntity,
+      UserFcmTokenEntity,
+      SchoolNonInstructionalDayEntity
     ]
   };
 }

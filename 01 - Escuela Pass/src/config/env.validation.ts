@@ -53,6 +53,16 @@ class EnvVars {
   @IsString()
   @IsNotEmpty()
   JWT_REFRESH_EXPIRES_IN!: string;
+
+  /** Ruta absoluta al JSON de cuenta de servicio de Firebase (alternativa a FIREBASE_SERVICE_ACCOUNT_JSON). */
+  @IsString()
+  @IsOptional()
+  FIREBASE_SERVICE_ACCOUNT_PATH?: string;
+
+  /** JSON de cuenta de servicio (texto) o mismo contenido en base64 (producción/CI sin archivo). */
+  @IsString()
+  @IsOptional()
+  FIREBASE_SERVICE_ACCOUNT_JSON?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

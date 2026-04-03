@@ -20,6 +20,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { VisitsModule } from './modules/visits/visits.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
+import { SchoolCalendarModule } from './modules/school-calendar/school-calendar.module';
 
 @Module({
   imports: [
@@ -51,7 +52,8 @@ import { SchedulesModule } from './modules/schedules/schedules.module';
     DashboardModule,
     VisitsModule,
     MeetingsModule,
-    SchedulesModule
+    SchedulesModule,
+    SchoolCalendarModule
   ],
   providers: [
     {

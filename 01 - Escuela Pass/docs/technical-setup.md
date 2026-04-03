@@ -28,6 +28,7 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
   - `visits` (solicitudes de visita al plantel)
   - `meetings` (reuniones padre-docente)
   - `schedules` (franjas de horario por grupo)
+  - `school-calendar` (días sin clases: feriados / suspensión; no se registra asistencia ni cuenta en exportes)
 
 ## Endpoints iniciales
 
@@ -43,6 +44,9 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
 - `POST /api/v1/visits`, `GET /api/v1/visits/me`, `GET /api/v1/visits`, `PATCH /api/v1/visits/:id/status`
 - `POST /api/v1/meetings`, `GET /api/v1/meetings/me`, `GET /api/v1/meetings`, `PATCH /api/v1/meetings/:id/status`
 - `GET /api/v1/schedules/groups/:groupId`, `POST|PATCH|DELETE /api/v1/schedules` (franjas)
+- `GET|POST|DELETE /api/v1/calendar/non-instructional-days` (administración: calendario de días sin clases; alcance global o por `groupId`)
+
+**Nota:** `GET /api/v1/attendance/groups/:groupId` y `GET /api/v1/attendance/parent/my-children` devuelven un objeto `{ date, nonInstructionalDay, reasons?, records }` (antes era solo el arreglo de registros; el listado va en `records`).
 
 ## Variables de entorno
 
@@ -63,10 +67,10 @@ Editar `.env` (o copiar desde `.env.example`):
 
 1. Crear base de datos en PostgreSQL (ej. `escuela_pass`).
 2. Ejecutar en orden:
-   - `escuela_pass_schema_v3.sql` (incluye tablas `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`)
+   - `escuela_pass_schema_v3.sql` (incluye tablas `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`, `school_non_instructional_days`)
    - `scripts/database/seed_dev.sql` (datos de prueba)
 
-   Bases ya creadas antes de esta versión: aplicar migración TypeORM `1775221171718-VisitsMeetingsSchedules` (`npm run migration:run`) o ejecutar manualmente el bloque SQL equivalente del esquema.
+   Bases ya creadas antes de esta versión: aplicar migraciones TypeORM pendientes (`npm run migration:run`), p. ej. `1775221171718-VisitsMeetingsSchedules`, `1775700000000-SchoolNonInstructionalDays`, o ejecutar manualmente el bloque SQL equivalente del esquema.
 
 ## Flujo QR/NFC web
 
@@ -75,7 +79,7 @@ Editar `.env` (o copiar desde `.env.example`):
 3. Backend valida en `access_credentials`.
 4. Si es valido, registra en `access_events`.
 5. Para alumno, se respeta 1 `ENTRY` y 1 `EXIT` por dia.
-6. Si el alumno escanea `ENTRY` por QR/NFC, se crea/actualiza automaticamente su asistencia del dia en `attendance_records` con estado `PRESENTE` (traza en `notes`).
+6. Si el alumno escanea `ENTRY` por QR/NFC, se crea/actualiza automaticamente su asistencia del dia en `attendance_records` con estado `PRESENTE` (traza en `notes`), salvo que la fecha figure en `school_non_instructional_days` para toda la escuela o para el grupo del alumno.
 
 Referencia: [qrcode.js](https://davidshimjs.github.io/qrcodejs/)
 
@@ -155,7 +159,11 @@ Si hay datos viejos en `refresh_tokens`, en desarrollo se puede vaciar: `DELETE 
 | POST | `/notices` | JWT + ADMIN, ADMINISTRATIVO, DOCENTE | Crea aviso y genera filas en `notifications` segun `targetType` (ALL / GROUP / USER). |
 | GET | `/notices` | JWT + ADMIN, ADMINISTRATIVO, DOCENTE | Lista avisos; docente solo ve los que el creo. |
 | GET | `/notifications/me` | JWT (cualquier rol) | Bandeja del usuario. |
+| POST | `/notifications/fcm/register` | JWT | Registra token de **Firebase Cloud Messaging** del dispositivo (`token`, opcional `platform`). |
+| POST | `/notifications/fcm/unregister` | JWT | Elimina el token FCM del usuario (body `{ "token": "..." }`). |
 | PATCH | `/notifications/:id/read` | JWT | Marca leida. |
+
+**Push (FCM):** al crear un aviso (`POST /notices`), además de las filas en `notifications`, el backend intenta enviar un mensaje push a cada destinatario que tenga tokens en `user_fcm_tokens`. Requiere credenciales de cuenta de servicio en `.env` (`FIREBASE_SERVICE_ACCOUNT_PATH` o `FIREBASE_SERVICE_ACCOUNT_JSON`). Sin credenciales, la API sigue funcionando; solo no habrá push.
 
 Reglas docente: no puede `ALL`; en `GROUP` debe estar en `teacher_groups`; en `USER` el destino debe ser alumno o padre de un alumno de sus grupos.
 
@@ -473,6 +481,7 @@ Archivos clave:
 - Carpeta de migraciones: `src/database/migrations`
 - Baseline inicial: `src/database/migrations/1712050000000-BaselineSchema.ts`
 - Visitas/reuniones/horarios: `src/database/migrations/1775221171718-VisitsMeetingsSchedules.ts`
+- Tokens FCM: `src/database/migrations/1775500000000-UserFcmTokens.ts`
 
 Prerequisito de permisos (usuario de DB que ejecuta migraciones):
 

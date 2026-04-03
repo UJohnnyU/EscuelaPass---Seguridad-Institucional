@@ -6,6 +6,7 @@ import { CircuitRequestEntity, CircuitStatus } from '../../database/entities/cir
 import { DebtEntity, PaymentStatus } from '../../database/entities/debt.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
 @Injectable()
 export class ReportsService {
@@ -17,12 +18,15 @@ export class ReportsService {
     @InjectRepository(DebtEntity)
     private readonly debtsRepository: Repository<DebtEntity>,
     @InjectRepository(CircuitRequestEntity)
-    private readonly circuitRepository: Repository<CircuitRequestEntity>
+    private readonly circuitRepository: Repository<CircuitRequestEntity>,
+    private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
   async attendanceToday(groupId: string, userId: string, role: UserRole, dateStr?: string) {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
     await this.assertCanViewGroup(userId, role, groupId);
+
+    const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
 
     const rows = await this.attendanceRepository
       .createQueryBuilder('a')
@@ -40,6 +44,8 @@ export class ReportsService {
     return {
       date,
       groupId,
+      nonInstructionalDay: cal.nonInstructional,
+      reasons: cal.reasons.length ? cal.reasons : undefined,
       totalRecords: total,
       byStatus,
       data: rows

@@ -7,6 +7,7 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { FcmModule } from '../fcm/fcm.module';
 import { NotificationsController } from './notifications.controller';
 import { NoticesController } from './notices.controller';
 import { NoticesService } from './notices.service';
@@ -14,6 +15,7 @@ import { NoticesService } from './notices.service';
 @Module({
   imports: [
     AuthModule,
+    FcmModule,
     TypeOrmModule.forFeature([
       NoticeEntity,
       NotificationEntity,

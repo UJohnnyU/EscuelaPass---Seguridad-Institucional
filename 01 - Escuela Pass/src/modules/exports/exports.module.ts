@@ -4,12 +4,14 @@ import { AttendanceRecordEntity } from '../../database/entities/attendance-recor
 import { GradeEntity } from '../../database/entities/grade.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { AuthModule } from '../auth/auth.module';
+import { SchoolCalendarModule } from '../school-calendar/school-calendar.module';
 import { ExportsController } from './exports.controller';
 import { ExportsService } from './exports.service';
 
 @Module({
   imports: [
     AuthModule,
+    SchoolCalendarModule,
     TypeOrmModule.forFeature([AttendanceRecordEntity, GradeEntity, TeacherEntity])
   ],
   controllers: [ExportsController],

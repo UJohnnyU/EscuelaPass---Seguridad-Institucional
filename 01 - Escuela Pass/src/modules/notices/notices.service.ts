@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -13,9 +14,12 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { CreateNoticeDto } from './dto/create-notice.dto';
+import { FcmService } from '../fcm/fcm.service';
 
 @Injectable()
 export class NoticesService {
+  private readonly logger = new Logger(NoticesService.name);
+
   constructor(
     @InjectRepository(NoticeEntity)
     private readonly noticesRepository: Repository<NoticeEntity>,
@@ -30,7 +34,8 @@ export class NoticesService {
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
     @InjectDataSource()
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly fcmService: FcmService
   ) {}
 
   async create(dto: CreateNoticeDto, createdByUserId: string, role: UserRole) {
@@ -71,7 +76,10 @@ export class NoticesService {
           deliveryStatus: 'SENT'
         })
       );
-      await this.notificationsRepository.save(rows);
+      const savedRows = await this.notificationsRepository.save(rows);
+      void this.fcmService.sendPushForNotifications(savedRows).catch((err: unknown) => {
+        this.logger.warn(`Push FCM no enviado: ${String(err)}`);
+      });
     }
     return {
       message: 'Aviso creado y notificaciones generadas',

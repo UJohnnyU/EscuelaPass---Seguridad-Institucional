@@ -12,6 +12,7 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { RegisterAttendanceDto } from './dto/register-attendance.dto';
+import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
 @Injectable()
 export class AttendanceService {
@@ -23,7 +24,8 @@ export class AttendanceService {
     @InjectRepository(TeacherEntity)
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(ParentEntity)
-    private readonly parentsRepository: Repository<ParentEntity>
+    private readonly parentsRepository: Repository<ParentEntity>,
+    private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
   async register(dto: RegisterAttendanceDto, registeredByUserId: string, role: UserRole) {
@@ -33,6 +35,11 @@ export class AttendanceService {
     const dateStr = dto.attendanceDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
 
     await this.assertCanRegisterForStudent(registeredByUserId, role, student);
+    const cal = await this.schoolCalendarService.getNonInstructionalForDate(
+      dateStr,
+      student.groupId ?? null
+    );
+    this.schoolCalendarService.assertInstructionalDay(cal);
 
     const existing = await this.attendanceRepository.findOne({
       where: { studentId: student.id, attendanceDate: dateStr }
@@ -61,13 +68,21 @@ export class AttendanceService {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
     await this.assertCanViewGroup(userId, role, groupId);
 
-    return this.attendanceRepository
+    const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
+    const records = await this.attendanceRepository
       .createQueryBuilder('a')
       .innerJoin('students', 's', 's.id = a.student_id')
       .where('s.group_id = :gid', { gid: groupId })
       .andWhere('a.attendance_date = :d', { d: date })
       .orderBy('a.created_at', 'ASC')
       .getMany();
+
+    return {
+      date,
+      nonInstructionalDay: cal.nonInstructional,
+      reasons: cal.reasons.length ? cal.reasons : undefined,
+      records
+    };
   }
 
   async listMyChildrenAttendance(parentUserId: string, dateStr: string | undefined) {
@@ -76,7 +91,23 @@ export class AttendanceService {
 
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
 
-    return this.attendanceRepository
+    const children = await this.studentsRepository
+      .createQueryBuilder('s')
+      .innerJoin('student_parents', 'sp', 'sp.student_id = s.id AND sp.parent_id = :pid', {
+        pid: parent.id
+      })
+      .getMany();
+
+    const flags = await Promise.all(
+      children.map((st) =>
+        this.schoolCalendarService.getNonInstructionalForDate(date, st.groupId ?? null)
+      )
+    );
+    const nonInstructionalDay =
+      children.length > 0 && flags.length > 0 && flags.every((f) => f.nonInstructional);
+    const reasonsMerged = [...new Set(flags.flatMap((f) => f.reasons))];
+
+    const records = await this.attendanceRepository
       .createQueryBuilder('a')
       .innerJoin('students', 's', 's.id = a.student_id')
       .innerJoin('student_parents', 'sp', 'sp.student_id = s.id AND sp.parent_id = :pid', {
@@ -85,6 +116,13 @@ export class AttendanceService {
       .where('a.attendance_date = :d', { d: date })
       .orderBy('s.matricula', 'ASC')
       .getMany();
+
+    return {
+      date,
+      nonInstructionalDay,
+      reasons: reasonsMerged.length ? reasonsMerged : undefined,
+      records
+    };
   }
 
   private async assertCanRegisterForStudent(

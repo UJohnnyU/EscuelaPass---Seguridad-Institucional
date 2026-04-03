@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
@@ -7,6 +7,7 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
 function csvEscape(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return '';
@@ -31,12 +32,20 @@ export class ExportsService {
     @InjectRepository(GradeEntity)
     private readonly gradesRepository: Repository<GradeEntity>,
     @InjectRepository(TeacherEntity)
-    private readonly teachersRepository: Repository<TeacherEntity>
+    private readonly teachersRepository: Repository<TeacherEntity>,
+    private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
   async exportAttendanceCsv(groupId: string, userId: string, role: UserRole, dateStr?: string) {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
     await this.assertCanViewGroup(userId, role, groupId);
+
+    const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
+    if (cal.nonInstructional) {
+      throw new BadRequestException(
+        'La fecha está marcada como día sin clases; no aplica exportación de asistencia para ese día.'
+      );
+    }
 
     const raw = await this.attendanceRepository
       .createQueryBuilder('a')

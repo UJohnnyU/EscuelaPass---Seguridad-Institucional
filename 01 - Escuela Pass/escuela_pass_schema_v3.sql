@@ -333,6 +333,26 @@ CREATE TABLE IF NOT EXISTS attendance_records (
     UNIQUE (student_id, attendance_date)
 );
 
+CREATE TABLE IF NOT EXISTS school_non_instructional_days (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    exception_date DATE NOT NULL,
+    group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+    reason TEXT,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_school_non_instr_global
+ON school_non_instructional_days (exception_date)
+WHERE group_id IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_school_non_instr_group
+ON school_non_instructional_days (exception_date, group_id)
+WHERE group_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_school_non_instr_date ON school_non_instructional_days (exception_date);
+
 CREATE TABLE IF NOT EXISTS grades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -403,6 +423,17 @@ CREATE TABLE IF NOT EXISTS class_schedule_slots (
     CHECK (end_time > start_time)
 );
 
+-- Tokens Firebase Cloud Messaging por usuario (dispositivos)
+CREATE TABLE IF NOT EXISTS user_fcm_tokens (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    platform VARCHAR(32),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (token)
+);
+
 CREATE INDEX IF NOT EXISTS idx_access_events_user_date ON access_events(user_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_debts_student ON debts(student_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
@@ -415,3 +446,4 @@ CREATE INDEX IF NOT EXISTS idx_visit_requests_student ON visit_requests(student_
 CREATE INDEX IF NOT EXISTS idx_meetings_parent ON parent_teacher_meetings(parent_id);
 CREATE INDEX IF NOT EXISTS idx_meetings_teacher ON parent_teacher_meetings(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_slots_group ON class_schedule_slots(group_id);
+CREATE INDEX IF NOT EXISTS idx_user_fcm_tokens_user ON user_fcm_tokens(user_id);
