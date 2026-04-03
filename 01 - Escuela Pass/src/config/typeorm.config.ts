@@ -5,6 +5,7 @@ import { AccessEventEntity } from '../database/entities/access-event.entity';
 import { AdministrativeStaffEntity } from '../database/entities/administrative-staff.entity';
 import { CircuitRequestEntity } from '../database/entities/circuit-request.entity';
 import { GroupEntity } from '../database/entities/group.entity';
+import { ImportJobEntity } from '../database/entities/import-job.entity';
 import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
@@ -53,7 +54,8 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       AttendanceRecordEntity,
       GradeEntity,
       SubjectEntity,
-      TeacherGroupEntity
+      TeacherGroupEntity,
+      ImportJobEntity
     ]
   };
 }

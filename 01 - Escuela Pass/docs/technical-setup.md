@@ -343,7 +343,7 @@ Ejemplos:
   - `GET /school/import/templates/students.csv`
   - `GET /school/import/templates/teachers.csv`
   - `GET /school/import/templates/teacher-assignments.csv`
-- Historial de cargas (memoria de ejecución):
+- Historial de cargas (persistido en tabla `import_jobs`):
   - `GET /school/import/history?limit=20`
 
 Cabeceras esperadas por CSV:

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GroupEntity } from '../../database/entities/group.entity';
+import { ImportJobEntity } from '../../database/entities/import-job.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { SubjectEntity } from '../../database/entities/subject.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
@@ -19,7 +20,8 @@ import { SchoolService } from './school.service';
       StudentEntity,
       TeacherEntity,
       TeacherGroupEntity,
-      UserEntity
+      UserEntity,
+      ImportJobEntity
     ])
   ],
   controllers: [SchoolController],

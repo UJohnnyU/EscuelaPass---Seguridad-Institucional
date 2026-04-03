@@ -338,9 +338,21 @@ CREATE TABLE IF NOT EXISTS grades (
     UNIQUE (student_id, subject, period, assessment_name)
 );
 
+CREATE TABLE IF NOT EXISTS import_jobs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    kind VARCHAR(50) NOT NULL,
+    total_rows INTEGER NOT NULL CHECK (total_rows >= 0),
+    created_count INTEGER NOT NULL CHECK (created_count >= 0),
+    error_count INTEGER NOT NULL CHECK (error_count >= 0),
+    dry_run BOOLEAN NOT NULL DEFAULT FALSE,
+    errors_json JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_access_events_user_date ON access_events(user_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_debts_student ON debts(student_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, attendance_date);
 CREATE INDEX IF NOT EXISTS idx_grades_student ON grades(student_id);
 CREATE INDEX IF NOT EXISTS idx_grades_group ON grades(group_id);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_kind_created ON import_jobs(kind, created_at DESC);

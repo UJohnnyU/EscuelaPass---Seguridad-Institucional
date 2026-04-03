@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { IsNull, Repository } from 'typeorm';
 import { GroupEntity } from '../../database/entities/group.entity';
+import { ImportJobEntity } from '../../database/entities/import-job.entity';
 import { ShiftType } from '../../database/entities/shift-type.enum';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { SubjectEntity } from '../../database/entities/subject.entity';
@@ -30,20 +31,8 @@ type CsvImportResult = {
   dryRun: boolean;
 };
 
-type CsvImportLogEntry = {
-  id: string;
-  kind: 'groups' | 'students' | 'teachers' | 'teacher-assignments';
-  createdAt: string;
-  totalRows: number;
-  created: number;
-  errorCount: number;
-  dryRun: boolean;
-};
-
 @Injectable()
 export class SchoolService {
-  private readonly importHistory: CsvImportLogEntry[] = [];
-
   constructor(
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
@@ -56,7 +45,9 @@ export class SchoolService {
     @InjectRepository(TeacherGroupEntity)
     private readonly teacherGroupsRepository: Repository<TeacherGroupEntity>,
     @InjectRepository(UserEntity)
-    private readonly usersRepository: Repository<UserEntity>
+    private readonly usersRepository: Repository<UserEntity>,
+    @InjectRepository(ImportJobEntity)
+    private readonly importJobsRepository: Repository<ImportJobEntity>
   ) {}
 
   // --- Grupos ---
@@ -381,7 +372,7 @@ export class SchoolService {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    this.pushImportLog('groups', result);
+    await this.pushImportLog('groups', result);
     return result;
   }
 
@@ -407,7 +398,7 @@ export class SchoolService {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    this.pushImportLog('students', result);
+    await this.pushImportLog('students', result);
     return result;
   }
 
@@ -431,7 +422,7 @@ export class SchoolService {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    this.pushImportLog('teachers', result);
+    await this.pushImportLog('teachers', result);
     return result;
   }
 
@@ -455,13 +446,25 @@ export class SchoolService {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    this.pushImportLog('teacher-assignments', result);
+    await this.pushImportLog('teacher-assignments', result);
     return result;
   }
 
-  getImportHistory(limit = 20) {
+  async getImportHistory(limit = 20) {
     const safeLimit = Math.max(1, Math.min(200, limit));
-    return this.importHistory.slice(0, safeLimit);
+    const rows = await this.importJobsRepository.find({
+      order: { createdAt: 'DESC' },
+      take: safeLimit
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      createdAt: row.createdAt.toISOString(),
+      totalRows: row.totalRows,
+      created: row.createdCount,
+      errorCount: row.errorCount,
+      dryRun: row.dryRun
+    }));
   }
 
   getTemplateGroupsCsv() {
@@ -579,18 +582,18 @@ export class SchoolService {
     return 'Error desconocido al procesar fila';
   }
 
-  private pushImportLog(kind: CsvImportLogEntry['kind'], result: CsvImportResult) {
-    this.importHistory.unshift({
-      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+  private async pushImportLog(
+    kind: 'groups' | 'students' | 'teachers' | 'teacher-assignments',
+    result: CsvImportResult
+  ) {
+    const row = this.importJobsRepository.create({
       kind,
-      createdAt: new Date().toISOString(),
       totalRows: result.totalRows,
-      created: result.created,
+      createdCount: result.created,
       errorCount: result.errors.length,
-      dryRun: result.dryRun
+      dryRun: result.dryRun,
+      errorsJson: result.errors.length ? result.errors : null
     });
-    if (this.importHistory.length > 500) {
-      this.importHistory.length = 500;
-    }
+    await this.importJobsRepository.save(row);
   }
 }
