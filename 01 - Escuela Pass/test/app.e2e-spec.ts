@@ -406,6 +406,41 @@ describe('App (e2e)', () => {
     expect(['mapbox', 'haversine']).toContain(patch.body.distanceSource);
   });
 
+  it('circuit: padre confirma entrega de su solicitud', async () => {
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const parent = await sqlOne<{ parent_id: string }>(
+      `SELECT p.id AS parent_id
+       FROM parents p
+       INNER JOIN users u ON u.id = p.user_id
+       WHERE u.email = $1`,
+      ['padre1@escuelapass.local']
+    );
+    const student = await sqlOne<{ id: string }>(
+      `SELECT s.id
+       FROM students s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE u.email = $1`,
+      ['alumno1@escuelapass.local']
+    );
+
+    const created = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/circuit-requests`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        studentId: student.id,
+        requestedByParentId: parent.parent_id,
+        pickupMethod: 'A_PIE'
+      })
+      .expect(201);
+
+    const confirmed = await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/confirm-delivered`)
+      .set(authHeader(padre.accessToken))
+      .expect(200);
+
+    expect(confirmed.body.status).toBe('ENTREGADO');
+  });
+
   it('dashboard: admin consulta resumen y padre recibe 403', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
     const padre = await login('padre1@escuelapass.local', 'Padre123*');

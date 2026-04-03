@@ -33,6 +33,7 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
 - `POST /api/v1/access-events/scan`
 - `POST /api/v1/circuit-requests`
 - `PATCH /api/v1/circuit-requests/:id/gps` (padre solicitante)
+- `PATCH /api/v1/circuit-requests/:id/confirm-delivered` (padre solicitante o staff)
 - `GET /api/v1/circuit-requests/today`
 - `GET /api/v1/school/groups` (gestión escolar)
 - `GET /api/v1/exports/attendance.csv` (CSV)
@@ -96,6 +97,7 @@ Swagger: `http://localhost:3000/docs` — usar **Authorize** con `Bearer <access
 - `POST /access-events/scan`: JWT + roles `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - `POST /circuit-requests`: JWT + `PADRE`, `ADMIN`, `ADMINISTRATIVO`.
 - `PATCH /circuit-requests/:id/gps`: JWT + `PADRE` (solo el padre que creó la solicitud).
+- `PATCH /circuit-requests/:id/confirm-delivered`: JWT + `PADRE`, `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - `GET /circuit-requests/today`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - Rutas bajo `/school/*`: JWT + `ADMIN`, `ADMINISTRATIVO` (grupos, materias, alumnos, docentes, asignaciones `teacher_groups`).
 - `GET /exports/attendance.csv` y `GET /exports/grades.csv`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` (misma regla de grupo que reportes para docentes).
@@ -381,6 +383,7 @@ El padre que creó la solicitud puede enviar o actualizar coordenadas mientras e
   - `SCHOOL_LONGITUDE`
   - `CIRCUIT_ARRIVAL_RADIUS_KM`
 - Si Mapbox no está configurado o falla, se usa fallback local con fórmula Haversine para no romper el flujo.
+- Confirmación de entrega: `PATCH /circuit-requests/:id/confirm-delivered` (padre dueño de la solicitud o staff) para cerrar el flujo en `ENTREGADO`.
 
 ---
 

@@ -59,4 +59,13 @@ export class CircuitController {
   cancel(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() req: Request & { user: JwtUser }) {
     return this.circuitService.cancel(id, req.user.userId);
   }
+
+  @Patch(':id/confirm-delivered')
+  @Roles(UserRole.PADRE, UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  confirmDelivered(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.circuitService.confirmDelivered(id, req.user.userId, req.user.role);
+  }
 }

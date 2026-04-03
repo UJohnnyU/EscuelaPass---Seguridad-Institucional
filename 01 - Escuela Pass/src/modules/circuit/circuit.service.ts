@@ -126,6 +126,36 @@ export class CircuitService {
     return { message: 'Solicitud cancelada', id: saved.id, status: saved.status };
   }
 
+  async confirmDelivered(id: string, userId: string, role: UserRole) {
+    const req = await this.findById(id);
+
+    if (role === UserRole.PADRE) {
+      const parent = await this.parentsRepository.findOne({ where: { userId } });
+      if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+      if (req.requestedByParentId !== parent.id) {
+        throw new ForbiddenException('No puedes confirmar la entrega de una solicitud ajena');
+      }
+    } else if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO && role !== UserRole.DOCENTE) {
+      throw new ForbiddenException('No autorizado para confirmar entrega');
+    }
+
+    if (req.status === CircuitStatus.CANCELADO) {
+      throw new BadRequestException('No se puede confirmar entrega en solicitud cancelada');
+    }
+    if (req.status === CircuitStatus.ENTREGADO) {
+      return { message: 'Solicitud ya estaba entregada', id: req.id, status: req.status };
+    }
+
+    req.status = CircuitStatus.ENTREGADO;
+    const saved = await this.circuitRepository.save(req);
+    return {
+      message: 'Entrega confirmada',
+      id: saved.id,
+      status: saved.status,
+      confirmedByRole: role
+    };
+  }
+
   async updateStatus(id: string, dto: UpdateCircuitStatusDto, userId: string, role: UserRole) {
     if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO && role !== UserRole.DOCENTE) {
       throw new ForbiddenException('No autorizado a cambiar el estado del circuito');
