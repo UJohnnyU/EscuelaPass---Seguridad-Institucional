@@ -376,14 +376,18 @@ Cabeceras esperadas por CSV:
 
 ---
 
-## Exportaciones CSV (`/exports`)
+## Exportaciones CSV y Excel (`/exports`)
 
-Respuesta `Content-Type: text/csv; charset=utf-8` (UTF-8 con BOM para Excel).
+**CSV:** respuesta `Content-Type: text/csv; charset=utf-8` (UTF-8 con BOM para abrir en Excel).
+
+**Excel (.xlsx):** `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` y `Content-Disposition: attachment` con nombre sugerido (`asistencia-YYYY-MM-DD.xlsx`, `calificaciones-....xlsx`). Mismos datos y reglas que el CSV (incluida la validación de día sin clases para asistencia).
 
 | Metodo | Ruta | Rol |
 |--------|------|-----|
 | GET | `/exports/attendance.csv?groupId=UUID&date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| GET | `/exports/attendance.xlsx?groupId=UUID&date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO, DOCENTE |
 | GET | `/exports/grades.csv?groupId=UUID&period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| GET | `/exports/grades.xlsx?groupId=UUID&period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
 
 Los filtros `period` y `subject` en calificaciones son opcionales. Para `DOCENTE` aplica la misma regla que en reportes: solo grupos donde tenga fila en `teacher_groups`.
 

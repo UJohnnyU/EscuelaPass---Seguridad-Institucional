@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import ExcelJS from 'exceljs';
 import { Repository } from 'typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { GradeEntity } from '../../database/entities/grade.entity';
@@ -24,6 +25,26 @@ function rowsToCsv(headers: string[], rows: Record<string, string | number | nul
   return '\uFEFF' + lines.join('\r\n');
 }
 
+type AttendanceExportRow = {
+  matricula: string;
+  full_name: string;
+  attendance_date: string;
+  status: string;
+  notes: string | null;
+};
+
+type GradesExportRow = {
+  matricula: string;
+  full_name: string;
+  subject: string;
+  period: string;
+  assessment_name: string;
+  score: string | number;
+  max_score: string | number;
+  notes: string | null;
+  graded_at: string;
+};
+
 @Injectable()
 export class ExportsService {
   constructor(
@@ -37,6 +58,45 @@ export class ExportsService {
   ) {}
 
   async exportAttendanceCsv(groupId: string, userId: string, role: UserRole, dateStr?: string) {
+    const { headers, rows } = await this.loadAttendanceExport(groupId, userId, role, dateStr);
+    return rowsToCsv(headers, rows);
+  }
+
+  async exportAttendanceXlsx(groupId: string, userId: string, role: UserRole, dateStr?: string) {
+    const { headers, rows, date } = await this.loadAttendanceExport(groupId, userId, role, dateStr);
+    const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Asistencia');
+    return { buffer, filename: `asistencia-${date}.xlsx` };
+  }
+
+  async exportGradesCsv(groupId: string, userId: string, role: UserRole, period?: string, subject?: string) {
+    const { headers, rows } = await this.loadGradesExport(groupId, userId, role, period, subject);
+    return rowsToCsv(headers, rows);
+  }
+
+  async exportGradesXlsx(
+    groupId: string,
+    userId: string,
+    role: UserRole,
+    period?: string,
+    subject?: string
+  ) {
+    const { headers, rows } = await this.loadGradesExport(groupId, userId, role, period, subject);
+    const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Calificaciones');
+    const suffix = [period, subject].filter(Boolean).join('_') || 'todos';
+    const safe = suffix.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+    return { buffer, filename: `calificaciones-${safe || 'todos'}.xlsx` };
+  }
+
+  private async loadAttendanceExport(
+    groupId: string,
+    userId: string,
+    role: UserRole,
+    dateStr?: string
+  ): Promise<{
+    date: string;
+    headers: string[];
+    rows: AttendanceExportRow[];
+  }> {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
     await this.assertCanViewGroup(userId, role, groupId);
 
@@ -71,10 +131,16 @@ export class ExportsService {
       status: r.status,
       notes: r.notes
     }));
-    return rowsToCsv(headers, rows);
+    return { date, headers, rows };
   }
 
-  async exportGradesCsv(groupId: string, userId: string, role: UserRole, period?: string, subject?: string) {
+  private async loadGradesExport(
+    groupId: string,
+    userId: string,
+    role: UserRole,
+    period?: string,
+    subject?: string
+  ): Promise<{ headers: string[]; rows: GradesExportRow[] }> {
     await this.assertCanViewGroup(userId, role, groupId);
 
     const qb = this.gradesRepository
@@ -122,7 +188,35 @@ export class ExportsService {
       notes: r.notes,
       graded_at: r.graded_at ? new Date(r.graded_at).toISOString() : ''
     }));
-    return rowsToCsv(headers, rows);
+    return { headers, rows };
+  }
+
+  private async buildXlsxBuffer(
+    headers: string[],
+    rows: Record<string, string | number | null | undefined>[],
+    sheetName: string
+  ): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(sheetName, {
+      views: [{ state: 'frozen', ySplit: 1 }]
+    });
+    ws.addRow(headers);
+    const headerRow = ws.getRow(1);
+    headerRow.font = { bold: true };
+    for (const row of rows) {
+      ws.addRow(headers.map((h) => row[h]));
+    }
+    for (let c = 1; c <= headers.length; c++) {
+      let max = 12;
+      for (let r = 1; r <= ws.rowCount; r++) {
+        const cell = ws.getCell(r, c);
+        const v = cell.value != null ? String(cell.value) : '';
+        if (v.length > max) max = Math.min(v.length, 55);
+      }
+      ws.getColumn(c).width = max + 2;
+    }
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf);
   }
 
   private async assertCanViewGroup(userId: string, role: UserRole, groupId: string) {

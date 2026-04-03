@@ -1,4 +1,13 @@
-import { Controller, Get, Header, ParseUUIDPipe, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  ParseUUIDPipe,
+  Query,
+  Req,
+  StreamableFile,
+  UseGuards
+} from '@nestjs/common';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -47,5 +56,45 @@ export class ExportsController {
       subject
     );
     return csv;
+  }
+
+  @Get('attendance.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  async attendanceXlsx(
+    @Query('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
+    @Query('date') date: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const { buffer, filename } = await this.exportsService.exportAttendanceXlsx(
+      groupId,
+      req.user.userId,
+      req.user.role,
+      date
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: `attachment; filename="${filename}"`
+    });
+  }
+
+  @Get('grades.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  async gradesXlsx(
+    @Query('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
+    @Query('period') period: string | undefined,
+    @Query('subject') subject: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const { buffer, filename } = await this.exportsService.exportGradesXlsx(
+      groupId,
+      req.user.userId,
+      req.user.role,
+      period,
+      subject
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: `attachment; filename="${filename}"`
+    });
   }
 }

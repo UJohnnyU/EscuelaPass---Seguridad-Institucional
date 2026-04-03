@@ -408,6 +408,20 @@ describe('App (e2e)', () => {
       .expect(200);
     expect(String(gr.headers['content-type'] ?? '')).toMatch(/text\/csv/);
     expect(gr.text).toContain('matricula');
+
+    const attX = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/exports/attendance.xlsx`)
+      .query({ groupId: group.group_id, date })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(String(attX.headers['content-type'] ?? '')).toMatch(/spreadsheet/);
+
+    const grX = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/exports/grades.xlsx`)
+      .query({ groupId: group.group_id })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(String(grX.headers['content-type'] ?? '')).toMatch(/spreadsheet/);
   });
 
   it('circuit: padre actualiza GPS de su solicitud', async () => {
