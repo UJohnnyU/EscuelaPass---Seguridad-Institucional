@@ -424,6 +424,56 @@ describe('App (e2e)', () => {
     expect(String(grX.headers['content-type'] ?? '')).toMatch(/spreadsheet/);
   });
 
+  it('settings: circuito deshabilitado bloquea nuevas solicitudes de circuito', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+
+    const parent = await sqlOne<{ parent_id: string }>(
+      `SELECT p.id AS parent_id
+       FROM parents p
+       INNER JOIN users u ON u.id = p.user_id
+       WHERE u.email = $1`,
+      ['padre1@escuelapass.local']
+    );
+    const student = await sqlOne<{ id: string }>(
+      `SELECT s.id
+       FROM students s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE u.email = $1`,
+      ['alumno1@escuelapass.local']
+    );
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/settings/circuit`)
+      .set(authHeader(padre.accessToken))
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.enabled).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/settings/circuit`)
+      .set(authHeader(admin.accessToken))
+      .send({ enabled: false })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/circuit-requests`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        studentId: student.id,
+        requestedByParentId: parent.parent_id,
+        pickupMethod: 'A_PIE'
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/settings/circuit`)
+      .set(authHeader(admin.accessToken))
+      .send({ enabled: true })
+      .expect(200);
+  });
+
   it('circuit: padre actualiza GPS de su solicitud', async () => {
     const padre = await login('padre1@escuelapass.local', 'Padre123*');
     const parent = await sqlOne<{ parent_id: string }>(

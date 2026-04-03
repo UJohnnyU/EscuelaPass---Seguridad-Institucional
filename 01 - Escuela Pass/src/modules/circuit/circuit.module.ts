@@ -4,12 +4,14 @@ import { CircuitRequestEntity } from '../../database/entities/circuit-request.en
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { FcmModule } from '../fcm/fcm.module';
+import { SettingsModule } from '../settings/settings.module';
 import { CircuitController } from './circuit.controller';
 import { CircuitService } from './circuit.service';
 
 @Module({
   imports: [
     FcmModule,
+    SettingsModule,
     TypeOrmModule.forFeature([CircuitRequestEntity, StudentEntity, ParentEntity])
   ],
   controllers: [CircuitController],

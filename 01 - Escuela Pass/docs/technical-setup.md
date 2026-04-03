@@ -29,6 +29,7 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
   - `meetings` (reuniones padre-docente)
   - `schedules` (franjas de horario por grupo)
   - `school-calendar` (días sin clases: feriados / suspensión; no se registra asistencia ni cuenta en exportes)
+  - `settings` (configuración institucional, p. ej. habilitar o deshabilitar el circuito de recogida)
 
 ## Endpoints iniciales
 
@@ -67,10 +68,10 @@ Editar `.env` (o copiar desde `.env.example`):
 
 1. Crear base de datos en PostgreSQL (ej. `escuela_pass`).
 2. Ejecutar en orden:
-   - `escuela_pass_schema_v3.sql` (incluye tablas `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`, `school_non_instructional_days`)
+   - `escuela_pass_schema_v3.sql` (incluye tablas `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`, `school_non_instructional_days`, `institution_settings`)
    - `scripts/database/seed_dev.sql` (datos de prueba)
 
-   Bases ya creadas antes de esta versión: aplicar migraciones TypeORM pendientes (`npm run migration:run`), p. ej. `1775221171718-VisitsMeetingsSchedules`, `1775700000000-SchoolNonInstructionalDays`, o ejecutar manualmente el bloque SQL equivalente del esquema.
+   Bases ya creadas antes de esta versión: aplicar migraciones TypeORM pendientes (`npm run migration:run`), p. ej. `1775221171718-VisitsMeetingsSchedules`, `1775700000000-SchoolNonInstructionalDays`, `1775800000000-InstitutionSettings`, o ejecutar manualmente el bloque SQL equivalente del esquema.
 
 ## Flujo QR/NFC web
 
@@ -390,6 +391,17 @@ Cabeceras esperadas por CSV:
 | GET | `/exports/grades.xlsx?groupId=UUID&period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
 
 Los filtros `period` y `subject` en calificaciones son opcionales. Para `DOCENTE` aplica la misma regla que en reportes: solo grupos donde tenga fila en `teacher_groups`.
+
+---
+
+## Configuración institucional (`/settings`)
+
+Tabla `institution_settings` (`setting_key`, `value`).
+
+| Método | Ruta | Rol | Descripción |
+|--------|------|-----|-------------|
+| GET | `/settings/circuit` | Todos los roles autenticados | `{ "enabled": boolean }` — si el circuito de recogida acepta nuevas solicitudes (`POST /circuit-requests`). |
+| PATCH | `/settings/circuit` | ADMIN, ADMINISTRATIVO | Body `{ "enabled": true \| false }`. Si `enabled` es `false`, `POST /circuit-requests` responde **400** hasta volver a habilitar. Las solicitudes ya creadas siguen su flujo normal. |
 
 ---
 

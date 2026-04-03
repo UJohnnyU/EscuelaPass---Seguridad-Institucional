@@ -353,6 +353,16 @@ WHERE group_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_school_non_instr_date ON school_non_instructional_days (exception_date);
 
+CREATE TABLE IF NOT EXISTS institution_settings (
+    setting_key VARCHAR(64) PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO institution_settings (setting_key, value)
+VALUES ('circuit.enabled', 'true')
+ON CONFLICT (setting_key) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS grades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,

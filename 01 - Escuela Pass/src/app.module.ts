@@ -21,6 +21,7 @@ import { VisitsModule } from './modules/visits/visits.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { SchoolCalendarModule } from './modules/school-calendar/school-calendar.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -53,7 +54,8 @@ import { SchoolCalendarModule } from './modules/school-calendar/school-calendar.
     VisitsModule,
     MeetingsModule,
     SchedulesModule,
-    SchoolCalendarModule
+    SchoolCalendarModule,
+    SettingsModule
   ],
   providers: [
     {

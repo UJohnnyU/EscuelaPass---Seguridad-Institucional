@@ -15,6 +15,7 @@ import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
 import { FcmService } from '../fcm/fcm.service';
+import { SettingsService } from '../settings/settings.service';
 
 type DistanceResult = {
   distanceKm: number;
@@ -33,10 +34,15 @@ export class CircuitService {
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(ParentEntity)
     private readonly parentsRepository: Repository<ParentEntity>,
-    private readonly fcmService: FcmService
+    private readonly fcmService: FcmService,
+    private readonly settingsService: SettingsService
   ) {}
 
   async create(payload: CreateCircuitRequestDto) {
+    if (!(await this.settingsService.isCircuitEnabled())) {
+      throw new BadRequestException('El circuito de recogida está deshabilitado por la institución.');
+    }
+
     const student = await this.studentsRepository.findOne({ where: { id: payload.studentId } });
     if (!student) throw new NotFoundException('Estudiante no existe');
     const parent = await this.parentsRepository.findOne({
