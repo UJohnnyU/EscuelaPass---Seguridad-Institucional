@@ -8,6 +8,14 @@ export default {
         serif: ['"Source Serif 4"', 'Georgia', 'serif']
       },
       colors: {
+        landing: {
+          wine: '#5c1f2a',
+          burgundy: '#6b2433',
+          deep: '#1a0f12',
+          dark: '#0d0a0b',
+          muted: '#c9b8bc',
+          accent: '#9e2a3c'
+        },
         brand: {
           50: '#eff6ff',
           100: '#dbeafe',
