@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider } from '@/context/AuthProvider';
 import { useAuth } from '@/context/useAuth';
 import { AppShell } from '@/components/AppShell';
@@ -98,6 +99,7 @@ export default function App() {
         <Route path="/panel" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      <Analytics />
     </AuthProvider>
   );
 }
