@@ -32,7 +32,8 @@ export default {
       },
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out forwards',
-        'slide-up': 'slideUp 0.45s ease-out forwards'
+        'slide-up': 'slideUp 0.45s ease-out forwards',
+        'bubble-drift': 'bubbleDrift 22s ease-in-out infinite'
       },
       keyframes: {
         fadeIn: {
@@ -42,6 +43,12 @@ export default {
         slideUp: {
           '0%': { opacity: '0', transform: 'translateY(12px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' }
+        },
+        bubbleDrift: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+          '25%': { transform: 'translate(12px, -20px) scale(1.03)' },
+          '50%': { transform: 'translate(-10px, 8px) scale(0.98)' },
+          '75%': { transform: 'translate(6px, 14px) scale(1.02)' }
         }
       }
     }
