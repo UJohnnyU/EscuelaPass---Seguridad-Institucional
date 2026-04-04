@@ -125,6 +125,22 @@ export class AttendanceService {
     };
   }
 
+  /** Lista hijos vinculados al padre (para circuito, visitas, etc.). */
+  async listMyStudentsForParent(parentUserId: string) {
+    const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
+    if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+
+    const students = await this.studentsRepository
+      .createQueryBuilder('s')
+      .innerJoin('student_parents', 'sp', 'sp.student_id = s.id AND sp.parent_id = :pid', { pid: parent.id })
+      .innerJoin('users', 'u', 'u.id = s.user_id')
+      .select(['s.id AS id', 's.matricula AS matricula', 'u.full_name AS "fullName"'])
+      .orderBy('s.matricula', 'ASC')
+      .getRawMany<{ id: string; matricula: string; fullName: string }>();
+
+    return { parentId: parent.id, students };
+  }
+
   private async assertCanRegisterForStudent(
     userId: string,
     role: UserRole,

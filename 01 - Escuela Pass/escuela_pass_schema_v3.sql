@@ -506,3 +506,19 @@ BEGIN
     ALTER TYPE circuit_status ADD VALUE 'PADRE_EN_CAMINO';
   END IF;
 END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'circuit_status')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_enum e
+       JOIN pg_type t ON e.enumtypid = t.oid
+       WHERE t.typname = 'circuit_status' AND e.enumlabel = 'CERRADO_SIN_CONFIRMACION_PADRE'
+     ) THEN
+    ALTER TYPE circuit_status ADD VALUE 'CERRADO_SIN_CONFIRMACION_PADRE';
+  END IF;
+END $$;
+
+ALTER TABLE circuit_requests
+  ADD COLUMN IF NOT EXISTS parent_confirm_deadline_at TIMESTAMPTZ NULL,
+  ADD COLUMN IF NOT EXISTS parent_receipt_confirmed_at TIMESTAMPTZ NULL;

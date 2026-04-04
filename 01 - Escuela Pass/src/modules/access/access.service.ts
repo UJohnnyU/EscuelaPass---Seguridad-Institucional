@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -32,6 +33,29 @@ export class AccessService {
     private readonly usersRepository: Repository<UserEntity>,
     private readonly schoolCalendarService: SchoolCalendarService
   ) {}
+
+  /** Credencial QR para mostrar en perfil (acceso campus / asistencia). Crea una si no existe. */
+  async getOrCreateQrForUser(userId: string) {
+    const existing = await this.credentialsRepository.findOne({
+      where: {
+        userId,
+        credentialType: CredentialType.QR,
+        status: CredentialStatus.ACTIVE
+      }
+    });
+    if (existing) {
+      return { qrValue: existing.credentialValue };
+    }
+    const value = `QR_${randomUUID()}`;
+    const row = this.credentialsRepository.create({
+      userId,
+      credentialType: CredentialType.QR,
+      credentialValue: value,
+      status: CredentialStatus.ACTIVE
+    });
+    await this.credentialsRepository.save(row);
+    return { qrValue: row.credentialValue };
+  }
 
   async scanAccess(payload: RegisterAccessEventDto) {
     const credentialType =
@@ -82,13 +106,18 @@ export class AccessService {
       await this.upsertAttendanceFromAccessScan(user.id, today, payload.method);
     }
 
+    let matricula: string | null = null;
+    if (user.role === UserRole.ALUMNO) {
+      const st = await this.studentsRepository.findOne({ where: { userId: user.id } });
+      matricula = st?.matricula ?? null;
+    }
+
     return {
       message: 'Acceso registrado correctamente',
-      eventId: saved.id,
-      user: {
-        id: user.id,
-        fullName: user.fullName,
-        role: user.role
+      persona: {
+        nombreCompleto: user.fullName,
+        rol: user.role,
+        matriculaAlumno: matricula
       }
     };
   }

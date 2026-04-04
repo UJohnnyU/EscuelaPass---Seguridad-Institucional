@@ -70,6 +70,19 @@ export class SchedulesService {
     });
   }
 
+  /** Grupos donde el docente tiene asignación (para exportaciones, etc.). */
+  async listMyGroupsAsTeacher(userId: string) {
+    const teacher = await this.teachersRepository.findOne({ where: { userId } });
+    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    return this.groupsRepository
+      .createQueryBuilder('g')
+      .innerJoin('teacher_groups', 'tg', 'tg.group_id = g.id')
+      .where('tg.teacher_id = :tid', { tid: teacher.id })
+      .orderBy('g.name', 'ASC')
+      .select(['g.id', 'g.name', 'g.grade', 'g.schoolYear'])
+      .getMany();
+  }
+
   async update(id: string, dto: UpdateScheduleSlotDto) {
     const row = await this.slotsRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Franja no encontrada');

@@ -35,4 +35,10 @@ export class AttendanceController {
   listParent(@Query('date') date: string | undefined, @Req() req: Request & { user: JwtUser }) {
     return this.attendanceService.listMyChildrenAttendance(req.user.userId, date);
   }
+
+  @Get('parent/my-students')
+  @Roles(UserRole.PADRE)
+  listMyStudents(@Req() req: Request & { user: JwtUser }) {
+    return this.attendanceService.listMyStudentsForParent(req.user.userId);
+  }
 }

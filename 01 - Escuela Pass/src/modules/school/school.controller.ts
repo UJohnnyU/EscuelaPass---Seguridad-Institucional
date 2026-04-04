@@ -246,6 +246,7 @@ export class SchoolController {
   }
 
   @Get('import/templates/groups.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   @Header(
     'Content-Type',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -256,6 +257,7 @@ export class SchoolController {
   }
 
   @Get('import/templates/students.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   @Header(
     'Content-Type',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -266,6 +268,7 @@ export class SchoolController {
   }
 
   @Get('import/templates/teachers.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   @Header(
     'Content-Type',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -276,6 +279,7 @@ export class SchoolController {
   }
 
   @Get('import/templates/teacher-assignments.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   @Header(
     'Content-Type',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -286,6 +290,7 @@ export class SchoolController {
   }
 
   @Get('import/templates/students-to-groups.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   @Header(
     'Content-Type',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

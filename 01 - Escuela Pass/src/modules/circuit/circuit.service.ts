@@ -3,7 +3,9 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
-  NotFoundException
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -29,8 +31,9 @@ type DistanceResult = {
 };
 
 @Injectable()
-export class CircuitService {
+export class CircuitService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CircuitService.name);
+  private parentConfirmPoll: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     @InjectRepository(CircuitRequestEntity)
@@ -48,6 +51,65 @@ export class CircuitService {
     private readonly fcmService: FcmService,
     private readonly settingsService: SettingsService
   ) {}
+
+  onModuleInit(): void {
+    const pollMs = Number(process.env.CIRCUIT_PARENT_CONFIRM_POLL_MS ?? 60_000);
+    this.parentConfirmPoll = setInterval(() => {
+      void this.applyParentConfirmTimeouts().catch((err: unknown) => {
+        this.logger.error(`Circuito: cierre por plazo de padre falló: ${String(err)}`);
+      });
+    }, pollMs);
+  }
+
+  onModuleDestroy(): void {
+    if (this.parentConfirmPoll) {
+      clearInterval(this.parentConfirmPoll);
+      this.parentConfirmPoll = null;
+    }
+  }
+
+  private parentConfirmWindowMinutes(): number {
+    const n = Number(process.env.CIRCUIT_PARENT_CONFIRM_MINUTES ?? 15);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 120) : 15;
+  }
+
+  private isTerminalCircuitStatus(status: CircuitStatus): boolean {
+    return (
+      status === CircuitStatus.ENTREGADO ||
+      status === CircuitStatus.CANCELADO ||
+      status === CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE
+    );
+  }
+
+  /** Cierra solicitudes EN_CAMINO cuyo plazo para confirmación del padre ya venció. */
+  async applyParentConfirmTimeouts(): Promise<void> {
+    const now = new Date();
+    const rows = await this.circuitRepository.query<
+      Array<{ id: string; student_id: string; requested_by_parent_id: string }>
+    >(
+      `UPDATE circuit_requests
+       SET status = $1::circuit_status,
+           teacher_signal = NULL,
+           parent_confirm_deadline_at = NULL
+       WHERE status = $2::circuit_status
+         AND parent_confirm_deadline_at IS NOT NULL
+         AND parent_confirm_deadline_at <= $3
+       RETURNING id, student_id, requested_by_parent_id`,
+      [CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE, CircuitStatus.EN_CAMINO, now]
+    );
+
+    for (const row of rows) {
+      const parentUid = await this.parentUserIdByPk(row.requested_by_parent_id);
+      const name = await this.studentDisplayName(row.student_id);
+      this.pushCircuitToParent(
+        parentUid,
+        row.id,
+        CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE,
+        'Plazo de confirmación vencido',
+        `El circuito de ${name} se cerró sin confirmación final del padre en el tiempo indicado.`
+      );
+    }
+  }
 
   async create(payload: CreateCircuitRequestDto) {
     if (!(await this.settingsService.isCircuitEnabled())) {
@@ -177,6 +239,11 @@ export class CircuitService {
           title: 'Circuito cancelado',
           body: `La solicitud de recogida de ${studentName} fue cancelada.`
         };
+      case CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE:
+        return {
+          title: 'Circuito cerrado sin confirmación',
+          body: `Se cerró el circuito de ${studentName} sin confirmación final del padre en el plazo indicado.`
+        };
       default:
         return null;
     }
@@ -184,6 +251,9 @@ export class CircuitService {
 
   async updateParentGps(id: string, parentUserId: string, dto: UpdateCircuitGpsDto) {
     const req = await this.findById(id);
+    if (this.isTerminalCircuitStatus(req.status)) {
+      throw new BadRequestException('El circuito está cerrado; no se puede actualizar la ubicación.');
+    }
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
     if (req.requestedByParentId !== parent.id) {
@@ -219,6 +289,9 @@ export class CircuitService {
 
   async advanceParentProgress(id: string, parentUserId: string, dto: UpdateParentCircuitProgressDto) {
     const req = await this.findById(id);
+    if (this.isTerminalCircuitStatus(req.status)) {
+      throw new BadRequestException('El circuito está cerrado; no se puede avanzar el estado.');
+    }
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
     if (req.requestedByParentId !== parent.id) {
@@ -296,6 +369,8 @@ export class CircuitService {
       pickupMethod: req.pickupMethod,
       vehicleId: req.vehicleId,
       teacherSignal: req.teacherSignal,
+      parentConfirmDeadlineAt: req.parentConfirmDeadlineAt,
+      parentReceiptConfirmedAt: req.parentReceiptConfirmedAt,
       parentGpsLatitude: req.parentGpsLatitude,
       parentGpsLongitude: req.parentGpsLongitude,
       schoolLatitude: schoolLat,
@@ -314,6 +389,11 @@ export class CircuitService {
     role: UserRole
   ) {
     const req = await this.findById(id);
+    if (this.isTerminalCircuitStatus(req.status)) {
+      throw new BadRequestException(
+        'El circuito ya finalizó; no se pueden enviar señales al aula ni a la familia.'
+      );
+    }
     await this.assertCanSetTeacherSignal(req, userId, role);
     if (dto.signal === undefined) {
       return { message: 'Sin cambios', id: req.id, teacherSignal: req.teacherSignal };
@@ -378,6 +458,9 @@ export class CircuitService {
     if (req.status === CircuitStatus.ENTREGADO) {
       throw new BadRequestException('No se puede cancelar una solicitud ya entregada');
     }
+    if (req.status === CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE) {
+      throw new BadRequestException('No se puede cancelar un circuito ya cerrado por plazo de confirmación');
+    }
     if (req.status === CircuitStatus.CANCELADO) {
       return { message: 'Solicitud ya estaba cancelada', id: req.id, status: req.status };
     }
@@ -398,24 +481,50 @@ export class CircuitService {
   async confirmDelivered(id: string, userId: string, role: UserRole) {
     const req = await this.findById(id);
 
-    if (role === UserRole.PADRE) {
-      const parent = await this.parentsRepository.findOne({ where: { userId } });
-      if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
-      if (req.requestedByParentId !== parent.id) {
-        throw new ForbiddenException('No puedes confirmar la entrega de una solicitud ajena');
-      }
-    } else if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO && role !== UserRole.DOCENTE) {
-      throw new ForbiddenException('No autorizado para confirmar entrega');
-    }
-
     if (req.status === CircuitStatus.CANCELADO) {
       throw new BadRequestException('No se puede confirmar entrega en solicitud cancelada');
     }
     if (req.status === CircuitStatus.ENTREGADO) {
       return { message: 'Solicitud ya estaba entregada', id: req.id, status: req.status };
     }
+    if (this.isTerminalCircuitStatus(req.status)) {
+      throw new BadRequestException('El circuito ya está cerrado');
+    }
 
-    req.status = CircuitStatus.ENTREGADO;
+    if (role === UserRole.PADRE) {
+      const parent = await this.parentsRepository.findOne({ where: { userId } });
+      if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+      if (req.requestedByParentId !== parent.id) {
+        throw new ForbiddenException('No puedes confirmar la entrega de una solicitud ajena');
+      }
+      const padrePuede = new Set<CircuitStatus>([
+        CircuitStatus.PENDIENTE,
+        CircuitStatus.PADRE_EN_CAMINO,
+        CircuitStatus.NOTIFICADO_LLEGADA,
+        CircuitStatus.AUTORIZADO_SALIR,
+        CircuitStatus.EN_CAMINO,
+        CircuitStatus.CONSENTIDO_SOLO
+      ]);
+      if (!padrePuede.has(req.status)) {
+        throw new BadRequestException('No puedes confirmar el recibimiento en este estado del circuito');
+      }
+      req.status = CircuitStatus.ENTREGADO;
+      req.parentReceiptConfirmedAt = new Date();
+      req.parentConfirmDeadlineAt = null;
+      req.teacherSignal = null;
+    } else if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO || role === UserRole.DOCENTE) {
+      if (req.status !== CircuitStatus.CONSENTIDO_SOLO) {
+        throw new BadRequestException(
+          'Solo el padre puede confirmar el recibimiento físico del menor. La institución solo cierra solicitudes de solo consentimiento.'
+        );
+      }
+      req.status = CircuitStatus.ENTREGADO;
+      req.parentConfirmDeadlineAt = null;
+      req.teacherSignal = null;
+    } else {
+      throw new ForbiddenException('No autorizado para confirmar entrega');
+    }
+
     const saved = await this.circuitRepository.save(req);
 
     const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
@@ -439,6 +548,9 @@ export class CircuitService {
     }
 
     const req = await this.findById(id);
+    if (this.isTerminalCircuitStatus(req.status)) {
+      throw new BadRequestException('Circuito cerrado; no se puede cambiar el estado.');
+    }
     const next = dto.status;
 
     if (req.status === next) {
@@ -446,6 +558,12 @@ export class CircuitService {
     }
 
     this.assertValidTransition(req.status, next);
+
+    if (next === CircuitStatus.EN_CAMINO) {
+      req.parentConfirmDeadlineAt = new Date(Date.now() + this.parentConfirmWindowMinutes() * 60_000);
+    } else if (req.status === CircuitStatus.EN_CAMINO) {
+      req.parentConfirmDeadlineAt = null;
+    }
 
     req.status = next;
     // Nota: el esquema actual no tiene columna notes; dto.notes se deja para futuro
@@ -478,11 +596,9 @@ export class CircuitService {
         CircuitStatus.EN_CAMINO,
         CircuitStatus.CANCELADO
       ],
-      [CircuitStatus.EN_CAMINO]: [
-        CircuitStatus.ENTREGADO,
-        CircuitStatus.CANCELADO
-      ],
+      [CircuitStatus.EN_CAMINO]: [CircuitStatus.CANCELADO],
       [CircuitStatus.ENTREGADO]: [],
+      [CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE]: [],
       [CircuitStatus.CONSENTIDO_SOLO]: [CircuitStatus.ENTREGADO, CircuitStatus.CANCELADO],
       [CircuitStatus.CANCELADO]: []
     };

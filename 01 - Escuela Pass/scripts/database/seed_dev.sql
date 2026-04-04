@@ -98,6 +98,14 @@ FROM users u
 WHERE u.email = 'docente1@escuelapass.local'
 ON CONFLICT (credential_type, credential_value) DO NOTHING;
 
+INSERT INTO privacy_policies (version, title, content, effective_at)
+SELECT
+  '1.0',
+  'Política de tratamiento de datos personales',
+  'El tratamiento de datos personales en Escuela Pass se realiza conforme a la normativa aplicable en materia de protección de datos. Los datos se utilizan para la gestión académica y administrativa, seguridad del campus, comunicaciones institucionales y cumplimiento de obligaciones legales. El titular puede ejercer derechos de consulta, rectificación o supresión ante la institución, salvo excepciones legales.',
+  CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM privacy_policies WHERE version = '1.0');
+
 COMMIT;
 
 -- =============================================================

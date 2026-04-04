@@ -20,6 +20,18 @@ export class AuthService {
     private readonly jwtService: JwtService
   ) {}
 
+  async getMe(userId: string) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Usuario no encontrado');
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      canAccessCampus: user.canAccessCampus
+    };
+  }
+
   async login(payload: LoginDto) {
     const user = await this.usersRepository.findOne({ where: { email: payload.email } });
     if (!user) {

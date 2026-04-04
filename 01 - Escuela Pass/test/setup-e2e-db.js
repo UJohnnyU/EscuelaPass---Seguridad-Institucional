@@ -68,6 +68,26 @@ async function main() {
     `);
     // eslint-disable-next-line no-console
     console.log('[e2e-db] OK circuit_status.PADRE_EN_CAMINO');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'circuit_status')
+           AND NOT EXISTS (
+             SELECT 1 FROM pg_enum e
+             JOIN pg_type t ON e.enumtypid = t.oid
+             WHERE t.typname = 'circuit_status' AND e.enumlabel = 'CERRADO_SIN_CONFIRMACION_PADRE'
+           ) THEN
+          ALTER TYPE circuit_status ADD VALUE 'CERRADO_SIN_CONFIRMACION_PADRE';
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      ALTER TABLE circuit_requests
+      ADD COLUMN IF NOT EXISTS parent_confirm_deadline_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS parent_receipt_confirmed_at TIMESTAMPTZ NULL;
+    `);
+    // eslint-disable-next-line no-console
+    console.log('[e2e-db] OK circuit_status.CERRADO_SIN_CONFIRMACION_PADRE + columnas padre');
     // Evita datos de corridas E2E anteriores (días sin clases / asistencias con "hoy").
     await client.query(`
       TRUNCATE TABLE attendance_records RESTART IDENTITY CASCADE;

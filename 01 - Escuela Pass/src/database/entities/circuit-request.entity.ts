@@ -25,6 +25,8 @@ export enum CircuitStatus {
   AUTORIZADO_SALIR = 'AUTORIZADO_SALIR',
   EN_CAMINO = 'EN_CAMINO',
   ENTREGADO = 'ENTREGADO',
+  /** Plazo de confirmación del padre vencido; el circuito queda cerrado sin acuse de recibimiento. */
+  CERRADO_SIN_CONFIRMACION_PADRE = 'CERRADO_SIN_CONFIRMACION_PADRE',
   CONSENTIDO_SOLO = 'CONSENTIDO_SOLO',
   CANCELADO = 'CANCELADO'
 }
@@ -66,4 +68,12 @@ export class CircuitRequestEntity {
 
   @Column({ name: 'teacher_signal', type: 'varchar', length: 40, nullable: true })
   teacherSignal!: string | null;
+
+  /** Si el alumno está en tránsito (EN_CAMINO), momento límite para que el padre confirme recibimiento. */
+  @Column({ name: 'parent_confirm_deadline_at', type: 'timestamptz', nullable: true })
+  parentConfirmDeadlineAt!: Date | null;
+
+  /** Momento en que el padre confirmó haber recibido al menor (ENTREGADO). */
+  @Column({ name: 'parent_receipt_confirmed_at', type: 'timestamptz', nullable: true })
+  parentReceiptConfirmedAt!: Date | null;
 }
