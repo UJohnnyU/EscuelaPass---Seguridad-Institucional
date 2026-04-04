@@ -145,7 +145,7 @@ export class SchoolController {
     return this.schoolService.removeTeacherAssignment(id);
   }
 
-  @Post('import/groups/csv')
+  @Post('import/groups/xlsx')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -157,15 +157,15 @@ export class SchoolController {
     }
   })
   @UseInterceptors(FileInterceptor('file'))
-  importGroupsCsv(
+  importGroupsXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
     @Query('dryRun') dryRun: string | undefined
   ) {
-    if (!file?.buffer) throw new BadRequestException('Envía archivo CSV en el campo "file"');
-    return this.schoolService.importGroupsCsv(file.buffer.toString('utf8'), dryRun === 'true');
+    if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
+    return this.schoolService.importGroupsXlsx(file.buffer, dryRun === 'true');
   }
 
-  @Post('import/students/csv')
+  @Post('import/students/xlsx')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -177,15 +177,15 @@ export class SchoolController {
     }
   })
   @UseInterceptors(FileInterceptor('file'))
-  importStudentsCsv(
+  importStudentsXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
     @Query('dryRun') dryRun: string | undefined
   ) {
-    if (!file?.buffer) throw new BadRequestException('Envía archivo CSV en el campo "file"');
-    return this.schoolService.importStudentsCsv(file.buffer.toString('utf8'), dryRun === 'true');
+    if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
+    return this.schoolService.importStudentsXlsx(file.buffer, dryRun === 'true');
   }
 
-  @Post('import/teachers/csv')
+  @Post('import/teachers/xlsx')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -197,15 +197,15 @@ export class SchoolController {
     }
   })
   @UseInterceptors(FileInterceptor('file'))
-  importTeachersCsv(
+  importTeachersXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
     @Query('dryRun') dryRun: string | undefined
   ) {
-    if (!file?.buffer) throw new BadRequestException('Envía archivo CSV en el campo "file"');
-    return this.schoolService.importTeachersCsv(file.buffer.toString('utf8'), dryRun === 'true');
+    if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
+    return this.schoolService.importTeachersXlsx(file.buffer, dryRun === 'true');
   }
 
-  @Post('import/teacher-assignments/csv')
+  @Post('import/teacher-assignments/xlsx')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -217,36 +217,82 @@ export class SchoolController {
     }
   })
   @UseInterceptors(FileInterceptor('file'))
-  importTeacherAssignmentsCsv(
+  importTeacherAssignmentsXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
     @Query('dryRun') dryRun: string | undefined
   ) {
-    if (!file?.buffer) throw new BadRequestException('Envía archivo CSV en el campo "file"');
-    return this.schoolService.importTeacherAssignmentsCsv(file.buffer.toString('utf8'), dryRun === 'true');
+    if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
+    return this.schoolService.importTeacherAssignmentsXlsx(file.buffer, dryRun === 'true');
   }
 
-  @Get('import/templates/groups.csv')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  templateGroupsCsv() {
-    return this.schoolService.getTemplateGroupsCsv();
+  @Post('import/students-to-groups/xlsx')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' }
+      }
+    }
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  importStudentsToGroupsXlsx(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Query('dryRun') dryRun: string | undefined
+  ) {
+    if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
+    return this.schoolService.importStudentsToGroupsFromXlsx(file.buffer, dryRun === 'true');
   }
 
-  @Get('import/templates/students.csv')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  templateStudentsCsv() {
-    return this.schoolService.getTemplateStudentsCsv();
+  @Get('import/templates/groups.xlsx')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  )
+  @Header('Content-Disposition', 'attachment; filename="plantilla-grupos.xlsx"')
+  async templateGroupsXlsx() {
+    return this.schoolService.buildTemplateGroupsXlsx();
   }
 
-  @Get('import/templates/teachers.csv')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  templateTeachersCsv() {
-    return this.schoolService.getTemplateTeachersCsv();
+  @Get('import/templates/students.xlsx')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  )
+  @Header('Content-Disposition', 'attachment; filename="plantilla-alumnos.xlsx"')
+  async templateStudentsXlsx() {
+    return this.schoolService.buildTemplateStudentsXlsx();
   }
 
-  @Get('import/templates/teacher-assignments.csv')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  templateTeacherAssignmentsCsv() {
-    return this.schoolService.getTemplateTeacherAssignmentsCsv();
+  @Get('import/templates/teachers.xlsx')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  )
+  @Header('Content-Disposition', 'attachment; filename="plantilla-docentes.xlsx"')
+  async templateTeachersXlsx() {
+    return this.schoolService.buildTemplateTeachersXlsx();
+  }
+
+  @Get('import/templates/teacher-assignments.xlsx')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  )
+  @Header('Content-Disposition', 'attachment; filename="plantilla-asignaciones-docentes.xlsx"')
+  async templateTeacherAssignmentsXlsx() {
+    return this.schoolService.buildTemplateTeacherAssignmentsXlsx();
+  }
+
+  @Get('import/templates/students-to-groups.xlsx')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  )
+  @Header('Content-Disposition', 'attachment; filename="plantilla-asignacion-grupos.xlsx"')
+  templateStudentsToGroupsXlsx() {
+    return this.schoolService.buildStudentsToGroupsTemplateXlsx();
   }
 
   @Get('import/history')

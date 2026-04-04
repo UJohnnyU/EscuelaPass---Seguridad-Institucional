@@ -52,6 +52,27 @@ async function main() {
     // créalas una vez como superusuario en esta BD.
     await runSqlFile(client, 'escuela_pass_schema_v3.sql');
     await runSqlFile(client, 'scripts/database/seed_dev.sql');
+    // Asegura valor de enum por si el esquema antiguo ya tenía circuit_status sin PADRE_EN_CAMINO.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'circuit_status')
+           AND NOT EXISTS (
+             SELECT 1 FROM pg_enum e
+             JOIN pg_type t ON e.enumtypid = t.oid
+             WHERE t.typname = 'circuit_status' AND e.enumlabel = 'PADRE_EN_CAMINO'
+           ) THEN
+          ALTER TYPE circuit_status ADD VALUE 'PADRE_EN_CAMINO';
+        END IF;
+      END $$;
+    `);
+    // eslint-disable-next-line no-console
+    console.log('[e2e-db] OK circuit_status.PADRE_EN_CAMINO');
+    // Evita datos de corridas E2E anteriores (días sin clases / asistencias con "hoy").
+    await client.query(`
+      TRUNCATE TABLE attendance_records RESTART IDENTITY CASCADE;
+      TRUNCATE TABLE school_non_instructional_days RESTART IDENTITY CASCADE;
+    `);
   } finally {
     await client.end();
   }

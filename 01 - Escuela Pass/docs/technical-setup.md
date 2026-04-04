@@ -21,7 +21,7 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
   - `health`
   - `auth`
   - `access` (escaneo QR/NFC)
-  - `circuit` (solicitud de recogida con GPS simple)
+  - `circuit` (recogida: padre avanza estados; GPS opcional solo informativo en mapa)
   - `notices` / `notifications`
   - `payments`
   - `attendance`
@@ -37,11 +37,13 @@ Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD
 - `POST /api/v1/auth/login`
 - `POST /api/v1/access-events/scan`
 - `POST /api/v1/circuit-requests`
-- `PATCH /api/v1/circuit-requests/:id/gps` (padre solicitante)
+- `PATCH /api/v1/circuit-requests/:id/gps` (padre; ubicación opcional, no cambia estado por radio)
+- `PATCH /api/v1/circuit-requests/:id/parent-progress` (padre: `PADRE_EN_CAMINO`, `NOTIFICADO_LLEGADA`)
 - `PATCH /api/v1/circuit-requests/:id/confirm-delivered` (padre solicitante o staff)
 - `GET /api/v1/circuit-requests/today`
 - `GET /api/v1/school/groups` (gestión escolar)
-- `GET /api/v1/exports/attendance.csv` (CSV)
+- `GET /api/v1/exports/attendance.xlsx` / `grades.xlsx` / `bulletin-consolidated.xlsx` (Excel)
+- `GET /api/v1/settings/institution` (perfil para reportes)
 - `POST /api/v1/visits`, `GET /api/v1/visits/me`, `GET /api/v1/visits`, `PATCH /api/v1/visits/:id/status`
 - `POST /api/v1/meetings`, `GET /api/v1/meetings/me`, `GET /api/v1/meetings`, `PATCH /api/v1/meetings/:id/status`
 - `GET /api/v1/schedules/groups/:groupId`, `POST|PATCH|DELETE /api/v1/schedules` (franjas)
@@ -71,7 +73,9 @@ Editar `.env` (o copiar desde `.env.example`):
    - `escuela_pass_schema_v3.sql` (incluye tablas `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`, `school_non_instructional_days`, `institution_settings`)
    - `scripts/database/seed_dev.sql` (datos de prueba)
 
-   Bases ya creadas antes de esta versión: aplicar migraciones TypeORM pendientes (`npm run migration:run`), p. ej. `1775221171718-VisitsMeetingsSchedules`, `1775700000000-SchoolNonInstructionalDays`, `1775800000000-InstitutionSettings`, o ejecutar manualmente el bloque SQL equivalente del esquema.
+   Bases ya creadas antes de esta versión: aplicar migraciones TypeORM pendientes (`npm run migration:run`), incluidas `1776000000000-PhaseSchemaCompliance`, `1776100000000-CircuitPadreEnCamino`, u otras pendientes en `src/database/migrations/`, o ejecutar manualmente el SQL equivalente del esquema.
+
+   **Migración `CircuitPadreEnCamino` y permisos:** si el usuario de BD no es dueño del tipo `circuit_status` (p. ej. el tipo lo creó `postgres` y la app usa `escuela_pass_app`), la migración puede fallar con *debe ser dueño del tipo*. Solución: en pgAdmin, con usuario `postgres`, ejecutar `scripts/database/ensure-padre-en-camino-enum.sql` (o el mismo bloque `DO $$ ... $$` del final de `escuela_pass_schema_v3.sql`). Luego vuelva a `npm run migration:run` (detectará el valor y continuará). Opcional: `ALTER TYPE circuit_status OWNER TO escuela_pass_app;` para que migraciones futuras sobre el enum las ejecute la app.
 
 ## Flujo QR/NFC web
 
@@ -110,10 +114,11 @@ Swagger: `http://localhost:3000/docs` — usar **Authorize** con `Bearer <access
 - `POST /access-events/scan`: JWT + roles `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - `POST /circuit-requests`: JWT + `PADRE`, `ADMIN`, `ADMINISTRATIVO`.
 - `PATCH /circuit-requests/:id/gps`: JWT + `PADRE` (solo el padre que creó la solicitud).
+- `PATCH /circuit-requests/:id/parent-progress`: JWT + `PADRE` (avance explícito del circuito).
 - `PATCH /circuit-requests/:id/confirm-delivered`: JWT + `PADRE`, `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - `GET /circuit-requests/today`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE`.
 - Rutas bajo `/school/*`: JWT + `ADMIN`, `ADMINISTRATIVO` (grupos, materias, alumnos, docentes, asignaciones `teacher_groups`).
-- `GET /exports/attendance.csv` y `GET /exports/grades.csv`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` (misma regla de grupo que reportes para docentes).
+- `GET /exports/attendance.xlsx`, `GET /exports/grades.xlsx`, `GET /exports/bulletin-consolidated.xlsx`: JWT + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` (misma regla de grupo que reportes para docentes).
 - Visitas (`/visits`): `POST` y `GET /me` + `PADRE`; listado y cambio de estado + `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` (este solo filas de alumnos de sus grupos en `teacher_groups`).
 - Reuniones (`/meetings`): `POST` y `GET /me` + `PADRE`; listado staff (`ADMIN`/`ADMINISTRATIVO` todo, `DOCENTE` solo donde es convocado); `PATCH :id/status` + docente convocado o administración.
 - Horarios (`/schedules`): alta/edición/baja + `ADMIN`, `ADMINISTRATIVO`; lectura por grupo + `PADRE` (hijo en el grupo), `DOCENTE` (asignación al grupo) o administración.
@@ -337,7 +342,7 @@ Notas:
    - Query `date` (opcional): `2026-04-02`
 3. **Pagos pendientes (GET)**: `GET /reports/payments/pending` (sin body).
 4. **Circuito de hoy (GET)**: `GET /reports/circuit/today`
-   - Query `status` (opcional): `PENDIENTE` / `NOTIFICADO_LLEGADA` / `AUTORIZADO_SALIR` / `EN_CAMINO` / `ENTREGADO` / `CONSENTIDO_SOLO` / `CANCELADO`
+   - Query `status` (opcional): `PENDIENTE` / `PADRE_EN_CAMINO` / `NOTIFICADO_LLEGADA` / `AUTORIZADO_SALIR` / `EN_CAMINO` / `ENTREGADO` / `CONSENTIDO_SOLO` / `CANCELADO`
    - Query `date` (opcional): `2026-04-02`
 5. Login docente (`docente1@...`) y prueba `GET /reports/attendance/today?groupId=...` para su grupo asignado.
 
@@ -353,22 +358,22 @@ Ejemplos:
 
 - `GET /school/groups`
 - `POST /school/teacher-assignments` con `teacherId`, `groupId`, `subjectId` (opcional), `isMainTeacher`, `canAuthorizeDepartures`
-- Importación masiva CSV (multipart, campo `file`):
-  - `POST /school/import/groups/csv`
-  - `POST /school/import/students/csv`
-  - `POST /school/import/teachers/csv`
-  - `POST /school/import/teacher-assignments/csv`
+- Importación masiva Excel (multipart, campo `file`, primera hoja, fila 1 = encabezados):
+  - `POST /school/import/groups/xlsx`
+  - `POST /school/import/students/xlsx`
+  - `POST /school/import/teachers/xlsx`
+  - `POST /school/import/teacher-assignments/xlsx`
   - Query opcional `dryRun=true` para validar sin escribir en BD.
 
-- Plantillas CSV de descarga:
-  - `GET /school/import/templates/groups.csv`
-  - `GET /school/import/templates/students.csv`
-  - `GET /school/import/templates/teachers.csv`
-  - `GET /school/import/templates/teacher-assignments.csv`
+- Plantillas Excel de descarga:
+  - `GET /school/import/templates/groups.xlsx`
+  - `GET /school/import/templates/students.xlsx`
+  - `GET /school/import/templates/teachers.xlsx`
+  - `GET /school/import/templates/teacher-assignments.xlsx`
 - Historial de cargas (persistido en tabla `import_jobs`):
   - `GET /school/import/history?limit=20`
 
-Cabeceras esperadas por CSV:
+Cabeceras esperadas (columnas en la primera fila):
 
 - Grupos: `name,grade,shift,schoolYear,classroom,capacity`
 - Alumnos: `email,password,fullName,matricula,groupId,canAccessCampus,canLeaveAlone`
@@ -377,18 +382,15 @@ Cabeceras esperadas por CSV:
 
 ---
 
-## Exportaciones CSV y Excel (`/exports`)
+## Exportaciones Excel (`/exports`)
 
-**CSV:** respuesta `Content-Type: text/csv; charset=utf-8` (UTF-8 con BOM para abrir en Excel).
-
-**Excel (.xlsx):** `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` y `Content-Disposition: attachment` con nombre sugerido (`asistencia-YYYY-MM-DD.xlsx`, `calificaciones-....xlsx`). Mismos datos y reglas que el CSV (incluida la validación de día sin clases para asistencia).
+**Excel (.xlsx):** `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` y `Content-Disposition: attachment`. Las hojas incluyen filas de cabecera con nombre de institución (desde `GET /settings/institution` o variables `INSTITUTION_*` en `.env`). Validación de día sin clases para asistencia igual que antes.
 
 | Metodo | Ruta | Rol |
 |--------|------|-----|
-| GET | `/exports/attendance.csv?groupId=UUID&date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO, DOCENTE |
 | GET | `/exports/attendance.xlsx?groupId=UUID&date=YYYY-MM-DD` | ADMIN, ADMINISTRATIVO, DOCENTE |
-| GET | `/exports/grades.csv?groupId=UUID&period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
 | GET | `/exports/grades.xlsx?groupId=UUID&period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| GET | `/exports/bulletin-consolidated.xlsx?groupId=UUID&period=...&subject=...` | ADMIN, ADMINISTRATIVO, DOCENTE |
 
 Los filtros `period` y `subject` en calificaciones son opcionales. Para `DOCENTE` aplica la misma regla que en reportes: solo grupos donde tenga fila en `teacher_groups`.
 
@@ -396,30 +398,25 @@ Los filtros `period` y `subject` en calificaciones son opcionales. Para `DOCENTE
 
 ## Configuración institucional (`/settings`)
 
-Tabla `institution_settings` (`setting_key`, `value`).
+Tabla `institution_settings` (`setting_key`, `value`). Claves de perfil: `institution.name`, `institution.address`, `institution.city`, `institution.phone`, `institution.email`, `institution.director_name`, `institution.motto` (además de `circuit.enabled`).
 
 | Método | Ruta | Rol | Descripción |
 |--------|------|-----|-------------|
+| GET | `/settings/institution` | Todos los roles autenticados | Perfil para reportes y PDF (nombre, dirección, etc.). Valores por defecto desde `.env` (`INSTITUTION_NAME`, …) si no hay filas en BD. |
+| PATCH | `/settings/institution` | ADMIN, ADMINISTRATIVO | Actualiza campos opcionales del perfil (`name`, `address`, `city`, `phone`, `email`, `directorName`, `motto`). |
 | GET | `/settings/circuit` | Todos los roles autenticados | `{ "enabled": boolean }` — si el circuito de recogida acepta nuevas solicitudes (`POST /circuit-requests`). |
 | PATCH | `/settings/circuit` | ADMIN, ADMINISTRATIVO | Body `{ "enabled": true \| false }`. Si `enabled` es `false`, `POST /circuit-requests` responde **400** hasta volver a habilitar. Las solicitudes ya creadas siguen su flujo normal. |
 
 ---
 
-## Circuito: GPS en ruta (`PATCH /circuit-requests/:id/gps`)
+## Circuito: GPS opcional y avance del padre
 
-El padre que creó la solicitud puede enviar o actualizar coordenadas mientras el circuito está activo:
-
-- Body JSON: `{ "parentGpsLatitude": number, "parentGpsLongitude": number }` (latitud [-90, 90], longitud [-180, 180]).
-- Integración preferida: **Mapbox Directions API** (`MAPBOX_ACCESS_TOKEN`).
-- El backend calcula distancia al colegio y, si entra al radio (`CIRCUIT_ARRIVAL_RADIUS_KM`), cambia estado automáticamente a `NOTIFICADO_LLEGADA`.
-- Variables recomendadas:
-  - `MAPBOX_ACCESS_TOKEN`
-  - `SCHOOL_LATITUDE`
-  - `SCHOOL_LONGITUDE`
-  - `CIRCUIT_ARRIVAL_RADIUS_KM`
-- Si Mapbox no está configurado o falla, se usa fallback local con fórmula Haversine para no romper el flujo.
-- Confirmación de entrega: `PATCH /circuit-requests/:id/confirm-delivered` (padre dueño de la solicitud o staff) para cerrar el flujo en `ENTREGADO`.
-- **Push FCM (padre solicitante):** si Firebase está configurado y el padre tiene token registrado (`POST /notifications/fcm/register`), recibe notificaciones ante cambios de estado del circuito (incluye llegada por GPS al radio del plantel, autorización de salida, en camino, entrega, cancelación, etc.). Payload `data`: `type=circuit`, `circuitRequestId`, `status`.
+- **`PATCH /circuit-requests/:id/gps`:** el padre solicitante envía coordenadas; el backend calcula distancia/ETA (Mapbox o Haversine) para **visualización** en `GET .../map`. **No** cambia el estado por proximidad ni por radio.
+- **`PATCH /circuit-requests/:id/parent-progress`:** body `{ "status": "PADRE_EN_CAMINO" | "NOTIFICADO_LLEGADA" }` — transiciones permitidas: `PENDIENTE` → `PADRE_EN_CAMINO` → `NOTIFICADO_LLEGADA`. El docente/administración continúa el flujo con `PATCH .../status` (`AUTORIZADO_SALIR`, `EN_CAMINO`, etc.).
+- Variables útiles: `MAPBOX_ACCESS_TOKEN`, `SCHOOL_LATITUDE`, `SCHOOL_LONGITUDE`, `CIRCUIT_ARRIVAL_RADIUS_KM` (referencia en mapa).
+- Solicitud con `pickupMethod` `SOLO_CONSENTIMIENTO` crea el registro en estado `CONSENTIDO_SOLO`.
+- Confirmación de entrega: `PATCH /circuit-requests/:id/confirm-delivered`.
+- **Push FCM:** notificaciones ante cambios de estado del circuito (no hay alertas automáticas por proximidad del vehículo).
 
 ---
 

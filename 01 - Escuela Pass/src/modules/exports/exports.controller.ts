@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  Header,
   ParseUUIDPipe,
   Query,
   Req,
@@ -21,42 +20,6 @@ type JwtUser = { userId: string; email: string; role: UserRole };
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ExportsController {
   constructor(private readonly exportsService: ExportsService) {}
-
-  @Get('attendance.csv')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  async attendanceCsv(
-    @Query('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
-    @Query('date') date: string | undefined,
-    @Req() req: Request & { user: JwtUser }
-  ) {
-    const csv = await this.exportsService.exportAttendanceCsv(
-      groupId,
-      req.user.userId,
-      req.user.role,
-      date
-    );
-    return csv;
-  }
-
-  @Get('grades.csv')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  async gradesCsv(
-    @Query('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
-    @Query('period') period: string | undefined,
-    @Query('subject') subject: string | undefined,
-    @Req() req: Request & { user: JwtUser }
-  ) {
-    const csv = await this.exportsService.exportGradesCsv(
-      groupId,
-      req.user.userId,
-      req.user.role,
-      period,
-      subject
-    );
-    return csv;
-  }
 
   @Get('attendance.xlsx')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
@@ -86,6 +49,27 @@ export class ExportsController {
     @Req() req: Request & { user: JwtUser }
   ) {
     const { buffer, filename } = await this.exportsService.exportGradesXlsx(
+      groupId,
+      req.user.userId,
+      req.user.role,
+      period,
+      subject
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: `attachment; filename="${filename}"`
+    });
+  }
+
+  @Get('bulletin-consolidated.xlsx')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  async bulletinConsolidatedXlsx(
+    @Query('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
+    @Query('period') period: string | undefined,
+    @Query('subject') subject: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const { buffer, filename } = await this.exportsService.exportBulletinConsolidatedXlsx(
       groupId,
       req.user.userId,
       req.user.role,

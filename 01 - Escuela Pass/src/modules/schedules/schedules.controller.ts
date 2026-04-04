@@ -26,6 +26,12 @@ type JwtUser = { userId: string; email: string; role: UserRole };
 export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}
 
+  @Get('me/teacher')
+  @Roles(UserRole.DOCENTE)
+  listMySlotsAsTeacher(@Req() req: Request & { user: JwtUser }) {
+    return this.schedulesService.listMySlotsAsTeacher(req.user.userId);
+  }
+
   @Get('groups/:groupId')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
   listByGroup(

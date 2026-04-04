@@ -22,6 +22,10 @@ import { MeetingsModule } from './modules/meetings/meetings.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { SchoolCalendarModule } from './modules/school-calendar/school-calendar.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { VehiclesModule } from './modules/vehicles/vehicles.module';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 
 @Module({
   imports: [
@@ -55,7 +59,11 @@ import { SettingsModule } from './modules/settings/settings.module';
     MeetingsModule,
     SchedulesModule,
     SchoolCalendarModule,
-    SettingsModule
+    SettingsModule,
+    VehiclesModule,
+    DocumentsModule,
+    AuditModule,
+    PrivacyModule
   ],
   providers: [
     {

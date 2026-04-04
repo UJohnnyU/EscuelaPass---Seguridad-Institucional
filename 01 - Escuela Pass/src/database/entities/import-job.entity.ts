@@ -6,7 +6,7 @@ export class ImportJobEntity {
   id!: string;
 
   @Column({ type: 'varchar', length: 50 })
-  kind!: 'groups' | 'students' | 'teachers' | 'teacher-assignments';
+  kind!: 'groups' | 'students' | 'teachers' | 'teacher-assignments' | 'students-to-groups-xlsx';
 
   @Column({ name: 'total_rows', type: 'int' })
   totalRows!: number;

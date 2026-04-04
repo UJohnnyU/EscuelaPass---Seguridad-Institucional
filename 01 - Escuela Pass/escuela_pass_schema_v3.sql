@@ -32,15 +32,17 @@ DO $$ BEGIN
   CREATE TYPE access_method AS ENUM ('QR', 'NFC', 'MANUAL');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Modalidad de retiro: conductores = padres/tutores (sin transporte escolar en el modelo).
 DO $$ BEGIN
   CREATE TYPE pickup_method AS ENUM (
-    'VEHICULO_REGISTRADO', 'OTRO_VEHICULO', 'A_PIE', 'TRANSPORTE_PUBLICO', 'SOLO_CONSENTIMIENTO'
+    'VEHICULO_REGISTRADO', 'OTRO_VEHICULO', 'A_PIE', 'SOLO_CONSENTIMIENTO'
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Circuito: sin cambio de estado automático por proximidad GPS; el padre avanza estados explícitos.
 DO $$ BEGIN
   CREATE TYPE circuit_status AS ENUM (
-    'PENDIENTE', 'NOTIFICADO_LLEGADA', 'AUTORIZADO_SALIR', 'EN_CAMINO',
+    'PENDIENTE', 'PADRE_EN_CAMINO', 'NOTIFICADO_LLEGADA', 'AUTORIZADO_SALIR', 'EN_CAMINO',
     'ENTREGADO', 'CONSENTIDO_SOLO', 'CANCELADO'
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -246,6 +248,8 @@ CREATE TABLE IF NOT EXISTS circuit_requests (
     request_time TIMESTAMPTZ NOT NULL,
     parent_gps_latitude NUMERIC(10, 8),
     parent_gps_longitude NUMERIC(11, 8),
+    vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
+    teacher_signal VARCHAR(40),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -444,6 +448,38 @@ CREATE TABLE IF NOT EXISTS user_fcm_tokens (
     UNIQUE (token)
 );
 
+-- Auditoría y políticas de privacidad (cumplimiento)
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(120) NOT NULL,
+    entity_type VARCHAR(80),
+    entity_id UUID,
+    metadata JSONB,
+    ip_address INET,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS privacy_policies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version VARCHAR(32) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    effective_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_privacy_acceptances (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    policy_version VARCHAR(32) NOT NULL,
+    accepted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ip_address INET,
+    PRIMARY KEY (user_id, policy_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_access_events_user_date ON access_events(user_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_debts_student ON debts(student_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
@@ -457,3 +493,16 @@ CREATE INDEX IF NOT EXISTS idx_meetings_parent ON parent_teacher_meetings(parent
 CREATE INDEX IF NOT EXISTS idx_meetings_teacher ON parent_teacher_meetings(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_slots_group ON class_schedule_slots(group_id);
 CREATE INDEX IF NOT EXISTS idx_user_fcm_tokens_user ON user_fcm_tokens(user_id);
+
+-- Actualización de enum en bases ya creadas (si el tipo existía sin este valor). Requiere permiso de dueño del tipo.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'circuit_status')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_enum e
+       JOIN pg_type t ON e.enumtypid = t.oid
+       WHERE t.typname = 'circuit_status' AND e.enumlabel = 'PADRE_EN_CAMINO'
+     ) THEN
+    ALTER TYPE circuit_status ADD VALUE 'PADRE_EN_CAMINO';
+  END IF;
+END $$;

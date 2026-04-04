@@ -60,6 +60,16 @@ export class SchedulesService {
     });
   }
 
+  /** Todas las franjas horarias donde figura el docente (cualquier grupo). */
+  async listMySlotsAsTeacher(userId: string) {
+    const teacher = await this.teachersRepository.findOne({ where: { userId } });
+    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    return this.slotsRepository.find({
+      where: { teacherId: teacher.id },
+      order: { weekday: 'ASC', startTime: 'ASC' }
+    });
+  }
+
   async update(id: string, dto: UpdateScheduleSlotDto) {
     const row = await this.slotsRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Franja no encontrada');

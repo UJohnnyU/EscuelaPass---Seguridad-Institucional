@@ -63,6 +63,27 @@ class EnvVars {
   @IsString()
   @IsOptional()
   FIREBASE_SERVICE_ACCOUNT_JSON?: string;
+
+  /** Valores por defecto del perfil institucional si no hay filas en `institution_settings`. */
+  @IsString()
+  @IsOptional()
+  INSTITUTION_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  INSTITUTION_ADDRESS?: string;
+
+  @IsString()
+  @IsOptional()
+  INSTITUTION_CITY?: string;
+
+  @IsString()
+  @IsOptional()
+  INSTITUTION_PHONE?: string;
+
+  @IsString()
+  @IsOptional()
+  INSTITUTION_EMAIL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

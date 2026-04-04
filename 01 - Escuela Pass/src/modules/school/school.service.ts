@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import ExcelJS from 'exceljs';
 import { IsNull, Repository } from 'typeorm';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
@@ -27,6 +29,13 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 type CsvImportResult = {
   totalRows: number;
   created: number;
+  errors: Array<{ row: number; message: string }>;
+  dryRun: boolean;
+};
+
+type XlsxAssignResult = {
+  totalRows: number;
+  updated: number;
   errors: Array<{ row: number; message: string }>;
   dryRun: boolean;
 };
@@ -350,9 +359,10 @@ export class SchoolService {
     return { message: 'Asignación eliminada', id };
   }
 
-  // --- Cargas masivas CSV ---
-  async importGroupsCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
-    const rows = this.parseCsv(csvText);
+  // --- Cargas masivas Excel (.xlsx), primera hoja, fila 1 = encabezados (mismos nombres que antes en CSV) ---
+
+  async importGroupsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
@@ -376,8 +386,8 @@ export class SchoolService {
     return result;
   }
 
-  async importStudentsCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
-    const rows = this.parseCsv(csvText);
+  async importStudentsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
@@ -402,8 +412,8 @@ export class SchoolService {
     return result;
   }
 
-  async importTeachersCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
-    const rows = this.parseCsv(csvText);
+  async importTeachersXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
@@ -426,8 +436,90 @@ export class SchoolService {
     return result;
   }
 
-  async importTeacherAssignmentsCsv(csvText: string, dryRun = false): Promise<CsvImportResult> {
-    const rows = this.parseCsv(csvText);
+  /**
+   * Excel exclusivo para asignar alumnos existentes a grupos (grado/turno/año o nombre de grupo).
+   * Columnas esperadas (fila 1): matricula, y uno de: grupo_id | (nombre_grupo + anio_escolar) | (grado + turno + anio_escolar).
+   */
+  async importStudentsToGroupsFromXlsx(buffer: Buffer, dryRun = false): Promise<XlsxAssignResult> {
+    const workbook = new ExcelJS.Workbook();
+    try {
+      // Compat tipos Node 22 / exceljs
+      await workbook.xlsx.load(buffer as never);
+    } catch {
+      throw new BadRequestException('No se pudo leer el archivo Excel');
+    }
+    const ws = workbook.worksheets[0];
+    if (!ws) throw new BadRequestException('El archivo no tiene hojas');
+
+    const headerRow = ws.getRow(1);
+    const colByField = new Map<string, number>();
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const raw = String(cell.value ?? '').trim();
+      if (!raw) return;
+      const field = this.mapExcelHeaderToField(raw);
+      if (field) colByField.set(field, colNumber);
+    });
+
+    if (!colByField.has('matricula')) {
+      throw new BadRequestException('La primera fila debe incluir la columna "matricula"');
+    }
+
+    const result: XlsxAssignResult = {
+      totalRows: 0,
+      updated: 0,
+      errors: [],
+      dryRun
+    };
+
+    const lastRow = ws.lastRow?.number ?? 1;
+    for (let r = 2; r <= lastRow; r++) {
+      const row = ws.getRow(r);
+      const fields: Record<string, string> = {};
+      for (const [field, col] of colByField) {
+        fields[field] = this.excelCellText(row, col);
+      }
+      const matricula = fields.matricula?.trim();
+      if (!matricula) continue;
+
+      result.totalRows += 1;
+      try {
+        const group = await this.resolveGroupForExcelRow(fields, r);
+        const student = await this.studentsRepository.findOne({ where: { matricula } });
+        if (!student) {
+          throw new Error(`No existe alumno con matrícula ${matricula}`);
+        }
+        if (!dryRun) {
+          await this.studentsRepository.update({ id: student.id }, { groupId: group.id });
+        }
+        result.updated += 1;
+      } catch (error) {
+        result.errors.push({ row: r, message: this.errorMessage(error) });
+      }
+    }
+
+    await this.pushImportLog('students-to-groups-xlsx', result);
+    return result;
+  }
+
+  async buildStudentsToGroupsTemplateXlsx(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Asignacion');
+    ws.addRow([
+      'matricula',
+      'grupo_id',
+      'nombre_grupo',
+      'grado',
+      'turno',
+      'anio_escolar'
+    ]);
+    ws.addRow(['MAT-0001', '', '1A', '1', 'MATUTINO', '2026-2027']);
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  }
+
+  async importTeacherAssignmentsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
@@ -467,80 +559,167 @@ export class SchoolService {
     }));
   }
 
-  getTemplateGroupsCsv() {
-    return (
-      '\uFEFF' +
-      'name,grade,shift,schoolYear,classroom,capacity\r\n' +
-      '1A,1,MATUTINO,2026-2027,A-101,30\r\n'
-    );
+  async buildTemplateGroupsXlsx(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Grupos');
+    ws.addRow(['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity']);
+    ws.addRow(['1A', '1', 'MATUTINO', '2026-2027', 'A-101', '30']);
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  getTemplateStudentsCsv() {
-    return (
-      '\uFEFF' +
-      'email,password,fullName,matricula,groupId,canAccessCampus,canLeaveAlone\r\n' +
-      'alumno.nuevo@escuelapass.local,Alumno123*,Alumno Nuevo,MAT-1001,,false,false\r\n'
-    );
+  async buildTemplateStudentsXlsx(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Alumnos');
+    ws.addRow([
+      'email',
+      'password',
+      'fullName',
+      'matricula',
+      'groupId',
+      'canAccessCampus',
+      'canLeaveAlone'
+    ]);
+    ws.addRow([
+      'alumno.nuevo@escuelapass.local',
+      'Alumno123*',
+      'Alumno Nuevo',
+      'MAT-1001',
+      '',
+      'false',
+      'false'
+    ]);
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  getTemplateTeachersCsv() {
-    return (
-      '\uFEFF' +
-      'email,password,fullName,employeeNumber,canAccessCampus\r\n' +
-      'docente.nuevo@escuelapass.local,Docente123*,Docente Nuevo,EMP-1001,true\r\n'
-    );
+  async buildTemplateTeachersXlsx(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Docentes');
+    ws.addRow(['email', 'password', 'fullName', 'employeeNumber', 'canAccessCampus']);
+    ws.addRow(['docente.nuevo@escuelapass.local', 'Docente123*', 'Docente Nuevo', 'EMP-1001', 'true']);
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  getTemplateTeacherAssignmentsCsv() {
-    return (
-      '\uFEFF' +
-      'teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures\r\n' +
-      '11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222,,true,false\r\n'
-    );
+  async buildTemplateTeacherAssignmentsXlsx(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Asignaciones');
+    ws.addRow([
+      'teacherId',
+      'groupId',
+      'subjectId',
+      'isMainTeacher',
+      'canAuthorizeDepartures'
+    ]);
+    ws.addRow([
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '',
+      'true',
+      'false'
+    ]);
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  private parseCsv(text: string): Array<Record<string, string>> {
-    const lines = text
-      .replace(/^\uFEFF/, '')
-      .split(/\r?\n/)
-      .map((x) => x.trim())
-      .filter((x) => x.length > 0);
-    if (lines.length < 2) return [];
-
-    const headers = this.splitCsvLine(lines[0]).map((x) => x.trim());
-    return lines.slice(1).map((line) => {
-      const values = this.splitCsvLine(line);
-      const row: Record<string, string> = {};
-      for (let i = 0; i < headers.length; i++) row[headers[i]] = values[i]?.trim() ?? '';
-      return row;
-    });
+  private mapExcelHeaderToField(raw: string): string | null {
+    const k = raw
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '_');
+    const map: Record<string, string> = {
+      matricula: 'matricula',
+      grupo_id: 'grupo_id',
+      group_id: 'grupo_id',
+      nombre_grupo: 'nombre_grupo',
+      grupo: 'nombre_grupo',
+      grado: 'grado',
+      turno: 'turno',
+      anio_escolar: 'anio_escolar',
+      school_year: 'anio_escolar',
+      schoolyear: 'anio_escolar'
+    };
+    return map[k] ?? null;
   }
 
-  private splitCsvLine(line: string) {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        const next = line[i + 1];
-        if (inQuotes && next === '"') {
-          current += '"';
-          i++;
-          continue;
-        }
-        inQuotes = !inQuotes;
-        continue;
-      }
-      if (ch === ',' && !inQuotes) {
-        result.push(current);
-        current = '';
-        continue;
-      }
-      current += ch;
+  private excelCellText(row: ExcelJS.Row, colNumber: number): string {
+    const c = row.getCell(colNumber);
+    const t = typeof c.text === 'string' ? c.text : String(c.value ?? '');
+    return t.trim();
+  }
+
+  private async resolveGroupForExcelRow(
+    fields: Record<string, string>,
+    line: number
+  ): Promise<GroupEntity> {
+    const gid = fields.grupo_id?.trim();
+    if (gid) {
+      const g = await this.groupsRepository.findOne({ where: { id: gid } });
+      if (!g) throw new Error(`grupo_id inválido (${gid})`);
+      return g;
     }
-    result.push(current);
-    return result;
+    const anio = fields.anio_escolar?.trim();
+    const nombre = fields.nombre_grupo?.trim();
+    if (nombre && anio) {
+      const g = await this.groupsRepository.findOne({ where: { name: nombre, schoolYear: anio } });
+      if (!g) throw new Error(`No hay grupo con nombre "${nombre}" y año "${anio}"`);
+      return g;
+    }
+    const grado = fields.grado?.trim();
+    const turno = fields.turno?.trim();
+    if (grado && turno && anio) {
+      const shift = this.parseShift(turno);
+      const g = await this.groupsRepository.findOne({
+        where: { grade: grado, shift, schoolYear: anio }
+      });
+      if (!g) throw new Error('No hay grupo con grado/turno/año indicados');
+      return g;
+    }
+    throw new Error(
+      `Fila ${line}: indique grupo_id o (nombre_grupo + anio_escolar) o (grado + turno + anio_escolar)`
+    );
+  }
+
+  private async parseXlsxFirstSheetToRows(buffer: Buffer): Promise<Array<Record<string, string>>> {
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(buffer as never);
+    } catch {
+      throw new BadRequestException('No se pudo leer el archivo Excel');
+    }
+    const ws = workbook.worksheets[0];
+    if (!ws) throw new BadRequestException('El archivo no tiene hojas');
+
+    const headerRow = ws.getRow(1);
+    const colByName = new Map<string, number>();
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const raw = String(cell.value ?? '').trim();
+      if (raw) colByName.set(raw, colNumber);
+    });
+    if (colByName.size === 0) {
+      throw new BadRequestException('La primera fila debe contener encabezados de columnas');
+    }
+
+    const rows: Array<Record<string, string>> = [];
+    const lastRow = ws.lastRow?.number ?? 1;
+    for (let r = 2; r <= lastRow; r++) {
+      const line = ws.getRow(r);
+      const obj: Record<string, string> = {};
+      for (const [header, col] of colByName) {
+        obj[header] = this.excelCellText(line, col);
+      }
+      if (Object.values(obj).some((v) => v.trim().length > 0)) {
+        rows.push(obj);
+      }
+    }
+    return rows;
   }
 
   private required(row: Record<string, string>, key: string) {
@@ -583,13 +762,19 @@ export class SchoolService {
   }
 
   private async pushImportLog(
-    kind: 'groups' | 'students' | 'teachers' | 'teacher-assignments',
-    result: CsvImportResult
+    kind:
+      | 'groups'
+      | 'students'
+      | 'teachers'
+      | 'teacher-assignments'
+      | 'students-to-groups-xlsx',
+    result: CsvImportResult | XlsxAssignResult
   ) {
+    const createdCount = 'created' in result ? result.created : result.updated;
     const row = this.importJobsRepository.create({
       kind,
       totalRows: result.totalRows,
-      createdCount: result.created,
+      createdCount,
       errorCount: result.errors.length,
       dryRun: result.dryRun,
       errorsJson: result.errors.length ? result.errors : null

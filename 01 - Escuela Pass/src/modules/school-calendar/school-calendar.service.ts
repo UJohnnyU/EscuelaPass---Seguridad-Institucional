@@ -65,11 +65,18 @@ export class SchoolCalendarService {
    */
   async getNonInstructionalForDate(dateStr: string, groupId: string | null): Promise<NonInstructionalInfo> {
     const date = dateStr.slice(0, 10);
-    const rows = await this.daysRepository
+    const qb = this.daysRepository
       .createQueryBuilder('d')
-      .where('d.exceptionDate = :date', { date })
-      .andWhere('(d.groupId IS NULL OR (:gid IS NOT NULL AND d.groupId = :gid))', { gid: groupId })
-      .getMany();
+      .where('d.exceptionDate = :date', { date });
+
+    // No pasar null como :gid: en Postgres el tipo del parámetro queda indeterminado ("$2").
+    if (groupId === null) {
+      qb.andWhere('d.groupId IS NULL');
+    } else {
+      qb.andWhere('(d.groupId IS NULL OR d.groupId = :gid)', { gid: groupId });
+    }
+
+    const rows = await qb.getMany();
 
     const reasons = rows.map((r) => r.reason).filter((x): x is string => !!x?.trim());
     return { nonInstructional: rows.length > 0, reasons };

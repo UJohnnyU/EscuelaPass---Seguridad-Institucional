@@ -1,8 +1,53 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import ExcelJS from 'exceljs';
 import { Pool } from 'pg';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+
+async function buildGroupsImportXlsx(schoolYear: string): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Grupos');
+  ws.addRow(['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity']);
+  ws.addRow(['E2E-GRUPO', '1', 'MATUTINO', schoolYear, 'A-1', '25']);
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+}
+
+async function buildTeacherAssignmentsImportXlsx(
+  teacherId: string,
+  groupId: string
+): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Asignaciones');
+  ws.addRow([
+    'teacherId',
+    'groupId',
+    'subjectId',
+    'isMainTeacher',
+    'canAuthorizeDepartures'
+  ]);
+  ws.addRow([teacherId, groupId, '', 'true', 'true']);
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+}
+
+/** StreamableFile / Excel: supertest no siempre rellena `body` como Buffer; usar Content-Length o texto. */
+function expectBinaryDownloadMinBytes(
+  res: { headers: Record<string, unknown>; body: unknown; text?: string },
+  minBytes: number
+) {
+  const cl = res.headers['content-length'];
+  if (cl != null && String(cl) !== '') {
+    expect(Number(cl)).toBeGreaterThan(minBytes);
+    return;
+  }
+  if (Buffer.isBuffer(res.body)) {
+    expect(res.body.length).toBeGreaterThan(minBytes);
+    return;
+  }
+  expect(String(res.text ?? '').length).toBeGreaterThan(minBytes);
+}
 
 describe('App (e2e)', () => {
   let app: INestApplication;
@@ -28,10 +73,6 @@ describe('App (e2e)', () => {
   };
 
   beforeAll(async () => {
-    // Hacemos determinística la regla de llegada por radio para esta suite:
-    // con un radio muy amplio, cualquier GPS reportado debe entrar a "NOTIFICADO_LLEGADA".
-    process.env.CIRCUIT_ARRIVAL_RADIUS_KM = '9999';
-
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule]
     }).compile();
@@ -141,7 +182,7 @@ describe('App (e2e)', () => {
     expect(second.body.status).toBe('RETARDO');
   });
 
-  it('calendario: día sin clases bloquea registro de asistencia y export CSV', async () => {
+  it('calendario: día sin clases bloquea registro de asistencia y export Excel', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
 
     const student = await sqlOne<{ id: string; group_id: string | null }>(
@@ -168,7 +209,7 @@ describe('App (e2e)', () => {
 
     if (student.group_id) {
       await request(app.getHttpServer())
-        .get(`/${apiPrefix}/exports/attendance.csv`)
+        .get(`/${apiPrefix}/exports/attendance.xlsx`)
         .query({ groupId: student.group_id, date })
         .set(authHeader(admin.accessToken))
         .expect(400);
@@ -386,28 +427,12 @@ describe('App (e2e)', () => {
     expect(res.body.length).toBeGreaterThan(0);
   });
 
-  it('exports: CSV asistencia y calificaciones (text/csv)', async () => {
+  it('exports: Excel asistencia, calificaciones y boletín consolidado', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
     const group = await sqlOne<{ group_id: string }>(
       `SELECT g.id AS group_id FROM groups g WHERE g.name = '1A' AND g.school_year = '2026-2027'`
     );
     const date = new Date().toISOString().slice(0, 10);
-
-    const att = await request(app.getHttpServer())
-      .get(`/${apiPrefix}/exports/attendance.csv`)
-      .query({ groupId: group.group_id, date })
-      .set(authHeader(admin.accessToken))
-      .expect(200);
-    expect(String(att.headers['content-type'] ?? '')).toMatch(/text\/csv/);
-    expect(att.text).toContain('matricula');
-
-    const gr = await request(app.getHttpServer())
-      .get(`/${apiPrefix}/exports/grades.csv`)
-      .query({ groupId: group.group_id })
-      .set(authHeader(admin.accessToken))
-      .expect(200);
-    expect(String(gr.headers['content-type'] ?? '')).toMatch(/text\/csv/);
-    expect(gr.text).toContain('matricula');
 
     const attX = await request(app.getHttpServer())
       .get(`/${apiPrefix}/exports/attendance.xlsx`)
@@ -415,6 +440,7 @@ describe('App (e2e)', () => {
       .set(authHeader(admin.accessToken))
       .expect(200);
     expect(String(attX.headers['content-type'] ?? '')).toMatch(/spreadsheet/);
+    expectBinaryDownloadMinBytes(attX, 200);
 
     const grX = await request(app.getHttpServer())
       .get(`/${apiPrefix}/exports/grades.xlsx`)
@@ -422,6 +448,40 @@ describe('App (e2e)', () => {
       .set(authHeader(admin.accessToken))
       .expect(200);
     expect(String(grX.headers['content-type'] ?? '')).toMatch(/spreadsheet/);
+    expectBinaryDownloadMinBytes(grX, 200);
+
+    const bull = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/exports/bulletin-consolidated.xlsx`)
+      .query({ groupId: group.group_id })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(String(bull.headers['content-type'] ?? '')).toMatch(/spreadsheet/);
+    expectBinaryDownloadMinBytes(bull, 200);
+  });
+
+  it('settings: perfil institucional lectura y actualización admin', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+
+    const before = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/settings/institution`)
+      .set(authHeader(padre.accessToken))
+      .expect(200);
+    expect(before.body).toHaveProperty('name');
+
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/settings/institution`)
+      .set(authHeader(padre.accessToken))
+      .send({ name: 'No debe' })
+      .expect(403);
+
+    const after = await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/settings/institution`)
+      .set(authHeader(admin.accessToken))
+      .send({ name: 'Escuela Pass E2E', directorName: 'Director Prueba' })
+      .expect(200);
+    expect(after.body.name).toBe('Escuela Pass E2E');
+    expect(after.body.directorName).toBe('Director Prueba');
   });
 
   it('settings: circuito deshabilitado bloquea nuevas solicitudes de circuito', async () => {
@@ -509,10 +569,24 @@ describe('App (e2e)', () => {
 
     expect(patch.body.parentGpsLatitude).toBeDefined();
     expect(patch.body.parentGpsLongitude).toBeDefined();
-    expect(patch.body.status).toBe('NOTIFICADO_LLEGADA');
-    expect(patch.body.autoTransitioned).toBe(true);
+    expect(patch.body.status).toBe('PENDIENTE');
+    expect(patch.body.autoTransitioned).toBe(false);
     expect(typeof patch.body.distanceToSchoolKm).toBe('number');
     expect(['mapbox', 'haversine']).toContain(patch.body.distanceSource);
+
+    const p1 = await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/parent-progress`)
+      .set(authHeader(padre.accessToken))
+      .send({ status: 'PADRE_EN_CAMINO' })
+      .expect(200);
+    expect(p1.body.status).toBe('PADRE_EN_CAMINO');
+
+    const p2 = await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/parent-progress`)
+      .set(authHeader(padre.accessToken))
+      .send({ status: 'NOTIFICADO_LLEGADA' })
+      .expect(200);
+    expect(p2.body.status).toBe('NOTIFICADO_LLEGADA');
   });
 
   it('circuit: padre confirma entrega de su solicitud', async () => {
@@ -572,16 +646,16 @@ describe('App (e2e)', () => {
       .expect(403);
   });
 
-  it('school import: admin carga grupos por CSV y padre no puede', async () => {
+  it('school import: admin carga grupos por Excel y padre no puede', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
     const padre = await login('padre1@escuelapass.local', 'Padre123*');
     const schoolYear = `E2E-${Date.now()}`;
-    const csv = `name,grade,shift,schoolYear,classroom,capacity\nE2E-GRUPO,1,MATUTINO,${schoolYear},A-1,25`;
+    const xlsx = await buildGroupsImportXlsx(schoolYear);
 
     const imported = await request(app.getHttpServer())
-      .post(`/${apiPrefix}/school/import/groups/csv`)
+      .post(`/${apiPrefix}/school/import/groups/xlsx`)
       .set(authHeader(admin.accessToken))
-      .attach('file', Buffer.from(csv, 'utf8'), 'groups.csv')
+      .attach('file', xlsx, 'groups.xlsx')
       .expect(201);
 
     expect(imported.body.totalRows).toBe(1);
@@ -590,13 +664,13 @@ describe('App (e2e)', () => {
     expect(imported.body.errors.length).toBe(0);
 
     await request(app.getHttpServer())
-      .post(`/${apiPrefix}/school/import/groups/csv`)
+      .post(`/${apiPrefix}/school/import/groups/xlsx`)
       .set(authHeader(padre.accessToken))
-      .attach('file', Buffer.from(csv, 'utf8'), 'groups.csv')
+      .attach('file', xlsx, 'groups.xlsx')
       .expect(403);
   });
 
-  it('school import: asignaciones por CSV y plantillas CSV', async () => {
+  it('school import: asignaciones por Excel y plantilla xlsx', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
     const teacher = await sqlOne<{ teacher_id: string }>(
       `SELECT t.id AS teacher_id
@@ -610,23 +684,23 @@ describe('App (e2e)', () => {
        FROM groups g
        WHERE g.name = '1A' AND g.school_year = '2026-2027'`
     );
-    const csv = `teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures\n${teacher.teacher_id},${group.group_id},,true,true`;
+    const xlsx = await buildTeacherAssignmentsImportXlsx(teacher.teacher_id, group.group_id);
 
     const imported = await request(app.getHttpServer())
-      .post(`/${apiPrefix}/school/import/teacher-assignments/csv`)
+      .post(`/${apiPrefix}/school/import/teacher-assignments/xlsx`)
       .set(authHeader(admin.accessToken))
-      .attach('file', Buffer.from(csv, 'utf8'), 'assignments.csv')
+      .attach('file', xlsx, 'assignments.xlsx')
       .expect(201);
     expect(imported.body.totalRows).toBe(1);
     expect(imported.body.created).toBe(1);
     expect(imported.body.errors.length).toBe(0);
 
     const tpl = await request(app.getHttpServer())
-      .get(`/${apiPrefix}/school/import/templates/teacher-assignments.csv`)
+      .get(`/${apiPrefix}/school/import/templates/teacher-assignments.xlsx`)
       .set(authHeader(admin.accessToken))
       .expect(200);
-    expect(String(tpl.headers['content-type'] ?? '')).toMatch(/text\/csv/);
-    expect(tpl.text).toContain('teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures');
+    expect(String(tpl.headers['content-type'] ?? '')).toMatch(/spreadsheet/);
+    expectBinaryDownloadMinBytes(tpl, 100);
   });
 
   it('school import: historial de importaciones disponible para admin', async () => {

@@ -7,7 +7,9 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CircuitService } from './circuit.service';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
+import { UpdateParentCircuitProgressDto } from './dto/update-parent-circuit-progress.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
+import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-signal.dto';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
 
@@ -38,10 +40,42 @@ export class CircuitController {
     return this.circuitService.updateParentGps(id, req.user.userId, dto);
   }
 
+  @Patch(':id/parent-progress')
+  @Roles(UserRole.PADRE)
+  advanceParentProgress(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateParentCircuitProgressDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.circuitService.advanceParentProgress(id, req.user.userId, dto);
+  }
+
+  @Get(':id/map')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
+  getMapContext(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.circuitService.getMapContext(id, req.user.userId, req.user.role);
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
-  findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.circuitService.findById(id);
+  findOne(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.circuitService.findByIdForViewer(id, req.user.userId, req.user.role);
+  }
+
+  @Patch(':id/teacher-signal')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  setTeacherSignal(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateTeacherCircuitSignalDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.circuitService.setTeacherSignal(id, dto, req.user.userId, req.user.role);
   }
 
   @Patch(':id/status')

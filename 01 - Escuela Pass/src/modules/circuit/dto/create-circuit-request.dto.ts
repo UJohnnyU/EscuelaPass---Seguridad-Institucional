@@ -1,5 +1,5 @@
-import { IsEnum, IsNumber, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { PickupMethod } from '../../../database/entities/circuit-request.entity';
+import { IsIn, IsNumber, IsOptional, IsUUID, Max, Min, ValidateIf } from 'class-validator';
+import { PickupMethod, PICKUP_METHOD_CREATE } from '../../../database/entities/circuit-request.entity';
 
 export class CreateCircuitRequestDto {
   @IsUUID()
@@ -8,7 +8,7 @@ export class CreateCircuitRequestDto {
   @IsUUID()
   requestedByParentId!: string;
 
-  @IsEnum(PickupMethod)
+  @IsIn(PICKUP_METHOD_CREATE as unknown as string[])
   pickupMethod!: PickupMethod;
 
   @IsUUID()
@@ -18,6 +18,11 @@ export class CreateCircuitRequestDto {
   @IsUUID()
   @IsOptional()
   departureConsentId?: string;
+
+  /** Obligatorio si pickupMethod es VEHICULO_REGISTRADO (vehículo dado de alta del padre). */
+  @ValidateIf((o: CreateCircuitRequestDto) => o.pickupMethod === PickupMethod.VEHICULO_REGISTRADO)
+  @IsUUID()
+  vehicleId?: string;
 
   @IsNumber()
   @IsOptional()

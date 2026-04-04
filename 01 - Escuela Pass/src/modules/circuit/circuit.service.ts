@@ -7,13 +7,18 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CircuitRequestEntity, CircuitStatus } from '../../database/entities/circuit-request.entity';
+import { CircuitRequestEntity, CircuitStatus, PickupMethod } from '../../database/entities/circuit-request.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
+import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
+import { VehicleEntity } from '../../database/entities/vehicle.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
+import { UpdateParentCircuitProgressDto } from './dto/update-parent-circuit-progress.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
+import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-signal.dto';
 import { FcmService } from '../fcm/fcm.service';
 import { SettingsService } from '../settings/settings.service';
 
@@ -34,6 +39,12 @@ export class CircuitService {
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(ParentEntity)
     private readonly parentsRepository: Repository<ParentEntity>,
+    @InjectRepository(VehicleEntity)
+    private readonly vehiclesRepository: Repository<VehicleEntity>,
+    @InjectRepository(TeacherEntity)
+    private readonly teachersRepository: Repository<TeacherEntity>,
+    @InjectRepository(TeacherGroupEntity)
+    private readonly teacherGroupsRepository: Repository<TeacherGroupEntity>,
     private readonly fcmService: FcmService,
     private readonly settingsService: SettingsService
   ) {}
@@ -49,14 +60,39 @@ export class CircuitService {
       where: { id: payload.requestedByParentId }
     });
     if (!parent) throw new NotFoundException('Padre no existe');
+
+    let vehicleId: string | null = null;
+    if (payload.pickupMethod === PickupMethod.VEHICULO_REGISTRADO) {
+      if (!payload.vehicleId) {
+        throw new BadRequestException('Debe indicar vehicleId cuando el método es VEHICULO_REGISTRADO');
+      }
+      const vehicle = await this.vehiclesRepository.findOne({ where: { id: payload.vehicleId } });
+      if (!vehicle || vehicle.parentId !== parent.id) {
+        throw new BadRequestException('Vehículo no válido para el padre solicitante');
+      }
+      if (!vehicle.isActive) {
+        throw new BadRequestException('El vehículo seleccionado no está activo');
+      }
+      vehicleId = vehicle.id;
+    } else if (payload.vehicleId) {
+      throw new BadRequestException('vehicleId solo aplica cuando el método es VEHICULO_REGISTRADO');
+    }
+
+    const initialStatus =
+      payload.pickupMethod === PickupMethod.SOLO_CONSENTIMIENTO
+        ? CircuitStatus.CONSENTIDO_SOLO
+        : CircuitStatus.PENDIENTE;
+
     const request = this.circuitRepository.create({
       studentId: payload.studentId,
       requestedByParentId: payload.requestedByParentId,
       pickupMethod: payload.pickupMethod,
-      status: CircuitStatus.PENDIENTE,
+      status: initialStatus,
       requestTime: new Date(),
       parentGpsLatitude: payload.parentGpsLatitude?.toString() ?? null,
-      parentGpsLongitude: payload.parentGpsLongitude?.toString() ?? null
+      parentGpsLongitude: payload.parentGpsLongitude?.toString() ?? null,
+      vehicleId,
+      teacherSignal: null
     });
     const saved = await this.circuitRepository.save(request);
     return {
@@ -106,6 +142,11 @@ export class CircuitService {
     studentName: string
   ): { title: string; body: string } | null {
     switch (status) {
+      case CircuitStatus.PADRE_EN_CAMINO:
+        return {
+          title: 'En camino al plantel',
+          body: `El padre indicó que va en camino a recoger a ${studentName}.`
+        };
       case CircuitStatus.NOTIFICADO_LLEGADA:
         return {
           title: 'Llegada notificada',
@@ -157,29 +198,10 @@ export class CircuitService {
     );
 
     const radiusKm = this.getSchoolRadiusKm();
-    const shouldNotifyArrival =
-      proximity.distanceKm <= radiusKm &&
-      (req.status === CircuitStatus.PENDIENTE || req.status === CircuitStatus.EN_CAMINO);
-
-    let autoTransitioned = false;
-    if (shouldNotifyArrival && req.status !== CircuitStatus.NOTIFICADO_LLEGADA) {
-      req.status = CircuitStatus.NOTIFICADO_LLEGADA;
-      autoTransitioned = true;
-    }
 
     const saved = await this.circuitRepository.save(req);
 
-    if (autoTransitioned && saved.status === CircuitStatus.NOTIFICADO_LLEGADA) {
-      const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
-      const name = await this.studentDisplayName(saved.studentId);
-      this.pushCircuitToParent(
-        parentUid,
-        saved.id,
-        saved.status,
-        'Llegada al colegio',
-        `Tu ubicación entró en el radio del plantel (${name}).`
-      );
-    }
+    /** El estado no cambia por radio/GPS: el padre usa PATCH .../parent-progress para “en camino” y “llegué”. */
 
     return {
       message: 'Ubicación actualizada',
@@ -191,8 +213,42 @@ export class CircuitService {
       distanceToSchoolKm: Number(proximity.distanceKm.toFixed(3)),
       etaMinutes: proximity.durationSeconds ? Math.ceil(proximity.durationSeconds / 60) : null,
       distanceSource: proximity.source,
-      autoTransitioned
+      autoTransitioned: false
     };
+  }
+
+  async advanceParentProgress(id: string, parentUserId: string, dto: UpdateParentCircuitProgressDto) {
+    const req = await this.findById(id);
+    const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
+    if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+    if (req.requestedByParentId !== parent.id) {
+      throw new ForbiddenException('Solo el padre solicitante puede avanzar el circuito');
+    }
+
+    const next = dto.status;
+    if (req.status === next) {
+      return { message: 'Sin cambios', id: req.id, status: req.status };
+    }
+
+    this.assertParentTransition(req.status, next);
+
+    req.status = next;
+    const saved = await this.circuitRepository.save(req);
+
+    const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
+    const name = await this.studentDisplayName(saved.studentId);
+    const copy = this.circuitPushCopy(next, name);
+    if (copy) {
+      this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+    }
+
+    return { message: 'Estado actualizado', id: saved.id, status: saved.status };
+  }
+
+  private assertParentTransition(from: CircuitStatus, to: CircuitStatus) {
+    if (from === CircuitStatus.PENDIENTE && to === CircuitStatus.PADRE_EN_CAMINO) return;
+    if (from === CircuitStatus.PADRE_EN_CAMINO && to === CircuitStatus.NOTIFICADO_LLEGADA) return;
+    throw new BadRequestException(`Transición de padre no permitida: ${from} -> ${to}`);
   }
 
   async findToday() {
@@ -208,6 +264,107 @@ export class CircuitService {
     const row = await this.circuitRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Solicitud no encontrada');
     return row;
+  }
+
+  async findByIdForViewer(id: string, userId: string, role: UserRole) {
+    const row = await this.findById(id);
+    await this.assertCanViewCircuitRequest(row, userId, role);
+    return row;
+  }
+
+  async getMapContext(id: string, userId: string, role: UserRole) {
+    const req = await this.findById(id);
+    await this.assertCanViewCircuitRequest(req, userId, role);
+    const schoolLat = this.getSchoolLatitude();
+    const schoolLng = this.getSchoolLongitude();
+    const radiusKm = this.getSchoolRadiusKm();
+    let distanceKm: number | null = null;
+    let durationSeconds: number | null = null;
+    let source: 'mapbox' | 'haversine' | null = null;
+    if (req.parentGpsLatitude != null && req.parentGpsLongitude != null) {
+      const lat = Number(req.parentGpsLatitude);
+      const lng = Number(req.parentGpsLongitude);
+      const prox = await this.calculateDistanceToSchool(lat, lng);
+      distanceKm = prox.distanceKm;
+      durationSeconds = prox.durationSeconds;
+      source = prox.source;
+    }
+    return {
+      circuitRequestId: req.id,
+      studentId: req.studentId,
+      status: req.status,
+      pickupMethod: req.pickupMethod,
+      vehicleId: req.vehicleId,
+      teacherSignal: req.teacherSignal,
+      parentGpsLatitude: req.parentGpsLatitude,
+      parentGpsLongitude: req.parentGpsLongitude,
+      schoolLatitude: schoolLat,
+      schoolLongitude: schoolLng,
+      arrivalRadiusKm: radiusKm,
+      distanceToSchoolKm: distanceKm !== null ? Number(distanceKm.toFixed(3)) : null,
+      etaMinutes: durationSeconds != null ? Math.ceil(durationSeconds / 60) : null,
+      distanceSource: source
+    };
+  }
+
+  async setTeacherSignal(
+    id: string,
+    dto: UpdateTeacherCircuitSignalDto,
+    userId: string,
+    role: UserRole
+  ) {
+    const req = await this.findById(id);
+    await this.assertCanSetTeacherSignal(req, userId, role);
+    if (dto.signal === undefined) {
+      return { message: 'Sin cambios', id: req.id, teacherSignal: req.teacherSignal };
+    }
+    req.teacherSignal = dto.signal ?? null;
+    const saved = await this.circuitRepository.save(req);
+    return { message: 'Señal actualizada', id: saved.id, teacherSignal: saved.teacherSignal };
+  }
+
+  private async assertCanViewCircuitRequest(req: CircuitRequestEntity, userId: string, role: UserRole) {
+    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+
+    if (role === UserRole.PADRE) {
+      const parent = await this.parentsRepository.findOne({ where: { userId } });
+      if (!parent || req.requestedByParentId !== parent.id) {
+        throw new ForbiddenException('No autorizado a ver esta solicitud');
+      }
+      return;
+    }
+
+    if (role === UserRole.DOCENTE) {
+      const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
+      if (!student?.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
+      await this.assertTeacherAssignedToGroup(userId, student.groupId);
+      return;
+    }
+
+    throw new ForbiddenException('No autorizado');
+  }
+
+  private async assertCanSetTeacherSignal(req: CircuitRequestEntity, userId: string, role: UserRole) {
+    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.DOCENTE) {
+      const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
+      if (!student?.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
+      await this.assertTeacherAssignedToGroup(userId, student.groupId);
+      return;
+    }
+    throw new ForbiddenException('Solo docencia o administración puede enviar señales al circuito');
+  }
+
+  private async assertTeacherAssignedToGroup(userId: string, groupId: string) {
+    const teacher = await this.teachersRepository.findOne({ where: { userId } });
+    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+
+    const tg = await this.teacherGroupsRepository.findOne({
+      where: { teacherId: teacher.id, groupId }
+    });
+    if (!tg) {
+      throw new ForbiddenException('No tienes asignación en el grupo del estudiante');
+    }
   }
 
   async cancel(id: string, parentUserId: string) {
@@ -307,10 +464,12 @@ export class CircuitService {
   private assertValidTransition(from: CircuitStatus, to: CircuitStatus) {
     const allowed: Record<CircuitStatus, CircuitStatus[]> = {
       [CircuitStatus.PENDIENTE]: [
+        CircuitStatus.PADRE_EN_CAMINO,
         CircuitStatus.NOTIFICADO_LLEGADA,
         CircuitStatus.CANCELADO,
         CircuitStatus.CONSENTIDO_SOLO
       ],
+      [CircuitStatus.PADRE_EN_CAMINO]: [CircuitStatus.NOTIFICADO_LLEGADA, CircuitStatus.CANCELADO],
       [CircuitStatus.NOTIFICADO_LLEGADA]: [
         CircuitStatus.AUTORIZADO_SALIR,
         CircuitStatus.CANCELADO

@@ -4,26 +4,12 @@ import ExcelJS from 'exceljs';
 import { Repository } from 'typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { GradeEntity } from '../../database/entities/grade.entity';
+import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
-import { UserEntity } from '../../database/entities/user.entity';
-import { UserRole } from '../../database/entities/user.entity';
+import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
-
-function csvEscape(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return '';
-  const s = String(value);
-  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-function rowsToCsv(headers: string[], rows: Record<string, string | number | null | undefined>[]) {
-  const lines = [headers.map(csvEscape).join(',')];
-  for (const row of rows) {
-    lines.push(headers.map((h) => csvEscape(row[h])).join(','));
-  }
-  return '\uFEFF' + lines.join('\r\n');
-}
 
 type AttendanceExportRow = {
   matricula: string;
@@ -45,6 +31,12 @@ type GradesExportRow = {
   graded_at: string;
 };
 
+type SheetBranding = {
+  institution: InstitutionProfile;
+  reportTitle: string;
+  subtitle?: string;
+};
+
 @Injectable()
 export class ExportsService {
   constructor(
@@ -54,23 +46,21 @@ export class ExportsService {
     private readonly gradesRepository: Repository<GradeEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachersRepository: Repository<TeacherEntity>,
-    private readonly schoolCalendarService: SchoolCalendarService
+    @InjectRepository(GroupEntity)
+    private readonly groupsRepository: Repository<GroupEntity>,
+    private readonly schoolCalendarService: SchoolCalendarService,
+    private readonly settingsService: SettingsService
   ) {}
-
-  async exportAttendanceCsv(groupId: string, userId: string, role: UserRole, dateStr?: string) {
-    const { headers, rows } = await this.loadAttendanceExport(groupId, userId, role, dateStr);
-    return rowsToCsv(headers, rows);
-  }
 
   async exportAttendanceXlsx(groupId: string, userId: string, role: UserRole, dateStr?: string) {
     const { headers, rows, date } = await this.loadAttendanceExport(groupId, userId, role, dateStr);
-    const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Asistencia');
+    const institution = await this.settingsService.getInstitutionProfile();
+    const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Asistencia', {
+      institution,
+      reportTitle: 'Reporte de asistencia',
+      subtitle: `Fecha: ${date}`
+    });
     return { buffer, filename: `asistencia-${date}.xlsx` };
-  }
-
-  async exportGradesCsv(groupId: string, userId: string, role: UserRole, period?: string, subject?: string) {
-    const { headers, rows } = await this.loadGradesExport(groupId, userId, role, period, subject);
-    return rowsToCsv(headers, rows);
   }
 
   async exportGradesXlsx(
@@ -81,10 +71,50 @@ export class ExportsService {
     subject?: string
   ) {
     const { headers, rows } = await this.loadGradesExport(groupId, userId, role, period, subject);
-    const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Calificaciones');
-    const suffix = [period, subject].filter(Boolean).join('_') || 'todos';
-    const safe = suffix.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
-    return { buffer, filename: `calificaciones-${safe || 'todos'}.xlsx` };
+    const institution = await this.settingsService.getInstitutionProfile();
+    const suffix = [period, subject].filter(Boolean).join(' · ') || 'Todos los períodos / materias';
+    const buffer = await this.buildXlsxBuffer(
+      headers,
+      rows as Record<string, string | number | null | undefined>[],
+      'Calificaciones',
+      {
+        institution,
+        reportTitle: 'Reporte de calificaciones',
+        subtitle: suffix
+      }
+    );
+    const safe = [period, subject].filter(Boolean).join('_') || 'todos';
+    const fileSafe = safe.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+    return { buffer, filename: `calificaciones-${fileSafe || 'todos'}.xlsx` };
+  }
+
+  /** Todas las calificaciones del grupo (misma estructura que el reporte plano), con cabecera institucional. */
+  async exportBulletinConsolidatedXlsx(
+    groupId: string,
+    userId: string,
+    role: UserRole,
+    period?: string,
+    subject?: string
+  ) {
+    const group = await this.groupsRepository.findOne({ where: { id: groupId } });
+    if (!group) throw new BadRequestException('Grupo no encontrado');
+
+    const { headers, rows } = await this.loadGradesExport(groupId, userId, role, period, subject);
+    const institution = await this.settingsService.getInstitutionProfile();
+    const buffer = await this.buildXlsxBuffer(
+      headers,
+      rows as Record<string, string | number | null | undefined>[],
+      'Boletín consolidado',
+      {
+        institution,
+        reportTitle: 'Boletín consolidado de calificaciones',
+        subtitle: `Grupo: ${group.name} · Año escolar: ${group.schoolYear} · Turno: ${group.shift}${
+          group.grade ? ` · Grado: ${group.grade}` : ''
+        }`
+      }
+    );
+    const p = period ? period.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 40) : 'todos';
+    return { buffer, filename: `boletin-consolidado-${group.name}-${p}.xlsx` };
   }
 
   private async loadAttendanceExport(
@@ -109,18 +139,18 @@ export class ExportsService {
 
     const raw = await this.attendanceRepository
       .createQueryBuilder('a')
-      .innerJoin(StudentEntity, 's', 's.id = a.studentId')
-      .innerJoin(UserEntity, 'u', 'u.id = s.userId')
+      .innerJoin(StudentEntity, 's', 's.id = a.student_id')
+      .innerJoin(UserEntity, 'u', 'u.id = s.user_id')
       .select([
         's.matricula AS matricula',
-        'u.fullName AS full_name',
-        'a.attendanceDate AS attendance_date',
+        'u.full_name AS full_name',
+        'a.attendance_date AS attendance_date',
         'a.status AS status',
         'a.notes AS notes'
       ])
-      .where('s.groupId = :gid', { gid: groupId })
-      .andWhere('a.attendanceDate = :d', { d: date })
-      .orderBy('u.fullName', 'ASC')
+      .where('s.group_id = :gid', { gid: groupId })
+      .andWhere('a.attendance_date = :d', { d: date })
+      .orderBy('u.full_name', 'ASC')
       .getRawMany();
 
     const headers = ['matricula', 'full_name', 'attendance_date', 'status', 'notes'];
@@ -160,6 +190,7 @@ export class ExportsService {
       ])
       .where('g.groupId = :gid', { gid: groupId })
       .orderBy('u.fullName', 'ASC')
+      .addOrderBy('g.subject', 'ASC')
       .addOrderBy('g.gradedAt', 'DESC');
 
     if (period) qb.andWhere('g.period = :period', { period });
@@ -194,27 +225,62 @@ export class ExportsService {
   private async buildXlsxBuffer(
     headers: string[],
     rows: Record<string, string | number | null | undefined>[],
-    sheetName: string
+    sheetName: string,
+    branding?: SheetBranding
   ): Promise<Buffer> {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet(sheetName, {
-      views: [{ state: 'frozen', ySplit: 1 }]
+      views: [{ state: 'frozen', ySplit: branding ? 4 : 1 }]
     });
-    ws.addRow(headers);
-    const headerRow = ws.getRow(1);
-    headerRow.font = { bold: true };
+
+    let headerRowIndex = 1;
+    if (branding) {
+      ws.mergeCells(1, 1, 1, Math.max(headers.length, 1));
+      const c1 = ws.getCell(1, 1);
+      c1.value = branding.institution.name;
+      c1.font = { bold: true, size: 14 };
+      c1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      ws.mergeCells(2, 1, 2, Math.max(headers.length, 1));
+      const c2 = ws.getCell(2, 1);
+      c2.value = branding.reportTitle;
+      c2.font = { bold: true, size: 12 };
+      c2.alignment = { horizontal: 'center' };
+
+      ws.mergeCells(3, 1, 3, Math.max(headers.length, 1));
+      const c3 = ws.getCell(3, 1);
+      c3.value = branding.subtitle ?? '';
+      c3.font = { size: 10, color: { argb: 'FF444444' } };
+      c3.alignment = { horizontal: 'center', wrapText: true };
+
+      headerRowIndex = 4;
+    }
+
+    const hr = ws.getRow(headerRowIndex);
+    headers.forEach((h, i) => {
+      hr.getCell(i + 1).value = h;
+    });
+    hr.font = { bold: true };
+    hr.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE8EEF5' }
+    };
+
     for (const row of rows) {
       ws.addRow(headers.map((h) => row[h]));
     }
+
     for (let c = 1; c <= headers.length; c++) {
       let max = 12;
-      for (let r = 1; r <= ws.rowCount; r++) {
+      for (let r = headerRowIndex; r <= ws.rowCount; r++) {
         const cell = ws.getCell(r, c);
         const v = cell.value != null ? String(cell.value) : '';
         if (v.length > max) max = Math.min(v.length, 55);
       }
       ws.getColumn(c).width = max + 2;
     }
+
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.from(buf);
   }

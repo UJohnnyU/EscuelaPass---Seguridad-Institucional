@@ -14,6 +14,7 @@ import { GradesService } from './grades.service';
     TypeOrmModule.forFeature([GradeEntity, StudentEntity, TeacherEntity, ParentEntity])
   ],
   controllers: [GradesController],
-  providers: [GradesService]
+  providers: [GradesService],
+  exports: [GradesService]
 })
 export class GradesModule {}

@@ -27,6 +27,10 @@ import { TeacherEntity } from '../database/entities/teacher.entity';
 import { UserEntity } from '../database/entities/user.entity';
 import { UserFcmTokenEntity } from '../database/entities/user-fcm-token.entity';
 import { VisitRequestEntity } from '../database/entities/visit-request.entity';
+import { VehicleEntity } from '../database/entities/vehicle.entity';
+import { AuditLogEntity } from '../database/entities/audit-log.entity';
+import { PrivacyPolicyEntity } from '../database/entities/privacy-policy.entity';
+import { UserPrivacyAcceptanceEntity } from '../database/entities/user-privacy-acceptance.entity';
 
 export function buildTypeOrmConfig(): TypeOrmModuleOptions {
   return {
@@ -67,7 +71,11 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       ClassScheduleSlotEntity,
       UserFcmTokenEntity,
       SchoolNonInstructionalDayEntity,
-      InstitutionSettingEntity
+      InstitutionSettingEntity,
+      VehicleEntity,
+      AuditLogEntity,
+      PrivacyPolicyEntity,
+      UserPrivacyAcceptanceEntity
     ]
   };
 }
