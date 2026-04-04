@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
 import { BubbleField } from '@/components/login/BubbleField';
+import { API_BASE_URL } from '@/lib/api';
 
 const REMEMBER_KEY = 'ep_login_remember_email';
 
@@ -90,6 +91,20 @@ export function LoginPage() {
 
             <h1 className="mt-10 text-3xl font-bold tracking-tight text-white sm:text-4xl">Iniciar sesión</h1>
             <p className="mt-2 text-sm text-brand-100/80">Acceda con el correo institucional asignado por su colegio.</p>
+
+            {import.meta.env.PROD && !API_BASE_URL && (
+              <div
+                className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-50"
+                role="status"
+              >
+                <strong className="block font-semibold">Falta la URL del servidor API</strong>
+                <p className="mt-1 text-amber-100/90">
+                  En Vercel, define la variable <code className="rounded bg-black/20 px-1">VITE_API_BASE</code> con la URL
+                  del backend (Nest), por ejemplo <code className="rounded bg-black/20 px-1">https://tu-api.vercel.app</code>
+                  , sin barra al final. Luego vuelve a desplegar el frontend (un nuevo build) para que se aplique.
+                </p>
+              </div>
+            )}
 
             <form className="mt-10 space-y-5" onSubmit={onSubmit}>
               <div>

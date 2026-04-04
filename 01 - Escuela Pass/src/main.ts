@@ -27,8 +27,13 @@ async function bootstrap() {
   );
 
   app.use(helmet());
+  const corsRaw = process.env.CORS_ORIGIN ?? 'http://localhost:3000';
+  const corsOrigins = corsRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: corsOrigins.length <= 1 ? corsOrigins[0] ?? true : corsOrigins,
     credentials: true
   });
 

@@ -32,18 +32,22 @@ import { AuditLogEntity } from '../database/entities/audit-log.entity';
 import { PrivacyPolicyEntity } from '../database/entities/privacy-policy.entity';
 import { UserPrivacyAcceptanceEntity } from '../database/entities/user-privacy-acceptance.entity';
 
+function directPostgresUrl(): string | undefined {
+  const u = process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? process.env.PRISMA_DATABASE_URL;
+  if (!u) return undefined;
+  if (u.startsWith('prisma+')) {
+    throw new Error(
+      'DATABASE_URL usa prisma+ (Accelerate): solo aplica a Prisma Client. Para Nest/TypeORM define una URL postgres:// o postgresql:// directa (p. ej. la de db.prisma.io).'
+    );
+  }
+  if (u.startsWith('postgres://') || u.startsWith('postgresql://')) {
+    return u;
+  }
+  return undefined;
+}
+
 export function buildTypeOrmConfig(): TypeOrmModuleOptions {
-  return {
-    type: 'postgres',
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT ?? 5432),
-    username: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    ssl: (process.env.DB_SSL ?? 'false') === 'true' ? { rejectUnauthorized: false } : false,
-    synchronize: false,
-    logging: false,
-    entities: [
+  const entities = [
       UserEntity,
       StudentEntity,
       TeacherEntity,
@@ -76,7 +80,35 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       AuditLogEntity,
       PrivacyPolicyEntity,
       UserPrivacyAcceptanceEntity
-    ]
+  ];
+
+  const url = directPostgresUrl();
+  if (url) {
+    const needsSsl =
+      url.includes('sslmode=require') ||
+      process.env.DB_SSL === 'true' ||
+      url.includes('db.prisma.io');
+    return {
+      type: 'postgres',
+      url,
+      ssl: needsSsl ? { rejectUnauthorized: false } : false,
+      synchronize: false,
+      logging: false,
+      entities
+    };
+  }
+
+  return {
+    type: 'postgres',
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT ?? 5432),
+    username: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    ssl: (process.env.DB_SSL ?? 'false') === 'true' ? { rejectUnauthorized: false } : false,
+    synchronize: false,
+    logging: false,
+    entities
   };
 }
 

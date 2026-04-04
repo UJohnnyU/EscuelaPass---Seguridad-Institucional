@@ -1,7 +1,10 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { clearTokens, loadTokens, saveTokens } from './storage';
 
-const baseURL = import.meta.env.VITE_API_BASE?.trim() || '';
+/** Origen del API Nest (sin barra final). En producción debe definirse en build (VITE_API_BASE). */
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE?.trim() || '').replace(/\/+$/, '');
+
+const baseURL = API_BASE_URL;
 
 export const api = axios.create({
   baseURL,
