@@ -1,7 +1,11 @@
 /**
- * Aplica escuela_pass_schema_v3.sql y scripts/database/seed_dev.sql usando DATABASE_URL.
- * Uso (desde la carpeta del backend): node scripts/apply-schema-and-seed.cjs
- * Requiere: postgres directo (postgres:// o postgresql://), no prisma+postgres://
+ * Aplica esquema + seed_dev + seed_demo_full usando la URL directa postgres del .env
+ * (local pgAdmin/Docker o nube; NO prisma+ Accelerate).
+ *
+ * Orden: escuela_pass_schema_v3.sql → seed_dev.sql → seed_demo_full.sql
+ * Solo seed mínimo: DB_SKIP_FULL_SEED=1
+ *
+ * Uso: npm run db:apply
  */
 const fs = require('fs');
 const path = require('path');
@@ -62,8 +66,14 @@ async function main() {
   try {
     await runSqlFile(client, 'escuela_pass_schema_v3.sql', { stripCreateExtensions: stripExt });
     await runSqlFile(client, 'scripts/database/seed_dev.sql');
+    if (process.env.DB_SKIP_FULL_SEED === '1') {
+      // eslint-disable-next-line no-console
+      console.log('[db] Seed demo completo omitido (DB_SKIP_FULL_SEED=1).');
+    } else {
+      await runSqlFile(client, 'scripts/database/seed_demo_full.sql');
+    }
     // eslint-disable-next-line no-console
-    console.log('[db] Esquema y seed aplicados.');
+    console.log('[db] Esquema y seeds aplicados.');
   } finally {
     await client.end();
   }

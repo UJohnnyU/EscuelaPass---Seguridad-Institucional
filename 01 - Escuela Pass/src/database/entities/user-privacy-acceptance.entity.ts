@@ -11,6 +11,7 @@ export class UserPrivacyAcceptanceEntity {
   @CreateDateColumn({ name: 'accepted_at', type: 'timestamptz' })
   acceptedAt!: Date;
 
-  @Column({ name: 'ip_address', type: 'inet', nullable: true })
+  /** PG `inet` se lee como string; tipar como varchar evita valores no serializables en JSON. */
+  @Column({ name: 'ip_address', type: 'varchar', length: 64, nullable: true })
   ipAddress!: string | null;
 }

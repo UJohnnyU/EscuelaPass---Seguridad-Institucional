@@ -100,9 +100,13 @@ export function HomePage() {
           <Link to="/" className="text-lg font-bold tracking-tight text-white">
             Escuela Pass
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-brand-100/90 md:flex">
+          <nav className="hidden items-center gap-5 text-sm font-medium text-brand-100/90 md:flex lg:gap-4">
             {NAV_LINKS.map((n) => (
-              <a key={n.href} href={n.href} className="transition hover:text-white">
+              <a
+                key={n.href}
+                href={n.href}
+                className="-my-1 rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+              >
                 {n.label}
               </a>
             ))}

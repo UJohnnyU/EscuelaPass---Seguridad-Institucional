@@ -393,7 +393,10 @@ export function HerramientasPage() {
   const [vehicles, setVehicles] = useState<unknown>(null);
   const [schedule, setSchedule] = useState<unknown>(null);
   const [scheduleHint, setScheduleHint] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [errAcceptances, setErrAcceptances] = useState<string | null>(null);
+  const [errPolicy, setErrPolicy] = useState<string | null>(null);
+  const [errVehicles, setErrVehicles] = useState<string | null>(null);
+  const [errSchedule, setErrSchedule] = useState<string | null>(null);
   const { user } = useAuth();
   const padre = user?.role === 'PADRE';
   const docente = user?.role === 'DOCENTE';
@@ -401,14 +404,17 @@ export function HerramientasPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setErr(null);
+      setErrAcceptances(null);
+      setErrPolicy(null);
+      setErrVehicles(null);
+      setErrSchedule(null);
       setPolicyHint(null);
       setScheduleHint(null);
       try {
         const acc = await api.get('/api/v1/privacy/me/acceptances');
         if (!cancelled) setPrivacy(acc.data);
       } catch (e) {
-        if (!cancelled) setErr(getUserFacingMessage(e));
+        if (!cancelled) setErrAcceptances(getUserFacingMessage(e));
       }
       try {
         const pol = await api.get('/api/v1/privacy/policy/latest');
@@ -420,7 +426,7 @@ export function HerramientasPage() {
             setPolicyHint('La institución aún no ha publicado el texto de política en el sistema.');
           }
         } else if (!cancelled) {
-          setErr(getUserFacingMessage(e));
+          setErrPolicy(getUserFacingMessage(e));
         }
       }
       try {
@@ -429,7 +435,7 @@ export function HerramientasPage() {
           if (!cancelled) setVehicles(v.data);
         }
       } catch (e) {
-        if (!cancelled) setErr(getUserFacingMessage(e));
+        if (!cancelled) setErrVehicles(getUserFacingMessage(e));
       }
       try {
         if (docente) {
@@ -443,7 +449,7 @@ export function HerramientasPage() {
             setScheduleHint('No hay perfil docente asociado a esta cuenta. Contacte a secretaría.');
           }
         } else if (!cancelled) {
-          setErr(getUserFacingMessage(e));
+          setErrSchedule(getUserFacingMessage(e));
         }
       }
     })();
@@ -461,23 +467,34 @@ export function HerramientasPage() {
           correspondiente en el menú.
         </p>
       </div>
-      {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
-      )}
       <Panel title="Política de privacidad vigente" description="Texto institucional y tratamiento de datos.">
+        {errPolicy && (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errPolicy}</div>
+        )}
         {policyHint && <p className="mb-4 text-sm text-slate-600">{policyHint}</p>}
         <ValueView data={policy} />
       </Panel>
       <Panel title="Mis aceptaciones de privacidad">
+        {errAcceptances && (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            {errAcceptances}
+          </div>
+        )}
         <ValueView data={privacy} />
       </Panel>
       {padre && (
         <Panel title="Vehículos registrados" description="Vehículos dados de alta para el circuito de recogida.">
+          {errVehicles && (
+            <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errVehicles}</div>
+          )}
           <ValueView data={vehicles} />
         </Panel>
       )}
       {docente && (
         <Panel title="Mis franjas de horario" description="Horario asignado en el sistema.">
+          {errSchedule && (
+            <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errSchedule}</div>
+          )}
           {scheduleHint && <p className="mb-4 text-sm text-amber-800">{scheduleHint}</p>}
           <ValueView data={schedule} />
         </Panel>

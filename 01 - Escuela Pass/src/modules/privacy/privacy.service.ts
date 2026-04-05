@@ -16,18 +16,33 @@ export class PrivacyService {
   ) {}
 
   async getLatestPolicy() {
-    const row = await this.policiesRepository.findOne({
-      order: { effectiveAt: 'DESC', createdAt: 'DESC' }
-    });
+    const row = await this.policiesRepository
+      .createQueryBuilder('p')
+      .orderBy('p.effectiveAt', 'DESC')
+      .addOrderBy('p.createdAt', 'DESC')
+      .getOne();
     if (!row) throw new NotFoundException('No hay política publicada');
-    return row;
+    return {
+      id: row.id,
+      version: row.version,
+      title: row.title,
+      content: row.content,
+      effectiveAt: row.effectiveAt,
+      createdAt: row.createdAt
+    };
   }
 
   async listMyAcceptances(userId: string) {
-    return this.acceptancesRepository.find({
+    const rows = await this.acceptancesRepository.find({
       where: { userId },
       order: { acceptedAt: 'DESC' }
     });
+    return rows.map((r) => ({
+      userId: r.userId,
+      policyVersion: r.policyVersion,
+      acceptedAt: r.acceptedAt,
+      ipAddress: r.ipAddress != null ? String(r.ipAddress) : null
+    }));
   }
 
   async accept(userId: string, version: string, ip?: string | null) {
