@@ -33,17 +33,12 @@ import { PrivacyPolicyEntity } from '../database/entities/privacy-policy.entity'
 import { UserPrivacyAcceptanceEntity } from '../database/entities/user-privacy-acceptance.entity';
 
 function directPostgresUrl(): string | undefined {
-  const u = process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? process.env.PRISMA_DATABASE_URL;
+  const u = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
   if (!u) return undefined;
-  if (u.startsWith('prisma+')) {
-    throw new Error(
-      'DATABASE_URL usa prisma+ (Accelerate): solo aplica a Prisma Client. Para Nest/TypeORM define una URL postgres:// o postgresql:// directa (p. ej. la de db.prisma.io).'
-    );
-  }
   if (u.startsWith('postgres://') || u.startsWith('postgresql://')) {
     return u;
   }
-  return undefined;
+  throw new Error('DATABASE_URL invalida: para Nest/TypeORM define una URL postgres:// o postgresql:// directa.');
 }
 
 export function buildTypeOrmConfig(): TypeOrmModuleOptions {
@@ -84,10 +79,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
 
   const url = directPostgresUrl();
   if (url) {
-    const needsSsl =
-      url.includes('sslmode=require') ||
-      process.env.DB_SSL === 'true' ||
-      url.includes('db.prisma.io');
+    const needsSsl = url.includes('sslmode=require') || process.env.DB_SSL === 'true';
     return {
       type: 'postgres',
       url,

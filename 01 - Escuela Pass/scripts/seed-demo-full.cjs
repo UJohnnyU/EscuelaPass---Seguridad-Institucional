@@ -10,8 +10,8 @@ const { Client } = require('pg');
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 function directPostgresUrl() {
-  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PRISMA_DATABASE_URL;
-  if (!u || u.startsWith('prisma+')) return null;
+  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!u) return null;
   if (u.startsWith('postgres://') || u.startsWith('postgresql://')) return u;
   return null;
 }

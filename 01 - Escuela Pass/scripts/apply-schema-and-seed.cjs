@@ -1,6 +1,6 @@
 /**
  * Aplica esquema + seed_dev + seed_demo_full usando la URL directa postgres del .env
- * (local pgAdmin/Docker o nube; NO prisma+ Accelerate).
+ * (local pgAdmin/Docker o nube).
  *
  * Orden: escuela_pass_schema_v3.sql → seed_dev.sql → seed_demo_full.sql
  * Solo seed mínimo: DB_SKIP_FULL_SEED=1
@@ -15,8 +15,8 @@ const { Client } = require('pg');
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 function directPostgresUrl() {
-  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PRISMA_DATABASE_URL;
-  if (!u || u.startsWith('prisma+')) {
+  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!u) {
     return null;
   }
   if (u.startsWith('postgres://') || u.startsWith('postgresql://')) {
@@ -51,7 +51,7 @@ async function main() {
     // eslint-disable-next-line no-console
     console.error(
       '[db] Define DATABASE_URL con una URL postgres:// o postgresql:// (conexión directa).\n' +
-        'La URL prisma+postgres:// (Accelerate) no sirve para TypeORM ni para este script.'
+        'No uses prefijos no compatibles; debe ser postgres:// o postgresql://.'
     );
     process.exit(1);
   }

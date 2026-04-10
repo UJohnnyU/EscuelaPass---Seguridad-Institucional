@@ -12,10 +12,10 @@ function required(name) {
   return v;
 }
 
-/** URL postgres:// directa (no prisma+). Respeta .env.e2e si override. */
+/** URL postgres:// directa. Respeta .env.e2e si override. */
 function directPostgresUrl() {
-  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PRISMA_DATABASE_URL;
-  if (!u || u.startsWith('prisma+')) return null;
+  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!u) return null;
   if (u.startsWith('postgres://') || u.startsWith('postgresql://')) return u;
   return null;
 }
@@ -41,10 +41,7 @@ async function runSqlFile(client, relativeFile, { stripCreateExtensions = false 
 
 async function main() {
   const url = directPostgresUrl();
-  const ssl =
-    url && (url.includes('sslmode=require') || url.includes('db.prisma.io'))
-      ? { rejectUnauthorized: false }
-      : undefined;
+  const ssl = url && url.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined;
 
   const client = url
     ? new Client({ connectionString: url, ssl })

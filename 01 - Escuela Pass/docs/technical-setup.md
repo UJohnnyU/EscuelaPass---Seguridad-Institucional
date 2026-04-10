@@ -9,7 +9,7 @@ Se eligio TypeORM para este proyecto por:
 - Curva de implementacion mas directa para proyecto de grado con enfoque API REST.
 - Posibilidad de mapear tablas existentes sin rehacer modelo completo.
 
-Prisma tambien era viable, pero para este caso TypeORM reduce friccion con la BD SQL ya creada.
+Para este caso TypeORM reduce friccion con la BD SQL ya creada.
 
 ## Estructura base ya configurada
 

@@ -35,7 +35,7 @@
 
 | Capa           | Tecnologías                                                                 |
 |----------------|-----------------------------------------------------------------------------|
-| **Backend**    | NestJS (TypeScript), JWT, TypeORM / Prisma, PostgreSQL                     |
+| **Backend**    | NestJS (TypeScript), JWT, TypeORM, PostgreSQL                              |
 | **Frontend**   | JavaScript, HTML5, CSS3 (diseño responsive)                          |
 | **Servicios externos** | Google Maps API / Mapbox (geolocalización), Firebase Cloud Messaging (notificaciones) |
 | **Herramientas** | Git, GitHub, Figma, Lucidchart, Postman                                    |
