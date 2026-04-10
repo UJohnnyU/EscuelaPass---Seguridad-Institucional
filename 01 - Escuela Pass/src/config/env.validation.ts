@@ -1,5 +1,19 @@
 import { plainToInstance } from 'class-transformer';
-import { IsBooleanString, IsNotEmpty, IsNumberString, IsOptional, IsString, validateSync } from 'class-validator';
+import {
+  IsBooleanString,
+  IsNotEmpty,
+  IsNumberString,
+  IsOptional,
+  IsString,
+  validateSync,
+  ValidateIf
+} from 'class-validator';
+
+function hasDirectPostgresUrl(o: EnvVars): boolean {
+  const u = (o.DATABASE_URL ?? o.POSTGRES_URL ?? '').trim();
+  if (!u) return false;
+  return u.startsWith('postgres://') || u.startsWith('postgresql://');
+}
 
 class EnvVars {
   @IsString()
@@ -14,25 +28,39 @@ class EnvVars {
   @IsOptional()
   API_PREFIX?: string;
 
+  /** Si está definida (p. ej. Railway Postgres), no hace falta DB_HOST/DB_PORT/... */
+  @IsString()
+  @IsOptional()
+  DATABASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  POSTGRES_URL?: string;
+
+  @ValidateIf((o) => !hasDirectPostgresUrl(o))
   @IsString()
   @IsNotEmpty()
-  DB_HOST!: string;
+  DB_HOST?: string;
 
+  @ValidateIf((o) => !hasDirectPostgresUrl(o))
   @IsNumberString()
   @IsNotEmpty()
-  DB_PORT!: string;
+  DB_PORT?: string;
 
+  @ValidateIf((o) => !hasDirectPostgresUrl(o))
   @IsString()
   @IsNotEmpty()
-  DB_NAME!: string;
+  DB_NAME?: string;
 
+  @ValidateIf((o) => !hasDirectPostgresUrl(o))
   @IsString()
   @IsNotEmpty()
-  DB_USER!: string;
+  DB_USER?: string;
 
+  @ValidateIf((o) => !hasDirectPostgresUrl(o))
   @IsString()
   @IsNotEmpty()
-  DB_PASS!: string;
+  DB_PASS?: string;
 
   @IsBooleanString()
   @IsOptional()

@@ -2,6 +2,9 @@
   "name": "escuela-pass-backend",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "npx nest build",
     "start": "nest start",
