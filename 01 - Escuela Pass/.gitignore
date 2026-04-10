@@ -7,3 +7,5 @@ coverage
 *.log
 uploads/comprobantes/*
 !uploads/comprobantes/.gitkeep
+.vercel
+.env*.local

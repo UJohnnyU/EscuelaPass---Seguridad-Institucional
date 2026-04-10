@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "npx nest build",
+    "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
@@ -11,7 +11,7 @@
     "test": "jest",
     "pretest:e2e": "node ./test/setup-e2e-db.js",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typeorm": "node -r ts-node/register ./node_modules/typeorm/cli.js -d src/config/typeorm.datasource.ts",
+    "typeorm": "node --max-old-space-size=4096 -r ts-node/register/transpile-only ./node_modules/typeorm/cli.js -d src/config/typeorm.datasource.ts",
     "migration:generate": "npm run typeorm -- migration:generate src/database/migrations/AutoMigration",
     "migration:create": "npm run typeorm -- migration:create src/database/migrations/ManualMigration",
     "migration:run": "npm run typeorm -- migration:run",
