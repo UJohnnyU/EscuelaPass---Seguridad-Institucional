@@ -1,5 +1,5 @@
 /**
- * Aplica esquema + seed_dev + seed_demo_full usando DATABASE_URL (ideal Neon/Vercel)
+ * Aplica esquema + seed_dev + seed_demo_full usando DATABASE_URL (PostgreSQL directo).
  * o, en su defecto, POSTGRES_URL.
  * (local pgAdmin/Docker o nube).
  *
@@ -51,7 +51,7 @@ async function main() {
   if (!url) {
     // eslint-disable-next-line no-console
     console.error(
-      '[db] Define DATABASE_URL con una URL postgres:// o postgresql:// (conexión directa, p. ej. Neon).\n' +
+      '[db] Define DATABASE_URL con una URL postgres:// o postgresql:// (conexión directa).\n' +
         'No uses prefijos no compatibles; debe ser postgres:// o postgresql://.'
     );
     process.exit(1);
