@@ -1,14 +1,13 @@
 {
-  "version": 2,
   "functions": {
     "api/index.ts": {
-      "runtime": "@vercel/node"
+      "runtime": "nodejs20.x"
     }
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.ts"
+      "source": "/api/(.*)",
+      "destination": "/api/index.ts"
     }
   ]
 }
