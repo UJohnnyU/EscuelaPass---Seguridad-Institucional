@@ -79,7 +79,10 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
 
   const url = directPostgresUrl();
   if (url) {
-    const needsSsl = url.includes('sslmode=require') || process.env.DB_SSL === 'true';
+    const needsSsl =
+      url.includes('sslmode=require') ||
+      process.env.DB_SSL === 'true' ||
+      /\.railway\.app|\.rlwy\.net|supabase\.co|render\.com/i.test(url);
     return {
       type: 'postgres',
       url,

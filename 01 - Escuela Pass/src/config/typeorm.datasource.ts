@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './load-env';
 import { DataSource } from 'typeorm';
 import { DataSourceOptions } from 'typeorm/data-source';
 import { buildTypeOrmConfig } from './typeorm.config';
