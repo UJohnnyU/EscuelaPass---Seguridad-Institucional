@@ -133,11 +133,11 @@ export function HomePage() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-slate-950">
+      <section className="relative overflow-x-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-slate-950">
         <div className="pointer-events-none absolute -right-20 top-1/4 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -left-10 bottom-0 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl" />
-        <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 lg:grid-cols-2 lg:items-center lg:py-24 lg:pl-6 lg:pr-4">
-          <div>
+        <div className="mx-auto grid min-w-0 max-w-6xl gap-12 px-4 py-16 lg:grid-cols-2 lg:items-center lg:gap-14 lg:px-6 lg:py-24">
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-brand-200/70">Software para instituciones educativas</p>
             <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.25rem]">
               Escuela Pass
@@ -162,10 +162,12 @@ export function HomePage() {
             </div>
             <SocialLinks />
           </div>
-          <div className="flex justify-center gap-3 sm:gap-5 lg:justify-end">
-            <PhoneMock label="Perfil" />
-            <PhoneMock label="Grupos" />
-            <PhoneMock label="Credencial" />
+          <div className="flex min-w-0 justify-center px-1 pb-10 sm:gap-5 lg:justify-center lg:pb-12">
+            <div className="flex max-w-full justify-center gap-2 sm:gap-4 md:gap-5">
+              <PhoneMock label="Perfil" />
+              <PhoneMock label="Grupos" />
+              <PhoneMock label="Credencial" />
+            </div>
           </div>
         </div>
       </section>
