@@ -8,7 +8,7 @@ import {
   OnModuleInit
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Not, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import {
   CircuitRequestEntity,
   CircuitStatus,
@@ -117,8 +117,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Solicitud del padre aún no cerrada (entregado, cancelado o cierre por plazo).
-   * La más reciente si hubiera varias filas inconsistentes.
+   * Solicitud del padre aún no cerrada **del día actual** (misma regla que informes por fecha).
+   * Evita redirigir al detalle por circuitos viejos en PENDIENTE u otros estados abiertos.
    */
   async findActiveForParentUser(parentUserId: string): Promise<{
     id: string;
@@ -127,18 +127,19 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   } | null> {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) return null;
+    const today = new Date().toISOString().slice(0, 10);
     const terminal = [
       CircuitStatus.ENTREGADO,
       CircuitStatus.CANCELADO,
       CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE
     ];
-    const row = await this.circuitRepository.findOne({
-      where: {
-        requestedByParentId: parent.id,
-        status: Not(In(terminal))
-      },
-      order: { requestTime: 'DESC' }
-    });
+    const row = await this.circuitRepository
+      .createQueryBuilder('cr')
+      .where('cr.requestedByParentId = :pid', { pid: parent.id })
+      .andWhere('DATE(cr.request_time) = :today', { today })
+      .andWhere('cr.status NOT IN (:...terminal)', { terminal })
+      .orderBy('cr.requestTime', 'DESC')
+      .getOne();
     if (!row) return null;
     return { id: row.id, status: row.status, requestTime: row.requestTime };
   }

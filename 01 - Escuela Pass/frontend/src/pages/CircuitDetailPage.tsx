@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL, TEACHER_SIGNAL_LABEL } from '@/lib/circuit-labels';
 import { getNextPedagogicalSignal, isCircuitTerminal } from '@/lib/circuit-utils';
-import { STAFF_ALLOWED_NEXT } from '@/lib/circuit-transitions';
+import { STAFF_ALLOWED_NEXT, getPrimaryNextOperationalStatus } from '@/lib/circuit-transitions';
 import { useAuth } from '@/context/useAuth';
 import { isStaff as userIsStaff } from '@/lib/roles';
 
@@ -31,7 +31,6 @@ export function CircuitDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [staffNext, setStaffNext] = useState('');
   const [nowTick, setNowTick] = useState(Date.now());
   const [reminderOpen, setReminderOpen] = useState(false);
 
@@ -42,8 +41,6 @@ export function CircuitDetailPage() {
     if (!id) return;
     const { data } = await api.get<CircuitReq>(`/api/v1/circuit-requests/${id}`);
     setRow(data);
-    const allowed = STAFF_ALLOWED_NEXT[data.status] ?? [];
-    setStaffNext(allowed[0] ?? '');
   }, [id]);
 
   useEffect(() => {
@@ -138,6 +135,8 @@ export function CircuitDetailPage() {
   if (!row) return null;
 
   const allowedStaff = STAFF_ALLOWED_NEXT[row.status] ?? [];
+  const primaryOperational = getPrimaryNextOperationalStatus(row.status);
+  const canStaffCancel = allowedStaff.includes('CANCELADO');
   const nextPedagogical = getNextPedagogicalSignal(row.teacherSignal);
 
   return (
@@ -340,32 +339,43 @@ export function CircuitDetailPage() {
           <div>
             <h2 className="font-serif text-base font-semibold text-slate-900">Estado operativo</h2>
             <p className="mt-1 text-xs text-slate-500">
-              La entrega final la confirma la familia. Si el alumno va hacia salida, use el flujo hasta EN_CAMINO.
+              Un paso cada vez, en orden: familia en camino → llegada → autorizado → en camino a la salida. La entrega
+              final la confirma la familia. La cancelación va aparte.
             </p>
-            {allowedStaff.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-600">No hay transiciones disponibles desde este estado.</p>
-            ) : (
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <select
-                  value={staffNext}
-                  onChange={(e) => setStaffNext(e.target.value)}
-                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  {allowedStaff.map((s) => (
-                    <option key={s} value={s}>
-                      {CIRCUIT_STATUS_LABEL[s] ?? s}
-                    </option>
-                  ))}
-                </select>
+            {primaryOperational ? (
+              <div className="mt-4">
                 <button
                   type="button"
-                  disabled={busy || !staffNext}
+                  disabled={busy}
                   onClick={() =>
-                    run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: staffNext }))
+                    run(() =>
+                      api.patch(`/api/v1/circuit-requests/${id}/status`, { status: primaryOperational })
+                    )
                   }
-                  className="rounded border border-slate-800 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
                 >
-                  Aplicar
+                  Avanzar: {CIRCUIT_STATUS_LABEL[primaryOperational] ?? primaryOperational}
+                </button>
+              </div>
+            ) : row.status === 'EN_CAMINO' ? (
+              <p className="mt-4 text-sm text-slate-600">
+                En este estado el menor va hacia la salida; la confirmación de recibimiento la hace la familia. Solo puede
+                cancelar la solicitud abajo si corresponde.
+              </p>
+            ) : (
+              <p className="mt-4 text-sm text-slate-600">No hay otro avance operativo desde este estado.</p>
+            )}
+
+            {canStaffCancel && (
+              <div className="mt-6 border-t border-slate-200 pt-5">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Anular solicitud</p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'CANCELADO' }))}
+                  className="mt-3 w-full rounded border border-slate-300 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar solicitud
                 </button>
               </div>
             )}
