@@ -30,6 +30,13 @@ export class CircuitController {
     return this.circuitService.findToday();
   }
 
+  /** Solicitud en curso del padre (si existe); para redirigir al detalle sin pasar por el formulario nuevo. */
+  @Get('parent/active')
+  @Roles(UserRole.PADRE)
+  findParentActive(@Req() req: Request & { user: JwtUser }) {
+    return this.circuitService.findActiveForParentUser(req.user.userId).then((active) => ({ active }));
+  }
+
   @Patch(':id/gps')
   @Roles(UserRole.PADRE)
   updateGps(

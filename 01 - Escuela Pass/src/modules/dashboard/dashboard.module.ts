@@ -8,6 +8,7 @@ import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { VisitRequestEntity } from '../../database/entities/visit-request.entity';
 import { AuthModule } from '../auth/auth.module';
 import { SchoolCalendarModule } from '../school-calendar/school-calendar.module';
 import { DashboardController } from './dashboard.controller';
@@ -25,7 +26,8 @@ import { DashboardService } from './dashboard.service';
       StudentEntity,
       TeacherEntity,
       GroupEntity,
-      UserEntity
+      UserEntity,
+      VisitRequestEntity
     ])
   ],
   controllers: [DashboardController],

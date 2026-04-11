@@ -591,6 +591,7 @@ describe('App (e2e)', () => {
 
   it('circuit: padre confirma entrega de su solicitud', async () => {
     const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
     const parent = await sqlOne<{ parent_id: string }>(
       `SELECT p.id AS parent_id
        FROM parents p
@@ -616,8 +617,18 @@ describe('App (e2e)', () => {
       })
       .expect(201);
 
+    const requestId = created.body.requestId as string;
+
+    for (const status of ['NOTIFICADO_LLEGADA', 'AUTORIZADO_SALIR', 'EN_CAMINO'] as const) {
+      await request(app.getHttpServer())
+        .patch(`/${apiPrefix}/circuit-requests/${requestId}/status`)
+        .set(authHeader(admin.accessToken))
+        .send({ status })
+        .expect(200);
+    }
+
     const confirmed = await request(app.getHttpServer())
-      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/confirm-delivered`)
+      .patch(`/${apiPrefix}/circuit-requests/${requestId}/confirm-delivered`)
       .set(authHeader(padre.accessToken))
       .expect(200);
 

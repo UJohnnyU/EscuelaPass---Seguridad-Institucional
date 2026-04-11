@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { PICKUP_METHOD_LABEL } from '@/lib/circuit-labels';
@@ -13,6 +13,7 @@ const METHODS = ['VEHICULO_REGISTRADO', 'OTRO_VEHICULO', 'A_PIE', 'SOLO_CONSENTI
 
 export function CircuitPadrePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState<ParentStudents | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [studentId, setStudentId] = useState('');
@@ -21,7 +22,8 @@ export function CircuitPadrePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successId, setSuccessId] = useState<string | null>(null);
+  /** Si hay solicitud abierta, ir directo al seguimiento (evita perder el hilo al volver desde el perfil). */
+  const [activeCircuitId, setActiveCircuitId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role !== 'PADRE' && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATIVO') return;
@@ -31,15 +33,27 @@ export function CircuitPadrePage() {
       setError(null);
       try {
         if (user?.role === 'PADRE') {
+          try {
+            const activeRes = await api.get<{ active: { id: string } | null }>(
+              '/api/v1/circuit-requests/parent/active'
+            );
+            if (cancelled) return;
+            if (activeRes.data.active?.id) {
+              setActiveCircuitId(activeRes.data.active.id);
+              setLoading(false);
+              return;
+            }
+          } catch {
+            /* Sin redirección: mostrar formulario si el endpoint no existe o falla */
+          }
           const [{ data: ps }, { data: vh }] = await Promise.all([
             api.get<ParentStudents>('/api/v1/attendance/parent/my-students'),
             api.get<Vehicle[]>('/api/v1/parents/vehicles')
           ]);
-          if (!cancelled) {
-            setData(ps);
-            setVehicles(vh);
-            if (ps.students.length) setStudentId((prev) => prev || ps.students[0].id);
-          }
+          if (cancelled) return;
+          setData(ps);
+          setVehicles(vh);
+          if (ps.students.length) setStudentId((prev) => prev || ps.students[0].id);
         } else {
           if (!cancelled) {
             setData({ parentId: '', students: [] });
@@ -65,7 +79,6 @@ export function CircuitPadrePage() {
     }
     setSubmitting(true);
     setError(null);
-    setSuccessId(null);
     try {
       const body: Record<string, unknown> = {
         studentId,
@@ -81,7 +94,7 @@ export function CircuitPadrePage() {
         body.vehicleId = vehicleId;
       }
       const { data: res } = await api.post<{ requestId: string }>('/api/v1/circuit-requests', body);
-      setSuccessId(res.requestId);
+      navigate(`/app/circuito/${res.requestId}`, { replace: true });
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo crear la solicitud.'));
     } finally {
@@ -112,6 +125,10 @@ export function CircuitPadrePage() {
         </Link>
       </div>
     );
+  }
+
+  if (activeCircuitId) {
+    return <Navigate to={`/app/circuito/${activeCircuitId}`} replace />;
   }
 
   if (loading) return <p className="text-slate-600">Cargando…</p>;
@@ -203,15 +220,6 @@ export function CircuitPadrePage() {
             {error}
           </div>
         )}
-        {successId && (
-          <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">
-            <p>Solicitud creada.</p>
-            <Link className="mt-2 inline-block font-semibold text-brand-800 underline" to={`/app/circuito/${successId}`}>
-              Ver seguimiento de la solicitud
-            </Link>
-          </div>
-        )}
-
         <button
           type="submit"
           disabled={submitting}

@@ -15,4 +15,11 @@ export class DashboardController {
   summary(@Query('date') date: string | undefined) {
     return this.dashboardService.summary(date);
   }
+
+  /** Panel con serie semanal de circuitos, desglose por grupo y KPIs operativos. */
+  @Get('panel')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  panel(@Query('date') date: string | undefined) {
+    return this.dashboardService.adminPanel(date);
+  }
 }

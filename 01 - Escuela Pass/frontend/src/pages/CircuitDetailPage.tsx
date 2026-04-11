@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL, TEACHER_SIGNAL_LABEL } from '@/lib/circuit-labels';
-import { isCircuitTerminal } from '@/lib/circuit-utils';
+import { getNextPedagogicalSignal, isCircuitTerminal } from '@/lib/circuit-utils';
 import { STAFF_ALLOWED_NEXT } from '@/lib/circuit-transitions';
 import { useAuth } from '@/context/useAuth';
 import { isStaff as userIsStaff } from '@/lib/roles';
@@ -32,7 +32,6 @@ export function CircuitDetailPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [staffNext, setStaffNext] = useState('');
-  const [signalChoice, setSignalChoice] = useState<'PREPARA_SALIDA' | 'ALUMNO_CAMINO_A_SALIDA'>('PREPARA_SALIDA');
   const [nowTick, setNowTick] = useState(Date.now());
   const [reminderOpen, setReminderOpen] = useState(false);
 
@@ -139,6 +138,7 @@ export function CircuitDetailPage() {
   if (!row) return null;
 
   const allowedStaff = STAFF_ALLOWED_NEXT[row.status] ?? [];
+  const nextPedagogical = getNextPedagogicalSignal(row.teacherSignal);
 
   return (
     <div className="max-w-xl animate-fade-in">
@@ -178,12 +178,25 @@ export function CircuitDetailPage() {
         </div>
       )}
 
-      <Link
-        to={isStaff ? '/app/circuito/hoy' : '/app/circuito'}
-        className="text-xs font-medium uppercase tracking-wider text-brand-800 hover:underline"
-      >
-        ← {isStaff ? 'Volver al listado del día' : 'Nueva solicitud'}
-      </Link>
+      {isStaff ? (
+        <Link
+          to="/app/circuito/hoy"
+          className="text-xs font-medium uppercase tracking-wider text-brand-800 hover:underline"
+        >
+          ← Volver al listado del día
+        </Link>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium uppercase tracking-wider text-brand-800">
+          <Link to="/app" className="hover:underline">
+            ← Inicio
+          </Link>
+          {terminal && (
+            <Link to="/app/circuito" className="hover:underline">
+              Nueva solicitud
+            </Link>
+          )}
+        </div>
+      )}
       <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight text-slate-900">
         Circuito de recogida
       </h1>
@@ -239,8 +252,9 @@ export function CircuitDetailPage() {
       {isParent && !terminal && (
         <div className="mt-8 space-y-3">
           <p className="text-sm text-slate-600 leading-relaxed">
-            Avanza el circuito cuando corresponda. El GPS no cambia el estado automáticamente. La entrega física la
-            cierras tú con &quot;Ya recibí&quot;.
+            Avanza el circuito cuando corresponda. El GPS no cambia el estado automáticamente. Podrás confirmar que ya
+            recibiste a tu hijo o hija solo cuando el plantel haya indicado que va en camino hacia la salida (en
+            tránsito).
           </p>
           {row.status === 'PENDIENTE' && (
             <button
@@ -280,18 +294,16 @@ export function CircuitDetailPage() {
               Cancelar solicitud
             </button>
           )}
-          {row.status !== 'CANCELADO' &&
-            row.status !== 'ENTREGADO' &&
-            row.status !== 'CERRADO_SIN_CONFIRMACION_PADRE' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/confirm-delivered`, {}))}
-                className="w-full rounded border border-slate-900 bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-              >
-                Confirmar que ya recibí a mi hijo o hija
-              </button>
-            )}
+          {row.status === 'EN_CAMINO' && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/confirm-delivered`, {}))}
+              className="w-full rounded border border-slate-900 bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Confirmar que ya recibí a mi hijo o hija
+            </button>
+          )}
         </div>
       )}
 
@@ -300,32 +312,29 @@ export function CircuitDetailPage() {
           <div>
             <h2 className="font-serif text-base font-semibold text-slate-900">Señal pedagógica a la familia</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Coordinación con el aula. No sustituye la confirmación final del padre al recibir al menor.
+              Orden fijo: primero solo &quot;Preparando salida&quot;; después solo &quot;Alumno en camino a salida&quot;. No
+              se puede saltar ni alternar libremente.
             </p>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value={signalChoice}
-                onChange={(e) =>
-                  setSignalChoice(e.target.value as 'PREPARA_SALIDA' | 'ALUMNO_CAMINO_A_SALIDA')
-                }
-                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="PREPARA_SALIDA">{TEACHER_SIGNAL_LABEL.PREPARA_SALIDA}</option>
-                <option value="ALUMNO_CAMINO_A_SALIDA">{TEACHER_SIGNAL_LABEL.ALUMNO_CAMINO_A_SALIDA}</option>
-              </select>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  run(() =>
-                    api.patch(`/api/v1/circuit-requests/${id}/teacher-signal`, { signal: signalChoice })
-                  )
-                }
-                className="rounded bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
-              >
-                Enviar señal
-              </button>
-            </div>
+            {nextPedagogical ? (
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    run(() =>
+                      api.patch(`/api/v1/circuit-requests/${id}/teacher-signal`, { signal: nextPedagogical })
+                    )
+                  }
+                  className="rounded bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+                >
+                  Enviar: {TEACHER_SIGNAL_LABEL[nextPedagogical]}
+                </button>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-600">
+                Ya se enviaron las dos señales pedagógicas de esta solicitud.
+              </p>
+            )}
           </div>
 
           <div>

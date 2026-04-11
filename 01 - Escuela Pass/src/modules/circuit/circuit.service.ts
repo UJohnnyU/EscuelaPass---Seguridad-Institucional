@@ -8,8 +8,13 @@ import {
   OnModuleInit
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CircuitRequestEntity, CircuitStatus, PickupMethod } from '../../database/entities/circuit-request.entity';
+import { In, Not, Repository } from 'typeorm';
+import {
+  CircuitRequestEntity,
+  CircuitStatus,
+  PickupMethod,
+  TeacherCircuitSignal
+} from '../../database/entities/circuit-request.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
@@ -109,6 +114,33 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
         `El circuito de ${name} se cerró sin confirmación final del padre en el tiempo indicado.`
       );
     }
+  }
+
+  /**
+   * Solicitud del padre aún no cerrada (entregado, cancelado o cierre por plazo).
+   * La más reciente si hubiera varias filas inconsistentes.
+   */
+  async findActiveForParentUser(parentUserId: string): Promise<{
+    id: string;
+    status: CircuitStatus;
+    requestTime: Date;
+  } | null> {
+    const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
+    if (!parent) return null;
+    const terminal = [
+      CircuitStatus.ENTREGADO,
+      CircuitStatus.CANCELADO,
+      CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE
+    ];
+    const row = await this.circuitRepository.findOne({
+      where: {
+        requestedByParentId: parent.id,
+        status: Not(In(terminal))
+      },
+      order: { requestTime: 'DESC' }
+    });
+    if (!row) return null;
+    return { id: row.id, status: row.status, requestTime: row.requestTime };
   }
 
   async create(payload: CreateCircuitRequestDto) {
@@ -382,6 +414,22 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * Secuencia fija: primero solo PREPARA_SALIDA; luego solo ALUMNO_CAMINO_A_SALIDA. Sin saltos ni cambios arbitrarios.
+   */
+  private getNextAllowedTeacherSignal(current: string | null): TeacherCircuitSignal | null {
+    if (current == null || current === '') {
+      return TeacherCircuitSignal.PREPARA_SALIDA;
+    }
+    if (current === TeacherCircuitSignal.PREPARA_SALIDA) {
+      return TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA;
+    }
+    if (current === TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA) {
+      return null;
+    }
+    return TeacherCircuitSignal.PREPARA_SALIDA;
+  }
+
   async setTeacherSignal(
     id: string,
     dto: UpdateTeacherCircuitSignalDto,
@@ -398,7 +446,25 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     if (dto.signal === undefined) {
       return { message: 'Sin cambios', id: req.id, teacherSignal: req.teacherSignal };
     }
-    req.teacherSignal = dto.signal ?? null;
+    if (dto.signal === null) {
+      throw new BadRequestException(
+        'No se puede anular la señal pedagógica; la secuencia es obligatoria (primero preparación, luego alumno en camino).'
+      );
+    }
+    const nextAllowed = this.getNextAllowedTeacherSignal(req.teacherSignal);
+    if (nextAllowed === null) {
+      throw new BadRequestException(
+        'Ya se enviaron las dos señales pedagógicas permitidas para esta solicitud.'
+      );
+    }
+    if (dto.signal !== nextAllowed) {
+      const label =
+        nextAllowed === TeacherCircuitSignal.PREPARA_SALIDA
+          ? 'Preparando salida'
+          : 'Alumno en camino a salida';
+      throw new BadRequestException(`La única señal permitida ahora es: ${label}.`);
+    }
+    req.teacherSignal = dto.signal;
     const saved = await this.circuitRepository.save(req);
     return { message: 'Señal actualizada', id: saved.id, teacherSignal: saved.teacherSignal };
   }
@@ -497,16 +563,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       if (req.requestedByParentId !== parent.id) {
         throw new ForbiddenException('No puedes confirmar la entrega de una solicitud ajena');
       }
-      const padrePuede = new Set<CircuitStatus>([
-        CircuitStatus.PENDIENTE,
-        CircuitStatus.PADRE_EN_CAMINO,
-        CircuitStatus.NOTIFICADO_LLEGADA,
-        CircuitStatus.AUTORIZADO_SALIR,
-        CircuitStatus.EN_CAMINO,
-        CircuitStatus.CONSENTIDO_SOLO
-      ]);
-      if (!padrePuede.has(req.status)) {
-        throw new BadRequestException('No puedes confirmar el recibimiento en este estado del circuito');
+      /** Solo con el menor en tránsito hacia la salida (docente pasó a EN_CAMINO). */
+      if (req.status !== CircuitStatus.EN_CAMINO) {
+        throw new BadRequestException(
+          'Solo puedes confirmar el recibimiento cuando el plantel haya indicado que el menor va en camino hacia la salida.'
+        );
       }
       req.status = CircuitStatus.ENTREGADO;
       req.parentReceiptConfirmedAt = new Date();

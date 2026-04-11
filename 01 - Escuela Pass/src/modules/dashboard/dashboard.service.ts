@@ -18,7 +18,17 @@ import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import {
+  VisitRequestEntity,
+  VisitRequestStatus
+} from '../../database/entities/visit-request.entity';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
+
+function addCalendarDays(isoDate: string, deltaDays: number): string {
+  const d = new Date(`${isoDate}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
 
 @Injectable()
 export class DashboardService {
@@ -39,6 +49,8 @@ export class DashboardService {
     private readonly groupsRepository: Repository<GroupEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
+    @InjectRepository(VisitRequestEntity)
+    private readonly visitRequestsRepository: Repository<VisitRequestEntity>,
     private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
@@ -144,6 +156,90 @@ export class DashboardService {
       accessToday: {
         total: accessTodayTotal,
         byType: accessByType
+      }
+    };
+  }
+
+  /**
+   * Panel administrativo: resumen operativo + serie de circuitos (7 días) y desglose por grupo.
+   * Una sola institución por despliegue; "por grupo" sustituye granularidad multi-escuela.
+   */
+  async adminPanel(referenceDateStr?: string) {
+    const endDate = referenceDateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const startDate = addCalendarDays(endDate, -6);
+
+    const [summary, visitsPending, circuitDayStatusRows, circuitGroupRows] = await Promise.all([
+      this.summary(endDate),
+      this.visitRequestsRepository.count({ where: { status: VisitRequestStatus.PENDIENTE } }),
+      this.circuitRepository
+        .createQueryBuilder('cr')
+        .select("TO_CHAR(DATE(cr.request_time), 'YYYY-MM-DD')", 'day')
+        .addSelect('cr.status', 'status')
+        .addSelect('COUNT(*)', 'cnt')
+        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .groupBy("DATE(cr.request_time)")
+        .addGroupBy('cr.status')
+        .orderBy('day', 'ASC')
+        .getRawMany<{ day: string; status: CircuitStatus; cnt: string }>(),
+      this.circuitRepository
+        .createQueryBuilder('cr')
+        .innerJoin('students', 's', 's.id = cr.student_id')
+        .leftJoin('groups', 'g', 'g.id = s.group_id')
+        .select('COALESCE(g.id::text, \'none\')', 'groupId')
+        .addSelect('COALESCE(g.name, \'Sin grupo\')', 'groupName')
+        .addSelect('COALESCE(g.grade, \'\')', 'grade')
+        .addSelect('g.shift', 'shift')
+        .addSelect('COUNT(*)', 'cnt')
+        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .groupBy('COALESCE(g.id::text, \'none\')')
+        .addGroupBy('COALESCE(g.name, \'Sin grupo\')')
+        .addGroupBy('COALESCE(g.grade, \'\')')
+        .addGroupBy('g.shift')
+        .orderBy('cnt', 'DESC')
+        .getRawMany<{ groupId: string; groupName: string; grade: string; shift: string | null; cnt: string }>()
+    ]);
+
+    const byDayMap = new Map<string, { total: number; byStatus: Record<string, number> }>();
+    for (const row of circuitDayStatusRows) {
+      const day = String(row.day).slice(0, 10);
+      if (!byDayMap.has(day)) {
+        byDayMap.set(day, { total: 0, byStatus: {} });
+      }
+      const bucket = byDayMap.get(day)!;
+      const n = Number(row.cnt);
+      bucket.byStatus[row.status] = n;
+      bucket.total += n;
+    }
+
+    const circuitByDay: Array<{ date: string; total: number; byStatus: Record<string, number> }> = [];
+    for (let i = 0; i < 7; i++) {
+      const d = addCalendarDays(startDate, i);
+      const existing = byDayMap.get(d);
+      circuitByDay.push({
+        date: d,
+        total: existing?.total ?? 0,
+        byStatus: existing?.byStatus ?? {}
+      });
+    }
+
+    const circuitByGroup = circuitGroupRows.map((r) => ({
+      groupId: r.groupId,
+      groupName: r.groupName,
+      grade: r.grade || null,
+      shift: r.shift,
+      total: Number(r.cnt)
+    }));
+
+    return {
+      referenceDate: endDate,
+      window: { startDate, endDate, label: 'Últimos 7 días' },
+      summary,
+      visits: {
+        pendingApproval: visitsPending
+      },
+      circuits: {
+        byDay: circuitByDay,
+        byGroup: circuitByGroup
       }
     };
   }
