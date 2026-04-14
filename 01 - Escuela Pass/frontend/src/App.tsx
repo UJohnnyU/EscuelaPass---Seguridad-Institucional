@@ -25,6 +25,8 @@ import {
   ModulosHubPage,
   VisitasPage
 } from '@/pages/modulos/Operativos';
+import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
+import { CalificacionesDocentePage } from '@/pages/modulos/CalificacionesDocentePage';
 
 function AuthenticatedShell() {
   const { user } = useAuth();
@@ -60,6 +62,22 @@ export default function App() {
           <Route path="modulos/comunicacion" element={<ComunicacionPage />} />
           <Route path="modulos/finanzas" element={<FinanzasPage />} />
           <Route path="modulos/academico" element={<AcademicoPage />} />
+          <Route
+            path="modulos/calificaciones-docente"
+            element={
+              <RoleGate allow={['DOCENTE']}>
+                <CalificacionesDocentePage />
+              </RoleGate>
+            }
+          />
+          <Route
+            path="modulos/anotaciones-docente"
+            element={
+              <RoleGate allow={['DOCENTE']}>
+                <AnotacionesDocentePage />
+              </RoleGate>
+            }
+          />
           <Route path="modulos/visitas" element={<VisitasPage />} />
           <Route path="modulos/administracion" element={<AdministracionPage />} />
           <Route path="modulos/herramientas" element={<HerramientasPage />} />

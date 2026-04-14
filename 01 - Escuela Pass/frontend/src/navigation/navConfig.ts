@@ -10,6 +10,8 @@ export const SIDEBAR_NAV: NavItem[] = [
   { to: '/app/perfil', label: 'Mi perfil', roles: null },
   { to: '/app/modulos', label: 'Operaciones', roles: null },
   { to: '/app/modulos/academico', label: 'Académico', roles: ['ALUMNO', 'PADRE'] },
+  { to: '/app/modulos/calificaciones-docente', label: 'Calificaciones', roles: ['DOCENTE'] },
+  { to: '/app/modulos/anotaciones-docente', label: 'Anotaciones', roles: ['DOCENTE'] },
   { to: '/app/horario', label: 'Horario', roles: ['ALUMNO'] },
   { to: '/app/modulos/herramientas', label: 'Herramientas', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/institucion', label: 'Institución', roles: null },

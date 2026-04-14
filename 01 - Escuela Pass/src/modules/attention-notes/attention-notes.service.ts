@@ -49,6 +49,54 @@ export class AttentionNotesService {
     return saved;
   }
 
+  async listByGroupForTeacher(userId: string, groupId: string) {
+    const teacher = await this.teachersRepository.findOne({ where: { userId } });
+    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+
+    const ok = await this.dataSource.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1 FROM teacher_groups WHERE teacher_id = $1 AND group_id = $2
+      ) AS ok`,
+      [teacher.id, groupId]
+    );
+    if (!ok[0]?.ok) {
+      throw new ForbiddenException('No tienes asignación en este grupo');
+    }
+
+    return this.dataSource.query<
+      {
+        id: string;
+        studentId: string;
+        studentName: string;
+        matricula: string;
+        severity: AttentionSeverity;
+        title: string;
+        description: string;
+        occurredAt: string;
+        createdAt: string;
+        createdByName: string;
+      }[]
+    >(
+      `SELECT n.id,
+              n.student_id AS "studentId",
+              su.full_name AS "studentName",
+              st.matricula,
+              n.severity,
+              n.title,
+              n.description,
+              n.occurred_at AS "occurredAt",
+              n.created_at AS "createdAt",
+              cu.full_name AS "createdByName"
+       FROM student_attention_notes n
+       INNER JOIN students st ON st.id = n.student_id
+       INNER JOIN users su ON su.id = st.user_id
+       INNER JOIN users cu ON cu.id = n.created_by_user_id
+       WHERE st.group_id = $1
+       ORDER BY n.occurred_at DESC, n.created_at DESC`,
+      [groupId]
+    );
+  }
+
   async listMyChildren(parentUserId: string, studentId?: string) {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
@@ -128,15 +176,27 @@ export class AttentionNotesService {
       [studentId]
     );
     const userIds = [...new Set(rows.map((x) => x.user_id))];
-    if (userIds.length === 0) return;
+    if (userIds.length === 0) {
+      await this.notesRepository.update({ id: note.id }, { notifiedParent: false });
+      return;
+    }
+
+    const nameRows = await this.dataSource.query<{ full_name: string | null }[]>(
+      `SELECT u.full_name
+       FROM students s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.id = $1`,
+      [studentId]
+    );
+    const studentName = (nameRows[0]?.full_name ?? 'Su hijo/a').trim() || 'Su hijo/a';
 
     const sev = note.severity.toLowerCase();
     const notifications = userIds.map((uid) =>
       this.notificationsRepository.create({
         userId: uid,
         noticeId: null,
-        title: `Llamado de atención (${sev})`,
-        message: `${note.title}: ${note.description}`,
+        title: `Anotación sobre ${studentName} (${sev})`,
+        message: `${note.title}\n\n${note.description}`,
         deliveryStatus: 'SENT'
       })
     );

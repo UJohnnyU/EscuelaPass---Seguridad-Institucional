@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,6 +18,15 @@ export class AttentionNotesController {
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   create(@Body() dto: CreateAttentionNoteDto, @Req() req: Request & { user: JwtUser }) {
     return this.attentionNotesService.create(dto, req.user.userId, req.user.role);
+  }
+
+  @Get('teacher/groups/:groupId')
+  @Roles(UserRole.DOCENTE)
+  listByGroupForTeacher(
+    @Param('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.attentionNotesService.listByGroupForTeacher(req.user.userId, groupId);
   }
 
   @Get('parent/my-children')
