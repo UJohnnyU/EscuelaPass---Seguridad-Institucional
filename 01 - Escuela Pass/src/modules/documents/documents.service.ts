@@ -123,6 +123,12 @@ export class DocumentsService {
     });
   }
 
+  async buildMyStudentBulletinPdf(studentUserId: string, period?: string): Promise<Buffer> {
+    const student = await this.studentsRepository.findOne({ where: { userId: studentUserId } });
+    if (!student) throw new ForbiddenException('Perfil alumno no encontrado');
+    return this.buildBulletinPdf(student.id, studentUserId, UserRole.ALUMNO, period);
+  }
+
   async buildGroupSchedulePdf(groupId: string, userId: string, role: UserRole): Promise<Buffer> {
     const slots = await this.schedulesService.listByGroup(groupId, userId, role);
     const group = await this.groupsRepository.findOne({ where: { id: groupId } });

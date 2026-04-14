@@ -185,8 +185,14 @@ export function AcademicoPage() {
   const [att, setAtt] = useState<unknown>(null);
   const [grades, setGrades] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [downloadingPeriod, setDownloadingPeriod] = useState<string | null>(null);
   const { user } = useAuth();
   const padre = user?.role === 'PADRE';
+  const alumno = user?.role === 'ALUMNO';
+  const studentGrades = Array.isArray(grades) ? (grades as Array<{ period?: string | null }>) : [];
+  const periods = Array.from(
+    new Set(studentGrades.map((g) => (g.period ?? '').trim()).filter((p) => p.length > 0))
+  ).sort((a, b) => b.localeCompare(a));
 
   useEffect(() => {
     let cancelled = false;
@@ -203,6 +209,13 @@ export function AcademicoPage() {
             setGrades(g.data);
           }
         }
+        if (alumno) {
+          const g = await api.get('/api/v1/grades/me/student');
+          if (!cancelled) {
+            setAtt(null);
+            setGrades(g.data);
+          }
+        }
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
       }
@@ -210,7 +223,28 @@ export function AcademicoPage() {
     return () => {
       cancelled = true;
     };
-  }, [padre]);
+  }, [padre, alumno]);
+
+  const downloadBulletin = async (period?: string) => {
+    try {
+      setErr(null);
+      setDownloadingPeriod(period ?? '__all__');
+      const query = period ? `?period=${encodeURIComponent(period)}` : '';
+      const res = await api.get(`/api/v1/documents/bulletin/me/student${query}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = period ? `boletin-${period}.pdf` : 'boletin-completo.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setDownloadingPeriod(null);
+    }
+  };
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -219,6 +253,8 @@ export function AcademicoPage() {
         <p className="mt-1 text-sm text-slate-600">
           {padre
             ? 'Asistencia y calificaciones de los estudiantes vinculados a su cuenta.'
+            : alumno
+              ? 'Revise sus calificaciones y descargue boletines del período actual o anteriores.'
             : 'Esta vista está orientada a familias. Docentes y administración usan informes y exportaciones.'}
         </p>
       </div>
@@ -232,6 +268,38 @@ export function AcademicoPage() {
           </Panel>
           <Panel title="Calificaciones (familia)">
             <ValueView data={grades} />
+          </Panel>
+        </>
+      ) : alumno ? (
+        <>
+          <Panel title="Mis calificaciones">
+            <ValueView data={grades} />
+          </Panel>
+          <Panel
+            title="Boletines PDF"
+            description="Puede descargar su boletín completo o por cada período disponible."
+          >
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void downloadBulletin()}
+                disabled={downloadingPeriod !== null}
+                className="rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {downloadingPeriod === '__all__' ? 'Generando…' : 'Boletín completo'}
+              </button>
+              {periods.map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => void downloadBulletin(period)}
+                  disabled={downloadingPeriod !== null}
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {downloadingPeriod === period ? `Generando ${period}…` : `Boletín ${period}`}
+                </button>
+              ))}
+            </div>
           </Panel>
         </>
       ) : (

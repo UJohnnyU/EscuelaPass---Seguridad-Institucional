@@ -23,7 +23,7 @@ export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @Get('bulletin/:studentId')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE, UserRole.ALUMNO)
   async bulletinPdf(
     @Param('studentId', new ParseUUIDPipe({ version: '4' })) studentId: string,
     @Query('period') period: string | undefined,
@@ -38,6 +38,19 @@ export class DocumentsController {
     );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="boletin-${studentId}.pdf"`);
+    res.end(buf);
+  }
+
+  @Get('bulletin/me/student')
+  @Roles(UserRole.ALUMNO)
+  async myBulletinPdf(
+    @Query('period') period: string | undefined,
+    @Req() req: Request & { user: JwtUser },
+    @Res() res: Response
+  ) {
+    const buf = await this.documentsService.buildMyStudentBulletinPdf(req.user.userId, period);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="boletin-mis-calificaciones.pdf"');
     res.end(buf);
   }
 

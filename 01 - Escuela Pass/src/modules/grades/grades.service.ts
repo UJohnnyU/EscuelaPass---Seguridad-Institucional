@@ -125,6 +125,12 @@ export class GradesService {
     return qb.getMany();
   }
 
+  async listMyStudentGrades(studentUserId: string, period?: string, subject?: string) {
+    const student = await this.studentsRepository.findOne({ where: { userId: studentUserId } });
+    if (!student) throw new ForbiddenException('Perfil alumno no encontrado');
+    return this.listByStudent(student.id, studentUserId, UserRole.ALUMNO, period, subject);
+  }
+
   private async assertCanGradeStudent(userId: string, role: UserRole, student: StudentEntity) {
     if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
 
@@ -160,6 +166,13 @@ export class GradesService {
       );
       if (!rows[0]?.ok) {
         throw new ForbiddenException('No tienes relacion con este estudiante');
+      }
+      return;
+    }
+
+    if (role === UserRole.ALUMNO) {
+      if (student.userId !== userId) {
+        throw new ForbiddenException('Solo puedes consultar tus propias calificaciones');
       }
       return;
     }

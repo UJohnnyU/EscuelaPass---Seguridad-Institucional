@@ -21,7 +21,7 @@ export class GradesController {
   }
 
   @Get('student/:studentId')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE, UserRole.ALUMNO)
   listByStudent(
     @Param('studentId', new ParseUUIDPipe({ version: '4' })) studentId: string,
     @Query('period') period: string | undefined,
@@ -50,5 +50,15 @@ export class GradesController {
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.gradesService.listMyChildrenGrades(req.user.userId, period, subject);
+  }
+
+  @Get('me/student')
+  @Roles(UserRole.ALUMNO)
+  listMyStudentGrades(
+    @Query('period') period: string | undefined,
+    @Query('subject') subject: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.gradesService.listMyStudentGrades(req.user.userId, period, subject);
   }
 }
