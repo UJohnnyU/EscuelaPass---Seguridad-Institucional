@@ -16,6 +16,15 @@ VALUES
   ('alumno2@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'ALUMNO', 'Luis Martínez', true, true)
 ON CONFLICT (email) DO NOTHING;
 
+UPDATE users SET phone = v.phone
+FROM (VALUES
+  ('staff@escuelapass.local', '+52 55 5000 0011'),
+  ('docente2@escuelapass.local', '+52 55 5000 0012'),
+  ('padre2@escuelapass.local', '+52 55 5000 0013'),
+  ('alumno2@escuelapass.local', '+52 55 5000 0014')
+) AS v(email, phone)
+WHERE users.email = v.email;
+
 -- ---------- Grupos extra ----------
 INSERT INTO groups (name, grade, shift, school_year, classroom, capacity, status)
 VALUES
@@ -521,6 +530,18 @@ INSERT INTO user_privacy_acceptances (user_id, policy_version, accepted_at, ip_a
 SELECT u.id, '2.0', NOW() - INTERVAL '1 day', '10.0.0.1'::INET
 FROM users u WHERE u.email IN ('padre1@escuelapass.local', 'docente1@escuelapass.local', 'staff@escuelapass.local')
 ON CONFLICT DO NOTHING;
+
+-- Celulares para cualquier usuario demo aún sin número
+UPDATE users u
+SET phone = sub.gen_phone
+FROM (
+  SELECT
+    id,
+    '+52 55 5100 ' || LPAD(ROW_NUMBER() OVER (ORDER BY email)::text, 4, '0') AS gen_phone
+  FROM users
+  WHERE phone IS NULL OR TRIM(phone) = ''
+) sub
+WHERE u.id = sub.id;
 
 COMMIT;
 

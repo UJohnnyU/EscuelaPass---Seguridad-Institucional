@@ -106,6 +106,16 @@ SELECT
   CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM privacy_policies WHERE version = '1.0');
 
+-- Celulares demo (perfil / contactos)
+UPDATE users SET phone = v.phone
+FROM (VALUES
+  ('admin@escuelapass.local', '+52 55 5000 0001'),
+  ('docente1@escuelapass.local', '+52 55 5000 0002'),
+  ('padre1@escuelapass.local', '+52 55 5000 0003'),
+  ('alumno1@escuelapass.local', '+52 55 5000 0004')
+) AS v(email, phone)
+WHERE users.email = v.email;
+
 COMMIT;
 
 -- =============================================================

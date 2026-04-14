@@ -1,14 +1,25 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { RefreshTokenEntity } from '../../database/entities/refresh-token.entity';
-import { UserEntity } from '../../database/entities/user.entity';
+import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+
+export type ProfileContactItem = {
+  fullName: string;
+  phone: string | null;
+  subtitle?: string;
+};
+
+export type ProfileContactSection = {
+  title: string;
+  items: ProfileContactItem[];
+};
 
 @Injectable()
 export class AuthService {
@@ -17,19 +28,139 @@ export class AuthService {
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokensRepository: Repository<RefreshTokenEntity>,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource
   ) {}
 
   async getMe(userId: string) {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
+    const contactSections = await this.buildProfileContactSections(user);
     return {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
       role: user.role,
-      canAccessCampus: user.canAccessCampus
+      canAccessCampus: user.canAccessCampus,
+      phone: user.phone ?? null,
+      contactSections
     };
+  }
+
+  private async buildProfileContactSections(user: UserEntity): Promise<ProfileContactSection[]> {
+    if (user.role === UserRole.ALUMNO) {
+      const rows = await this.dataSource.query<
+        { fullName: string; phone: string | null; relationship: string }[]
+      >(
+        `SELECT u.full_name AS "fullName", u.phone, sp.relationship
+         FROM students st
+         JOIN student_parents sp ON sp.student_id = st.id
+         JOIN parents p ON p.id = sp.parent_id
+         JOIN users u ON u.id = p.user_id
+         WHERE st.user_id = $1
+         ORDER BY sp.is_primary DESC, u.full_name`,
+        [user.id]
+      );
+      if (!rows.length) return [];
+      return [
+        {
+          title: 'Padres o tutores',
+          items: rows.map((r) => ({
+            fullName: r.fullName,
+            phone: r.phone,
+            subtitle: r.relationship
+          }))
+        }
+      ];
+    }
+    if (user.role === UserRole.DOCENTE) {
+      const rows = await this.dataSource.query<
+        {
+          fullName: string;
+          phone: string | null;
+          relationship: string;
+          studentName: string;
+          groupName: string | null;
+        }[]
+      >(
+        `SELECT u.full_name AS "fullName",
+                u.phone,
+                sp.relationship,
+                stu.full_name AS "studentName",
+                g.name AS "groupName"
+         FROM teachers t
+         JOIN teacher_groups tg ON tg.teacher_id = t.id
+         JOIN students st ON st.group_id = tg.group_id
+         JOIN student_parents sp ON sp.student_id = st.id
+         JOIN parents p ON p.id = sp.parent_id
+         JOIN users u ON u.id = p.user_id
+         JOIN users stu ON stu.id = st.user_id
+         LEFT JOIN groups g ON g.id = st.group_id
+         WHERE t.user_id = $1
+         ORDER BY u.full_name, stu.full_name`,
+        [user.id]
+      );
+      if (!rows.length) return [];
+      return [
+        {
+          title: 'Familias de sus grupos',
+          items: rows.map((r) => {
+            const g = r.groupName ? ` · ${r.groupName}` : '';
+            return {
+              fullName: r.fullName,
+              phone: r.phone,
+              subtitle: `${r.relationship} · Alumno: ${r.studentName}${g}`
+            };
+          })
+        }
+      ];
+    }
+    if (user.role === UserRole.PADRE) {
+      const rows = await this.dataSource.query<
+        {
+          fullName: string;
+          phone: string | null;
+          subjectName: string | null;
+          groupName: string | null;
+          childName: string;
+        }[]
+      >(
+        `SELECT u.full_name AS "fullName",
+                u.phone,
+                subj.name AS "subjectName",
+                g.name AS "groupName",
+                child.full_name AS "childName"
+         FROM parents par
+         JOIN student_parents sp ON sp.parent_id = par.id
+         JOIN students st ON st.id = sp.student_id
+         JOIN users child ON child.id = st.user_id
+         JOIN teacher_groups tg ON tg.group_id = st.group_id
+         JOIN teachers t ON t.id = tg.teacher_id
+         JOIN users u ON u.id = t.user_id
+         LEFT JOIN subjects subj ON subj.id = tg.subject_id
+         LEFT JOIN groups g ON g.id = st.group_id
+         WHERE par.user_id = $1 AND st.group_id IS NOT NULL
+         ORDER BY child.full_name, subj.name NULLS LAST, u.full_name`,
+        [user.id]
+      );
+      if (!rows.length) return [];
+      return [
+        {
+          title: 'Docentes de sus hijos',
+          items: rows.map((r) => {
+            const parts = [r.subjectName, r.groupName].filter(Boolean);
+            const ctx = parts.length ? parts.join(' · ') : 'Grupo';
+            return {
+              fullName: r.fullName,
+              phone: r.phone,
+              subtitle: `${r.childName} · ${ctx}`
+            };
+          })
+        }
+      ];
+    }
+    return [];
   }
 
   async login(payload: LoginDto) {

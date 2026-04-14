@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     role user_role NOT NULL,
     full_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(30),
     can_access_campus BOOLEAN NOT NULL DEFAULT FALSE,
     status BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

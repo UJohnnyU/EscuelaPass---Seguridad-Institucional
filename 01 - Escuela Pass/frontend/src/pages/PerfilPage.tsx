@@ -14,12 +14,19 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function PerfilPage() {
   const { user } = useAuth();
-  const [me, setMe] = useState<{
+  type MePayload = {
     fullName: string;
     email: string;
     role: string;
     canAccessCampus: boolean;
-  } | null>(null);
+    phone: string | null;
+    contactSections?: Array<{
+      title: string;
+      items: Array<{ fullName: string; phone: string | null; subtitle?: string }>;
+    }>;
+  };
+
+  const [me, setMe] = useState<MePayload | null>(null);
   const [qrValue, setQrValue] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -30,9 +37,7 @@ export function PerfilPage() {
       setErr(null);
       try {
         const [p, q] = await Promise.all([
-          api.get<{ fullName: string; email: string; role: string; canAccessCampus: boolean }>(
-            '/api/v1/auth/me'
-          ),
+          api.get<MePayload>('/api/v1/auth/me'),
           api.get<{ qrValue: string }>('/api/v1/access-events/my-qr')
         ]);
         if (!cancelled) {
@@ -80,10 +85,44 @@ export function PerfilPage() {
           <dd className="text-slate-800">{me?.email ?? user?.email}</dd>
           <dt className="mt-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Perfil</dt>
           <dd className="text-slate-800">{ROLE_LABEL[me?.role ?? user?.role ?? ''] ?? me?.role ?? user?.role}</dd>
+          <dt className="mt-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Celular</dt>
+          <dd className="text-slate-800">{me?.phone?.trim() ? me.phone : '—'}</dd>
           <dt className="mt-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Acceso al campus</dt>
           <dd className="text-slate-800">{me?.canAccessCampus ? 'Autorizado' : 'No autorizado o pendiente'}</dd>
         </dl>
       </div>
+
+      {me?.contactSections?.length ? (
+        <div className="mt-8 space-y-6">
+          {me.contactSections.map((section) => (
+            <div key={section.title} className="rounded border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="font-serif text-lg font-semibold text-slate-900">{section.title}</h2>
+              <ul className="mt-4 divide-y divide-slate-100">
+                {section.items.map((item, idx) => (
+                  <li key={`${item.fullName}-${idx}`} className="py-3 first:pt-0 last:pb-0">
+                    <p className="font-medium text-slate-900">{item.fullName}</p>
+                    {item.subtitle ? (
+                      <p className="mt-0.5 text-xs text-slate-500">{item.subtitle}</p>
+                    ) : null}
+                    <p className="mt-1 text-sm text-slate-800">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Celular{' '}
+                      </span>
+                      {item.phone?.trim() ? (
+                        <a href={`tel:${item.phone.replace(/\s/g, '')}`} className="text-slate-900 underline">
+                          {item.phone}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {qrValue && (
         <div className="mt-10 rounded border border-slate-200 bg-white p-6 shadow-sm">

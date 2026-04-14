@@ -25,6 +25,10 @@ export class UserEntity {
   @Column({ name: 'full_name', type: 'varchar', length: 255 })
   fullName!: string;
 
+  /** Celular o teléfono de contacto (visible según reglas de perfil). */
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  phone!: string | null;
+
   @Column({ name: 'can_access_campus', type: 'boolean', default: false })
   canAccessCampus!: boolean;
 
