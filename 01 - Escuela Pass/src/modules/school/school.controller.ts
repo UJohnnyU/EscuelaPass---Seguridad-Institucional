@@ -245,6 +245,27 @@ export class SchoolController {
     return this.schoolService.importStudentsToGroupsFromXlsx(file.buffer, dryRun === 'true');
   }
 
+  @Post('import/:kind')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' }
+      }
+    }
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  importAny(
+    @Param('kind') kind: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Query('dryRun') dryRun: string | undefined
+  ) {
+    if (!file?.buffer) throw new BadRequestException('Envía archivo .xlsx o .csv en el campo "file"');
+    return this.schoolService.importAny(kind, file.buffer, file.originalname ?? '', dryRun === 'true');
+  }
+
   @Get('import/templates/groups.xlsx')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   @Header(
@@ -298,6 +319,46 @@ export class SchoolController {
   @Header('Content-Disposition', 'attachment; filename="plantilla-asignacion-grupos.xlsx"')
   templateStudentsToGroupsXlsx() {
     return this.schoolService.buildStudentsToGroupsTemplateXlsx();
+  }
+
+  @Get('import/templates/groups.csv')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="plantilla-grupos.csv"')
+  templateGroupsCsv() {
+    return this.schoolService.buildTemplateGroupsCsv();
+  }
+
+  @Get('import/templates/students.csv')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="plantilla-alumnos.csv"')
+  templateStudentsCsv() {
+    return this.schoolService.buildTemplateStudentsCsv();
+  }
+
+  @Get('import/templates/teachers.csv')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="plantilla-docentes.csv"')
+  templateTeachersCsv() {
+    return this.schoolService.buildTemplateTeachersCsv();
+  }
+
+  @Get('import/templates/teacher-assignments.csv')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="plantilla-asignaciones-docentes.csv"')
+  templateTeacherAssignmentsCsv() {
+    return this.schoolService.buildTemplateTeacherAssignmentsCsv();
+  }
+
+  @Get('import/templates/students-to-groups.csv')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="plantilla-asignacion-grupos.csv"')
+  templateStudentsToGroupsCsv() {
+    return this.schoolService.buildStudentsToGroupsTemplateCsv();
   }
 
   @Get('import/history')

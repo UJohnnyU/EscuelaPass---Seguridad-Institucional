@@ -40,6 +40,8 @@ type XlsxAssignResult = {
   dryRun: boolean;
 };
 
+type ImportKind = 'groups' | 'students' | 'teachers' | 'teacher-assignments' | 'students-to-groups';
+
 @Injectable()
 export class SchoolService {
   constructor(
@@ -361,8 +363,28 @@ export class SchoolService {
 
   // --- Cargas masivas Excel (.xlsx), primera hoja, fila 1 = encabezados (mismos nombres que antes en CSV) ---
 
-  async importGroupsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+  async importAny(kind: string, buffer: Buffer, originalFilename: string, dryRun = false) {
+    const normalized = String(kind ?? '').trim().toLowerCase() as ImportKind;
+    switch (normalized) {
+      case 'groups':
+        return this.importGroupsFile(buffer, originalFilename, dryRun);
+      case 'students':
+        return this.importStudentsFile(buffer, originalFilename, dryRun);
+      case 'teachers':
+        return this.importTeachersFile(buffer, originalFilename, dryRun);
+      case 'teacher-assignments':
+        return this.importTeacherAssignmentsFile(buffer, originalFilename, dryRun);
+      case 'students-to-groups':
+        return this.importStudentsToGroupsFile(buffer, originalFilename, dryRun);
+      default:
+        throw new BadRequestException(
+          'Tipo de importación inválido. Usa: groups, students, teachers, teacher-assignments, students-to-groups'
+        );
+    }
+  }
+
+  async importGroupsFile(buffer: Buffer, originalFilename: string, dryRun = false): Promise<CsvImportResult> {
+    const rows = await this.parseRowsFromFile(buffer, originalFilename);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
@@ -386,8 +408,8 @@ export class SchoolService {
     return result;
   }
 
-  async importStudentsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+  async importStudentsFile(buffer: Buffer, originalFilename: string, dryRun = false): Promise<CsvImportResult> {
+    const rows = await this.parseRowsFromFile(buffer, originalFilename);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
@@ -412,8 +434,8 @@ export class SchoolService {
     return result;
   }
 
-  async importTeachersXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+  async importTeachersFile(buffer: Buffer, originalFilename: string, dryRun = false): Promise<CsvImportResult> {
+    const rows = await this.parseRowsFromFile(buffer, originalFilename);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
@@ -434,6 +456,59 @@ export class SchoolService {
     }
     await this.pushImportLog('teachers', result);
     return result;
+  }
+
+  async importTeacherAssignmentsFile(
+    buffer: Buffer,
+    originalFilename: string,
+    dryRun = false
+  ): Promise<CsvImportResult> {
+    const rows = await this.parseRowsFromFile(buffer, originalFilename);
+    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+    for (let i = 0; i < rows.length; i++) {
+      const line = i + 2;
+      const row = rows[i];
+      try {
+        const dto: AssignTeacherGroupDto = {
+          teacherId: this.required(row, 'teacherId'),
+          groupId: this.required(row, 'groupId'),
+          subjectId: this.optional(row, 'subjectId'),
+          isMainTeacher: this.parseBoolOptional(this.optional(row, 'isMainTeacher')),
+          canAuthorizeDepartures: this.parseBoolOptional(this.optional(row, 'canAuthorizeDepartures'))
+        };
+        if (!dryRun) await this.assignTeacherGroup(dto);
+        result.created += 1;
+      } catch (error) {
+        result.errors.push({ row: line, message: this.errorMessage(error) });
+      }
+    }
+    await this.pushImportLog('teacher-assignments', result);
+    return result;
+  }
+
+  async importStudentsToGroupsFile(
+    buffer: Buffer,
+    originalFilename: string,
+    dryRun = false
+  ): Promise<XlsxAssignResult> {
+    const isCsv = this.isCsvFilename(originalFilename);
+    if (isCsv) {
+      const rows = this.parseCsvRows(buffer);
+      return this.importStudentsToGroupsFromFlatRows(rows, dryRun);
+    }
+    return this.importStudentsToGroupsFromXlsx(buffer, dryRun);
+  }
+
+  async importGroupsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
+    return this.importGroupsFile(buffer, 'upload.xlsx', dryRun);
+  }
+
+  async importStudentsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
+    return this.importStudentsFile(buffer, 'upload.xlsx', dryRun);
+  }
+
+  async importTeachersXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
+    return this.importTeachersFile(buffer, 'upload.xlsx', dryRun);
   }
 
   /**
@@ -519,27 +594,7 @@ export class SchoolService {
   }
 
   async importTeacherAssignmentsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
-    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
-    for (let i = 0; i < rows.length; i++) {
-      const line = i + 2;
-      const row = rows[i];
-      try {
-        const dto: AssignTeacherGroupDto = {
-          teacherId: this.required(row, 'teacherId'),
-          groupId: this.required(row, 'groupId'),
-          subjectId: this.optional(row, 'subjectId'),
-          isMainTeacher: this.parseBoolOptional(this.optional(row, 'isMainTeacher')),
-          canAuthorizeDepartures: this.parseBoolOptional(this.optional(row, 'canAuthorizeDepartures'))
-        };
-        if (!dryRun) await this.assignTeacherGroup(dto);
-        result.created += 1;
-      } catch (error) {
-        result.errors.push({ row: line, message: this.errorMessage(error) });
-      }
-    }
-    await this.pushImportLog('teacher-assignments', result);
-    return result;
+    return this.importTeacherAssignmentsFile(buffer, 'upload.xlsx', dryRun);
   }
 
   async getImportHistory(limit = 20) {
@@ -625,6 +680,41 @@ export class SchoolService {
     ws.getRow(1).font = { bold: true };
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  }
+
+  buildTemplateGroupsCsv(): string {
+    return this.toCsv(
+      ['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity'],
+      [['1A', '1', 'MATUTINO', '2026-2027', 'A-101', '30']]
+    );
+  }
+
+  buildTemplateStudentsCsv(): string {
+    return this.toCsv(
+      ['email', 'password', 'fullName', 'matricula', 'groupId', 'canAccessCampus', 'canLeaveAlone'],
+      [['alumno.nuevo@escuelapass.local', 'Alumno123*', 'Alumno Nuevo', 'MAT-1001', '', 'false', 'false']]
+    );
+  }
+
+  buildTemplateTeachersCsv(): string {
+    return this.toCsv(
+      ['email', 'password', 'fullName', 'employeeNumber', 'canAccessCampus'],
+      [['docente.nuevo@escuelapass.local', 'Docente123*', 'Docente Nuevo', 'EMP-1001', 'true']]
+    );
+  }
+
+  buildTemplateTeacherAssignmentsCsv(): string {
+    return this.toCsv(
+      ['teacherId', 'groupId', 'subjectId', 'isMainTeacher', 'canAuthorizeDepartures'],
+      [['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '', 'true', 'false']]
+    );
+  }
+
+  buildStudentsToGroupsTemplateCsv(): string {
+    return this.toCsv(
+      ['matricula', 'grupo_id', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'],
+      [['MAT-0001', '', '1A', '1', 'MATUTINO', '2026-2027']]
+    );
   }
 
   private mapExcelHeaderToField(raw: string): string | null {
@@ -720,6 +810,110 @@ export class SchoolService {
       }
     }
     return rows;
+  }
+
+  private async parseRowsFromFile(buffer: Buffer, originalFilename: string): Promise<Array<Record<string, string>>> {
+    if (this.isCsvFilename(originalFilename)) {
+      return this.parseCsvRows(buffer);
+    }
+    return this.parseXlsxFirstSheetToRows(buffer);
+  }
+
+  private isCsvFilename(originalFilename: string): boolean {
+    return originalFilename.toLowerCase().endsWith('.csv');
+  }
+
+  private parseCsvRows(buffer: Buffer): Array<Record<string, string>> {
+    const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
+    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length === 0) throw new BadRequestException('CSV vacío');
+    const headers = this.parseCsvLine(lines[0]).map((h) => h.trim());
+    if (headers.length === 0 || headers.every((h) => !h)) {
+      throw new BadRequestException('La primera fila del CSV debe contener encabezados');
+    }
+    const rows: Array<Record<string, string>> = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = this.parseCsvLine(lines[i]);
+      const row: Record<string, string> = {};
+      for (let j = 0; j < headers.length; j++) {
+        row[headers[j]] = (values[j] ?? '').trim();
+      }
+      if (Object.values(row).some((v) => v.length > 0)) rows.push(row);
+    }
+    return rows;
+  }
+
+  private parseCsvLine(line: string): string[] {
+    const cells: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        const next = line[i + 1];
+        if (inQuotes && next === '"') {
+          cur += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === ',' && !inQuotes) {
+        cells.push(cur);
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    cells.push(cur);
+    return cells;
+  }
+
+  private toCsv(headers: string[], rows: string[][]): string {
+    const esc = (value: string) => {
+      const v = value ?? '';
+      if (v.includes('"') || v.includes(',') || v.includes('\n') || v.includes('\r')) {
+        return `"${v.replace(/"/g, '""')}"`;
+      }
+      return v;
+    };
+    const lines = [headers.map(esc).join(','), ...rows.map((r) => r.map((v) => esc(v ?? '')).join(','))];
+    return lines.join('\n');
+  }
+
+  private async importStudentsToGroupsFromFlatRows(
+    rows: Array<Record<string, string>>,
+    dryRun: boolean
+  ): Promise<XlsxAssignResult> {
+    const result: XlsxAssignResult = {
+      totalRows: rows.length,
+      updated: 0,
+      errors: [],
+      dryRun
+    };
+    for (let i = 0; i < rows.length; i++) {
+      const line = i + 2;
+      const fields = rows[i];
+      const matricula = fields.matricula?.trim();
+      if (!matricula) {
+        result.errors.push({ row: line, message: 'Campo obligatorio faltante: matricula' });
+        continue;
+      }
+      try {
+        const group = await this.resolveGroupForExcelRow(fields, line);
+        const student = await this.studentsRepository.findOne({ where: { matricula } });
+        if (!student) {
+          throw new Error(`No existe alumno con matrícula ${matricula}`);
+        }
+        if (!dryRun) {
+          await this.studentsRepository.update({ id: student.id }, { groupId: group.id });
+        }
+        result.updated += 1;
+      } catch (error) {
+        result.errors.push({ row: line, message: this.errorMessage(error) });
+      }
+    }
+    await this.pushImportLog('students-to-groups-xlsx', result);
+    return result;
   }
 
   private required(row: Record<string, string>, key: string) {
