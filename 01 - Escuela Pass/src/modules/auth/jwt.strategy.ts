@@ -12,14 +12,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: { sub?: string; email?: string; role?: string }) {
+  validate(payload: { sub?: string; email?: string; role?: string; schoolId?: string | null }) {
     if (!payload?.sub) {
       throw new UnauthorizedException('Token inválido');
     }
     return {
       userId: payload.sub,
       email: payload.email,
-      role: payload.role
+      role: payload.role,
+      schoolId: payload.schoolId ?? null
     };
   }
 }

@@ -10,11 +10,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Request } from 'express';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -31,118 +33,156 @@ import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { SchoolService } from './school.service';
 
+type JwtUser = { userId: string; email: string; role: UserRole; schoolId?: string | null };
+
 @Controller('school')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
 export class SchoolController {
   constructor(private readonly schoolService: SchoolService) {}
 
+  private scopeSchool(user: JwtUser): string | undefined {
+    return user.role === UserRole.ADMIN ? undefined : user.schoolId ?? undefined;
+  }
+
   @Get('groups')
-  listGroups() {
-    return this.schoolService.listGroups();
+  listGroups(@Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.listGroups(this.scopeSchool(req.user));
   }
 
   @Get('groups/:id')
-  getGroup(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolService.getGroup(id);
+  getGroup(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.getGroup(id, this.scopeSchool(req.user));
   }
 
   @Post('groups')
-  createGroup(@Body() dto: CreateGroupDto) {
-    return this.schoolService.createGroup(dto);
+  createGroup(@Body() dto: CreateGroupDto, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.createGroup(dto, this.scopeSchool(req.user));
   }
 
   @Patch('groups/:id')
-  updateGroup(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: UpdateGroupDto) {
-    return this.schoolService.updateGroup(id, dto);
+  updateGroup(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateGroupDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.updateGroup(id, dto, this.scopeSchool(req.user));
   }
 
   @Delete('groups/:id')
-  removeGroup(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolService.removeGroup(id);
+  removeGroup(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.removeGroup(id, this.scopeSchool(req.user));
   }
 
   @Get('subjects')
-  listSubjects() {
-    return this.schoolService.listSubjects();
+  listSubjects(@Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.listSubjects(this.scopeSchool(req.user));
   }
 
   @Get('subjects/:id')
-  getSubject(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolService.getSubject(id);
+  getSubject(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.getSubject(id, this.scopeSchool(req.user));
   }
 
   @Post('subjects')
-  createSubject(@Body() dto: CreateSubjectDto) {
-    return this.schoolService.createSubject(dto);
+  createSubject(@Body() dto: CreateSubjectDto, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.createSubject(dto, this.scopeSchool(req.user));
   }
 
   @Patch('subjects/:id')
-  updateSubject(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: UpdateSubjectDto) {
-    return this.schoolService.updateSubject(id, dto);
+  updateSubject(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateSubjectDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.updateSubject(id, dto, this.scopeSchool(req.user));
   }
 
   @Delete('subjects/:id')
-  removeSubject(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolService.removeSubject(id);
+  removeSubject(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.removeSubject(id, this.scopeSchool(req.user));
   }
 
   @Get('students')
-  listStudents() {
-    return this.schoolService.listStudents();
+  listStudents(@Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.listStudents(this.scopeSchool(req.user));
   }
 
   @Get('students/:id')
-  getStudent(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolService.getStudent(id);
+  getStudent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.getStudent(id, this.scopeSchool(req.user));
   }
 
   @Post('students')
-  createStudent(@Body() dto: CreateStudentDto) {
-    return this.schoolService.createStudent(dto);
+  createStudent(@Body() dto: CreateStudentDto, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.createStudent(dto, this.scopeSchool(req.user));
   }
 
   @Patch('students/:id')
-  updateStudent(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: UpdateStudentDto) {
-    return this.schoolService.updateStudent(id, dto);
+  updateStudent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateStudentDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.updateStudent(id, dto, this.scopeSchool(req.user));
   }
 
   @Get('teachers')
-  listTeachers() {
-    return this.schoolService.listTeachers();
+  listTeachers(@Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.listTeachers(this.scopeSchool(req.user));
   }
 
   @Get('teachers/:id')
-  getTeacher(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolService.getTeacher(id);
+  getTeacher(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.getTeacher(id, this.scopeSchool(req.user));
   }
 
   @Post('teachers')
-  createTeacher(@Body() dto: CreateTeacherDto) {
-    return this.schoolService.createTeacher(dto);
+  createTeacher(@Body() dto: CreateTeacherDto, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.createTeacher(dto, this.scopeSchool(req.user));
   }
 
   @Patch('teachers/:id')
-  updateTeacher(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: UpdateTeacherDto) {
-    return this.schoolService.updateTeacher(id, dto);
+  updateTeacher(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateTeacherDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.updateTeacher(id, dto, this.scopeSchool(req.user));
   }
 
   @Get('teacher-assignments')
   listAssignments(
     @Query('teacherId') teacherId: string | undefined,
-    @Query('groupId') groupId: string | undefined
+    @Query('groupId') groupId: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
-    return this.schoolService.listTeacherAssignments(teacherId, groupId);
+    return this.schoolService.listTeacherAssignments(teacherId, groupId, this.scopeSchool(req.user));
   }
 
   @Post('teacher-assignments')
-  assignTeacherGroup(@Body() dto: AssignTeacherGroupDto) {
-    return this.schoolService.assignTeacherGroup(dto);
+  assignTeacherGroup(@Body() dto: AssignTeacherGroupDto, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.assignTeacherGroup(dto, this.scopeSchool(req.user));
   }
 
   @Delete('teacher-assignments/:id')
-  removeAssignment(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolService.removeTeacherAssignment(id);
+  removeAssignment(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.removeTeacherAssignment(id, this.scopeSchool(req.user));
   }
 
   @Post('import/groups/xlsx')
@@ -159,10 +199,11 @@ export class SchoolController {
   @UseInterceptors(FileInterceptor('file'))
   importGroupsXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Query('dryRun') dryRun: string | undefined
+    @Query('dryRun') dryRun: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
     if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
-    return this.schoolService.importGroupsXlsx(file.buffer, dryRun === 'true');
+    return this.schoolService.importGroupsXlsx(file.buffer, dryRun === 'true', this.scopeSchool(req.user));
   }
 
   @Post('import/students/xlsx')
@@ -179,10 +220,11 @@ export class SchoolController {
   @UseInterceptors(FileInterceptor('file'))
   importStudentsXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Query('dryRun') dryRun: string | undefined
+    @Query('dryRun') dryRun: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
     if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
-    return this.schoolService.importStudentsXlsx(file.buffer, dryRun === 'true');
+    return this.schoolService.importStudentsXlsx(file.buffer, dryRun === 'true', this.scopeSchool(req.user));
   }
 
   @Post('import/teachers/xlsx')
@@ -199,10 +241,11 @@ export class SchoolController {
   @UseInterceptors(FileInterceptor('file'))
   importTeachersXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Query('dryRun') dryRun: string | undefined
+    @Query('dryRun') dryRun: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
     if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
-    return this.schoolService.importTeachersXlsx(file.buffer, dryRun === 'true');
+    return this.schoolService.importTeachersXlsx(file.buffer, dryRun === 'true', this.scopeSchool(req.user));
   }
 
   @Post('import/teacher-assignments/xlsx')
@@ -219,10 +262,11 @@ export class SchoolController {
   @UseInterceptors(FileInterceptor('file'))
   importTeacherAssignmentsXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Query('dryRun') dryRun: string | undefined
+    @Query('dryRun') dryRun: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
     if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
-    return this.schoolService.importTeacherAssignmentsXlsx(file.buffer, dryRun === 'true');
+    return this.schoolService.importTeacherAssignmentsXlsx(file.buffer, dryRun === 'true', this.scopeSchool(req.user));
   }
 
   @Post('import/students-to-groups/xlsx')
@@ -239,10 +283,15 @@ export class SchoolController {
   @UseInterceptors(FileInterceptor('file'))
   importStudentsToGroupsXlsx(
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Query('dryRun') dryRun: string | undefined
+    @Query('dryRun') dryRun: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
     if (!file?.buffer) throw new BadRequestException('Envía archivo Excel (.xlsx) en el campo "file"');
-    return this.schoolService.importStudentsToGroupsFromXlsx(file.buffer, dryRun === 'true');
+    return this.schoolService.importStudentsToGroupsFromXlsx(
+      file.buffer,
+      dryRun === 'true',
+      this.scopeSchool(req.user)
+    );
   }
 
   @Post('import/:kind')
@@ -260,10 +309,17 @@ export class SchoolController {
   importAny(
     @Param('kind') kind: string,
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Query('dryRun') dryRun: string | undefined
+    @Query('dryRun') dryRun: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
     if (!file?.buffer) throw new BadRequestException('Envía archivo .xlsx o .csv en el campo "file"');
-    return this.schoolService.importAny(kind, file.buffer, file.originalname ?? '', dryRun === 'true');
+    return this.schoolService.importAny(
+      kind,
+      file.buffer,
+      file.originalname ?? '',
+      dryRun === 'true',
+      this.scopeSchool(req.user)
+    );
   }
 
   @Get('import/templates/groups.xlsx')
@@ -362,9 +418,9 @@ export class SchoolController {
   }
 
   @Get('import/history')
-  importHistory(@Query('limit') limit: string | undefined) {
+  importHistory(@Query('limit') limit: string | undefined, @Req() req: Request & { user: JwtUser }) {
     const parsed = Number.parseInt(limit ?? '20', 10);
     const safeLimit = Number.isNaN(parsed) ? 20 : parsed;
-    return this.schoolService.getImportHistory(safeLimit);
+    return this.schoolService.getImportHistory(safeLimit, this.scopeSchool(req.user));
   }
 }

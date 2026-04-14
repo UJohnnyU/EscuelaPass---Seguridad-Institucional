@@ -16,6 +16,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PerfilPage } from '@/pages/PerfilPage';
 import { StudentSchedulePage } from '@/pages/StudentSchedulePage';
+import { SchoolsAdminPage } from '@/pages/SchoolsAdminPage';
 import {
   AcademicoPage,
   AdministracionPage,
@@ -58,6 +59,14 @@ export default function App() {
             }
           />
           <Route path="institucion" element={<InstitutionPage />} />
+          <Route
+            path="escuelas"
+            element={
+              <RoleGate allow={['ADMIN']}>
+                <SchoolsAdminPage />
+              </RoleGate>
+            }
+          />
           <Route path="modulos" element={<ModulosHubPage />} />
           <Route path="modulos/comunicacion" element={<ComunicacionPage />} />
           <Route path="modulos/finanzas" element={<FinanzasPage />} />

@@ -15,6 +15,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { to: '/app/horario', label: 'Horario', roles: ['ALUMNO'] },
   { to: '/app/modulos/herramientas', label: 'Herramientas', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/institucion', label: 'Institución', roles: null },
+  { to: '/app/escuelas', label: 'Escuelas', roles: ['ADMIN'] },
   { to: '/app/importaciones', label: 'Importar y exportar', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/acceso/escaner', label: 'Escáner de acceso', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/circuito', label: 'Circuito (familia)', roles: ['PADRE', 'ADMIN', 'ADMINISTRATIVO'] },
@@ -23,6 +24,7 @@ export const SIDEBAR_NAV: NavItem[] = [
 
 export function navVisibleForRole(item: NavItem, role: string | undefined): boolean {
   if (!role) return false;
+  if (role === 'ADMIN') return true;
   if (item.roles === null) return true;
   return item.roles.includes(role);
 }

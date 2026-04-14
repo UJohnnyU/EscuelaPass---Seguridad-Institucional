@@ -27,6 +27,9 @@ export class GroupEntity {
   @Column({ type: 'boolean', default: true })
   status!: boolean;
 
+  @Column({ name: 'school_id', type: 'uuid' })
+  schoolId!: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

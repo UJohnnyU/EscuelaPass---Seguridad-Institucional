@@ -44,16 +44,20 @@ export class PaymentsController {
 
   @Post('debts')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  createDebt(@Body() dto: CreateDebtDto) {
-    return this.paymentsService.createDebt(dto);
+  createDebt(@Body() dto: CreateDebtDto, @Req() req: { user: { userId: string; role: UserRole } }) {
+    return this.paymentsService.createDebt(dto, req.user.userId, req.user.role);
   }
 
   @Get('debts/pending-review')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  listPending(@Query('page') page: string | undefined, @Query('limit') limit: string | undefined) {
+  listPending(
+    @Query('page') page: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Req() req: { user: { userId: string; role: UserRole } }
+  ) {
     const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
     const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '30', 10) || 30));
-    return this.paymentsService.listPendingVerification(p, l);
+    return this.paymentsService.listPendingVerification(p, l, req.user.userId, req.user.role);
   }
 
   @Get('debts/mine')
@@ -67,7 +71,8 @@ export class PaymentsController {
   listDebtsAdmin(
     @Query('status') status: string | undefined,
     @Query('page') page: string | undefined,
-    @Query('limit') limit: string | undefined
+    @Query('limit') limit: string | undefined,
+    @Req() req: { user: { userId: string; role: UserRole } }
   ) {
     const st: PaymentStatus | undefined =
       status === 'PENDIENTE' || status === 'PAGADO' || status === 'VENCIDO'
@@ -75,7 +80,7 @@ export class PaymentsController {
         : undefined;
     const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
     const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '30', 10) || 30));
-    return this.paymentsService.listDebtsForAdmin(st, p, l);
+    return this.paymentsService.listDebtsForAdmin(st, p, l, req.user.userId, req.user.role);
   }
 
   @Post('debts/:debtId/voucher')

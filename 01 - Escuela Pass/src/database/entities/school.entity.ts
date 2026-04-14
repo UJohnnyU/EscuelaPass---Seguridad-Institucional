@@ -1,18 +1,18 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity({ name: 'subjects' })
-export class SubjectEntity {
+@Entity({ name: 'schools' })
+export class SchoolEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ type: 'varchar', length: 160, unique: true })
   name!: string;
 
-  @Column({ name: 'school_id', type: 'uuid' })
-  schoolId!: string;
+  @Column({ type: 'varchar', length: 60, unique: true })
+  code!: string;
 
-  @Column({ type: 'text', nullable: true })
-  description!: string | null;
+  @Column({ type: 'boolean', default: true })
+  status!: boolean;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

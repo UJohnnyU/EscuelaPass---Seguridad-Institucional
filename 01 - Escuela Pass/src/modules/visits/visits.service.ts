@@ -52,8 +52,18 @@ export class VisitsService {
   }
 
   async listForStaff(userId: string, role: UserRole) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) {
+    if (role === UserRole.ADMIN) {
       return this.visitsRepository.find({ order: { visitDatetime: 'DESC' } });
+    }
+    if (role === UserRole.ADMINISTRATIVO) {
+      return this.visitsRepository
+        .createQueryBuilder('vr')
+        .innerJoin('students', 's', 's.id = vr.student_id')
+        .innerJoin('groups', 'g', 'g.id = s.group_id')
+        .innerJoin('users', 'u', 'u.id = :uid', { uid: userId })
+        .where('u.school_id = g.school_id')
+        .orderBy('vr.visit_datetime', 'DESC')
+        .getMany();
     }
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('No autorizado');
@@ -77,7 +87,24 @@ export class VisitsService {
     const row = await this.visitsRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Solicitud no encontrada');
 
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) {
+    if (role === UserRole.ADMIN) {
+      row.status = dto.status;
+      return this.visitsRepository.save(row);
+    }
+    if (role === UserRole.ADMINISTRATIVO) {
+      const st = await this.studentsRepository.findOne({ where: { id: row.studentId } });
+      if (!st?.groupId) throw new ForbiddenException('Estudiante sin grupo asignado');
+      const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+           SELECT 1 FROM users u
+           JOIN groups g ON g.id = $2
+           WHERE u.id = $1 AND u.role = 'ADMINISTRATIVO'
+             AND u.school_id IS NOT NULL
+             AND u.school_id = g.school_id
+        ) AS ok`,
+        [userId, st.groupId]
+      );
+      if (!rows[0]?.ok) throw new ForbiddenException('No autorizado');
       row.status = dto.status;
       return this.visitsRepository.save(row);
     }

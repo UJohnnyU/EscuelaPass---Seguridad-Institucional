@@ -303,10 +303,22 @@ export class GradesService {
     const norm = this.normText(subjectInput);
     if (!norm) throw new BadRequestException('La materia es obligatoria');
 
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) {
+    if (role === UserRole.ADMIN) {
       const rows = await this.studentsRepository.manager.query<{ name: string }[]>(
         `SELECT name FROM subjects WHERE LOWER(TRIM(name)) = LOWER(TRIM($1::text)) LIMIT 1`,
         [norm]
+      );
+      return rows[0]?.name ?? norm;
+    }
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, groupId);
+      const rows = await this.studentsRepository.manager.query<{ name: string }[]>(
+        `SELECT name
+         FROM subjects
+         WHERE school_id = (SELECT school_id FROM groups WHERE id = $1)
+           AND LOWER(TRIM(name)) = LOWER(TRIM($2::text))
+         LIMIT 1`,
+        [groupId, norm]
       );
       return rows[0]?.name ?? norm;
     }
@@ -446,7 +458,11 @@ export class GradesService {
     student: StudentEntity,
     _canonicalSubject: string
   ) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, student.groupId);
+      return;
+    }
 
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('Solo docente o administracion puede registrar calificaciones');
@@ -460,7 +476,11 @@ export class GradesService {
   }
 
   private async assertCanViewStudentGrades(userId: string, role: UserRole, student: StudentEntity) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, student.groupId);
+      return;
+    }
 
     if (role === UserRole.DOCENTE) {
       if (!student.groupId) throw new ForbiddenException('Estudiante sin grupo asignado');
@@ -495,7 +515,11 @@ export class GradesService {
   }
 
   private async assertCanViewGroupGrades(userId: string, role: UserRole, groupId: string) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, groupId);
+      return;
+    }
 
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('No autorizado a listar calificaciones por grupo');
@@ -517,6 +541,25 @@ export class GradesService {
 
     if (!rows[0]?.ok) {
       throw new ForbiddenException('No tienes asignacion en este grupo');
+    }
+  }
+
+  private async assertAdministrativeCanAccessGroup(userId: string, groupId: string | null): Promise<void> {
+    if (!groupId) throw new ForbiddenException('No hay grupo para validar alcance institucional');
+    const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM users admin_user
+         JOIN groups g ON g.id = $2
+         WHERE admin_user.id = $1
+           AND admin_user.role = 'ADMINISTRATIVO'
+           AND admin_user.school_id IS NOT NULL
+           AND admin_user.school_id = g.school_id
+      ) AS ok`,
+      [userId, groupId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No tienes permisos sobre este grupo');
     }
   }
 }

@@ -236,7 +236,23 @@ export class SchedulesService {
   }
 
   private async assertCanViewGroupSchedule(userId: string, role: UserRole, groupId: string) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM users admin_user
+           JOIN groups g ON g.id = $2
+           WHERE admin_user.id = $1
+             AND admin_user.role = 'ADMINISTRATIVO'
+             AND admin_user.school_id IS NOT NULL
+             AND admin_user.school_id = g.school_id
+        ) AS ok`,
+        [userId, groupId]
+      );
+      if (!rows[0]?.ok) throw new ForbiddenException('No autorizado a ver el horario de este grupo');
+      return;
+    }
     if (role === UserRole.DOCENTE) {
       const teacher = await this.teachersRepository.findOne({ where: { userId } });
       if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');

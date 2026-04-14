@@ -73,8 +73,18 @@ export class MeetingsService {
   }
 
   async listForStaff(userId: string, role: UserRole) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) {
+    if (role === UserRole.ADMIN) {
       return this.meetingsRepository.find({ order: { meetingDatetime: 'DESC' } });
+    }
+    if (role === UserRole.ADMINISTRATIVO) {
+      return this.meetingsRepository
+        .createQueryBuilder('m')
+        .innerJoin('students', 's', 's.id = m.student_id')
+        .innerJoin('groups', 'g', 'g.id = s.group_id')
+        .innerJoin('users', 'u', 'u.id = :uid', { uid: userId })
+        .where('u.school_id = g.school_id')
+        .orderBy('m.meeting_datetime', 'DESC')
+        .getMany();
     }
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('No autorizado');
@@ -92,7 +102,24 @@ export class MeetingsService {
     const row = await this.meetingsRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Reunión no encontrada');
 
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) {
+    if (role === UserRole.ADMIN) {
+      row.status = dto.status;
+      return this.meetingsRepository.save(row);
+    }
+    if (role === UserRole.ADMINISTRATIVO) {
+      const st = await this.studentsRepository.findOne({ where: { id: row.studentId } });
+      if (!st?.groupId) throw new ForbiddenException('Estudiante sin grupo asignado');
+      const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+           SELECT 1 FROM users u
+           JOIN groups g ON g.id = $2
+           WHERE u.id = $1 AND u.role = 'ADMINISTRATIVO'
+             AND u.school_id IS NOT NULL
+             AND u.school_id = g.school_id
+        ) AS ok`,
+        [userId, st.groupId]
+      );
+      if (!rows[0]?.ok) throw new ForbiddenException('No autorizado');
       row.status = dto.status;
       return this.meetingsRepository.save(row);
     }

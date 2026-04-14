@@ -32,6 +32,7 @@ import { VehicleEntity } from '../database/entities/vehicle.entity';
 import { AuditLogEntity } from '../database/entities/audit-log.entity';
 import { PrivacyPolicyEntity } from '../database/entities/privacy-policy.entity';
 import { UserPrivacyAcceptanceEntity } from '../database/entities/user-privacy-acceptance.entity';
+import { SchoolEntity } from '../database/entities/school.entity';
 
 function directPostgresUrl(): string | undefined {
   const u = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
@@ -76,7 +77,8 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       VehicleEntity,
       AuditLogEntity,
       PrivacyPolicyEntity,
-      UserPrivacyAcceptanceEntity
+      UserPrivacyAcceptanceEntity,
+      SchoolEntity
   ];
 
   const url = directPostgresUrl();

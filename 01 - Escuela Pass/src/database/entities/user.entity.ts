@@ -34,4 +34,7 @@ export class UserEntity {
 
   @Column({ name: 'status', type: 'boolean', default: true })
   status!: boolean;
+
+  @Column({ name: 'school_id', type: 'uuid', nullable: true })
+  schoolId!: string | null;
 }

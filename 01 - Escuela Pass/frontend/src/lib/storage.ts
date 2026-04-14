@@ -7,6 +7,7 @@ export type StoredUser = {
   email: string;
   role: string;
   fullName: string;
+  schoolId?: string | null;
 };
 
 export function loadTokens(): { access: string | null; refresh: string | null } {

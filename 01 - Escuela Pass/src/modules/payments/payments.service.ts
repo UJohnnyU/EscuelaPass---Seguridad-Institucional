@@ -55,9 +55,12 @@ export class PaymentsService {
     return this.conceptsRepository.save(entity);
   }
 
-  async createDebt(dto: CreateDebtDto) {
+  async createDebt(dto: CreateDebtDto, userId: string, role: UserRole) {
     const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessStudent(userId, dto.studentId);
+    }
     const concept = await this.conceptsRepository.findOne({ where: { id: dto.conceptId } });
     if (!concept) throw new NotFoundException('Concepto no encontrado');
     const debt = this.debtsRepository.create({
@@ -84,31 +87,66 @@ export class PaymentsService {
       .getMany();
   }
 
-  async listDebtsForAdmin(status: PaymentStatus | undefined, page = 1, limit = 30) {
+  async listDebtsForAdmin(
+    status: PaymentStatus | undefined,
+    page = 1,
+    limit = 30,
+    userId?: string,
+    role?: UserRole
+  ) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
     const where = status ? { status } : {};
-    const [data, total] = await this.debtsRepository.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip,
-      take
-    });
+    if (role === UserRole.ADMINISTRATIVO && userId) {
+      const qb = this.debtsRepository
+        .createQueryBuilder('d')
+        .innerJoin('students', 's', 's.id = d.student_id')
+        .innerJoin('users', 'su', 'su.id = s.user_id')
+        .innerJoin('users', 'au', 'au.id = :uid', { uid: userId })
+        .where('au.school_id = su.school_id')
+        .orderBy('d.created_at', 'DESC')
+        .skip(skip)
+        .take(take);
+      if (status) qb.andWhere('d.status = :st', { st: status });
+      const [data, total] = await qb.getManyAndCount();
+      return {
+        data,
+        meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
+      };
+    }
+    const [data, total] = await this.debtsRepository.findAndCount({ where, order: { createdAt: 'DESC' }, skip, take });
     return {
       data,
       meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
     };
   }
 
-  async listPendingVerification(page = 1, limit = 30) {
+  async listPendingVerification(page = 1, limit = 30, userId?: string, role?: UserRole) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
-    const [data, total] = await this.debtsRepository.findAndCount({
-      where: { status: PaymentStatus.PENDIENTE },
-      order: { uploadedAt: 'DESC', dueDate: 'ASC' },
-      skip,
-      take
-    });
+    let data: DebtEntity[] = [];
+    let total = 0;
+    if (role === UserRole.ADMINISTRATIVO && userId) {
+      const qb = this.debtsRepository
+        .createQueryBuilder('d')
+        .innerJoin('students', 's', 's.id = d.student_id')
+        .innerJoin('users', 'su', 'su.id = s.user_id')
+        .innerJoin('users', 'au', 'au.id = :uid', { uid: userId })
+        .where('au.school_id = su.school_id')
+        .andWhere('d.status = :st', { st: PaymentStatus.PENDIENTE })
+        .orderBy('d.uploaded_at', 'DESC')
+        .addOrderBy('d.due_date', 'ASC')
+        .skip(skip)
+        .take(take);
+      [data, total] = await qb.getManyAndCount();
+    } else {
+      [data, total] = await this.debtsRepository.findAndCount({
+        where: { status: PaymentStatus.PENDIENTE },
+        order: { uploadedAt: 'DESC', dueDate: 'ASC' },
+        skip,
+        take
+      });
+    }
     const withVoucher = data.filter((d) => d.voucherPath != null);
     return {
       data: withVoucher.length ? withVoucher : data,
@@ -148,6 +186,9 @@ export class PaymentsService {
     }
     const debt = await this.debtsRepository.findOne({ where: { id: debtId } });
     if (!debt) throw new NotFoundException('Deuda no encontrada');
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessStudent(userId, debt.studentId);
+    }
     if (debt.status !== PaymentStatus.PENDIENTE) {
       throw new BadRequestException('La deuda ya fue procesada');
     }
@@ -177,5 +218,24 @@ export class PaymentsService {
       debtId: debt.id,
       paymentId: savedPayment.id
     };
+  }
+
+  private async assertAdministrativeCanAccessStudent(userId: string, studentId: string): Promise<void> {
+    const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM users au
+         JOIN students s ON s.id = $2
+         JOIN users su ON su.id = s.user_id
+         WHERE au.id = $1
+           AND au.role = 'ADMINISTRATIVO'
+           AND au.school_id IS NOT NULL
+           AND au.school_id = su.school_id
+      ) AS ok`,
+      [userId, studentId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No autorizado en esta institución');
+    }
   }
 }

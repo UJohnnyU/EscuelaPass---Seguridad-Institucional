@@ -93,7 +93,23 @@ export class ReportsService {
   }
 
   private async assertCanViewGroup(userId: string, role: UserRole, groupId: string) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      const rows = await this.attendanceRepository.manager.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM users admin_user
+           JOIN groups g ON g.id = $2
+           WHERE admin_user.id = $1
+             AND admin_user.role = 'ADMINISTRATIVO'
+             AND admin_user.school_id IS NOT NULL
+             AND admin_user.school_id = g.school_id
+        ) AS ok`,
+        [userId, groupId]
+      );
+      if (!rows[0]?.ok) throw new ForbiddenException('No autorizado a ver reportes de este grupo');
+      return;
+    }
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('No autorizado a ver reportes de este grupo');
     }

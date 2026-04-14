@@ -5,6 +5,13 @@
 
 BEGIN;
 
+-- 0) Escuelas base multi-tenant
+INSERT INTO schools (name, code, status)
+VALUES
+  ('Escuela principal', 'ESCUELA-PRINCIPAL', true),
+  ('Escuela Sur', 'ESCUELA-SUR', true)
+ON CONFLICT (code) DO NOTHING;
+
 -- 1) Usuarios base (idempotente)
 INSERT INTO users (email, password_hash, role, full_name, can_access_campus)
 VALUES
@@ -14,10 +21,21 @@ VALUES
   ('alumno1@escuelapass.local', crypt('Alumno123*', gen_salt('bf')), 'ALUMNO', 'Alumno Uno', true)
 ON CONFLICT (email) DO NOTHING;
 
+-- Asignar escuela principal a usuarios base
+UPDATE users u
+SET school_id = s.id
+FROM schools s
+WHERE s.code = 'ESCUELA-PRINCIPAL'
+  AND u.email IN ('admin@escuelapass.local', 'docente1@escuelapass.local', 'padre1@escuelapass.local', 'alumno1@escuelapass.local');
+
 -- 2) Grupo base
-INSERT INTO groups (name, grade, shift, school_year, classroom, capacity, status)
-VALUES ('1A', '1RO', 'MATUTINO', '2026-2027', 'A-101', 30, true)
-ON CONFLICT (name, school_year) DO NOTHING;
+INSERT INTO groups (name, grade, shift, school_year, classroom, capacity, status, school_id)
+SELECT '1A', '1RO', 'MATUTINO', '2026-2027', 'A-101', 30, true, s.id
+FROM schools s
+WHERE s.code = 'ESCUELA-PRINCIPAL'
+  AND NOT EXISTS (
+    SELECT 1 FROM groups g WHERE g.name = '1A' AND g.school_year = '2026-2027' AND g.school_id = s.id
+  );
 
 -- 3) Perfiles con IDs resueltos dinámicamente
 INSERT INTO teachers (user_id, employee_number)

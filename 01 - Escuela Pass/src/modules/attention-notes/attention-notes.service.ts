@@ -147,7 +147,24 @@ export class AttentionNotesService {
   }
 
   private async assertCanCreateForStudent(userId: string, role: UserRole, student: StudentEntity) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      if (!student.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
+      const rows = await this.dataSource.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM users admin_user
+           JOIN groups g ON g.id = $2
+           WHERE admin_user.id = $1
+             AND admin_user.role = 'ADMINISTRATIVO'
+             AND admin_user.school_id IS NOT NULL
+             AND admin_user.school_id = g.school_id
+        ) AS ok`,
+        [userId, student.groupId]
+      );
+      if (!rows[0]?.ok) throw new ForbiddenException('No autorizado para este estudiante');
+      return;
+    }
 
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('Solo personal autorizado puede registrar anotaciones');

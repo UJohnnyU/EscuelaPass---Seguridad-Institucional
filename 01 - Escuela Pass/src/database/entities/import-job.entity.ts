@@ -20,6 +20,9 @@ export class ImportJobEntity {
   @Column({ name: 'dry_run', type: 'boolean', default: false })
   dryRun!: boolean;
 
+  @Column({ name: 'school_id', type: 'uuid', nullable: true })
+  schoolId!: string | null;
+
   @Column({ name: 'errors_json', type: 'jsonb', nullable: true })
   errorsJson!: Array<{ row: number; message: string }> | null;
 

@@ -78,6 +78,16 @@ DO $$ BEGIN
   CREATE TYPE attention_severity AS ENUM ('LEVE', 'MODERADA', 'GRAVE');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Escuelas (multi-tenant)
+CREATE TABLE IF NOT EXISTS schools (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(160) NOT NULL UNIQUE,
+    code VARCHAR(60) NOT NULL UNIQUE,
+    status BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Usuarios
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -88,6 +98,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(30),
     can_access_campus BOOLEAN NOT NULL DEFAULT FALSE,
     status BOOLEAN NOT NULL DEFAULT TRUE,
+    school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -102,9 +113,10 @@ CREATE TABLE IF NOT EXISTS groups (
     classroom VARCHAR(50),
     capacity INTEGER CHECK (capacity IS NULL OR capacity > 0),
     status BOOLEAN NOT NULL DEFAULT TRUE,
+    school_id UUID REFERENCES schools(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (name, school_year)
+    UNIQUE (name, school_year, school_id)
 );
 
 -- Docentes
@@ -148,11 +160,16 @@ CREATE TABLE IF NOT EXISTS students (
 -- Materias (para asignación docente-grupo)
 CREATE TABLE IF NOT EXISTS subjects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    school_id UUID REFERENCES schools(id) ON DELETE RESTRICT,
     description TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Compatibilidad con bases antiguas (antes UNIQUE(name) global)
+ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_school_name ON subjects(school_id, lower(name));
 
 CREATE TABLE IF NOT EXISTS teacher_groups (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -396,6 +413,7 @@ CREATE TABLE IF NOT EXISTS import_jobs (
     created_count INTEGER NOT NULL CHECK (created_count >= 0),
     error_count INTEGER NOT NULL CHECK (error_count >= 0),
     dry_run BOOLEAN NOT NULL DEFAULT FALSE,
+    school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
     errors_json JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

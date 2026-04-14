@@ -228,7 +228,11 @@ export class AttendanceService {
     role: UserRole,
     student: StudentEntity
   ) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, student.groupId);
+      return;
+    }
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('Solo docente o administracion puede registrar asistencia');
     }
@@ -250,7 +254,11 @@ export class AttendanceService {
   }
 
   private async assertCanViewGroup(userId: string, role: UserRole, groupId: string) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, groupId);
+      return;
+    }
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('No autorizado a listar este grupo');
     }
@@ -264,6 +272,25 @@ export class AttendanceService {
     );
     if (!rows[0]?.ok) {
       throw new ForbiddenException('No tienes asignacion en este grupo');
+    }
+  }
+
+  private async assertAdministrativeCanAccessGroup(userId: string, groupId: string | null): Promise<void> {
+    if (!groupId) throw new ForbiddenException('No hay grupo para validar alcance institucional');
+    const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM users admin_user
+         JOIN groups g ON g.id = $2
+         WHERE admin_user.id = $1
+           AND admin_user.role = 'ADMINISTRATIVO'
+           AND admin_user.school_id IS NOT NULL
+           AND admin_user.school_id = g.school_id
+      ) AS ok`,
+      [userId, groupId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No tienes permisos sobre este grupo');
     }
   }
 }

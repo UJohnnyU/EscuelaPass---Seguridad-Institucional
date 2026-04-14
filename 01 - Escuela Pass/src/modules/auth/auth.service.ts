@@ -42,6 +42,7 @@ export class AuthService {
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      schoolId: user.schoolId,
       canAccessCampus: user.canAccessCampus,
       phone: user.phone ?? null,
       contactSections
@@ -253,7 +254,8 @@ export class AuthService {
     const jwtPayload = {
       sub: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      schoolId: user.schoolId
     };
     const accessToken = await this.jwtService.signAsync(jwtPayload, {
       secret: process.env.JWT_SECRET,
@@ -290,7 +292,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
-        fullName: user.fullName
+        fullName: user.fullName,
+        schoolId: user.schoolId
       }
     };
   }

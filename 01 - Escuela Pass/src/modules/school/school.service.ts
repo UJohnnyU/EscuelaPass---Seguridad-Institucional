@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException
 } from '@nestjs/common';
@@ -61,18 +62,34 @@ export class SchoolService {
     private readonly importJobsRepository: Repository<ImportJobEntity>
   ) {}
 
+  private ensureScopedSchool(scopeSchoolId?: string | null): string {
+    if (!scopeSchoolId) {
+      throw new ForbiddenException('Tu usuario no tiene escuela asignada');
+    }
+    return scopeSchoolId;
+  }
+
   // --- Grupos ---
-  listGroups() {
+  listGroups(scopeSchoolId?: string | null) {
+    if (scopeSchoolId) {
+      return this.groupsRepository.find({
+        where: { schoolId: scopeSchoolId },
+        order: { schoolYear: 'DESC', name: 'ASC' }
+      });
+    }
     return this.groupsRepository.find({ order: { schoolYear: 'DESC', name: 'ASC' } });
   }
 
-  async getGroup(id: string) {
-    const g = await this.groupsRepository.findOne({ where: { id } });
+  async getGroup(id: string, scopeSchoolId?: string | null) {
+    const g = await this.groupsRepository.findOne({
+      where: scopeSchoolId ? { id, schoolId: scopeSchoolId } : { id }
+    });
     if (!g) throw new NotFoundException('Grupo no encontrado');
     return g;
   }
 
-  async createGroup(dto: CreateGroupDto) {
+  async createGroup(dto: CreateGroupDto, scopeSchoolId?: string | null) {
+    const schoolId = this.ensureScopedSchool(scopeSchoolId);
     const row = this.groupsRepository.create({
       name: dto.name,
       grade: dto.grade ?? null,
@@ -80,13 +97,14 @@ export class SchoolService {
       schoolYear: dto.schoolYear,
       classroom: dto.classroom ?? null,
       capacity: dto.capacity ?? null,
-      status: true
+      status: true,
+      schoolId
     });
     return this.groupsRepository.save(row);
   }
 
-  async updateGroup(id: string, dto: UpdateGroupDto) {
-    const g = await this.getGroup(id);
+  async updateGroup(id: string, dto: UpdateGroupDto, scopeSchoolId?: string | null) {
+    const g = await this.getGroup(id, scopeSchoolId);
     if (dto.name !== undefined) g.name = dto.name;
     if (dto.grade !== undefined) g.grade = dto.grade;
     if (dto.shift !== undefined) g.shift = dto.shift;
@@ -97,37 +115,52 @@ export class SchoolService {
     return this.groupsRepository.save(g);
   }
 
-  async removeGroup(id: string) {
-    await this.getGroup(id);
-    await this.groupsRepository.delete({ id });
+  async removeGroup(id: string, scopeSchoolId?: string | null) {
+    const g = await this.getGroup(id, scopeSchoolId);
+    await this.groupsRepository.delete({ id: g.id });
     return { message: 'Grupo eliminado', id };
   }
 
   // --- Materias ---
-  listSubjects() {
+  listSubjects(scopeSchoolId?: string | null) {
+    if (scopeSchoolId) {
+      return this.subjectsRepository.find({ where: { schoolId: scopeSchoolId }, order: { name: 'ASC' } });
+    }
     return this.subjectsRepository.find({ order: { name: 'ASC' } });
   }
 
-  async getSubject(id: string) {
-    const s = await this.subjectsRepository.findOne({ where: { id } });
+  async getSubject(id: string, scopeSchoolId?: string | null) {
+    const s = await this.subjectsRepository.findOne({
+      where: scopeSchoolId ? { id, schoolId: scopeSchoolId } : { id }
+    });
     if (!s) throw new NotFoundException('Materia no encontrada');
     return s;
   }
 
-  async createSubject(dto: CreateSubjectDto) {
-    const existing = await this.subjectsRepository.findOne({ where: { name: dto.name } });
+  async createSubject(dto: CreateSubjectDto, scopeSchoolId?: string | null) {
+    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const existing = await this.subjectsRepository
+      .createQueryBuilder('s')
+      .where('lower(s.name) = lower(:name)', { name: dto.name })
+      .andWhere('s.school_id = :schoolId', { schoolId })
+      .getOne();
     if (existing) throw new ConflictException('Ya existe una materia con ese nombre');
     const row = this.subjectsRepository.create({
       name: dto.name,
-      description: dto.description ?? null
+      description: dto.description ?? null,
+      schoolId
     });
     return this.subjectsRepository.save(row);
   }
 
-  async updateSubject(id: string, dto: UpdateSubjectDto) {
-    const s = await this.getSubject(id);
+  async updateSubject(id: string, dto: UpdateSubjectDto, scopeSchoolId?: string | null) {
+    const s = await this.getSubject(id, scopeSchoolId);
     if (dto.name !== undefined && dto.name !== s.name) {
-      const clash = await this.subjectsRepository.findOne({ where: { name: dto.name } });
+      const clash = await this.subjectsRepository
+        .createQueryBuilder('x')
+        .where('lower(x.name) = lower(:name)', { name: dto.name })
+        .andWhere('x.school_id = :schoolId', { schoolId: s.schoolId })
+        .getOne();
       if (clash) throw new ConflictException('Ya existe una materia con ese nombre');
       s.name = dto.name;
     }
@@ -135,15 +168,15 @@ export class SchoolService {
     return this.subjectsRepository.save(s);
   }
 
-  async removeSubject(id: string) {
-    await this.getSubject(id);
-    await this.subjectsRepository.delete({ id });
+  async removeSubject(id: string, scopeSchoolId?: string | null) {
+    const s = await this.getSubject(id, scopeSchoolId);
+    await this.subjectsRepository.delete({ id: s.id });
     return { message: 'Materia eliminada', id };
   }
 
   // --- Estudiantes (usuario + perfil) ---
-  async listStudents() {
-    return this.studentsRepository
+  async listStudents(scopeSchoolId?: string | null) {
+    const qb = this.studentsRepository
       .createQueryBuilder('s')
       .innerJoin(UserEntity, 'u', 'u.id = s.userId')
       .select([
@@ -156,12 +189,13 @@ export class SchoolService {
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
-      .orderBy('u.full_name', 'ASC')
-      .getRawMany();
+      .orderBy('u.full_name', 'ASC');
+    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    return qb.getRawMany();
   }
 
-  async getStudent(id: string) {
-    const row = await this.studentsRepository
+  async getStudent(id: string, scopeSchoolId?: string | null) {
+    const qb = this.studentsRepository
       .createQueryBuilder('s')
       .innerJoin(UserEntity, 'u', 'u.id = s.userId')
       .select([
@@ -175,20 +209,22 @@ export class SchoolService {
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
-      .where('s.id = :id', { id })
-      .getRawOne();
+      .where('s.id = :id', { id });
+    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    const row = await qb.getRawOne();
     if (!row) throw new NotFoundException('Estudiante no encontrado');
     return row;
   }
 
-  async createStudent(dto: CreateStudentDto) {
+  async createStudent(dto: CreateStudentDto, scopeSchoolId?: string | null) {
+    const schoolId = this.ensureScopedSchool(scopeSchoolId);
     const emailTaken = await this.usersRepository.findOne({ where: { email: dto.email } });
     if (emailTaken) throw new ConflictException('El correo ya está registrado');
     const matTaken = await this.studentsRepository.findOne({ where: { matricula: dto.matricula } });
     if (matTaken) throw new ConflictException('La matrícula ya existe');
 
     if (dto.groupId) {
-      const g = await this.groupsRepository.findOne({ where: { id: dto.groupId } });
+      const g = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
       if (!g) throw new NotFoundException('Grupo no encontrado');
     }
 
@@ -199,7 +235,8 @@ export class SchoolService {
       role: UserRole.ALUMNO,
       fullName: dto.fullName,
       canAccessCampus: dto.canAccessCampus ?? false,
-      status: true
+      status: true,
+      schoolId
     });
     const savedUser = await this.usersRepository.save(user);
 
@@ -210,13 +247,14 @@ export class SchoolService {
       canLeaveAlone: dto.canLeaveAlone ?? false
     });
     const savedStudent = await this.studentsRepository.save(student);
-    return this.getStudent(savedStudent.id);
+    return this.getStudent(savedStudent.id, schoolId);
   }
 
-  async updateStudent(id: string, dto: UpdateStudentDto) {
-    await this.getStudent(id);
+  async updateStudent(id: string, dto: UpdateStudentDto, scopeSchoolId?: string | null) {
+    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    await this.getStudent(id, schoolId);
     if (dto.groupId !== undefined && dto.groupId !== null) {
-      const g = await this.groupsRepository.findOne({ where: { id: dto.groupId } });
+      const g = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
       if (!g) throw new NotFoundException('Grupo no encontrado');
     }
     const patch: Partial<StudentEntity> = {};
@@ -228,12 +266,12 @@ export class SchoolService {
     }
     if (dto.canLeaveAlone !== undefined) patch.canLeaveAlone = dto.canLeaveAlone;
     if (Object.keys(patch).length) await this.studentsRepository.update({ id }, patch);
-    return this.getStudent(id);
+    return this.getStudent(id, schoolId);
   }
 
   // --- Docentes ---
-  async listTeachers() {
-    return this.teachersRepository
+  async listTeachers(scopeSchoolId?: string | null) {
+    const qb = this.teachersRepository
       .createQueryBuilder('t')
       .innerJoin(UserEntity, 'u', 'u.id = t.userId')
       .select([
@@ -244,12 +282,13 @@ export class SchoolService {
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
-      .orderBy('u.full_name', 'ASC')
-      .getRawMany();
+      .orderBy('u.full_name', 'ASC');
+    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    return qb.getRawMany();
   }
 
-  async getTeacher(id: string) {
-    const row = await this.teachersRepository
+  async getTeacher(id: string, scopeSchoolId?: string | null) {
+    const qb = this.teachersRepository
       .createQueryBuilder('t')
       .innerJoin(UserEntity, 'u', 'u.id = t.userId')
       .select([
@@ -261,13 +300,15 @@ export class SchoolService {
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
-      .where('t.id = :id', { id })
-      .getRawOne();
+      .where('t.id = :id', { id });
+    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    const row = await qb.getRawOne();
     if (!row) throw new NotFoundException('Docente no encontrado');
     return row;
   }
 
-  async createTeacher(dto: CreateTeacherDto) {
+  async createTeacher(dto: CreateTeacherDto, scopeSchoolId?: string | null) {
+    const schoolId = this.ensureScopedSchool(scopeSchoolId);
     const emailTaken = await this.usersRepository.findOne({ where: { email: dto.email } });
     if (emailTaken) throw new ConflictException('El correo ya está registrado');
     const numTaken = await this.teachersRepository.findOne({ where: { employeeNumber: dto.employeeNumber } });
@@ -280,7 +321,8 @@ export class SchoolService {
       role: UserRole.DOCENTE,
       fullName: dto.fullName,
       canAccessCampus: dto.canAccessCampus ?? false,
-      status: true
+      status: true,
+      schoolId
     });
     const savedUser = await this.usersRepository.save(user);
 
@@ -289,10 +331,12 @@ export class SchoolService {
       employeeNumber: dto.employeeNumber
     });
     const saved = await this.teachersRepository.save(teacher);
-    return this.getTeacher(saved.id);
+    return this.getTeacher(saved.id, schoolId);
   }
 
-  async updateTeacher(id: string, dto: UpdateTeacherDto) {
+  async updateTeacher(id: string, dto: UpdateTeacherDto, scopeSchoolId?: string | null) {
+    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    await this.getTeacher(id, schoolId);
     const t = await this.teachersRepository.findOne({ where: { id } });
     if (!t) throw new NotFoundException('Docente no encontrado');
 
@@ -308,26 +352,29 @@ export class SchoolService {
     if (dto.canAccessCampus !== undefined) userPatch.canAccessCampus = dto.canAccessCampus;
     if (Object.keys(userPatch).length) await this.usersRepository.update({ id: t.userId }, userPatch);
 
-    return this.getTeacher(id);
+    return this.getTeacher(id, schoolId);
   }
 
   // --- Asignaciones docente–grupo–materia ---
-  async listTeacherAssignments(teacherId?: string, groupId?: string) {
+  async listTeacherAssignments(teacherId?: string, groupId?: string, scopeSchoolId?: string | null) {
     const qb = this.teacherGroupsRepository
       .createQueryBuilder('tg')
+      .innerJoin('groups', 'g', 'g.id = tg.group_id')
       .orderBy('tg.createdAt', 'DESC');
     if (teacherId) qb.andWhere('tg.teacher_id = :teacherId', { teacherId });
     if (groupId) qb.andWhere('tg.group_id = :groupId', { groupId });
+    if (scopeSchoolId) qb.andWhere('g.school_id = :schoolId', { schoolId: scopeSchoolId });
     return qb.getMany();
   }
 
-  async assignTeacherGroup(dto: AssignTeacherGroupDto) {
+  async assignTeacherGroup(dto: AssignTeacherGroupDto, scopeSchoolId?: string | null) {
+    const schoolId = this.ensureScopedSchool(scopeSchoolId);
     const teacher = await this.teachersRepository.findOne({ where: { id: dto.teacherId } });
     if (!teacher) throw new NotFoundException('Docente no encontrado');
-    const group = await this.groupsRepository.findOne({ where: { id: dto.groupId } });
+    const group = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
     if (!group) throw new NotFoundException('Grupo no encontrado');
     if (dto.subjectId) {
-      const sub = await this.subjectsRepository.findOne({ where: { id: dto.subjectId } });
+      const sub = await this.subjectsRepository.findOne({ where: { id: dto.subjectId, schoolId } });
       if (!sub) throw new NotFoundException('Materia no encontrada');
     }
 
@@ -354,8 +401,13 @@ export class SchoolService {
     return this.teacherGroupsRepository.save(row);
   }
 
-  async removeTeacherAssignment(id: string) {
-    const row = await this.teacherGroupsRepository.findOne({ where: { id } });
+  async removeTeacherAssignment(id: string, scopeSchoolId?: string | null) {
+    const row = await this.teacherGroupsRepository
+      .createQueryBuilder('tg')
+      .innerJoin('groups', 'g', 'g.id = tg.group_id')
+      .where('tg.id = :id', { id })
+      .andWhere(scopeSchoolId ? 'g.school_id = :schoolId' : '1=1', { schoolId: scopeSchoolId })
+      .getOne();
     if (!row) throw new NotFoundException('Asignación no encontrada');
     await this.teacherGroupsRepository.delete({ id });
     return { message: 'Asignación eliminada', id };
@@ -363,19 +415,25 @@ export class SchoolService {
 
   // --- Cargas masivas Excel (.xlsx), primera hoja, fila 1 = encabezados (mismos nombres que antes en CSV) ---
 
-  async importAny(kind: string, buffer: Buffer, originalFilename: string, dryRun = false) {
+  async importAny(
+    kind: string,
+    buffer: Buffer,
+    originalFilename: string,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ) {
     const normalized = String(kind ?? '').trim().toLowerCase() as ImportKind;
     switch (normalized) {
       case 'groups':
-        return this.importGroupsFile(buffer, originalFilename, dryRun);
+        return this.importGroupsFile(buffer, originalFilename, dryRun, scopeSchoolId);
       case 'students':
-        return this.importStudentsFile(buffer, originalFilename, dryRun);
+        return this.importStudentsFile(buffer, originalFilename, dryRun, scopeSchoolId);
       case 'teachers':
-        return this.importTeachersFile(buffer, originalFilename, dryRun);
+        return this.importTeachersFile(buffer, originalFilename, dryRun, scopeSchoolId);
       case 'teacher-assignments':
-        return this.importTeacherAssignmentsFile(buffer, originalFilename, dryRun);
+        return this.importTeacherAssignmentsFile(buffer, originalFilename, dryRun, scopeSchoolId);
       case 'students-to-groups':
-        return this.importStudentsToGroupsFile(buffer, originalFilename, dryRun);
+        return this.importStudentsToGroupsFile(buffer, originalFilename, dryRun, scopeSchoolId);
       default:
         throw new BadRequestException(
           'Tipo de importación inválido. Usa: groups, students, teachers, teacher-assignments, students-to-groups'
@@ -383,7 +441,12 @@ export class SchoolService {
     }
   }
 
-  async importGroupsFile(buffer: Buffer, originalFilename: string, dryRun = false): Promise<CsvImportResult> {
+  async importGroupsFile(
+    buffer: Buffer,
+    originalFilename: string,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<CsvImportResult> {
     const rows = await this.parseRowsFromFile(buffer, originalFilename);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
@@ -398,17 +461,22 @@ export class SchoolService {
           classroom: this.optional(row, 'classroom'),
           capacity: this.parseIntOptional(this.optional(row, 'capacity'))
         };
-        if (!dryRun) await this.createGroup(dto);
+        if (!dryRun) await this.createGroup(dto, this.ensureScopedSchool(scopeSchoolId));
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    await this.pushImportLog('groups', result);
+    await this.pushImportLog('groups', result, scopeSchoolId ?? null);
     return result;
   }
 
-  async importStudentsFile(buffer: Buffer, originalFilename: string, dryRun = false): Promise<CsvImportResult> {
+  async importStudentsFile(
+    buffer: Buffer,
+    originalFilename: string,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<CsvImportResult> {
     const rows = await this.parseRowsFromFile(buffer, originalFilename);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
@@ -424,17 +492,22 @@ export class SchoolService {
           canAccessCampus: this.parseBoolOptional(this.optional(row, 'canAccessCampus')),
           canLeaveAlone: this.parseBoolOptional(this.optional(row, 'canLeaveAlone'))
         };
-        if (!dryRun) await this.createStudent(dto);
+        if (!dryRun) await this.createStudent(dto, this.ensureScopedSchool(scopeSchoolId));
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    await this.pushImportLog('students', result);
+    await this.pushImportLog('students', result, scopeSchoolId ?? null);
     return result;
   }
 
-  async importTeachersFile(buffer: Buffer, originalFilename: string, dryRun = false): Promise<CsvImportResult> {
+  async importTeachersFile(
+    buffer: Buffer,
+    originalFilename: string,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<CsvImportResult> {
     const rows = await this.parseRowsFromFile(buffer, originalFilename);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
@@ -448,20 +521,21 @@ export class SchoolService {
           employeeNumber: this.required(row, 'employeeNumber'),
           canAccessCampus: this.parseBoolOptional(this.optional(row, 'canAccessCampus'))
         };
-        if (!dryRun) await this.createTeacher(dto);
+        if (!dryRun) await this.createTeacher(dto, this.ensureScopedSchool(scopeSchoolId));
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    await this.pushImportLog('teachers', result);
+    await this.pushImportLog('teachers', result, scopeSchoolId ?? null);
     return result;
   }
 
   async importTeacherAssignmentsFile(
     buffer: Buffer,
     originalFilename: string,
-    dryRun = false
+    dryRun = false,
+    scopeSchoolId?: string | null
   ): Promise<CsvImportResult> {
     const rows = await this.parseRowsFromFile(buffer, originalFilename);
     const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
@@ -476,46 +550,63 @@ export class SchoolService {
           isMainTeacher: this.parseBoolOptional(this.optional(row, 'isMainTeacher')),
           canAuthorizeDepartures: this.parseBoolOptional(this.optional(row, 'canAuthorizeDepartures'))
         };
-        if (!dryRun) await this.assignTeacherGroup(dto);
+        if (!dryRun) await this.assignTeacherGroup(dto, this.ensureScopedSchool(scopeSchoolId));
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    await this.pushImportLog('teacher-assignments', result);
+    await this.pushImportLog('teacher-assignments', result, scopeSchoolId ?? null);
     return result;
   }
 
   async importStudentsToGroupsFile(
     buffer: Buffer,
     originalFilename: string,
-    dryRun = false
+    dryRun = false,
+    scopeSchoolId?: string | null
   ): Promise<XlsxAssignResult> {
     const isCsv = this.isCsvFilename(originalFilename);
     if (isCsv) {
       const rows = this.parseCsvRows(buffer);
-      return this.importStudentsToGroupsFromFlatRows(rows, dryRun);
+      return this.importStudentsToGroupsFromFlatRows(rows, dryRun, scopeSchoolId);
     }
-    return this.importStudentsToGroupsFromXlsx(buffer, dryRun);
+    return this.importStudentsToGroupsFromXlsx(buffer, dryRun, scopeSchoolId);
   }
 
-  async importGroupsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    return this.importGroupsFile(buffer, 'upload.xlsx', dryRun);
+  async importGroupsXlsx(
+    buffer: Buffer,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<CsvImportResult> {
+    return this.importGroupsFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
   }
 
-  async importStudentsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    return this.importStudentsFile(buffer, 'upload.xlsx', dryRun);
+  async importStudentsXlsx(
+    buffer: Buffer,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<CsvImportResult> {
+    return this.importStudentsFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
   }
 
-  async importTeachersXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    return this.importTeachersFile(buffer, 'upload.xlsx', dryRun);
+  async importTeachersXlsx(
+    buffer: Buffer,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<CsvImportResult> {
+    return this.importTeachersFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
   }
 
   /**
    * Excel exclusivo para asignar alumnos existentes a grupos (grado/turno/año o nombre de grupo).
    * Columnas esperadas (fila 1): matricula, y uno de: grupo_id | (nombre_grupo + anio_escolar) | (grado + turno + anio_escolar).
    */
-  async importStudentsToGroupsFromXlsx(buffer: Buffer, dryRun = false): Promise<XlsxAssignResult> {
+  async importStudentsToGroupsFromXlsx(
+    buffer: Buffer,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<XlsxAssignResult> {
     const workbook = new ExcelJS.Workbook();
     try {
       // Compat tipos Node 22 / exceljs
@@ -558,7 +649,7 @@ export class SchoolService {
 
       result.totalRows += 1;
       try {
-        const group = await this.resolveGroupForExcelRow(fields, r);
+        const group = await this.resolveGroupForExcelRow(fields, r, scopeSchoolId);
         const student = await this.studentsRepository.findOne({ where: { matricula } });
         if (!student) {
           throw new Error(`No existe alumno con matrícula ${matricula}`);
@@ -572,7 +663,7 @@ export class SchoolService {
       }
     }
 
-    await this.pushImportLog('students-to-groups-xlsx', result);
+    await this.pushImportLog('students-to-groups-xlsx', result, scopeSchoolId ?? null);
     return result;
   }
 
@@ -593,16 +684,21 @@ export class SchoolService {
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  async importTeacherAssignmentsXlsx(buffer: Buffer, dryRun = false): Promise<CsvImportResult> {
-    return this.importTeacherAssignmentsFile(buffer, 'upload.xlsx', dryRun);
+  async importTeacherAssignmentsXlsx(
+    buffer: Buffer,
+    dryRun = false,
+    scopeSchoolId?: string | null
+  ): Promise<CsvImportResult> {
+    return this.importTeacherAssignmentsFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
   }
 
-  async getImportHistory(limit = 20) {
+  async getImportHistory(limit = 20, scopeSchoolId?: string | null) {
     const safeLimit = Math.max(1, Math.min(200, limit));
-    const rows = await this.importJobsRepository.find({
-      order: { createdAt: 'DESC' },
-      take: safeLimit
-    });
+    const rows = await this.importJobsRepository.find(
+      scopeSchoolId
+        ? { where: { schoolId: scopeSchoolId }, order: { createdAt: 'DESC' }, take: safeLimit }
+        : { order: { createdAt: 'DESC' }, take: safeLimit }
+    );
     return rows.map((row) => ({
       id: row.id,
       kind: row.kind,
@@ -747,18 +843,25 @@ export class SchoolService {
 
   private async resolveGroupForExcelRow(
     fields: Record<string, string>,
-    line: number
+    line: number,
+    scopeSchoolId?: string | null
   ): Promise<GroupEntity> {
     const gid = fields.grupo_id?.trim();
     if (gid) {
-      const g = await this.groupsRepository.findOne({ where: { id: gid } });
+      const g = await this.groupsRepository.findOne({
+        where: scopeSchoolId ? { id: gid, schoolId: scopeSchoolId } : { id: gid }
+      });
       if (!g) throw new Error(`grupo_id inválido (${gid})`);
       return g;
     }
     const anio = fields.anio_escolar?.trim();
     const nombre = fields.nombre_grupo?.trim();
     if (nombre && anio) {
-      const g = await this.groupsRepository.findOne({ where: { name: nombre, schoolYear: anio } });
+      const g = await this.groupsRepository.findOne({
+        where: scopeSchoolId
+          ? { name: nombre, schoolYear: anio, schoolId: scopeSchoolId }
+          : { name: nombre, schoolYear: anio }
+      });
       if (!g) throw new Error(`No hay grupo con nombre "${nombre}" y año "${anio}"`);
       return g;
     }
@@ -767,7 +870,9 @@ export class SchoolService {
     if (grado && turno && anio) {
       const shift = this.parseShift(turno);
       const g = await this.groupsRepository.findOne({
-        where: { grade: grado, shift, schoolYear: anio }
+        where: scopeSchoolId
+          ? { grade: grado, shift, schoolYear: anio, schoolId: scopeSchoolId }
+          : { grade: grado, shift, schoolYear: anio }
       });
       if (!g) throw new Error('No hay grupo con grado/turno/año indicados');
       return g;
@@ -882,7 +987,8 @@ export class SchoolService {
 
   private async importStudentsToGroupsFromFlatRows(
     rows: Array<Record<string, string>>,
-    dryRun: boolean
+    dryRun: boolean,
+    scopeSchoolId?: string | null
   ): Promise<XlsxAssignResult> {
     const result: XlsxAssignResult = {
       totalRows: rows.length,
@@ -899,7 +1005,7 @@ export class SchoolService {
         continue;
       }
       try {
-        const group = await this.resolveGroupForExcelRow(fields, line);
+        const group = await this.resolveGroupForExcelRow(fields, line, scopeSchoolId);
         const student = await this.studentsRepository.findOne({ where: { matricula } });
         if (!student) {
           throw new Error(`No existe alumno con matrícula ${matricula}`);
@@ -912,7 +1018,7 @@ export class SchoolService {
         result.errors.push({ row: line, message: this.errorMessage(error) });
       }
     }
-    await this.pushImportLog('students-to-groups-xlsx', result);
+    await this.pushImportLog('students-to-groups-xlsx', result, scopeSchoolId ?? null);
     return result;
   }
 
@@ -962,7 +1068,8 @@ export class SchoolService {
       | 'teachers'
       | 'teacher-assignments'
       | 'students-to-groups-xlsx',
-    result: CsvImportResult | XlsxAssignResult
+    result: CsvImportResult | XlsxAssignResult,
+    schoolId: string | null
   ) {
     const createdCount = 'created' in result ? result.created : result.updated;
     const row = this.importJobsRepository.create({
@@ -971,6 +1078,7 @@ export class SchoolService {
       createdCount,
       errorCount: result.errors.length,
       dryRun: result.dryRun,
+      schoolId,
       errorsJson: result.errors.length ? result.errors : null
     });
     await this.importJobsRepository.save(row);

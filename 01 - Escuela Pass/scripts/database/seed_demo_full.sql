@@ -7,30 +7,85 @@
 
 BEGIN;
 
+-- ---------- Escuelas demo ----------
+INSERT INTO schools (name, code, status)
+VALUES
+  ('Escuela principal', 'ESCUELA-PRINCIPAL', true),
+  ('Escuela Sur', 'ESCUELA-SUR', true)
+ON CONFLICT (code) DO NOTHING;
+
 -- ---------- Usuarios adicionales (idempotente por email) ----------
 INSERT INTO users (email, password_hash, role, full_name, can_access_campus, status)
 VALUES
+  ('superadmin@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'ADMIN', 'Super Admin Plataforma', true, true),
   ('staff@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'ADMINISTRATIVO', 'María López — Secretaría', true, true),
   ('docente2@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'DOCENTE', 'Carlos Ruiz — Matemáticas', true, true),
   ('padre2@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'PADRE', 'Ana Martínez — Tutora', true, true),
-  ('alumno2@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'ALUMNO', 'Luis Martínez', true, true)
+  ('alumno2@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'ALUMNO', 'Luis Martínez', true, true),
+  ('adminsur@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'ADMINISTRATIVO', 'Laura Gómez — Admin Sur', true, true),
+  ('docentesur@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'DOCENTE', 'Miguel Torres — Sur', true, true),
+  ('padresur@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'PADRE', 'Elena Díaz — Sur', true, true),
+  ('alumnosur@escuelapass.local', crypt('Pass123*', gen_salt('bf')), 'ALUMNO', 'Sofía Díaz', true, true)
 ON CONFLICT (email) DO NOTHING;
 
 UPDATE users SET phone = v.phone
 FROM (VALUES
+  ('superadmin@escuelapass.local', '+52 55 5000 0001'),
   ('staff@escuelapass.local', '+52 55 5000 0011'),
   ('docente2@escuelapass.local', '+52 55 5000 0012'),
   ('padre2@escuelapass.local', '+52 55 5000 0013'),
-  ('alumno2@escuelapass.local', '+52 55 5000 0014')
+  ('alumno2@escuelapass.local', '+52 55 5000 0014'),
+  ('adminsur@escuelapass.local', '+52 55 5000 0021'),
+  ('docentesur@escuelapass.local', '+52 55 5000 0022'),
+  ('padresur@escuelapass.local', '+52 55 5000 0023'),
+  ('alumnosur@escuelapass.local', '+52 55 5000 0024')
 ) AS v(email, phone)
 WHERE users.email = v.email;
 
+-- ---------- Asignación de escuela por usuario ----------
+UPDATE users u
+SET school_id = s.id
+FROM schools s
+WHERE s.code = 'ESCUELA-PRINCIPAL'
+  AND u.email IN (
+    'admin@escuelapass.local',
+    'docente1@escuelapass.local',
+    'padre1@escuelapass.local',
+    'alumno1@escuelapass.local',
+    'staff@escuelapass.local',
+    'docente2@escuelapass.local',
+    'padre2@escuelapass.local',
+    'alumno2@escuelapass.local'
+  );
+
+UPDATE users u
+SET school_id = s.id
+FROM schools s
+WHERE s.code = 'ESCUELA-SUR'
+  AND u.email IN ('adminsur@escuelapass.local', 'docentesur@escuelapass.local', 'padresur@escuelapass.local', 'alumnosur@escuelapass.local');
+
 -- ---------- Grupos extra ----------
-INSERT INTO groups (name, grade, shift, school_year, classroom, capacity, status)
-VALUES
-  ('2B', '2DO', 'VESPERTINO', '2026-2027', 'B-205', 28, true),
-  ('3C', '3RO', 'MATUTINO', '2026-2027', 'C-310', 25, true)
-ON CONFLICT (name, school_year) DO NOTHING;
+INSERT INTO groups (name, grade, shift, school_year, classroom, capacity, status, school_id)
+SELECT v.name, v.grade, v.shift::shift_type, v.school_year, v.classroom, v.capacity, true, s.id
+FROM schools s
+JOIN (VALUES
+  ('2B', '2DO', 'VESPERTINO', '2026-2027', 'B-205', 28),
+  ('3C', '3RO', 'MATUTINO', '2026-2027', 'C-310', 25)
+) AS v(name, grade, shift, school_year, classroom, capacity) ON TRUE
+WHERE s.code = 'ESCUELA-PRINCIPAL'
+  AND NOT EXISTS (
+    SELECT 1 FROM groups g
+    WHERE g.name = v.name AND g.school_year = v.school_year AND g.school_id = s.id
+  );
+
+-- Grupo extra para segunda escuela
+INSERT INTO groups (name, grade, shift, school_year, classroom, capacity, status, school_id)
+SELECT 'S1A', '1RO', 'MATUTINO', '2026-2027', 'S-101', 30, true, s.id
+FROM schools s
+WHERE s.code = 'ESCUELA-SUR'
+  AND NOT EXISTS (
+    SELECT 1 FROM groups g WHERE g.name = 'S1A' AND g.school_year = '2026-2027' AND g.school_id = s.id
+  );
 
 -- ---------- Perfiles ----------
 INSERT INTO administrative_staff (user_id, employee_number)
@@ -43,9 +98,19 @@ SELECT u.id, 'DOC-0002'
 FROM users u WHERE u.email = 'docente2@escuelapass.local'
 ON CONFLICT (employee_number) DO NOTHING;
 
+INSERT INTO teachers (user_id, employee_number)
+SELECT u.id, 'DOC-0101'
+FROM users u WHERE u.email = 'docentesur@escuelapass.local'
+ON CONFLICT (employee_number) DO NOTHING;
+
 INSERT INTO parents (user_id, is_primary_contact)
 SELECT u.id, true
 FROM users u WHERE u.email = 'padre2@escuelapass.local'
+ON CONFLICT (user_id) DO NOTHING;
+
+INSERT INTO parents (user_id, is_primary_contact)
+SELECT u.id, true
+FROM users u WHERE u.email = 'padresur@escuelapass.local'
 ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO students (user_id, matricula, group_id, can_leave_alone)
@@ -53,6 +118,14 @@ SELECT u.id, 'A-0002', g.id, true
 FROM users u
 JOIN groups g ON g.name = '2B' AND g.school_year = '2026-2027'
 WHERE u.email = 'alumno2@escuelapass.local'
+ON CONFLICT (matricula) DO NOTHING;
+
+INSERT INTO students (user_id, matricula, group_id, can_leave_alone)
+SELECT u.id, 'S-0001', g.id, false
+FROM users u
+JOIN groups g ON g.name = 'S1A' AND g.school_year = '2026-2027'
+JOIN schools sc ON sc.id = g.school_id AND sc.code = 'ESCUELA-SUR'
+WHERE u.email = 'alumnosur@escuelapass.local'
 ON CONFLICT (matricula) DO NOTHING;
 
 -- Relación padre2–alumno2 y vínculo secundario padre1–alumno2 (otro tutor)
@@ -74,14 +147,30 @@ JOIN users pu ON pu.id = p.user_id
 WHERE su.email = 'alumno2@escuelapass.local' AND pu.email = 'padre1@escuelapass.local'
 ON CONFLICT (student_id, parent_id) DO NOTHING;
 
+INSERT INTO student_parents (student_id, parent_id, relationship, is_primary, can_pickup)
+SELECT s.id, p.id, 'MADRE', true, true
+FROM students s
+JOIN users su ON su.id = s.user_id
+JOIN parents p ON TRUE
+JOIN users pu ON pu.id = p.user_id
+WHERE su.email = 'alumnosur@escuelapass.local' AND pu.email = 'padresur@escuelapass.local'
+ON CONFLICT (student_id, parent_id) DO NOTHING;
+
 -- ---------- Materias ----------
-INSERT INTO subjects (name, description)
-VALUES
+INSERT INTO subjects (name, description, school_id)
+SELECT v.name, v.description, s.id
+FROM schools s
+JOIN (VALUES
   ('Matemáticas', 'Álgebra y geometría'),
   ('Lengua', 'Comunicación y literatura'),
   ('Ciencias Naturales', 'Biología y química básica'),
   ('Educación Física', 'Deporte y salud')
-ON CONFLICT (name) DO NOTHING;
+) AS v(name, description) ON TRUE
+WHERE s.code IN ('ESCUELA-PRINCIPAL', 'ESCUELA-SUR')
+  AND NOT EXISTS (
+    SELECT 1 FROM subjects x
+    WHERE x.school_id = s.id AND LOWER(x.name) = LOWER(v.name)
+  );
 
 -- ---------- Docentes ↔ grupos ↔ materias ----------
 INSERT INTO teacher_groups (teacher_id, group_id, subject_id, is_main_teacher, can_authorize_departures)
@@ -89,7 +178,7 @@ SELECT t.id, g.id, sub.id, true, true
 FROM teachers t
 JOIN users u ON u.id = t.user_id
 JOIN groups g ON g.name = '1A' AND g.school_year = '2026-2027'
-JOIN subjects sub ON sub.name = 'Matemáticas'
+JOIN subjects sub ON sub.name = 'Matemáticas' AND sub.school_id = g.school_id
 WHERE u.email = 'docente1@escuelapass.local'
   AND NOT EXISTS (
     SELECT 1 FROM teacher_groups x WHERE x.teacher_id = t.id AND x.group_id = g.id AND x.subject_id = sub.id
@@ -100,7 +189,7 @@ SELECT t.id, g.id, sub.id, false, true
 FROM teachers t
 JOIN users u ON u.id = t.user_id
 JOIN groups g ON g.name = '2B' AND g.school_year = '2026-2027'
-JOIN subjects sub ON sub.name = 'Matemáticas'
+JOIN subjects sub ON sub.name = 'Matemáticas' AND sub.school_id = g.school_id
 WHERE u.email = 'docente2@escuelapass.local'
   AND NOT EXISTS (
     SELECT 1 FROM teacher_groups x WHERE x.teacher_id = t.id AND x.group_id = g.id AND x.subject_id = sub.id
@@ -111,8 +200,19 @@ SELECT t.id, g.id, sub.id, false, false
 FROM teachers t
 JOIN users u ON u.id = t.user_id
 JOIN groups g ON g.name = '1A' AND g.school_year = '2026-2027'
-JOIN subjects sub ON sub.name = 'Lengua'
+JOIN subjects sub ON sub.name = 'Lengua' AND sub.school_id = g.school_id
 WHERE u.email = 'docente2@escuelapass.local'
+  AND NOT EXISTS (
+    SELECT 1 FROM teacher_groups x WHERE x.teacher_id = t.id AND x.group_id = g.id AND x.subject_id = sub.id
+  );
+
+INSERT INTO teacher_groups (teacher_id, group_id, subject_id, is_main_teacher, can_authorize_departures)
+SELECT t.id, g.id, sub.id, true, true
+FROM teachers t
+JOIN users u ON u.id = t.user_id
+JOIN groups g ON g.name = 'S1A' AND g.school_year = '2026-2027'
+JOIN subjects sub ON sub.name = 'Matemáticas' AND sub.school_id = g.school_id
+WHERE u.email = 'docentesur@escuelapass.local'
   AND NOT EXISTS (
     SELECT 1 FROM teacher_groups x WHERE x.teacher_id = t.id AND x.group_id = g.id AND x.subject_id = sub.id
   );
@@ -488,7 +588,7 @@ WHERE pu.email = 'padre2@escuelapass.local' AND su.email = 'alumno2@escuelapass.
 INSERT INTO class_schedule_slots (group_id, weekday, start_time, end_time, subject_id, teacher_id, room)
 SELECT g.id, 1, '08:00'::TIME, '09:30'::TIME, sub.id, t.id, 'A-101'
 FROM groups g
-JOIN subjects sub ON sub.name = 'Matemáticas'
+JOIN subjects sub ON sub.name = 'Matemáticas' AND sub.school_id = g.school_id
 JOIN teachers t ON t.employee_number = 'DOC-0001'
 WHERE g.name = '1A' AND g.school_year = '2026-2027'
   AND NOT EXISTS (
@@ -498,7 +598,7 @@ WHERE g.name = '1A' AND g.school_year = '2026-2027'
 INSERT INTO class_schedule_slots (group_id, weekday, start_time, end_time, subject_id, teacher_id, room)
 SELECT g.id, 3, '10:00'::TIME, '11:00'::TIME, sub.id, t.id, 'B-205'
 FROM groups g
-JOIN subjects sub ON sub.name = 'Lengua'
+JOIN subjects sub ON sub.name = 'Lengua' AND sub.school_id = g.school_id
 JOIN teachers t ON t.employee_number = 'DOC-0002'
 WHERE g.name = '2B' AND g.school_year = '2026-2027'
   AND NOT EXISTS (

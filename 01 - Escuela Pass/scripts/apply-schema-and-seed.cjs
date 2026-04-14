@@ -66,6 +66,11 @@ async function main() {
   const stripExt = process.env.DB_SKIP_EXTENSIONS === '1';
   try {
     await runSqlFile(client, 'escuela_pass_schema_v3.sql', { stripCreateExtensions: stripExt });
+    // Compat: si existía restricción global por nombre de materia, migrar a unique por escuela.
+    await client.query('ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_name_key');
+    await client.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_school_name ON subjects(school_id, lower(name))'
+    );
     await runSqlFile(client, 'scripts/database/seed_dev.sql');
     if (process.env.DB_SKIP_FULL_SEED === '1') {
       // eslint-disable-next-line no-console

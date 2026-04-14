@@ -32,13 +32,13 @@ export function ModulosHubPage() {
       to: '/app/modulos/calificaciones-docente',
       title: 'Calificaciones (docente)',
       desc: 'Actividades por grupo y materia: nombre de evaluación y notas alumno por alumno.',
-      show: user?.role === 'DOCENTE'
+      show: hasRole(user, 'DOCENTE', 'ADMIN')
     },
     {
       to: '/app/modulos/anotaciones-docente',
       title: 'Anotaciones a alumnos',
       desc: 'Registre observaciones; la familia recibe aviso en notificaciones.',
-      show: user?.role === 'DOCENTE'
+      show: hasRole(user, 'DOCENTE', 'ADMIN')
     },
     {
       to: '/app/modulos/visitas',

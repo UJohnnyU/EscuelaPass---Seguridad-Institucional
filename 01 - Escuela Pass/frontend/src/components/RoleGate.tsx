@@ -20,7 +20,12 @@ export function RoleGate({
     );
   }
 
-  if (!user || !allow.includes(user.role)) {
+  if (!user) {
+    return <Navigate to="/app" replace />;
+  }
+
+  // ADMIN siempre puede entrar aunque no esté en allow.
+  if (user.role !== 'ADMIN' && !allow.includes(user.role)) {
     return <Navigate to="/app" replace />;
   }
 

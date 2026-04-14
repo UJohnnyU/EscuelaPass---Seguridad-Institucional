@@ -166,10 +166,19 @@ export class DocumentsService {
     if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO) {
       throw new ForbiddenException('Solo administración puede exportar el resumen de grupos');
     }
-    void userId;
 
     const institution = await this.settingsService.getInstitutionProfile();
-    const groups = await this.groupsRepository.find({ order: { schoolYear: 'DESC', name: 'ASC' } });
+    let groups: GroupEntity[] = [];
+    if (role === UserRole.ADMINISTRATIVO) {
+      const me = await this.usersRepository.findOne({ where: { id: userId } });
+      if (!me?.schoolId) throw new ForbiddenException('Usuario sin escuela asignada');
+      groups = await this.groupsRepository.find({
+        where: { schoolId: me.schoolId },
+        order: { schoolYear: 'DESC', name: 'ASC' }
+      });
+    } else {
+      groups = await this.groupsRepository.find({ order: { schoolYear: 'DESC', name: 'ASC' } });
+    }
     const lines: string[] = [];
     for (const g of groups) {
       const n = await this.studentsRepository.count({ where: { groupId: g.id } });

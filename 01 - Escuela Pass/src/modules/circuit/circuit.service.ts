@@ -471,7 +471,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async assertCanViewCircuitRequest(req: CircuitRequestEntity, userId: string, role: UserRole) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessStudent(userId, req.studentId);
+      return;
+    }
 
     if (role === UserRole.PADRE) {
       const parent = await this.parentsRepository.findOne({ where: { userId } });
@@ -492,7 +496,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async assertCanSetTeacherSignal(req: CircuitRequestEntity, userId: string, role: UserRole) {
-    if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO) return;
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessStudent(userId, req.studentId);
+      return;
+    }
     if (role === UserRole.DOCENTE) {
       const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
       if (!student?.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
@@ -575,6 +583,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       req.parentConfirmDeadlineAt = null;
       req.teacherSignal = null;
     } else if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO || role === UserRole.DOCENTE) {
+      if (role === UserRole.ADMINISTRATIVO) {
+        await this.assertAdministrativeCanAccessStudent(userId, req.studentId);
+      }
       if (req.status !== CircuitStatus.CONSENTIDO_SOLO) {
         throw new BadRequestException(
           'Solo el padre puede confirmar el recibimiento físico del menor. La institución solo cierra solicitudes de solo consentimiento.'
@@ -610,6 +621,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     const req = await this.findById(id);
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessStudent(userId, req.studentId);
+    }
     if (this.isTerminalCircuitStatus(req.status)) {
       throw new BadRequestException('Circuito cerrado; no se puede cambiar el estado.');
     }
@@ -668,6 +682,25 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     const ok = allowed[from]?.includes(to) ?? false;
     if (!ok) {
       throw new BadRequestException(`Transicion no permitida: ${from} -> ${to}`);
+    }
+  }
+
+  private async assertAdministrativeCanAccessStudent(userId: string, studentId: string): Promise<void> {
+    const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM users u
+         JOIN students s ON s.id = $2
+         JOIN groups g ON g.id = s.group_id
+         WHERE u.id = $1
+           AND u.role = 'ADMINISTRATIVO'
+           AND u.school_id IS NOT NULL
+           AND u.school_id = g.school_id
+      ) AS ok`,
+      [userId, studentId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No autorizado para gestionar este circuito');
     }
   }
 
