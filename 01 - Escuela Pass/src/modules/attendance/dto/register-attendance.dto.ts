@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { AttendanceStatus } from '../../../database/entities/attendance-record.entity';
 
 export class RegisterAttendanceDto {
@@ -11,6 +11,10 @@ export class RegisterAttendanceDto {
   @IsOptional()
   @IsDateString()
   attendanceDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isJustified?: boolean;
 
   @IsOptional()
   @IsString()

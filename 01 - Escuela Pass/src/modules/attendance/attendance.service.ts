@@ -14,8 +14,19 @@ import { UserRole } from '../../database/entities/user.entity';
 import { RegisterAttendanceDto } from './dto/register-attendance.dto';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
+function todayLocalISODate(): string {
+  const n = new Date();
+  const y = n.getFullYear();
+  const m = String(n.getMonth() + 1).padStart(2, '0');
+  const d = String(n.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 @Injectable()
 export class AttendanceService {
+  private justificationColumnKnown = false;
+  private justificationColumnExists = false;
+
   constructor(
     @InjectRepository(AttendanceRecordEntity)
     private readonly attendanceRepository: Repository<AttendanceRecordEntity>,
@@ -28,11 +39,40 @@ export class AttendanceService {
     private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
+  /** Evita error 500 si la BD aún no tiene la migración de is_justified. */
+  private async hasJustificationColumn(): Promise<boolean> {
+    if (this.justificationColumnKnown) return this.justificationColumnExists;
+    const rows = await this.studentsRepository.manager.query<{ exists: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'attendance_records'
+          AND column_name = 'is_justified'
+      ) AS exists`
+    );
+    this.justificationColumnExists = Boolean(rows[0]?.exists);
+    this.justificationColumnKnown = true;
+    return this.justificationColumnExists;
+  }
+
+  private async setJustificationForRecord(recordId: string, status: string, isJustified?: boolean) {
+    if (!(await this.hasJustificationColumn())) return;
+    const value = status === 'AUSENTE' ? (isJustified ?? false) : null;
+    await this.attendanceRepository.query(
+      `UPDATE attendance_records SET is_justified = $1 WHERE id = $2`,
+      [value, recordId]
+    );
+  }
+
   async register(dto: RegisterAttendanceDto, registeredByUserId: string, role: UserRole) {
     const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
 
-    const dateStr = dto.attendanceDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayLocalISODate();
+    const today = todayLocalISODate();
+    if (role === UserRole.DOCENTE && dateStr !== today) {
+      throw new ForbiddenException('El docente solo puede modificar asistencias del día actual');
+    }
 
     await this.assertCanRegisterForStudent(registeredByUserId, role, student);
     const cal = await this.schoolCalendarService.getNonInstructionalForDate(
@@ -50,7 +90,9 @@ export class AttendanceService {
       existing.notes = dto.notes ?? null;
       existing.registeredBy = registeredByUserId;
       existing.groupId = student.groupId ?? null;
-      return this.attendanceRepository.save(existing);
+      const saved = await this.attendanceRepository.save(existing);
+      await this.setJustificationForRecord(saved.id, dto.status, dto.isJustified);
+      return saved;
     }
 
     const row = this.attendanceRepository.create({
@@ -61,27 +103,67 @@ export class AttendanceService {
       notes: dto.notes ?? null,
       registeredBy: registeredByUserId
     });
-    return this.attendanceRepository.save(row);
+    const saved = await this.attendanceRepository.save(row);
+    await this.setJustificationForRecord(saved.id, dto.status, dto.isJustified);
+    return saved;
   }
 
   async listByGroup(groupId: string, dateStr: string | undefined, userId: string, role: UserRole) {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayLocalISODate();
     await this.assertCanViewGroup(userId, role, groupId);
 
     const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
-    const records = await this.attendanceRepository
-      .createQueryBuilder('a')
-      .innerJoin('students', 's', 's.id = a.student_id')
-      .where('s.group_id = :gid', { gid: groupId })
-      .andWhere('a.attendance_date = :d', { d: date })
-      .orderBy('a.created_at', 'ASC')
-      .getMany();
+    const hasJ = await this.hasJustificationColumn();
+    const justExpr = hasJ ? 'a.is_justified' : 'NULL::boolean';
+    const records = await this.attendanceRepository.query<
+      {
+        id: string;
+        studentId: string;
+        groupId: string | null;
+        attendanceDate: string;
+        status: string;
+        isJustified: boolean | null;
+        notes: string | null;
+        registeredBy: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }[]
+    >(
+      `SELECT a.id,
+              a.student_id AS "studentId",
+              a.group_id AS "groupId",
+              a.attendance_date AS "attendanceDate",
+              a.status::text AS status,
+              (${justExpr}) AS "isJustified",
+              a.notes,
+              a.registered_by AS "registeredBy",
+              a.created_at AS "createdAt",
+              a.updated_at AS "updatedAt"
+       FROM attendance_records a
+       INNER JOIN students s ON s.id = a.student_id
+       WHERE s.group_id = $1 AND a.attendance_date = $2
+       ORDER BY a.created_at ASC`,
+      [groupId, date]
+    );
+
+    const students = await this.studentsRepository.manager.query<
+      { studentId: string; matricula: string; fullName: string }[]
+    >(
+      `SELECT s.id AS "studentId", s.matricula, u.full_name AS "fullName"
+       FROM students s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.group_id = $1
+       ORDER BY u.full_name ASC`,
+      [groupId]
+    );
 
     return {
       date,
+      canEdit: role !== UserRole.DOCENTE || date === todayLocalISODate(),
       nonInstructionalDay: cal.nonInstructional,
       reasons: cal.reasons.length ? cal.reasons : undefined,
-      records
+      records,
+      students
     };
   }
 
@@ -89,7 +171,7 @@ export class AttendanceService {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayLocalISODate();
 
     const children = await this.studentsRepository
       .createQueryBuilder('s')

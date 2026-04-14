@@ -334,6 +334,7 @@ CREATE TABLE IF NOT EXISTS attendance_records (
     group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
     attendance_date DATE NOT NULL,
     status attendance_status NOT NULL DEFAULT 'PRESENTE',
+    is_justified BOOLEAN,
     notes TEXT,
     registered_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

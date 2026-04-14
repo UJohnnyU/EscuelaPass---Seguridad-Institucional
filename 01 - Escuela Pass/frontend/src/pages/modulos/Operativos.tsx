@@ -215,6 +215,16 @@ export function AcademicoPage() {
     groupId: string | null;
     days: Array<{ id: string; exceptionDate: string; reason: string | null }>;
   };
+  type TeacherGroup = { id: string; name: string; grade: string | null; schoolYear: string };
+  type TeacherAttendanceStudent = { studentId: string; matricula: string; fullName: string };
+  type TeacherAttendanceRecord = {
+    id: string;
+    studentId: string;
+    status: 'PRESENTE' | 'AUSENTE' | 'RETARDO';
+    isJustified: boolean | null;
+    notes: string | null;
+    attendanceDate: string;
+  };
   const [att, setAtt] = useState<unknown>(null);
   const [grades, setGrades] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -226,9 +236,21 @@ export function AcademicoPage() {
   const [attentionNotes, setAttentionNotes] = useState<unknown>(null);
   const [myNotifications, setMyNotifications] = useState<unknown>(null);
   const [meetings, setMeetings] = useState<unknown>(null);
+  const [teacherGroups, setTeacherGroups] = useState<TeacherGroup[]>([]);
+  const [selectedTeacherGroupId, setSelectedTeacherGroupId] = useState<string>('');
+  const [teacherAttendance, setTeacherAttendance] = useState<{
+    date: string;
+    canEdit: boolean;
+    nonInstructionalDay: boolean;
+    reasons?: string[];
+    records: TeacherAttendanceRecord[];
+    students: TeacherAttendanceStudent[];
+  } | null>(null);
+  const [savingAttendanceStudentId, setSavingAttendanceStudentId] = useState<string | null>(null);
   const { user } = useAuth();
   const padre = user?.role === 'PADRE';
   const alumno = user?.role === 'ALUMNO';
+  const docente = user?.role === 'DOCENTE';
   const { from, to } = useMemo(() => weekRangeISO(), []);
   const studentGrades = Array.isArray(grades) ? (grades as Array<{ period?: string | null }>) : [];
   const periods = Array.from(
@@ -302,6 +324,30 @@ export function AcademicoPage() {
             setMeetings(null);
           }
         }
+        if (docente) {
+          const groupsRes = await api.get<TeacherGroup[]>('/api/v1/schedules/me/teacher/groups');
+          const groups = groupsRes.data ?? [];
+          const groupId = groups[0]?.id ?? '';
+          if (!cancelled) {
+            setTeacherGroups(groups);
+            setSelectedTeacherGroupId(groupId);
+          }
+          if (groupId) {
+            const attRes = await api.get<{
+              date: string;
+              canEdit: boolean;
+              nonInstructionalDay: boolean;
+              reasons?: string[];
+              records: TeacherAttendanceRecord[];
+              students: TeacherAttendanceStudent[];
+            }>(`/api/v1/attendance/groups/${groupId}`);
+            if (!cancelled) {
+              setTeacherAttendance(attRes.data);
+            }
+          } else if (!cancelled) {
+            setTeacherAttendance(null);
+          }
+        }
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
       }
@@ -309,7 +355,7 @@ export function AcademicoPage() {
     return () => {
       cancelled = true;
     };
-  }, [padre, alumno, from, to]);
+  }, [padre, alumno, docente, from, to]);
 
   const downloadBulletin = async (period?: string) => {
     try {
@@ -351,6 +397,49 @@ export function AcademicoPage() {
       setErr(getUserFacingMessage(e));
     } finally {
       setDownloadingChildBulletin(null);
+    }
+  };
+
+  const loadTeacherAttendance = async (groupId: string) => {
+    if (!groupId) {
+      setTeacherAttendance(null);
+      return;
+    }
+    try {
+      setErr(null);
+      const attRes = await api.get<{
+        date: string;
+        canEdit: boolean;
+        nonInstructionalDay: boolean;
+        reasons?: string[];
+        records: TeacherAttendanceRecord[];
+        students: TeacherAttendanceStudent[];
+      }>(`/api/v1/attendance/groups/${groupId}`);
+      setTeacherAttendance(attRes.data);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    }
+  };
+
+  const upsertAttendance = async (
+    studentId: string,
+    status: 'PRESENTE' | 'AUSENTE' | 'RETARDO',
+    isJustified?: boolean
+  ) => {
+    if (!selectedTeacherGroupId) return;
+    try {
+      setErr(null);
+      setSavingAttendanceStudentId(studentId);
+      await api.post('/api/v1/attendance/register', {
+        studentId,
+        status,
+        isJustified: status === 'AUSENTE' ? Boolean(isJustified) : undefined
+      });
+      await loadTeacherAttendance(selectedTeacherGroupId);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setSavingAttendanceStudentId(null);
     }
   };
 
@@ -532,6 +621,122 @@ export function AcademicoPage() {
                 </button>
               ))}
             </div>
+          </Panel>
+        </>
+      ) : docente ? (
+        <>
+          <Panel title="Asistencia de sus estudiantes (hoy)">
+            {teacherGroups.length === 0 ? (
+              <p className="text-sm text-slate-600">No tiene grupos asignados para registrar asistencia.</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-sm text-slate-700">Grupo</label>
+                  <select
+                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    value={selectedTeacherGroupId}
+                    onChange={(e) => {
+                      const gid = e.target.value;
+                      setSelectedTeacherGroupId(gid);
+                      void loadTeacherAttendance(gid);
+                    }}
+                  >
+                    {teacherGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name} · {g.grade ?? '—'} · {g.schoolYear}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {teacherAttendance?.nonInstructionalDay ? (
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    Día no lectivo
+                    {teacherAttendance.reasons?.length ? `: ${teacherAttendance.reasons.join('; ')}` : '.'}
+                  </div>
+                ) : null}
+                {!teacherAttendance ? (
+                  <p className="text-sm text-slate-600">Seleccione un grupo para continuar.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded border border-slate-200">
+                    <table className="min-w-full border-collapse text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-3 py-2 font-semibold text-slate-700">Estudiante</th>
+                          <th className="px-3 py-2 font-semibold text-slate-700">Matrícula</th>
+                          <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
+                          <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teacherAttendance.students.map((student) => {
+                          const current = teacherAttendance.records.find((r) => r.studentId === student.studentId);
+                          const currentLabel =
+                            !current
+                              ? 'Sin registrar'
+                              : current.status === 'AUSENTE'
+                                ? current.isJustified
+                                  ? 'Ausente con excusa'
+                                  : 'Ausente (falta)'
+                                : current.status === 'PRESENTE'
+                                  ? 'Presente'
+                                  : 'Retardo';
+                          const disabled =
+                            !teacherAttendance.canEdit ||
+                            teacherAttendance.nonInstructionalDay ||
+                            savingAttendanceStudentId === student.studentId;
+                          return (
+                            <tr key={student.studentId} className="border-b border-slate-100">
+                              <td className="px-3 py-2 text-slate-900">{student.fullName}</td>
+                              <td className="px-3 py-2 text-slate-700">{student.matricula}</td>
+                              <td className="px-3 py-2 text-slate-700">{currentLabel}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => void upsertAttendance(student.studentId, 'PRESENTE')}
+                                    className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50"
+                                  >
+                                    Presente
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => void upsertAttendance(student.studentId, 'RETARDO')}
+                                    className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800 disabled:opacity-50"
+                                  >
+                                    Retardo
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', false)}
+                                    className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50"
+                                  >
+                                    Ausente (falta)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', true)}
+                                    className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800 disabled:opacity-50"
+                                  >
+                                    Ausente (excusa)
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className="text-xs text-slate-500">
+                  El docente solo puede modificar asistencias del día actual.
+                </p>
+              </div>
+            )}
           </Panel>
         </>
       ) : (
