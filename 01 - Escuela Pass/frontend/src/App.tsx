@@ -15,7 +15,7 @@ import { InstitutionPage } from '@/pages/InstitutionPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PerfilPage } from '@/pages/PerfilPage';
-import { StudentSchedulePage } from '@/pages/StudentSchedulePage';
+import { ScheduleHubPage } from '@/pages/ScheduleHubPage';
 import { SchoolsAdminPage } from '@/pages/SchoolsAdminPage';
 import {
   AcademicoPage,
@@ -53,8 +53,8 @@ export default function App() {
           <Route
             path="horario"
             element={
-              <RoleGate allow={['ALUMNO']}>
-                <StudentSchedulePage />
+              <RoleGate allow={['ALUMNO', 'ADMIN', 'ADMINISTRATIVO']}>
+                <ScheduleHubPage />
               </RoleGate>
             }
           />

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseUUIDPipe, Post, Body, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -23,8 +23,13 @@ export class GradesController {
 
   @Get('teacher/my-assignments')
   @Roles(UserRole.DOCENTE)
-  listTeacherAssignments(@Req() req: Request & { user: JwtUser }) {
-    return this.gradesService.listTeacherAssignments(req.user.userId);
+  listTeacherAssignments(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    const filter =
+      req.user.role === UserRole.ADMIN && schoolId?.trim() ? schoolId.trim() : undefined;
+    return this.gradesService.listTeacherAssignments(req.user.userId, req.user.role, filter);
   }
 
   @Get('teacher/activity-board')
@@ -36,7 +41,14 @@ export class GradesController {
     @Query('assessmentName') assessmentName: string,
     @Req() req: Request & { user: JwtUser }
   ) {
-    return this.gradesService.getActivityBoard(req.user.userId, groupId, period, subject, assessmentName);
+    return this.gradesService.getActivityBoard(
+      req.user.userId,
+      req.user.role,
+      groupId,
+      period,
+      subject,
+      assessmentName
+    );
   }
 
   @Post('teacher/register-batch')

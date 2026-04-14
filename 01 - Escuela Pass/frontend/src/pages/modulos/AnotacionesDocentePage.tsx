@@ -1,8 +1,17 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { useAuth } from '@/context/useAuth';
+import { isPlatformAdmin } from '@/lib/roles';
 
-type TeacherGroup = { id: string; name: string; grade: string | null; schoolYear: string | null };
+type TeacherGroup = {
+  id: string;
+  name: string;
+  grade: string | null;
+  schoolYear: string | null;
+  schoolId?: string;
+};
+type SchoolRow = { id: string; name: string; code: string };
 type RosterStudent = { studentId: string; matricula: string; fullName: string };
 type AttentionNoteRow = {
   id: string;
@@ -24,6 +33,10 @@ const SEVERITY_LABEL: Record<string, string> = {
 };
 
 export function AnotacionesDocentePage() {
+  const { user } = useAuth();
+  const platformAdmin = isPlatformAdmin(user);
+  const [schools, setSchools] = useState<SchoolRow[]>([]);
+  const [schoolFilter, setSchoolFilter] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [groups, setGroups] = useState<TeacherGroup[]>([]);
@@ -40,17 +53,44 @@ export function AnotacionesDocentePage() {
   const [occurredAt, setOccurredAt] = useState('');
 
   useEffect(() => {
+    if (!platformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolRow[]>('/api/v1/schools');
+        if (!cancelled && Array.isArray(data)) setSchools(data);
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setErr(null);
       try {
-        const { data } = await api.get<TeacherGroup[]>('/api/v1/schedules/me/teacher/groups');
-        if (cancelled) return;
-        const list = Array.isArray(data) ? data : [];
-        setGroups(list);
-        if (list.length > 0) {
-          setGroupId((g) => g || list[0].id);
+        if (platformAdmin) {
+          const params = schoolFilter.trim() ? { schoolId: schoolFilter.trim() } : undefined;
+          const { data } = await api.get<TeacherGroup[]>('/api/v1/school/groups', { params });
+          if (cancelled) return;
+          const list = Array.isArray(data) ? data : [];
+          setGroups(list);
+          if (list.length > 0) {
+            setGroupId((g) => g || list[0].id);
+          }
+        } else {
+          const { data } = await api.get<TeacherGroup[]>('/api/v1/schedules/me/teacher/groups');
+          if (cancelled) return;
+          const list = Array.isArray(data) ? data : [];
+          setGroups(list);
+          if (list.length > 0) {
+            setGroupId((g) => g || list[0].id);
+          }
         }
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
@@ -61,7 +101,7 @@ export function AnotacionesDocentePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [platformAdmin, schoolFilter]);
 
   const loadGroupData = async (gid: string) => {
     if (!gid) {
@@ -150,10 +190,31 @@ export function AnotacionesDocentePage() {
         {loading ? (
           <p className="mt-4 text-sm text-slate-600">Cargando grupos…</p>
         ) : groups.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-600">No tiene grupos asignados para registrar anotaciones.</p>
+          <p className="mt-4 text-sm text-slate-600">
+            {platformAdmin
+              ? 'No hay grupos para el filtro elegido. Seleccione otra institución o verifique los datos en Escuelas.'
+              : 'No tiene grupos asignados para registrar anotaciones.'}
+          </p>
         ) : (
           <form className="mt-4 space-y-4" onSubmit={(e) => void submit(e)}>
             <div className="grid gap-4 sm:grid-cols-2">
+              {platformAdmin && (
+                <label className="block text-sm sm:col-span-2">
+                  <span className="text-slate-700">Institución (filtro)</span>
+                  <select
+                    className="mt-1 w-full max-w-md rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    value={schoolFilter}
+                    onChange={(e) => setSchoolFilter(e.target.value)}
+                  >
+                    <option value="">Todas las instituciones</option>
+                    {schools.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="block text-sm">
                 <span className="text-slate-700">Grupo</span>
                 <select
@@ -163,6 +224,9 @@ export function AnotacionesDocentePage() {
                 >
                   {groups.map((g) => (
                     <option key={g.id} value={g.id}>
+                      {platformAdmin && g.schoolId
+                        ? `${schools.find((s) => s.id === g.schoolId)?.name ?? ''} · `
+                        : ''}
                       {g.name} · {g.grade ?? '—'} · {g.schoolYear ?? '—'}
                     </option>
                   ))}

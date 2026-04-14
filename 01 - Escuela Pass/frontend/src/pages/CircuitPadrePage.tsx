@@ -26,40 +26,33 @@ export function CircuitPadrePage() {
   const [activeCircuitId, setActiveCircuitId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.role !== 'PADRE' && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATIVO') return;
+    if (user?.role !== 'PADRE') return;
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        if (user?.role === 'PADRE') {
-          try {
-            const activeRes = await api.get<{ active: { id: string } | null }>(
-              '/api/v1/circuit-requests/parent/active'
-            );
-            if (cancelled) return;
-            if (activeRes.data.active?.id) {
-              setActiveCircuitId(activeRes.data.active.id);
-              setLoading(false);
-              return;
-            }
-          } catch {
-            /* Sin redirección: mostrar formulario si el endpoint no existe o falla */
-          }
-          const [{ data: ps }, { data: vh }] = await Promise.all([
-            api.get<ParentStudents>('/api/v1/attendance/parent/my-students'),
-            api.get<Vehicle[]>('/api/v1/parents/vehicles')
-          ]);
+        try {
+          const activeRes = await api.get<{ active: { id: string } | null }>(
+            '/api/v1/circuit-requests/parent/active'
+          );
           if (cancelled) return;
-          setData(ps);
-          setVehicles(vh);
-          if (ps.students.length) setStudentId((prev) => prev || ps.students[0].id);
-        } else {
-          if (!cancelled) {
-            setData({ parentId: '', students: [] });
-            setVehicles([]);
+          if (activeRes.data.active?.id) {
+            setActiveCircuitId(activeRes.data.active.id);
+            setLoading(false);
+            return;
           }
+        } catch {
+          /* Sin redirección: mostrar formulario si el endpoint no existe o falla */
         }
+        const [{ data: ps }, { data: vh }] = await Promise.all([
+          api.get<ParentStudents>('/api/v1/attendance/parent/my-students'),
+          api.get<Vehicle[]>('/api/v1/parents/vehicles')
+        ]);
+        if (cancelled) return;
+        setData(ps);
+        setVehicles(vh);
+        if (ps.students.length) setStudentId((prev) => prev || ps.students[0].id);
       } catch (e) {
         if (!cancelled) setError(getUserFacingMessage(e, 'No se pudieron cargar los datos.'));
       } finally {
@@ -114,17 +107,7 @@ export function CircuitPadrePage() {
   }
 
   if (user?.role !== 'PADRE') {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-slate-700">
-          Como administrador, el circuito se gestiona también desde <strong>Circuito hoy</strong> y el listado de
-          solicitudes.
-        </p>
-        <Link to="/app/circuito/hoy" className="mt-4 inline-block font-medium text-brand-700">
-          Ir a circuito de hoy →
-        </Link>
-      </div>
-    );
+    return <Navigate to="/app/circuito/hoy" replace />;
   }
 
   if (activeCircuitId) {

@@ -3,9 +3,16 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { Panel } from '@/components/ValueView';
 import { useAuth } from '@/context/useAuth';
-import { hasRole, isAdmin } from '@/lib/roles';
+import { hasRole, isAdmin, isPlatformAdmin } from '@/lib/roles';
 
-type Group = { id: string; name?: string; grade?: string | null; schoolYear?: string };
+type Group = {
+  id: string;
+  name?: string;
+  grade?: string | null;
+  schoolYear?: string;
+  schoolId?: string;
+};
+type SchoolRow = { id: string; name: string; code: string };
 type ImportKind = 'groups' | 'students' | 'teachers' | 'teacher-assignments' | 'students-to-groups';
 type ImportSummary = {
   totalRows: number;
@@ -34,16 +41,20 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function groupLabel(g: Group): string {
-  const parts = [g.name, g.grade, g.schoolYear].filter(Boolean);
+function groupLabel(g: Group, schoolName?: string): string {
+  const parts = [schoolName, g.name, g.grade, g.schoolYear].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Grupo';
 }
 
 export function ImportExportPage() {
   const { user } = useAuth();
   const admin = isAdmin(user);
+  const platformAdmin = isPlatformAdmin(user);
+  const administrativo = user?.role === 'ADMINISTRATIVO';
   const adminOrStaff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO');
   const docente = user?.role === 'DOCENTE';
+  const [schools, setSchools] = useState<SchoolRow[]>([]);
+  const [schoolFilter, setSchoolFilter] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -58,12 +69,30 @@ export function ImportExportPage() {
   const [templateFormat, setTemplateFormat] = useState<TemplateFormat>('xlsx');
 
   useEffect(() => {
+    if (!platformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolRow[]>('/api/v1/schools');
+        if (!cancelled && Array.isArray(data)) setSchools(data);
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setErr(null);
       try {
-        if (admin) {
-          const { data } = await api.get<Group[]>('/api/v1/school/groups');
+        if (platformAdmin || administrativo) {
+          const params =
+            platformAdmin && schoolFilter.trim() ? { schoolId: schoolFilter.trim() } : undefined;
+          const { data } = await api.get<Group[]>('/api/v1/school/groups', { params });
           if (!cancelled && Array.isArray(data)) {
             setGroups(data);
             setGroupId(data[0]?.id ?? '');
@@ -82,7 +111,7 @@ export function ImportExportPage() {
     return () => {
       cancelled = true;
     };
-  }, [admin, docente]);
+  }, [platformAdmin, administrativo, docente, schoolFilter]);
 
   async function loadImportHistory() {
     if (!adminOrStaff) return;
@@ -364,10 +393,31 @@ export function ImportExportPage() {
 
       <Panel
         title="Exportaciones por grupo"
-        description="Elija un curso y descargue el archivo. Si no aparece ningún grupo, verifique su asignación docente o los permisos con secretaría."
+        description={
+          platformAdmin
+            ? 'Elija institución (opcional), curso y descargue el archivo. Como administrador de plataforma puede ver todos los grupos o filtrar por escuela.'
+            : 'Elija un curso y descargue el archivo. Si no aparece ningún grupo, verifique su asignación docente o los permisos con secretaría.'
+        }
       >
         {groups.length > 0 ? (
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            {platformAdmin && (
+              <div>
+                <label className="block text-xs font-medium uppercase text-slate-500">Institución</label>
+                <select
+                  value={schoolFilter}
+                  onChange={(e) => setSchoolFilter(e.target.value)}
+                  className="mt-1 min-w-[200px] rounded border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Todas las instituciones</option>
+                  {schools.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium uppercase text-slate-500">Grupo</label>
               <select
@@ -377,7 +427,12 @@ export function ImportExportPage() {
               >
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {groupLabel(g)}
+                    {groupLabel(
+                      g,
+                      platformAdmin && g.schoolId
+                        ? schools.find((s) => s.id === g.schoolId)?.name
+                        : undefined
+                    )}
                   </option>
                 ))}
               </select>

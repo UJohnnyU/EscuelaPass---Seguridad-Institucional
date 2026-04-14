@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -6,6 +7,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { UpdateCircuitSettingDto } from './dto/update-circuit-setting.dto';
 import { UpdateInstitutionProfileDto } from './dto/update-institution-profile.dto';
 import { SettingsService } from './settings.service';
+
+type JwtUser = { userId: string; email: string; role: UserRole; schoolId?: string | null };
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -20,14 +23,24 @@ export class SettingsController {
     UserRole.PADRE,
     UserRole.ALUMNO
   )
-  getInstitution() {
-    return this.settingsService.getInstitutionProfile();
+  getInstitution(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId: string | undefined
+  ) {
+    return this.settingsService.getInstitutionProfile(
+      { role: req.user.role, schoolId: req.user.schoolId },
+      schoolId
+    );
   }
 
   @Patch('institution')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  updateInstitution(@Body() dto: UpdateInstitutionProfileDto) {
-    return this.settingsService.setInstitutionProfile(dto);
+  updateInstitution(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId: string | undefined,
+    @Body() dto: UpdateInstitutionProfileDto
+  ) {
+    return this.settingsService.setInstitutionProfile({ role: req.user.role, schoolId: req.user.schoolId }, dto, schoolId);
   }
 
   @Get('circuit')

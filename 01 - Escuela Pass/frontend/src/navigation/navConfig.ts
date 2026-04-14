@@ -9,22 +9,22 @@ export const SIDEBAR_NAV: NavItem[] = [
   { to: '/app', label: 'Inicio', roles: null },
   { to: '/app/perfil', label: 'Mi perfil', roles: null },
   { to: '/app/modulos', label: 'Operaciones', roles: null },
-  { to: '/app/modulos/academico', label: 'Académico', roles: ['ALUMNO', 'PADRE'] },
-  { to: '/app/modulos/calificaciones-docente', label: 'Calificaciones', roles: ['DOCENTE'] },
-  { to: '/app/modulos/anotaciones-docente', label: 'Anotaciones', roles: ['DOCENTE'] },
-  { to: '/app/horario', label: 'Horario', roles: ['ALUMNO'] },
+  { to: '/app/modulos/academico', label: 'Académico', roles: ['ALUMNO', 'PADRE', 'DOCENTE'] },
+  { to: '/app/modulos/calificaciones-docente', label: 'Calificaciones', roles: ['DOCENTE', 'ADMIN'] },
+  { to: '/app/modulos/anotaciones-docente', label: 'Anotaciones', roles: ['DOCENTE', 'ADMIN'] },
+  { to: '/app/horario', label: 'Horario', roles: ['ALUMNO', 'ADMIN', 'ADMINISTRATIVO'] },
   { to: '/app/modulos/herramientas', label: 'Herramientas', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/institucion', label: 'Institución', roles: null },
   { to: '/app/escuelas', label: 'Escuelas', roles: ['ADMIN'] },
   { to: '/app/importaciones', label: 'Importar y exportar', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/acceso/escaner', label: 'Escáner de acceso', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
-  { to: '/app/circuito', label: 'Circuito (familia)', roles: ['PADRE', 'ADMIN', 'ADMINISTRATIVO'] },
+  { to: '/app/circuito', label: 'Circuito (familia)', roles: ['PADRE'] },
   { to: '/app/circuito/hoy', label: 'Circuito del día', roles: ['DOCENTE', 'ADMIN', 'ADMINISTRATIVO'] }
 ];
 
+/** Visibilidad por rol real: ADMIN ya no ve automáticamente todas las entradas (evita pantallas vacías o solo informativas). */
 export function navVisibleForRole(item: NavItem, role: string | undefined): boolean {
   if (!role) return false;
-  if (role === 'ADMIN') return true;
   if (item.roles === null) return true;
   return item.roles.includes(role);
 }

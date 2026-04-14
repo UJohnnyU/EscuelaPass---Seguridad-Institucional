@@ -35,7 +35,7 @@ export class SchedulesController {
   @Get('me/teacher/groups')
   @Roles(UserRole.DOCENTE)
   listMyGroupsAsTeacher(@Req() req: Request & { user: JwtUser }) {
-    return this.schedulesService.listMyGroupsAsTeacher(req.user.userId);
+    return this.schedulesService.listMyGroupsAsTeacher(req.user.userId, req.user.role);
   }
 
   @Get('me/student')

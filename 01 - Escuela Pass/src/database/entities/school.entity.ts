@@ -14,6 +14,24 @@ export class SchoolEntity {
   @Column({ type: 'boolean', default: true })
   status!: boolean;
 
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  address!: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  city!: string | null;
+
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  phone!: string | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  email!: string | null;
+
+  @Column({ name: 'director_name', type: 'varchar', length: 200, nullable: true })
+  directorName!: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  motto!: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

@@ -26,7 +26,7 @@ export class AttentionNotesController {
     @Param('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
     @Req() req: Request & { user: JwtUser }
   ) {
-    return this.attentionNotesService.listByGroupForTeacher(req.user.userId, groupId);
+    return this.attentionNotesService.listByGroupForTeacher(req.user.userId, req.user.role, groupId);
   }
 
   @Get('parent/my-children')

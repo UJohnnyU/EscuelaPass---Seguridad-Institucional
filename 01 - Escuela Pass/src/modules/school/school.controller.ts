@@ -46,8 +46,16 @@ export class SchoolController {
   }
 
   @Get('groups')
-  listGroups(@Req() req: Request & { user: JwtUser }) {
-    return this.schoolService.listGroups(this.scopeSchool(req.user));
+  listGroups(
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listGroups(sid);
+    }
+    return this.schoolService.listGroups(scoped);
   }
 
   @Get('groups/:id')

@@ -37,10 +37,10 @@ export class DocumentsService {
     if (!student) throw new NotFoundException('Estudiante no encontrado');
     const user = await this.usersRepository.findOne({ where: { id: student.userId } });
     const name = user?.fullName ?? student.matricula;
-    const institution = await this.settingsService.getInstitutionProfile();
     const group = student.groupId
       ? await this.groupsRepository.findOne({ where: { id: student.groupId } })
       : null;
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(group?.schoolId ?? null);
 
     const bySubject = new Map<string, GradeEntity[]>();
     for (const g of grades) {
@@ -133,7 +133,7 @@ export class DocumentsService {
     const slots = await this.schedulesService.listByGroup(groupId, userId, role);
     const group = await this.groupsRepository.findOne({ where: { id: groupId } });
     if (!group) throw new NotFoundException('Grupo no encontrado');
-    const institution = await this.settingsService.getInstitutionProfile();
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(group.schoolId);
 
     return this.pdfBuffer((doc) => {
       const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -167,7 +167,7 @@ export class DocumentsService {
       throw new ForbiddenException('Solo administración puede exportar el resumen de grupos');
     }
 
-    const institution = await this.settingsService.getInstitutionProfile();
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(null);
     let groups: GroupEntity[] = [];
     if (role === UserRole.ADMINISTRATIVO) {
       const me = await this.usersRepository.findOne({ where: { id: userId } });

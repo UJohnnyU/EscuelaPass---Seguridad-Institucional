@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { Panel, ValueView } from '@/components/ValueView';
@@ -26,7 +26,7 @@ export function ModulosHubPage() {
       to: '/app/modulos/academico',
       title: 'Académico',
       desc: 'Asistencia y calificaciones vinculadas a su cuenta.',
-      show: true
+      show: hasRole(user, 'ALUMNO', 'PADRE', 'DOCENTE')
     },
     {
       to: '/app/modulos/calificaciones-docente',
@@ -60,9 +60,12 @@ export function ModulosHubPage() {
     },
     {
       to: '/app/horario',
-      title: 'Mi horario',
-      desc: 'Horario semanal del grupo, calendario sin clases y avisos recibidos.',
-      show: user?.role === 'ALUMNO'
+      title: user?.role === 'ALUMNO' ? 'Mi horario' : 'Horarios',
+      desc:
+        user?.role === 'ALUMNO'
+          ? 'Horario semanal del grupo, calendario sin clases y avisos recibidos.'
+          : 'Consulte horarios por institución y grupo; calendario de días sin clases.',
+      show: hasRole(user, 'ALUMNO', 'ADMIN', 'ADMINISTRATIVO')
     }
   ];
 
@@ -259,7 +262,7 @@ export function AcademicoPage() {
     students: TeacherAttendanceStudent[];
   } | null>(null);
   const [savingAttendanceStudentId, setSavingAttendanceStudentId] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
   const padre = user?.role === 'PADRE';
   const alumno = user?.role === 'ALUMNO';
   const docente = user?.role === 'DOCENTE';
@@ -432,6 +435,13 @@ export function AcademicoPage() {
       setErr(getUserFacingMessage(e));
     }
   };
+
+  if (!ready) {
+    return <p className="text-slate-600">Cargando…</p>;
+  }
+  if (user && !padre && !alumno && !docente) {
+    return <Navigate to="/app/modulos" replace />;
+  }
 
   const upsertAttendance = async (
     studentId: string,

@@ -21,6 +21,8 @@ export type TeacherAssignmentRow = {
   schoolYear: string | null;
   subjectId: string;
   subjectName: string;
+  schoolId?: string;
+  schoolName?: string | null;
 };
 
 export type ActivityBoardRow = {
@@ -55,7 +57,32 @@ export class GradesService {
     return s.trim().replace(/\s+/g, ' ');
   }
 
-  async listTeacherAssignments(userId: string): Promise<TeacherAssignmentRow[]> {
+  async listTeacherAssignments(
+    userId: string,
+    role: UserRole,
+    schoolIdFilter?: string | null
+  ): Promise<TeacherAssignmentRow[]> {
+    if (role === UserRole.ADMIN) {
+      return this.studentsRepository.manager.query<TeacherAssignmentRow[]>(
+        `SELECT
+           g.id AS "groupId",
+           g.name AS "groupName",
+           g.grade AS "grade",
+           g.school_year AS "schoolYear",
+           s.id AS "subjectId",
+           s.name AS "subjectName",
+           g.school_id AS "schoolId",
+           sch.name AS "schoolName"
+         FROM groups g
+         INNER JOIN subjects s ON s.school_id = g.school_id
+         LEFT JOIN schools sch ON sch.id = g.school_id
+         WHERE g.school_id IS NOT NULL
+           AND ($1::uuid IS NULL OR g.school_id = $1::uuid)
+         ORDER BY sch.name ASC NULLS LAST, g.name ASC NULLS LAST, s.name ASC`,
+        [schoolIdFilter ?? null]
+      );
+    }
+
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
 
@@ -66,12 +93,15 @@ export class GradesService {
          g.grade AS "grade",
          g.school_year AS "schoolYear",
          s.id AS "subjectId",
-         s.name AS "subjectName"
+         s.name AS "subjectName",
+         g.school_id AS "schoolId",
+         sch.name AS "schoolName"
        FROM teacher_groups tg
        INNER JOIN groups g ON g.id = tg.group_id
        INNER JOIN subjects s ON s.id = tg.subject_id
+       LEFT JOIN schools sch ON sch.id = g.school_id
        WHERE tg.teacher_id = $1 AND tg.subject_id IS NOT NULL
-       ORDER BY g.name ASC NULLS LAST, s.name ASC`,
+       ORDER BY sch.name ASC NULLS LAST, g.name ASC NULLS LAST, s.name ASC`,
       [teacher.id]
     );
     return rows;
@@ -79,14 +109,12 @@ export class GradesService {
 
   async getActivityBoard(
     userId: string,
+    role: UserRole,
     groupId: string,
     period: string | undefined,
     subject: string | undefined,
     assessmentName: string | undefined
   ) {
-    const teacher = await this.teachersRepository.findOne({ where: { userId } });
-    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
-
     const periodNorm = period ? this.normText(period) : '';
     const subjectNorm = subject ? this.normText(subject) : '';
     const assessmentNorm = assessmentName ? this.normText(assessmentName) : '';
@@ -95,7 +123,26 @@ export class GradesService {
       throw new BadRequestException('period, subject y assessmentName son obligatorios');
     }
 
-    const canonicalSubject = await this.resolveCanonicalSubjectForTeacher(teacher.id, groupId, subjectNorm);
+    let canonicalSubject: string;
+    if (role === UserRole.ADMIN) {
+      const subjRows = await this.studentsRepository.manager.query<{ name: string }[]>(
+        `SELECT s.name
+         FROM subjects s
+         INNER JOIN groups g ON g.school_id = s.school_id
+         WHERE g.id = $1
+           AND LOWER(TRIM(s.name)) = LOWER(TRIM($2::text))
+         LIMIT 1`,
+        [groupId, subjectNorm]
+      );
+      if (!subjRows.length) {
+        throw new ForbiddenException('Materia no encontrada para la escuela de este grupo');
+      }
+      canonicalSubject = subjRows[0].name;
+    } else {
+      const teacher = await this.teachersRepository.findOne({ where: { userId } });
+      if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+      canonicalSubject = await this.resolveCanonicalSubjectForTeacher(teacher.id, groupId, subjectNorm);
+    }
 
     const maxRows = await this.studentsRepository.manager.query<{ max_score: string | null }[]>(
       `SELECT g.max_score::text AS max_score

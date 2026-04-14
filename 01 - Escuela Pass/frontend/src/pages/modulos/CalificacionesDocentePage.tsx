@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { useAuth } from '@/context/useAuth';
+import { isPlatformAdmin } from '@/lib/roles';
 
 type TeacherAssignment = {
   groupId: string;
@@ -9,7 +11,10 @@ type TeacherAssignment = {
   schoolYear: string | null;
   subjectId: string;
   subjectName: string;
+  schoolId?: string;
+  schoolName?: string | null;
 };
+type SchoolRow = { id: string; name: string; code: string };
 
 type ActivityBoardResponse = {
   groupId: string;
@@ -34,6 +39,10 @@ type ActivityBoardResponse = {
 type RowDraft = { score: string; notes: string };
 
 export function CalificacionesDocentePage() {
+  const { user } = useAuth();
+  const platformAdmin = isPlatformAdmin(user);
+  const [schools, setSchools] = useState<SchoolRow[]>([]);
+  const [schoolFilter, setSchoolFilter] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(true);
@@ -57,12 +66,32 @@ export function CalificacionesDocentePage() {
   }, [assignments, selectedKey]);
 
   useEffect(() => {
+    if (!platformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolRow[]>('/api/v1/schools');
+        if (!cancelled && Array.isArray(data)) setSchools(data);
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingAssignments(true);
       setErr(null);
       try {
-        const { data } = await api.get<TeacherAssignment[]>('/api/v1/grades/teacher/my-assignments');
+        const params =
+          platformAdmin && schoolFilter.trim() ? { schoolId: schoolFilter.trim() } : undefined;
+        const { data } = await api.get<TeacherAssignment[]>('/api/v1/grades/teacher/my-assignments', {
+          params
+        });
         if (cancelled) return;
         const list = Array.isArray(data) ? data : [];
         setAssignments(list);
@@ -81,7 +110,7 @@ export function CalificacionesDocentePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [platformAdmin, schoolFilter]);
 
   const syncDraftsFromBoard = (b: ActivityBoardResponse) => {
     const next: Record<string, RowDraft> = {};
@@ -248,6 +277,23 @@ export function CalificacionesDocentePage() {
       <section className="rounded border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Parámetros de la actividad</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {platformAdmin && (
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-slate-700">Institución (filtro)</span>
+              <select
+                className="mt-1 w-full max-w-md rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                value={schoolFilter}
+                onChange={(e) => setSchoolFilter(e.target.value)}
+              >
+                <option value="">Todas las instituciones</option>
+                {schools.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block text-sm">
             <span className="text-slate-700">Grupo y materia</span>
             <select
@@ -261,6 +307,7 @@ export function CalificacionesDocentePage() {
               ) : (
                 assignments.map((a) => (
                   <option key={`${a.groupId}-${a.subjectId}`} value={`${a.groupId}::${a.subjectId}`}>
+                    {a.schoolName ? `${a.schoolName} · ` : ''}
                     {a.groupName ?? 'Grupo'} · {a.grade ?? '—'} · {a.schoolYear ?? '—'} — {a.subjectName}
                   </option>
                 ))

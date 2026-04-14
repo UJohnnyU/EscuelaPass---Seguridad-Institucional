@@ -175,7 +175,15 @@ export class SchedulesService {
   }
 
   /** Grupos donde el docente tiene asignación (para exportaciones, etc.). */
-  async listMyGroupsAsTeacher(userId: string) {
+  async listMyGroupsAsTeacher(userId: string, role: UserRole) {
+    if (role === UserRole.ADMIN) {
+      return this.groupsRepository
+        .createQueryBuilder('g')
+        .orderBy('g.name', 'ASC')
+        .select(['g.id', 'g.name', 'g.grade', 'g.schoolYear'])
+        .getMany();
+    }
+
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
     return this.groupsRepository

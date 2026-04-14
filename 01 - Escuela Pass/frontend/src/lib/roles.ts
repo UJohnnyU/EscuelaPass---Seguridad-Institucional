@@ -12,3 +12,8 @@ export function isStaff(user: StoredUser | null): boolean {
 export function isAdmin(user: StoredUser | null): boolean {
   return hasRole(user, 'ADMIN', 'ADMINISTRATIVO');
 }
+
+/** Administrador de plataforma (multi-escuela). No confundir con `isAdmin`, que incluye también administración institucional. */
+export function isPlatformAdmin(user: StoredUser | null): boolean {
+  return hasRole(user, 'ADMIN');
+}

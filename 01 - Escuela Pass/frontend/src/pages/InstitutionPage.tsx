@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
+import { isPlatformAdmin } from '@/lib/roles';
 
 type Profile = {
   name: string;
@@ -13,9 +14,15 @@ type Profile = {
   motto?: string;
 };
 
+type SchoolRow = { id: string; name: string; code: string };
+
 export function InstitutionPage() {
   const { user } = useAuth();
+  const platformAdmin = isPlatformAdmin(user);
   const canEdit = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
+  const [schools, setSchools] = useState<SchoolRow[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState('');
+  const [schoolsReady, setSchoolsReady] = useState(!platformAdmin);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<Profile>({ name: '' });
   const [loading, setLoading] = useState(true);
@@ -26,10 +33,43 @@ export function InstitutionPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (!platformAdmin) {
+        setSchoolsReady(true);
+        return;
+      }
+      try {
+        const { data } = await api.get<SchoolRow[]>('/api/v1/schools');
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setSchools(list);
+        setSelectedSchoolId(list[0]?.id ?? '');
+      } catch {
+        if (!cancelled) setSchools([]);
+      } finally {
+        if (!cancelled) setSchoolsReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin]);
+
+  useEffect(() => {
+    if (!schoolsReady) return;
+    if (platformAdmin && !selectedSchoolId) {
+      setLoading(false);
+      setProfile(null);
+      setForm({ name: '' });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
       setLoading(true);
       setError(null);
       try {
-        const { data } = await api.get<Profile>('/api/v1/settings/institution');
+        const params =
+          platformAdmin && selectedSchoolId ? { schoolId: selectedSchoolId } : undefined;
+        const { data } = await api.get<Profile>('/api/v1/settings/institution', { params });
         if (!cancelled) {
           setProfile(data);
           setForm(data);
@@ -43,16 +83,22 @@ export function InstitutionPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [platformAdmin, selectedSchoolId, schoolsReady]);
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
     if (!canEdit) return;
+    if (platformAdmin && !selectedSchoolId) {
+      setError('Seleccione una escuela para guardar.');
+      return;
+    }
     setSaving(true);
     setMessage(null);
     setError(null);
     try {
-      const { data } = await api.patch<Profile>('/api/v1/settings/institution', form);
+      const params =
+        user?.role === 'ADMIN' && selectedSchoolId ? { schoolId: selectedSchoolId } : undefined;
+      const { data } = await api.patch<Profile>('/api/v1/settings/institution', form, { params });
       setProfile(data);
       setForm(data);
       setMessage('Cambios guardados correctamente.');
@@ -63,11 +109,11 @@ export function InstitutionPage() {
     }
   }
 
-  if (loading) {
+  if (!schoolsReady || loading) {
     return <p className="text-slate-600">Cargando datos de la institución…</p>;
   }
 
-  if (error && !profile) {
+  if (error && !profile && !platformAdmin) {
     return (
       <div className="rounded-xl bg-red-50 px-4 py-3 text-red-800 ring-1 ring-red-200" role="alert">
         {error}
@@ -75,15 +121,60 @@ export function InstitutionPage() {
     );
   }
 
+  if (platformAdmin && schools.length === 0) {
+    return (
+      <div className="max-w-xl animate-slide-up">
+        <h1 className="text-2xl font-bold text-slate-900">Institución</h1>
+        <p className="mt-4 text-sm text-slate-600">
+          No hay escuelas registradas. Cree escuelas en <strong>Escuelas</strong> y luego podrá definir el perfil de
+          cada una.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-xl animate-slide-up">
       <h1 className="text-2xl font-bold text-slate-900">Institución</h1>
-      <p className="mt-1 text-slate-600">Información visible para usuarios de la plataforma.</p>
+      <p className="mt-1 text-slate-600">
+        Estos datos corresponden a cada <strong>escuela</strong> (misma entidad que en &quot;Escuelas&quot;). El nombre
+        legal o comercial y los datos de contacto se guardan aquí por institución.
+      </p>
 
-      {canEdit ? (
+      {platformAdmin && schools.length > 0 && (
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-slate-700" htmlFor="school-select">
+            Escuela a editar
+          </label>
+          <select
+            id="school-select"
+            className="mt-1 w-full max-w-md rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+            value={selectedSchoolId}
+            onChange={(e) => setSelectedSchoolId(e.target.value)}
+          >
+            {schools.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.code})
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-slate-500">
+            Debe elegir la escuela antes de guardar. Si un campo está vacío en la base de datos de esa escuela, puede
+            mostrarse el valor de respaldo global del sistema (configuración antigua).
+          </p>
+        </div>
+      )}
+
+      {error && profile && (
+        <div className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-200" role="alert">
+          {error}
+        </div>
+      )}
+
+      {canEdit && profile ? (
         <form className="mt-8 space-y-4" onSubmit={onSave}>
           {[
-            ['name', 'Nombre', 'text'],
+            ['name', 'Nombre de la escuela', 'text'],
             ['address', 'Dirección', 'text'],
             ['city', 'Ciudad', 'text'],
             ['phone', 'Teléfono', 'text'],
@@ -104,7 +195,7 @@ export function InstitutionPage() {
               />
             </div>
           ))}
-          {error && (
+          {error && !profile && (
             <div className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-800" role="alert">
               {error}
             </div>
@@ -116,12 +207,14 @@ export function InstitutionPage() {
           )}
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || (platformAdmin && !selectedSchoolId)}
             className="rounded-xl bg-brand-600 px-6 py-2.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
           >
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </button>
         </form>
+      ) : canEdit && !profile ? (
+        <p className="mt-8 text-sm text-amber-800">No se pudo cargar el perfil. {error}</p>
       ) : (
         <dl className="mt-8 space-y-4 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <div>

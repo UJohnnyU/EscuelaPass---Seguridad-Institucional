@@ -49,18 +49,20 @@ export class AttentionNotesService {
     return saved;
   }
 
-  async listByGroupForTeacher(userId: string, groupId: string) {
-    const teacher = await this.teachersRepository.findOne({ where: { userId } });
-    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+  async listByGroupForTeacher(userId: string, role: UserRole, groupId: string) {
+    if (role !== UserRole.ADMIN) {
+      const teacher = await this.teachersRepository.findOne({ where: { userId } });
+      if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
 
-    const ok = await this.dataSource.query<{ ok: boolean }[]>(
-      `SELECT EXISTS (
-        SELECT 1 FROM teacher_groups WHERE teacher_id = $1 AND group_id = $2
-      ) AS ok`,
-      [teacher.id, groupId]
-    );
-    if (!ok[0]?.ok) {
-      throw new ForbiddenException('No tienes asignación en este grupo');
+      const ok = await this.dataSource.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+          SELECT 1 FROM teacher_groups WHERE teacher_id = $1 AND group_id = $2
+        ) AS ok`,
+        [teacher.id, groupId]
+      );
+      if (!ok[0]?.ok) {
+        throw new ForbiddenException('No tienes asignación en este grupo');
+      }
     }
 
     return this.dataSource.query<

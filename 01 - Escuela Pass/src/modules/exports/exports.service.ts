@@ -54,7 +54,8 @@ export class ExportsService {
 
   async exportAttendanceXlsx(groupId: string, userId: string, role: UserRole, dateStr?: string) {
     const { headers, rows, date } = await this.loadAttendanceExport(groupId, userId, role, dateStr);
-    const institution = await this.settingsService.getInstitutionProfile();
+    const groupRow = await this.groupsRepository.findOne({ where: { id: groupId } });
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(groupRow?.schoolId ?? null);
     const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Asistencia', {
       institution,
       reportTitle: 'Reporte de asistencia',
@@ -71,7 +72,8 @@ export class ExportsService {
     subject?: string
   ) {
     const { headers, rows } = await this.loadGradesExport(groupId, userId, role, period, subject);
-    const institution = await this.settingsService.getInstitutionProfile();
+    const groupRow = await this.groupsRepository.findOne({ where: { id: groupId } });
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(groupRow?.schoolId ?? null);
     const suffix = [period, subject].filter(Boolean).join(' · ') || 'Todos los períodos / materias';
     const buffer = await this.buildXlsxBuffer(
       headers,
@@ -100,7 +102,7 @@ export class ExportsService {
     if (!group) throw new BadRequestException('Grupo no encontrado');
 
     const { headers, rows } = await this.loadGradesExport(groupId, userId, role, period, subject);
-    const institution = await this.settingsService.getInstitutionProfile();
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(group.schoolId);
     const buffer = await this.buildXlsxBuffer(
       headers,
       rows as Record<string, string | number | null | undefined>[],

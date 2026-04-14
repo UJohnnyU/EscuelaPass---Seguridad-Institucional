@@ -25,7 +25,7 @@ export function AppHomePage() {
       to: '/app/circuito',
       title: 'Circuito de recogida',
       desc: 'Solicitudes de retiro y avisos de la familia (en camino, llegada, confirmación de recibimiento).',
-      show: role === 'PADRE' || role === 'ADMIN' || role === 'ADMINISTRATIVO'
+      show: role === 'PADRE'
     },
     {
       to: '/app/circuito/hoy',
