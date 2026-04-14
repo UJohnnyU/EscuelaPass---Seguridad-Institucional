@@ -35,6 +35,16 @@ export class SchoolCalendarController {
     return this.schoolCalendarService.listNonInstructionalForStudent(req.user.userId, from, to);
   }
 
+  @Get('parent/my-children')
+  @Roles(UserRole.PADRE)
+  listNonInstructionalForChildren(
+    @Req() req: Request & { user: JwtUser },
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined
+  ) {
+    return this.schoolCalendarService.listNonInstructionalForParent(req.user.userId, from, to);
+  }
+
   @Get('non-instructional-days')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   list(

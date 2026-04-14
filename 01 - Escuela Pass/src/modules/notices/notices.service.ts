@@ -117,6 +117,67 @@ export class NoticesService {
     };
   }
 
+  async listMyChildrenNotifications(parentUserId: string, page = 1, limit = 30) {
+    const parent = await this.dataSource.query<{ id: string }[]>(
+      `SELECT id FROM parents WHERE user_id = $1 LIMIT 1`,
+      [parentUserId]
+    );
+    const parentId = parent[0]?.id;
+    if (!parentId) {
+      throw new ForbiddenException('Perfil padre no encontrado');
+    }
+
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const rows = await this.dataSource.query<
+      {
+        id: string;
+        userId: string;
+        noticeId: string | null;
+        title: string;
+        message: string;
+        readAt: string | null;
+        sentAt: string;
+        deliveryStatus: string;
+        studentName: string;
+      }[]
+    >(
+      `SELECT n.id,
+              n.user_id AS "userId",
+              n.notice_id AS "noticeId",
+              n.title,
+              n.message,
+              n.read_at AS "readAt",
+              n.sent_at AS "sentAt",
+              n.delivery_status AS "deliveryStatus",
+              su.full_name AS "studentName"
+       FROM notifications n
+       JOIN users u ON u.id = n.user_id
+       JOIN students s ON s.user_id = u.id
+       JOIN users su ON su.id = s.user_id
+       JOIN student_parents sp ON sp.student_id = s.id
+       WHERE sp.parent_id = $1
+       ORDER BY n.sent_at DESC
+       LIMIT $2 OFFSET $3`,
+      [parentId, take, skip]
+    );
+    const countRows = await this.dataSource.query<{ total: string }[]>(
+      `SELECT COUNT(*)::text AS total
+       FROM notifications n
+       JOIN users u ON u.id = n.user_id
+       JOIN students s ON s.user_id = u.id
+       JOIN student_parents sp ON sp.student_id = s.id
+       WHERE sp.parent_id = $1`,
+      [parentId]
+    );
+    const total = Number.parseInt(countRows[0]?.total ?? '0', 10);
+
+    return {
+      data: rows,
+      meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
+    };
+  }
+
   async markAsRead(notificationId: string, userId: string) {
     const notif = await this.notificationsRepository.findOne({
       where: { id: notificationId, userId }

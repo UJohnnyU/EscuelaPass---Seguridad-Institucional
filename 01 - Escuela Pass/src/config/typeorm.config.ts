@@ -22,6 +22,7 @@ import { RefreshTokenEntity } from '../database/entities/refresh-token.entity';
 import { InstitutionSettingEntity } from '../database/entities/institution-setting.entity';
 import { SchoolNonInstructionalDayEntity } from '../database/entities/school-non-instructional-day.entity';
 import { StudentDepartureConsentEntity } from '../database/entities/student-departure-consent.entity';
+import { StudentAttentionNoteEntity } from '../database/entities/student-attention-note.entity';
 import { StudentEntity } from '../database/entities/student.entity';
 import { TeacherEntity } from '../database/entities/teacher.entity';
 import { UserEntity } from '../database/entities/user.entity';
@@ -53,6 +54,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       PickupAuthorizationEntity,
       RefreshTokenEntity,
       StudentDepartureConsentEntity,
+      StudentAttentionNoteEntity,
       CircuitRequestEntity,
       GroupEntity,
       NoticeEntity,

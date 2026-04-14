@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, U
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { RegisterFcmTokenDto } from '../fcm/dto/register-fcm-token.dto';
 import { UnregisterFcmTokenDto } from '../fcm/dto/unregister-fcm-token.dto';
 import { FcmService } from '../fcm/fcm.service';
@@ -10,7 +12,7 @@ import { NoticesService } from './notices.service';
 type JwtUser = { userId: string; email: string; role: UserRole };
 
 @Controller('notifications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationsController {
   constructor(
     private readonly noticesService: NoticesService,
@@ -26,6 +28,18 @@ export class NotificationsController {
     const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
     const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '30', 10) || 30));
     return this.noticesService.listMyNotifications(req.user.userId, p, l);
+  }
+
+  @Get('parent/my-children')
+  @Roles(UserRole.PADRE)
+  listChildrenNotifications(
+    @Req() req: Request & { user: JwtUser },
+    @Query('page') page: string | undefined,
+    @Query('limit') limit: string | undefined
+  ) {
+    const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
+    const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '30', 10) || 30));
+    return this.noticesService.listMyChildrenNotifications(req.user.userId, p, l);
   }
 
   /** Registra el token FCM del dispositivo para recibir push (Firebase Cloud Messaging). */

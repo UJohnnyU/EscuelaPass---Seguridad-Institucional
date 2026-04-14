@@ -74,6 +74,9 @@ DO $$ BEGIN
     'PENDIENTE', 'CONFIRMADA', 'REALIZADA', 'CANCELADA'
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE attention_severity AS ENUM ('LEVE', 'MODERADA', 'GRAVE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Usuarios
 CREATE TABLE IF NOT EXISTS users (
@@ -422,6 +425,21 @@ CREATE TABLE IF NOT EXISTS parent_teacher_meetings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS student_attention_notes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    severity attention_severity NOT NULL DEFAULT 'LEVE',
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notified_parent BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_attention_notes_student
+ON student_attention_notes(student_id, occurred_at DESC);
 
 -- Horarios de clase por grupo (franja semanal)
 CREATE TABLE IF NOT EXISTS class_schedule_slots (

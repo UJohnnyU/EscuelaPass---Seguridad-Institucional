@@ -38,6 +38,43 @@ export class SchoolCalendarService {
     return { groupId: student.groupId, days };
   }
 
+  async listNonInstructionalForParent(userId: string, from?: string, to?: string) {
+    const parentRows = await this.studentsRepository.manager.query<{ id: string }[]>(
+      `SELECT id FROM parents WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    const parentId = parentRows[0]?.id;
+    if (!parentId) throw new ForbiddenException('Perfil padre no encontrado');
+
+    const children = await this.studentsRepository.manager.query<
+      { studentId: string; studentName: string; groupId: string | null }[]
+    >(
+      `SELECT s.id AS "studentId", u.full_name AS "studentName", s.group_id AS "groupId"
+       FROM student_parents sp
+       JOIN students s ON s.id = sp.student_id
+       JOIN users u ON u.id = s.user_id
+       WHERE sp.parent_id = $1
+       ORDER BY u.full_name`,
+      [parentId]
+    );
+
+    const byGroup = new Map<string, SchoolNonInstructionalDayEntity[]>();
+    for (const child of children) {
+      if (!child.groupId || byGroup.has(child.groupId)) continue;
+      const days = await this.list(from, to, child.groupId);
+      byGroup.set(child.groupId, days);
+    }
+
+    return {
+      children: children.map((child) => ({
+        studentId: child.studentId,
+        studentName: child.studentName,
+        groupId: child.groupId,
+        days: child.groupId ? byGroup.get(child.groupId) ?? [] : []
+      }))
+    };
+  }
+
   async create(dto: CreateNonInstructionalDayDto, createdByUserId: string) {
     const exceptionDate = dto.exceptionDate.slice(0, 10);
     if (dto.groupId) {

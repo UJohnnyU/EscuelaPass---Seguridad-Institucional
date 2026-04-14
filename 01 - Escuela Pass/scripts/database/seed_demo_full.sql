@@ -543,6 +543,28 @@ FROM (
 ) sub
 WHERE u.id = sub.id;
 
+-- ---------- Anotaciones y llamados de atención ----------
+INSERT INTO student_attention_notes (student_id, created_by_user_id, severity, title, description, occurred_at, notified_parent)
+SELECT s.id, t.user_id, 'LEVE', 'Retraso recurrente', 'Se detectaron tres llegadas tardías durante la semana.', NOW() - INTERVAL '1 day', true
+FROM students s
+JOIN users su ON su.id = s.user_id
+JOIN teachers t ON TRUE
+JOIN users tu ON tu.id = t.user_id
+WHERE su.email = 'alumno2@escuelapass.local' AND tu.email = 'docente2@escuelapass.local'
+  AND NOT EXISTS (
+    SELECT 1 FROM student_attention_notes n
+    WHERE n.student_id = s.id AND n.title = 'Retraso recurrente'
+  );
+
+INSERT INTO notifications (user_id, notice_id, title, message, delivery_status)
+SELECT pu.id, NULL, 'Llamado de atención (leve)', 'Retraso recurrente: Se detectaron tres llegadas tardías durante la semana.', 'SENT'
+FROM users pu
+WHERE pu.email IN ('padre1@escuelapass.local', 'padre2@escuelapass.local')
+  AND NOT EXISTS (
+    SELECT 1 FROM notifications n
+    WHERE n.user_id = pu.id AND n.title = 'Llamado de atención (leve)'
+  );
+
 COMMIT;
 
 -- =============================================================

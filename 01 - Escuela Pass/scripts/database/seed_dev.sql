@@ -116,6 +116,28 @@ FROM (VALUES
 ) AS v(email, phone)
 WHERE users.email = v.email;
 
+-- Anotación demo para notificación a familia (alumno1)
+INSERT INTO student_attention_notes (student_id, created_by_user_id, severity, title, description, occurred_at, notified_parent)
+SELECT s.id, t.user_id, 'MODERADA', 'Incumplimiento de tarea', 'No entregó actividad de matemáticas en la fecha indicada.', NOW() - INTERVAL '2 days', true
+FROM students s
+JOIN users su ON su.id = s.user_id
+JOIN teachers t ON TRUE
+JOIN users tu ON tu.id = t.user_id
+WHERE su.email = 'alumno1@escuelapass.local' AND tu.email = 'docente1@escuelapass.local'
+  AND NOT EXISTS (
+    SELECT 1 FROM student_attention_notes n
+    WHERE n.student_id = s.id AND n.title = 'Incumplimiento de tarea'
+  );
+
+INSERT INTO notifications (user_id, notice_id, title, message, delivery_status)
+SELECT pu.id, NULL, 'Llamado de atención (moderada)', 'Incumplimiento de tarea: No entregó actividad de matemáticas en la fecha indicada.', 'SENT'
+FROM users pu
+WHERE pu.email = 'padre1@escuelapass.local'
+  AND NOT EXISTS (
+    SELECT 1 FROM notifications n
+    WHERE n.user_id = pu.id AND n.title = 'Llamado de atención (moderada)'
+  );
+
 COMMIT;
 
 -- =============================================================

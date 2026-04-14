@@ -103,6 +103,68 @@ export class SchedulesService {
     };
   }
 
+  async listMyChildrenSlotsAsParent(userId: string) {
+    const parent = await this.parentsRepository.findOne({ where: { userId } });
+    if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+
+    const children = await this.studentsRepository.manager.query<
+      { studentId: string; studentName: string; groupId: string | null; groupName: string | null; grade: string | null; schoolYear: string | null }[]
+    >(
+      `SELECT s.id AS "studentId",
+              u.full_name AS "studentName",
+              s.group_id AS "groupId",
+              g.name AS "groupName",
+              g.grade AS "grade",
+              g.school_year AS "schoolYear"
+       FROM student_parents sp
+       JOIN students s ON s.id = sp.student_id
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN groups g ON g.id = s.group_id
+       WHERE sp.parent_id = $1
+       ORDER BY u.full_name`,
+      [parent.id]
+    );
+
+    const groupIds = [...new Set(children.map((c) => c.groupId).filter((x): x is string => !!x))];
+    const allSlots =
+      groupIds.length > 0
+        ? await this.slotsRepository.find({
+            where: { groupId: In(groupIds) },
+            order: { weekday: 'ASC', startTime: 'ASC' }
+          })
+        : [];
+    const subjectIds = [...new Set(allSlots.map((s) => s.subjectId).filter((x): x is string => !!x))];
+    const subjects =
+      subjectIds.length > 0 ? await this.subjectsRepository.find({ where: { id: In(subjectIds) } }) : [];
+    const nameById = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
+    const slotsByGroup = new Map<string, Array<ClassScheduleSlotEntity & { subjectName: string | null }>>();
+    for (const slot of allSlots) {
+      const list = slotsByGroup.get(slot.groupId) ?? [];
+      list.push({
+        ...slot,
+        subjectName: slot.subjectId ? nameById[slot.subjectId] ?? null : null
+      });
+      slotsByGroup.set(slot.groupId, list);
+    }
+
+    return {
+      children: children.map((child) => ({
+        studentId: child.studentId,
+        studentName: child.studentName,
+        groupId: child.groupId,
+        group: child.groupId
+          ? {
+              id: child.groupId,
+              name: child.groupName,
+              grade: child.grade,
+              schoolYear: child.schoolYear
+            }
+          : null,
+        slots: child.groupId ? slotsByGroup.get(child.groupId) ?? [] : []
+      }))
+    };
+  }
+
   async listMySlotsAsTeacher(userId: string) {
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');

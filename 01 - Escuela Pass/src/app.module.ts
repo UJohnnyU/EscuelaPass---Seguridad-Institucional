@@ -26,6 +26,7 @@ import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
+import { AttentionNotesModule } from './modules/attention-notes/attention-notes.module';
 
 @Module({
   imports: [
@@ -63,7 +64,8 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
     VehiclesModule,
     DocumentsModule,
     AuditModule,
-    PrivacyModule
+    PrivacyModule,
+    AttentionNotesModule
   ],
   providers: [
     {
