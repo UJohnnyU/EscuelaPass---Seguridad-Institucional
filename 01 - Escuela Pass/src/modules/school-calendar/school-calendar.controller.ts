@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards
+} from '@nestjs/common';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -13,6 +24,16 @@ type JwtUser = { userId: string; email: string; role: UserRole };
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SchoolCalendarController {
   constructor(private readonly schoolCalendarService: SchoolCalendarService) {}
+
+  @Get('me/student')
+  @Roles(UserRole.ALUMNO)
+  listNonInstructionalMine(
+    @Req() req: Request & { user: JwtUser },
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined
+  ) {
+    return this.schoolCalendarService.listNonInstructionalForStudent(req.user.userId, from, to);
+  }
 
   @Get('non-instructional-days')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)

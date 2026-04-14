@@ -42,7 +42,7 @@ export class DocumentsController {
   }
 
   @Get('schedule/group/:groupId')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE, UserRole.ALUMNO)
   async groupSchedulePdf(
     @Param('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
     @Req() req: Request & { user: JwtUser },

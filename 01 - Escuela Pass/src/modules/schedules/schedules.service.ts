@@ -5,9 +5,10 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ClassScheduleSlotEntity } from '../../database/entities/class-schedule-slot.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
+import { SubjectEntity } from '../../database/entities/subject.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
@@ -22,6 +23,8 @@ export class SchedulesService {
     private readonly slotsRepository: Repository<ClassScheduleSlotEntity>,
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
+    @InjectRepository(SubjectEntity)
+    private readonly subjectsRepository: Repository<SubjectEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(ParentEntity)
@@ -61,6 +64,45 @@ export class SchedulesService {
   }
 
   /** Todas las franjas horarias donde figura el docente (cualquier grupo). */
+  /** Horario del grupo del estudiante (franjas semanales). */
+  async listMySlotsAsStudent(userId: string) {
+    const student = await this.studentsRepository.findOne({ where: { userId } });
+    if (!student) throw new ForbiddenException('Perfil de estudiante no encontrado');
+    if (!student.groupId) {
+      return {
+        groupId: null as string | null,
+        group: null as { id: string; name: string; grade: string | null; schoolYear: string } | null,
+        slots: [] as Array<
+          ClassScheduleSlotEntity & { subjectName: string | null }
+        >
+      };
+    }
+    const group = await this.groupsRepository.findOne({ where: { id: student.groupId } });
+    const slots = await this.slotsRepository.find({
+      where: { groupId: student.groupId },
+      order: { weekday: 'ASC', startTime: 'ASC' }
+    });
+    const sids = [...new Set(slots.map((s) => s.subjectId).filter((x): x is string => !!x))];
+    const subjects =
+      sids.length > 0 ? await this.subjectsRepository.find({ where: { id: In(sids) } }) : [];
+    const nameById = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
+    return {
+      groupId: student.groupId,
+      group: group
+        ? {
+            id: group.id,
+            name: group.name,
+            grade: group.grade,
+            schoolYear: group.schoolYear
+          }
+        : null,
+      slots: slots.map((s) => ({
+        ...s,
+        subjectName: s.subjectId ? nameById[s.subjectId] ?? null : null
+      }))
+    };
+  }
+
   async listMySlotsAsTeacher(userId: string) {
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
@@ -160,6 +202,14 @@ export class SchedulesService {
       );
       if (!rows[0]?.ok) {
         throw new ForbiddenException('No tienes hijos en este grupo');
+      }
+      return;
+    }
+    if (role === UserRole.ALUMNO) {
+      const student = await this.studentsRepository.findOne({ where: { userId } });
+      if (!student) throw new ForbiddenException('Perfil de estudiante no encontrado');
+      if (!student.groupId || student.groupId !== groupId) {
+        throw new ForbiddenException('No autorizado a ver el horario de este grupo');
       }
       return;
     }

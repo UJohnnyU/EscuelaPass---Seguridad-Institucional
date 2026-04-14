@@ -45,6 +45,12 @@ export function ModulosHubPage() {
       title: 'Herramientas',
       desc: 'Horarios, vehículos, privacidad y documentos PDF.',
       show: isStaff(user)
+    },
+    {
+      to: '/app/horario',
+      title: 'Mi horario',
+      desc: 'Horario semanal del grupo, calendario sin clases y avisos recibidos.',
+      show: user?.role === 'ALUMNO'
     }
   ];
 

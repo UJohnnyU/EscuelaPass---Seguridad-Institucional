@@ -15,6 +15,7 @@ import { InstitutionPage } from '@/pages/InstitutionPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PerfilPage } from '@/pages/PerfilPage';
+import { StudentSchedulePage } from '@/pages/StudentSchedulePage';
 import {
   AcademicoPage,
   AdministracionPage,
@@ -46,6 +47,14 @@ export default function App() {
         >
           <Route index element={<AppHomePage />} />
           <Route path="perfil" element={<PerfilPage />} />
+          <Route
+            path="horario"
+            element={
+              <RoleGate allow={['ALUMNO']}>
+                <StudentSchedulePage />
+              </RoleGate>
+            }
+          />
           <Route path="institucion" element={<InstitutionPage />} />
           <Route path="modulos" element={<ModulosHubPage />} />
           <Route path="modulos/comunicacion" element={<ComunicacionPage />} />

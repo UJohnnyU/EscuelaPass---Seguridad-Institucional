@@ -32,6 +32,12 @@ export function AppHomePage() {
       title: 'Circuito del día',
       desc: 'Seguimiento del día para docencia y administración.',
       show: role === 'DOCENTE' || role === 'ADMIN' || role === 'ADMINISTRATIVO'
+    },
+    {
+      to: '/app/horario',
+      title: 'Mi horario',
+      desc: 'Clases semanales, días sin clases de la institución y avisos enviados a su cuenta.',
+      show: role === 'ALUMNO'
     }
   ];
 

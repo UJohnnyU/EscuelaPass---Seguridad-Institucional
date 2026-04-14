@@ -1,7 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GroupEntity } from '../../database/entities/group.entity';
+import { StudentEntity } from '../../database/entities/student.entity';
 import { SchoolNonInstructionalDayEntity } from '../../database/entities/school-non-instructional-day.entity';
 import { CreateNonInstructionalDayDto } from './dto/create-non-instructional-day.dto';
 
@@ -16,8 +22,21 @@ export class SchoolCalendarService {
     @InjectRepository(SchoolNonInstructionalDayEntity)
     private readonly daysRepository: Repository<SchoolNonInstructionalDayEntity>,
     @InjectRepository(GroupEntity)
-    private readonly groupsRepository: Repository<GroupEntity>
+    private readonly groupsRepository: Repository<GroupEntity>,
+    @InjectRepository(StudentEntity)
+    private readonly studentsRepository: Repository<StudentEntity>
   ) {}
+
+  /** Días sin clases que aplican al grupo del estudiante (y globales), en un rango de fechas. */
+  async listNonInstructionalForStudent(userId: string, from?: string, to?: string) {
+    const student = await this.studentsRepository.findOne({ where: { userId } });
+    if (!student) throw new ForbiddenException('Perfil de estudiante no encontrado');
+    if (!student.groupId) {
+      return { groupId: null as string | null, days: [] };
+    }
+    const days = await this.list(from, to, student.groupId);
+    return { groupId: student.groupId, days };
+  }
 
   async create(dto: CreateNonInstructionalDayDto, createdByUserId: string) {
     const exceptionDate = dto.exceptionDate.slice(0, 10);

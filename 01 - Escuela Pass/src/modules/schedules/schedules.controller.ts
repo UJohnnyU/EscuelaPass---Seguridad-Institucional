@@ -38,8 +38,14 @@ export class SchedulesController {
     return this.schedulesService.listMyGroupsAsTeacher(req.user.userId);
   }
 
+  @Get('me/student')
+  @Roles(UserRole.ALUMNO)
+  listMySlotsAsStudent(@Req() req: Request & { user: JwtUser }) {
+    return this.schedulesService.listMySlotsAsStudent(req.user.userId);
+  }
+
   @Get('groups/:groupId')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE, UserRole.ALUMNO)
   listByGroup(
     @Param('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
     @Req() req: Request & { user: JwtUser }
