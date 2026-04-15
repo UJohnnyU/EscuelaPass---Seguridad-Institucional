@@ -52,25 +52,29 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-          <Link to="/app" className="min-w-0">
-            <p className="font-serif font-semibold text-slate-900">Escuela Pass</p>
-            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Gestión institucional</p>
-          </Link>
-          <nav className="flex items-center gap-2 text-xs font-medium">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="rounded border border-slate-300 px-3 py-1.5 text-slate-700"
+              className="rounded border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700"
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-main-menu"
             >
               Menú
             </button>
-            <button type="button" onClick={() => void logout()} className="text-slate-600">
-              Salir
-            </button>
-          </nav>
+            <Link to="/app" className="min-w-0">
+              <p className="font-serif font-semibold text-slate-900">Escuela Pass</p>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Gestión institucional</p>
+            </Link>
+          </div>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="rounded bg-brand-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800"
+          >
+            Cerrar sesión
+          </button>
         </header>
         {mobileMenuOpen && (
           <div className="lg:hidden">
