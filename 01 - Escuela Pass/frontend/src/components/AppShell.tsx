@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
 import { navVisibleForRole, SIDEBAR_NAV } from '@/navigation/navConfig';
@@ -21,6 +22,11 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const role = user?.role;
   const navItems = SIDEBAR_NAV.filter((item) => navVisibleForRole(item, role));
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  function closeMobileMenu() {
+    setMobileMenuOpen(false);
+  }
 
   return (
     <div className="min-h-screen flex bg-slate-100 text-slate-900">
@@ -50,17 +56,37 @@ export function AppShell() {
           <Link to="/app" className="font-serif font-semibold text-slate-900">
             Escuela Pass
           </Link>
-          <nav className="flex max-w-[70%] flex-1 flex-wrap items-center justify-end gap-2 text-[11px] font-medium">
-            {navItems.slice(0, 5).map((item) => (
-              <Link key={item.to} to={item.to} className="text-brand-800">
-                {item.label}
-              </Link>
-            ))}
+          <nav className="flex items-center gap-2 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="rounded border border-slate-300 px-3 py-1.5 text-slate-700"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-main-menu"
+            >
+              Menú
+            </button>
             <button type="button" onClick={() => void logout()} className="text-slate-600">
               Salir
             </button>
           </nav>
         </header>
+        {mobileMenuOpen && (
+          <div id="mobile-main-menu" className="border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+            <nav className="grid gap-2">
+              {navItems.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={closeMobileMenu}
+                  className="rounded border border-slate-200 px-3 py-2 text-sm text-brand-900"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        )}
 
         <header className="hidden items-center justify-between gap-4 border-b border-slate-200/80 bg-white px-8 py-4 lg:flex">
           <div className="min-w-0">
