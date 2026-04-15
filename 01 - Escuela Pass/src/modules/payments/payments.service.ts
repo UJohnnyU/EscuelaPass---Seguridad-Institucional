@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException
@@ -15,6 +16,7 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
+import { UpdateConceptDto } from './dto/update-concept.dto';
 import { UploadVoucherDto } from './dto/upload-voucher.dto';
 
 @Injectable()
@@ -43,6 +45,8 @@ export class PaymentsService {
   }
 
   async createConcept(dto: CreateConceptDto) {
+    const taken = await this.conceptsRepository.findOne({ where: { name: dto.name } });
+    if (taken) throw new ConflictException('Ya existe un concepto con ese nombre');
     const entity = this.conceptsRepository.create({
       name: dto.name,
       description: dto.description ?? null,
@@ -53,6 +57,26 @@ export class PaymentsService {
       isActive: true
     });
     return this.conceptsRepository.save(entity);
+  }
+
+  async updateConcept(id: string, dto: UpdateConceptDto) {
+    const c = await this.conceptsRepository.findOne({ where: { id } });
+    if (!c) throw new NotFoundException('Concepto no encontrado');
+    if (dto.name !== undefined && dto.name !== c.name) {
+      const clash = await this.conceptsRepository.findOne({ where: { name: dto.name } });
+      if (clash) throw new ConflictException('Ya existe un concepto con ese nombre');
+      c.name = dto.name;
+    }
+    if (dto.description !== undefined) {
+      c.description = dto.description.trim() === '' ? null : dto.description;
+    }
+    if (dto.defaultAmount !== undefined) c.defaultAmount = String(dto.defaultAmount);
+    if (dto.isRecurring !== undefined) c.isRecurring = dto.isRecurring;
+    if (dto.recurrencePeriod !== undefined) {
+      c.recurrencePeriod = dto.recurrencePeriod.trim() === '' ? null : dto.recurrencePeriod;
+    }
+    if (dto.isActive !== undefined) c.isActive = dto.isActive;
+    return this.conceptsRepository.save(c);
   }
 
   async createDebt(dto: CreateDebtDto, userId: string, role: UserRole) {
@@ -104,7 +128,7 @@ export class PaymentsService {
         .innerJoin('users', 'su', 'su.id = s.user_id')
         .innerJoin('users', 'au', 'au.id = :uid', { uid: userId })
         .where('au.school_id = su.school_id')
-        .orderBy('d.created_at', 'DESC')
+        .orderBy('d.createdAt', 'DESC')
         .skip(skip)
         .take(take);
       if (status) qb.andWhere('d.status = :st', { st: status });
@@ -134,8 +158,8 @@ export class PaymentsService {
         .innerJoin('users', 'au', 'au.id = :uid', { uid: userId })
         .where('au.school_id = su.school_id')
         .andWhere('d.status = :st', { st: PaymentStatus.PENDIENTE })
-        .orderBy('d.uploaded_at', 'DESC')
-        .addOrderBy('d.due_date', 'ASC')
+        .orderBy('d.uploadedAt', 'DESC')
+        .addOrderBy('d.dueDate', 'ASC')
         .skip(skip)
         .take(take);
       [data, total] = await qb.getManyAndCount();

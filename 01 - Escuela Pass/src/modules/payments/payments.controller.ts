@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -21,6 +22,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
+import { UpdateConceptDto } from './dto/update-concept.dto';
 import { UploadVoucherDto } from './dto/upload-voucher.dto';
 import { voucherMulterOptions } from './multer-voucher.config';
 import { PaymentsService } from './payments.service';
@@ -40,6 +42,15 @@ export class PaymentsController {
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   createConcept(@Body() dto: CreateConceptDto) {
     return this.paymentsService.createConcept(dto);
+  }
+
+  @Patch('concepts/:id')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  updateConcept(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateConceptDto
+  ) {
+    return this.paymentsService.updateConcept(id, dto);
   }
 
   @Post('debts')

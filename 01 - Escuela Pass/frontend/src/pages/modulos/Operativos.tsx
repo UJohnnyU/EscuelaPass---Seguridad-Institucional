@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
 import { Panel, ValueView } from '@/components/ValueView';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isStaff } from '@/lib/roles';
@@ -251,6 +252,7 @@ export function FinanzasPage() {
   const admin = isAdmin(user);
 
   useEffect(() => {
+    if (admin) return;
     let cancelled = false;
     (async () => {
       setErr(null);
@@ -259,9 +261,6 @@ export function FinanzasPage() {
         if (!cancelled) setConcepts(c.data);
         if (padre) {
           const d = await api.get('/api/v1/payments/debts/mine');
-          if (!cancelled) setDebts(d.data);
-        } else if (admin) {
-          const d = await api.get('/api/v1/payments/debts?page=1&limit=20');
           if (!cancelled) setDebts(d.data);
         }
       } catch (e) {
@@ -282,11 +281,25 @@ export function FinanzasPage() {
       {err && (
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
-      <Panel title="Conceptos">
-        <ValueView data={concepts} />
-      </Panel>
-      {(padre || admin) && (
-        <Panel title={padre ? 'Mis obligaciones' : 'Deudas (administración)'}>
+      {admin && (
+        <div>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Gestión (administración)</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Personal administrativo y administradores pueden crear y editar conceptos, y asignar colegiaturas u otras
+            obligaciones a alumnos de la institución.
+          </p>
+          <div className="mt-4">
+            <FinanzasStaffTools />
+          </div>
+        </div>
+      )}
+      {!admin && (
+        <Panel title="Conceptos">
+          <ValueView data={concepts} />
+        </Panel>
+      )}
+      {padre && (
+        <Panel title="Mis obligaciones">
           <ValueView data={debts} />
         </Panel>
       )}
