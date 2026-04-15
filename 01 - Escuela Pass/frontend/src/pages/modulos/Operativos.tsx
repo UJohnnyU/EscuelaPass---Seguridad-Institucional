@@ -115,6 +115,12 @@ export function ModulosHubPage() {
       show: true
     },
     {
+      to: '/app/gestion-escolar',
+      title: 'Grupos y personas',
+      desc: 'Alta de grupos, alumnos, docentes, padres y asignaciones en su escuela.',
+      show: hasRole(user, 'ADMIN', 'ADMINISTRATIVO')
+    },
+    {
       to: '/app/modulos/academico',
       title: 'Académico',
       desc: 'Asistencia y calificaciones vinculadas a su cuenta.',

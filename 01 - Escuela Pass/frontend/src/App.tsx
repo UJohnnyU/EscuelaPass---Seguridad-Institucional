@@ -28,6 +28,7 @@ import {
 } from '@/pages/modulos/Operativos';
 import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
 import { CalificacionesDocentePage } from '@/pages/modulos/CalificacionesDocentePage';
+import { SchoolRosterPage } from '@/pages/SchoolRosterPage';
 
 function AuthenticatedShell() {
   const { user } = useAuth();
@@ -59,6 +60,14 @@ export default function App() {
             }
           />
           <Route path="institucion" element={<InstitutionPage />} />
+          <Route
+            path="gestion-escolar"
+            element={
+              <RoleGate allow={['ADMIN', 'ADMINISTRATIVO']}>
+                <SchoolRosterPage />
+              </RoleGate>
+            }
+          />
           <Route
             path="escuelas"
             element={

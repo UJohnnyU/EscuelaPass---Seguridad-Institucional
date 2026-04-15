@@ -11,7 +11,9 @@ import ExcelJS from 'exceljs';
 import { IsNull, Repository } from 'typeorm';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
+import { ParentEntity } from '../../database/entities/parent.entity';
 import { ShiftType } from '../../database/entities/shift-type.enum';
+import { StudentParentEntity } from '../../database/entities/student-parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { SubjectEntity } from '../../database/entities/subject.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
@@ -19,9 +21,11 @@ import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AssignTeacherGroupDto } from './dto/assign-teacher-group.dto';
 import { CreateGroupDto } from './dto/create-group.dto';
+import { CreateParentDto } from './dto/create-parent.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
+import { LinkParentStudentDto } from './dto/link-parent-student.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
@@ -59,14 +63,101 @@ export class SchoolService {
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(ImportJobEntity)
-    private readonly importJobsRepository: Repository<ImportJobEntity>
+    private readonly importJobsRepository: Repository<ImportJobEntity>,
+    @InjectRepository(ParentEntity)
+    private readonly parentsRepository: Repository<ParentEntity>,
+    @InjectRepository(StudentParentEntity)
+    private readonly studentParentsRepository: Repository<StudentParentEntity>
   ) {}
 
-  private ensureScopedSchool(scopeSchoolId?: string | null): string {
-    if (!scopeSchoolId) {
-      throw new ForbiddenException('Tu usuario no tiene escuela asignada');
+  /** Escuela para altas: token de escuela o `schoolId` en el cuerpo (ADMIN de plataforma). */
+  private effectiveSchoolIdForWrite(scopeSchoolId?: string | null, bodySchoolId?: string | null): string {
+    const scope = scopeSchoolId?.trim() ?? '';
+    const body = bodySchoolId?.trim() ?? '';
+    if (scope) {
+      if (body && body !== scope) {
+        throw new ForbiddenException('No puedes actuar sobre otra escuela');
+      }
+      return scope;
     }
-    return scopeSchoolId;
+    if (body) return body;
+    throw new ForbiddenException(
+      'Indique la escuela (campo schoolId en el cuerpo o selección de escuela para administrador de plataforma).'
+    );
+  }
+
+  private async requireStudentSchoolId(studentId: string): Promise<string> {
+    const row = await this.studentsRepository
+      .createQueryBuilder('s')
+      .innerJoin(UserEntity, 'u', 'u.id = s.userId')
+      .select('u.school_id', 'schoolId')
+      .where('s.id = :id', { id: studentId })
+      .getRawOne<{ schoolId: string | null }>();
+    if (!row?.schoolId) throw new NotFoundException('Estudiante no encontrado');
+    return row.schoolId;
+  }
+
+  private async requireTeacherSchoolId(teacherId: string): Promise<string> {
+    const row = await this.teachersRepository
+      .createQueryBuilder('t')
+      .innerJoin(UserEntity, 'u', 'u.id = t.userId')
+      .select('u.school_id', 'schoolId')
+      .where('t.id = :id', { id: teacherId })
+      .getRawOne<{ schoolId: string | null }>();
+    if (!row?.schoolId) throw new NotFoundException('Docente no encontrado');
+    return row.schoolId;
+  }
+
+  private async requireParentSchoolId(parentId: string): Promise<string> {
+    const row = await this.parentsRepository
+      .createQueryBuilder('p')
+      .innerJoin(UserEntity, 'u', 'u.id = p.userId')
+      .select('u.school_id', 'schoolId')
+      .where('p.id = :id', { id: parentId })
+      .getRawOne<{ schoolId: string | null }>();
+    if (!row?.schoolId) throw new NotFoundException('Padre/tutor no encontrado');
+    return row.schoolId;
+  }
+
+  private async schoolIdForStudentPatch(studentId: string, scopeSchoolId?: string | null): Promise<string> {
+    if (scopeSchoolId?.trim()) return scopeSchoolId.trim();
+    return this.requireStudentSchoolId(studentId);
+  }
+
+  private async schoolIdForTeacherPatch(teacherId: string, scopeSchoolId?: string | null): Promise<string> {
+    if (scopeSchoolId?.trim()) return scopeSchoolId.trim();
+    return this.requireTeacherSchoolId(teacherId);
+  }
+
+  private async resolveSchoolIdForAssignTeacher(
+    dto: AssignTeacherGroupDto,
+    scopeSchoolId?: string | null
+  ): Promise<string> {
+    const scope = scopeSchoolId?.trim();
+    const ex = dto.schoolId?.trim();
+    if (scope) {
+      if (ex && ex !== scope) throw new ForbiddenException('No puedes actuar sobre otra escuela');
+      return scope;
+    }
+    if (ex) return ex;
+    return this.requireTeacherSchoolId(dto.teacherId);
+  }
+
+  private async resolveSchoolIdForParentLink(
+    dto: LinkParentStudentDto,
+    scopeSchoolId?: string | null
+  ): Promise<string> {
+    const scope = scopeSchoolId?.trim();
+    const ex = dto.schoolId?.trim();
+    if (scope) {
+      if (ex && ex !== scope) throw new ForbiddenException('No puedes actuar sobre otra escuela');
+      return scope;
+    }
+    if (ex) return ex;
+    const s1 = await this.requireStudentSchoolId(dto.studentId);
+    const s2 = await this.requireParentSchoolId(dto.parentId);
+    if (s1 !== s2) throw new BadRequestException('El estudiante y el padre deben ser de la misma escuela');
+    return s1;
   }
 
   // --- Grupos ---
@@ -89,7 +180,7 @@ export class SchoolService {
   }
 
   async createGroup(dto: CreateGroupDto, scopeSchoolId?: string | null) {
-    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, dto.schoolId);
     const row = this.groupsRepository.create({
       name: dto.name,
       grade: dto.grade ?? null,
@@ -138,7 +229,7 @@ export class SchoolService {
   }
 
   async createSubject(dto: CreateSubjectDto, scopeSchoolId?: string | null) {
-    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, dto.schoolId);
     const existing = await this.subjectsRepository
       .createQueryBuilder('s')
       .where('lower(s.name) = lower(:name)', { name: dto.name })
@@ -217,7 +308,7 @@ export class SchoolService {
   }
 
   async createStudent(dto: CreateStudentDto, scopeSchoolId?: string | null) {
-    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, dto.schoolId);
     const emailTaken = await this.usersRepository.findOne({ where: { email: dto.email } });
     if (emailTaken) throw new ConflictException('El correo ya está registrado');
     const matTaken = await this.studentsRepository.findOne({ where: { matricula: dto.matricula } });
@@ -251,7 +342,7 @@ export class SchoolService {
   }
 
   async updateStudent(id: string, dto: UpdateStudentDto, scopeSchoolId?: string | null) {
-    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const schoolId = await this.schoolIdForStudentPatch(id, scopeSchoolId);
     await this.getStudent(id, schoolId);
     if (dto.groupId !== undefined && dto.groupId !== null) {
       const g = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
@@ -308,7 +399,7 @@ export class SchoolService {
   }
 
   async createTeacher(dto: CreateTeacherDto, scopeSchoolId?: string | null) {
-    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, dto.schoolId);
     const emailTaken = await this.usersRepository.findOne({ where: { email: dto.email } });
     if (emailTaken) throw new ConflictException('El correo ya está registrado');
     const numTaken = await this.teachersRepository.findOne({ where: { employeeNumber: dto.employeeNumber } });
@@ -335,7 +426,7 @@ export class SchoolService {
   }
 
   async updateTeacher(id: string, dto: UpdateTeacherDto, scopeSchoolId?: string | null) {
-    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const schoolId = await this.schoolIdForTeacherPatch(id, scopeSchoolId);
     await this.getTeacher(id, schoolId);
     const t = await this.teachersRepository.findOne({ where: { id } });
     if (!t) throw new NotFoundException('Docente no encontrado');
@@ -368,7 +459,7 @@ export class SchoolService {
   }
 
   async assignTeacherGroup(dto: AssignTeacherGroupDto, scopeSchoolId?: string | null) {
-    const schoolId = this.ensureScopedSchool(scopeSchoolId);
+    const schoolId = await this.resolveSchoolIdForAssignTeacher(dto, scopeSchoolId);
     const teacher = await this.teachersRepository.findOne({ where: { id: dto.teacherId } });
     if (!teacher) throw new NotFoundException('Docente no encontrado');
     const group = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
@@ -411,6 +502,130 @@ export class SchoolService {
     if (!row) throw new NotFoundException('Asignación no encontrada');
     await this.teacherGroupsRepository.delete({ id });
     return { message: 'Asignación eliminada', id };
+  }
+
+  // --- Padres / tutores y vínculos con estudiantes ---
+  listParents(scopeSchoolId?: string | null) {
+    const qb = this.parentsRepository
+      .createQueryBuilder('p')
+      .innerJoin(UserEntity, 'u', 'u.id = p.userId')
+      .select([
+        'p.id AS id',
+        'p.isPrimaryContact AS "isPrimaryContact"',
+        'u.email AS email',
+        'u.fullName AS "fullName"',
+        'u.id AS "userId"',
+        'u.status AS "userStatus"'
+      ])
+      .orderBy('u.full_name', 'ASC');
+    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    return qb.getRawMany();
+  }
+
+  async getParent(id: string, scopeSchoolId?: string | null) {
+    const qb = this.parentsRepository
+      .createQueryBuilder('p')
+      .innerJoin(UserEntity, 'u', 'u.id = p.userId')
+      .select([
+        'p.id AS id',
+        'p.isPrimaryContact AS "isPrimaryContact"',
+        'u.email AS email',
+        'u.fullName AS "fullName"',
+        'u.id AS "userId"',
+        'u.status AS "userStatus"'
+      ])
+      .where('p.id = :id', { id });
+    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    const row = await qb.getRawOne();
+    if (!row) throw new NotFoundException('Padre/tutor no encontrado');
+    return row;
+  }
+
+  async createParent(dto: CreateParentDto, scopeSchoolId?: string | null) {
+    const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, dto.schoolId);
+    const emailTaken = await this.usersRepository.findOne({ where: { email: dto.email } });
+    if (emailTaken) throw new ConflictException('El correo ya está registrado');
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const user = this.usersRepository.create({
+      email: dto.email,
+      passwordHash,
+      role: UserRole.PADRE,
+      fullName: dto.fullName,
+      canAccessCampus: dto.canAccessCampus ?? false,
+      status: true,
+      schoolId
+    });
+    const savedUser = await this.usersRepository.save(user);
+    const parent = this.parentsRepository.create({
+      userId: savedUser.id,
+      isPrimaryContact: dto.isPrimaryContact ?? false
+    });
+    const saved = await this.parentsRepository.save(parent);
+    return this.getParent(saved.id, schoolId);
+  }
+
+  async listStudentParentLinks(
+    parentId: string | undefined,
+    studentId: string | undefined,
+    scopeSchoolId?: string | null
+  ) {
+    const qb = this.studentParentsRepository
+      .createQueryBuilder('sp')
+      .innerJoin(StudentEntity, 's', 's.id = sp.studentId')
+      .innerJoin(UserEntity, 'su', 'su.id = s.userId')
+      .innerJoin(ParentEntity, 'p', 'p.id = sp.parentId')
+      .innerJoin(UserEntity, 'pu', 'pu.id = p.userId')
+      .select([
+        'sp.id AS id',
+        'sp.student_id AS "studentId"',
+        'sp.parent_id AS "parentId"',
+        'sp.relationship AS relationship',
+        'sp.is_primary AS "isPrimary"',
+        'sp.can_pickup AS "canPickup"',
+        'su.full_name AS "studentFullName"',
+        'su.email AS "studentEmail"',
+        'pu.full_name AS "parentFullName"',
+        'pu.email AS "parentEmail"'
+      ])
+      .orderBy('sp.created_at', 'DESC');
+    if (parentId?.trim()) qb.andWhere('sp.parent_id = :parentId', { parentId: parentId.trim() });
+    if (studentId?.trim()) qb.andWhere('sp.student_id = :studentId', { studentId: studentId.trim() });
+    if (scopeSchoolId) qb.andWhere('su.school_id = :schoolId', { schoolId: scopeSchoolId });
+    return qb.getRawMany();
+  }
+
+  async linkParentStudent(dto: LinkParentStudentDto, scopeSchoolId?: string | null) {
+    const schoolId = await this.resolveSchoolIdForParentLink(dto, scopeSchoolId);
+    const stuSch = await this.requireStudentSchoolId(dto.studentId);
+    const parSch = await this.requireParentSchoolId(dto.parentId);
+    if (stuSch !== schoolId || parSch !== schoolId) {
+      throw new BadRequestException('El estudiante y el padre deben pertenecer a la escuela seleccionada');
+    }
+
+    const existing = await this.studentParentsRepository.findOne({
+      where: { studentId: dto.studentId, parentId: dto.parentId }
+    });
+    if (existing) throw new ConflictException('Este padre ya está vinculado al estudiante');
+
+    const row = this.studentParentsRepository.create({
+      studentId: dto.studentId,
+      parentId: dto.parentId,
+      relationship: dto.relationship.trim(),
+      isPrimary: dto.isPrimary ?? false,
+      canPickup: dto.canPickup ?? true
+    });
+    return this.studentParentsRepository.save(row);
+  }
+
+  async unlinkStudentParent(linkId: string, scopeSchoolId?: string | null) {
+    const row = await this.studentParentsRepository.findOne({ where: { id: linkId } });
+    if (!row) throw new NotFoundException('Vínculo no encontrado');
+    const stuSch = await this.requireStudentSchoolId(row.studentId);
+    if (scopeSchoolId && stuSch !== scopeSchoolId) {
+      throw new ForbiddenException('No tienes permiso para modificar este vínculo');
+    }
+    await this.studentParentsRepository.delete({ id: linkId });
+    return { message: 'Vínculo eliminado', id: linkId };
   }
 
   // --- Cargas masivas Excel (.xlsx), primera hoja, fila 1 = encabezados (mismos nombres que antes en CSV) ---
@@ -461,7 +676,7 @@ export class SchoolService {
           classroom: this.optional(row, 'classroom'),
           capacity: this.parseIntOptional(this.optional(row, 'capacity'))
         };
-        if (!dryRun) await this.createGroup(dto, this.ensureScopedSchool(scopeSchoolId));
+        if (!dryRun) await this.createGroup(dto, scopeSchoolId);
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });
@@ -492,7 +707,7 @@ export class SchoolService {
           canAccessCampus: this.parseBoolOptional(this.optional(row, 'canAccessCampus')),
           canLeaveAlone: this.parseBoolOptional(this.optional(row, 'canLeaveAlone'))
         };
-        if (!dryRun) await this.createStudent(dto, this.ensureScopedSchool(scopeSchoolId));
+        if (!dryRun) await this.createStudent(dto, scopeSchoolId);
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });
@@ -521,7 +736,7 @@ export class SchoolService {
           employeeNumber: this.required(row, 'employeeNumber'),
           canAccessCampus: this.parseBoolOptional(this.optional(row, 'canAccessCampus'))
         };
-        if (!dryRun) await this.createTeacher(dto, this.ensureScopedSchool(scopeSchoolId));
+        if (!dryRun) await this.createTeacher(dto, scopeSchoolId);
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });
@@ -550,7 +765,7 @@ export class SchoolService {
           isMainTeacher: this.parseBoolOptional(this.optional(row, 'isMainTeacher')),
           canAuthorizeDepartures: this.parseBoolOptional(this.optional(row, 'canAuthorizeDepartures'))
         };
-        if (!dryRun) await this.assignTeacherGroup(dto, this.ensureScopedSchool(scopeSchoolId));
+        if (!dryRun) await this.assignTeacherGroup(dto, scopeSchoolId);
         result.created += 1;
       } catch (error) {
         result.errors.push({ row: line, message: this.errorMessage(error) });

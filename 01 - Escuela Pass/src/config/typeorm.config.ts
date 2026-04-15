@@ -23,6 +23,7 @@ import { InstitutionSettingEntity } from '../database/entities/institution-setti
 import { SchoolNonInstructionalDayEntity } from '../database/entities/school-non-instructional-day.entity';
 import { StudentDepartureConsentEntity } from '../database/entities/student-departure-consent.entity';
 import { StudentAttentionNoteEntity } from '../database/entities/student-attention-note.entity';
+import { StudentParentEntity } from '../database/entities/student-parent.entity';
 import { StudentEntity } from '../database/entities/student.entity';
 import { TeacherEntity } from '../database/entities/teacher.entity';
 import { UserEntity } from '../database/entities/user.entity';
@@ -47,6 +48,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
   const entities = [
       UserEntity,
       StudentEntity,
+      StudentParentEntity,
       TeacherEntity,
       ParentEntity,
       AdministrativeStaffEntity,

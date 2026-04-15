@@ -18,4 +18,9 @@ export class AssignTeacherGroupDto {
   @IsBoolean()
   @IsOptional()
   canAuthorizeDepartures?: boolean;
+
+  /** Obligatorio para ADMIN de plataforma si no se puede inferir la escuela. */
+  @IsUUID()
+  @IsOptional()
+  schoolId?: string;
 }

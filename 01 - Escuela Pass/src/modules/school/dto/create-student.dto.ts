@@ -28,4 +28,9 @@ export class CreateStudentDto {
   @IsBoolean()
   @IsOptional()
   canLeaveAlone?: boolean;
+
+  /** Obligatorio para ADMIN de plataforma sin escuela en el token. */
+  @IsUUID()
+  @IsOptional()
+  schoolId?: string;
 }

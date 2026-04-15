@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateSubjectDto {
   @IsString()
@@ -8,4 +8,9 @@ export class CreateSubjectDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  /** Obligatorio para ADMIN de plataforma sin escuela en el token. */
+  @IsUUID()
+  @IsOptional()
+  schoolId?: string;
 }

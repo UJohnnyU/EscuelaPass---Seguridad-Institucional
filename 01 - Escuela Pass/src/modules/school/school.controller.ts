@@ -24,9 +24,11 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AssignTeacherGroupDto } from './dto/assign-teacher-group.dto';
 import { CreateGroupDto } from './dto/create-group.dto';
+import { CreateParentDto } from './dto/create-parent.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
+import { LinkParentStudentDto } from './dto/link-parent-student.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
@@ -118,8 +120,16 @@ export class SchoolController {
   }
 
   @Get('students')
-  listStudents(@Req() req: Request & { user: JwtUser }) {
-    return this.schoolService.listStudents(this.scopeSchool(req.user));
+  listStudents(
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listStudents(sid);
+    }
+    return this.schoolService.listStudents(scoped);
   }
 
   @Get('students/:id')
@@ -145,8 +155,16 @@ export class SchoolController {
   }
 
   @Get('teachers')
-  listTeachers(@Req() req: Request & { user: JwtUser }) {
-    return this.schoolService.listTeachers(this.scopeSchool(req.user));
+  listTeachers(
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listTeachers(sid);
+    }
+    return this.schoolService.listTeachers(scoped);
   }
 
   @Get('teachers/:id')
@@ -191,6 +209,60 @@ export class SchoolController {
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.schoolService.removeTeacherAssignment(id, this.scopeSchool(req.user));
+  }
+
+  @Get('parents')
+  listParents(
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listParents(sid);
+    }
+    return this.schoolService.listParents(scoped);
+  }
+
+  @Get('parents/:id')
+  getParent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.getParent(id, this.scopeSchool(req.user));
+  }
+
+  @Post('parents')
+  createParent(@Body() dto: CreateParentDto, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.createParent(dto, this.scopeSchool(req.user));
+  }
+
+  @Get('student-parent-links')
+  listStudentParentLinks(
+    @Query('parentId') parentId: string | undefined,
+    @Query('studentId') studentId: string | undefined,
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listStudentParentLinks(parentId, studentId, sid);
+    }
+    return this.schoolService.listStudentParentLinks(parentId, studentId, scoped);
+  }
+
+  @Post('student-parent-links')
+  linkParentStudent(@Body() dto: LinkParentStudentDto, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.linkParentStudent(dto, this.scopeSchool(req.user));
+  }
+
+  @Delete('student-parent-links/:id')
+  unlinkStudentParent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.unlinkStudentParent(id, this.scopeSchool(req.user));
   }
 
   @Post('import/groups/xlsx')

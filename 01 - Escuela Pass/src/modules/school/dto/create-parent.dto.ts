@@ -1,6 +1,6 @@
 import { IsBoolean, IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
-export class CreateTeacherDto {
+export class CreateParentDto {
   @IsEmail()
   email!: string;
 
@@ -13,16 +13,16 @@ export class CreateTeacherDto {
   @MaxLength(255)
   fullName!: string;
 
-  @IsString()
-  @MaxLength(50)
-  employeeNumber!: string;
-
   @IsBoolean()
   @IsOptional()
   canAccessCampus?: boolean;
 
-  /** Obligatorio para ADMIN de plataforma sin escuela en el token. */
+  /** Obligatorio para usuarios ADMIN de plataforma sin escuela en el token. */
   @IsUUID()
   @IsOptional()
   schoolId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isPrimaryContact?: boolean;
 }

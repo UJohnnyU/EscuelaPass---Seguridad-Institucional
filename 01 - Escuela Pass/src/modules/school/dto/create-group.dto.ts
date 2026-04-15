@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { ShiftType } from '../../../database/entities/shift-type.enum';
 
 export class CreateGroupDto {
@@ -28,4 +28,9 @@ export class CreateGroupDto {
   @Min(1)
   @IsOptional()
   capacity?: number;
+
+  /** Obligatorio para ADMIN de plataforma sin escuela en el token. */
+  @IsUUID()
+  @IsOptional()
+  schoolId?: string;
 }

@@ -15,6 +15,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { to: '/app/horario', label: 'Horario', roles: ['ALUMNO', 'ADMIN', 'ADMINISTRATIVO'] },
   { to: '/app/modulos/herramientas', label: 'Herramientas', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/institucion', label: 'Institución', roles: null },
+  { to: '/app/gestion-escolar', label: 'Grupos y personas', roles: ['ADMIN', 'ADMINISTRATIVO'] },
   { to: '/app/escuelas', label: 'Escuelas', roles: ['ADMIN'] },
   { to: '/app/importaciones', label: 'Importar y exportar', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/acceso/escaner', label: 'Escáner de acceso', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
