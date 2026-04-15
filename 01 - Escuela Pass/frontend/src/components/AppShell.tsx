@@ -53,8 +53,9 @@ export function AppShell() {
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-          <Link to="/app" className="font-serif font-semibold text-slate-900">
-            Escuela Pass
+          <Link to="/app" className="min-w-0">
+            <p className="font-serif font-semibold text-slate-900">Escuela Pass</p>
+            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Gestión institucional</p>
           </Link>
           <nav className="flex items-center gap-2 text-xs font-medium">
             <button
@@ -72,19 +73,49 @@ export function AppShell() {
           </nav>
         </header>
         {mobileMenuOpen && (
-          <div id="mobile-main-menu" className="border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
-            <nav className="grid gap-2">
-              {navItems.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
+          <div className="lg:hidden">
+            <button
+              type="button"
+              className="fixed inset-0 z-30 bg-slate-950/40"
+              aria-label="Cerrar menú"
+              onClick={closeMobileMenu}
+            />
+            <aside
+              id="mobile-main-menu"
+              className="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-slate-800 bg-slate-950 text-slate-100 shadow-2xl"
+            >
+              <div className="flex items-start justify-between border-b border-slate-800 px-4 py-5">
+                <div>
+                  <Link to="/app" onClick={closeMobileMenu} className="block font-serif text-lg font-semibold text-white">
+                    Escuela Pass
+                  </Link>
+                  <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-500">
+                    Gestión institucional
+                  </p>
+                </div>
+                <button
+                  type="button"
                   onClick={closeMobileMenu}
-                  className="rounded border border-slate-200 px-3 py-2 text-sm text-brand-900"
+                  className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300"
                 >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
+                  Cerrar
+                </button>
+              </div>
+              <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/app'}
+                    className={navCls}
+                    onClick={closeMobileMenu}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </nav>
+              <div className="border-t border-slate-800 p-4 text-xs text-slate-500">Uso autorizado de la institución</div>
+            </aside>
           </div>
         )}
 
