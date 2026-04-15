@@ -7,14 +7,17 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GroupEntity } from '../../database/entities/group.entity';
-import { StudentEntity } from '../../database/entities/student.entity';
 import { SchoolNonInstructionalDayEntity } from '../../database/entities/school-non-instructional-day.entity';
+import { StudentEntity } from '../../database/entities/student.entity';
+import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { CreateNonInstructionalDayDto } from './dto/create-non-instructional-day.dto';
 
 export type NonInstructionalInfo = {
   nonInstructional: boolean;
   reasons: string[];
 };
+
+type JwtUserLike = { userId: string; role: UserRole };
 
 @Injectable()
 export class SchoolCalendarService {
@@ -24,10 +27,12 @@ export class SchoolCalendarService {
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
     @InjectRepository(StudentEntity)
-    private readonly studentsRepository: Repository<StudentEntity>
+    private readonly studentsRepository: Repository<StudentEntity>,
+    @InjectRepository(UserEntity)
+    private readonly usersRepository: Repository<UserEntity>
   ) {}
 
-  /** Días sin clases que aplican al grupo del estudiante (y globales), en un rango de fechas. */
+  /** Días sin clases que aplican al grupo del estudiante (y globales de su escuela), en un rango de fechas. */
   async listNonInstructionalForStudent(userId: string, from?: string, to?: string) {
     const student = await this.studentsRepository.findOne({ where: { userId } });
     if (!student) throw new ForbiddenException('Perfil de estudiante no encontrado');
@@ -75,18 +80,85 @@ export class SchoolCalendarService {
     };
   }
 
-  async create(dto: CreateNonInstructionalDayDto, createdByUserId: string) {
+  async listForStaff(jwtUser: JwtUserLike, from?: string, to?: string, groupId?: string) {
+    if (jwtUser.role === UserRole.DOCENTE) {
+      if (!groupId) {
+        throw new BadRequestException('Indique groupId para listar días sin clases');
+      }
+      await this.assertDocenteAssignedToGroup(jwtUser.userId, groupId);
+      return this.list(from, to, groupId, undefined);
+    }
+    if (jwtUser.role === UserRole.ADMINISTRATIVO) {
+      const u = await this.usersRepository.findOne({ where: { id: jwtUser.userId } });
+      const scope = u?.schoolId ?? null;
+      if (!scope) return [];
+      if (groupId) {
+        const g = await this.groupsRepository.findOne({ where: { id: groupId } });
+        if (!g || g.schoolId !== scope) {
+          throw new ForbiddenException('El grupo no pertenece a su escuela');
+        }
+        return this.list(from, to, groupId, undefined);
+      }
+      return this.list(from, to, undefined, scope);
+    }
+    return this.list(from, to, groupId, undefined);
+  }
+
+  async create(dto: CreateNonInstructionalDayDto, userId: string, role: UserRole) {
     const exceptionDate = dto.exceptionDate.slice(0, 10);
+
     if (dto.groupId) {
       const g = await this.groupsRepository.findOne({ where: { id: dto.groupId } });
       if (!g) throw new BadRequestException('Grupo no encontrado');
+      if (role === UserRole.DOCENTE) {
+        await this.assertDocenteAssignedToGroup(userId, dto.groupId);
+      } else if (role === UserRole.ADMINISTRATIVO) {
+        await this.assertAdministrativoSchool(userId, g.schoolId);
+      }
+      const row = this.daysRepository.create({
+        exceptionDate,
+        groupId: dto.groupId,
+        schoolId: g.schoolId,
+        reason: dto.reason?.trim() || null,
+        createdBy: userId
+      });
+      return this.saveRow(row);
     }
+
+    if (role === UserRole.DOCENTE) {
+      throw new ForbiddenException(
+        'Solo personal de secretaría puede marcar un día sin clases para toda la institución'
+      );
+    }
+
+    let schoolId: string | null = dto.schoolId ?? null;
+    if (role === UserRole.ADMINISTRATIVO) {
+      const u = await this.usersRepository.findOne({ where: { id: userId } });
+      if (!u?.schoolId) throw new BadRequestException('Su usuario no tiene escuela asignada');
+      schoolId = u.schoolId;
+    } else if (role === UserRole.ADMIN) {
+      if (!schoolId) {
+        const schools = await this.usersRepository.manager.query<{ id: string }[]>(
+          `SELECT id FROM schools ORDER BY name LIMIT 2`
+        );
+        if (schools.length === 1) schoolId = schools[0].id;
+      }
+      if (!schoolId) {
+        throw new BadRequestException('Indique la escuela (schoolId) para un día sin clases a nivel institución');
+      }
+    }
+
     const row = this.daysRepository.create({
       exceptionDate,
-      groupId: dto.groupId ?? null,
+      groupId: null,
+      schoolId,
       reason: dto.reason?.trim() || null,
-      createdBy: createdByUserId
+      createdBy: userId
     });
+    return this.saveRow(row);
+  }
+
+  private async saveRow(row: SchoolNonInstructionalDayEntity) {
     try {
       return await this.daysRepository.save(row);
     } catch (e: unknown) {
@@ -98,44 +170,66 @@ export class SchoolCalendarService {
     }
   }
 
-  async list(from?: string, to?: string, groupId?: string) {
-    const qb = this.daysRepository.createQueryBuilder('d').orderBy('d.exceptionDate', 'ASC').addOrderBy('d.groupId', 'ASC');
+  async remove(id: string, userId: string, role: UserRole) {
+    const row = await this.daysRepository.findOne({ where: { id } });
+    if (!row) throw new NotFoundException('Registro no encontrado');
+
+    if (role === UserRole.DOCENTE) {
+      if (!row.groupId) throw new ForbiddenException('No autorizado');
+      await this.assertDocenteAssignedToGroup(userId, row.groupId);
+    } else if (role === UserRole.ADMINISTRATIVO) {
+      if (row.groupId) {
+        const g = await this.groupsRepository.findOne({ where: { id: row.groupId } });
+        if (g) await this.assertAdministrativoSchool(userId, g.schoolId);
+      } else if (row.schoolId) {
+        await this.assertAdministrativoSchool(userId, row.schoolId);
+      } else {
+        throw new ForbiddenException('No autorizado');
+      }
+    }
+
+    await this.daysRepository.delete({ id });
+    return { deleted: true };
+  }
+
+  /**
+   * Lista días sin clases. Con `groupId`: globales de la escuela de ese grupo + los del grupo.
+   * Con `staffSchoolScope`: solo entradas de esa escuela (globales o grupos de la escuela).
+   */
+  async list(from?: string, to?: string, groupId?: string, staffSchoolScope?: string | null) {
+    const qb = this.daysRepository
+      .createQueryBuilder('d')
+      .orderBy('d.exceptionDate', 'ASC')
+      .addOrderBy('d.groupId', 'ASC');
 
     if (from) qb.andWhere('d.exceptionDate >= :from', { from: from.slice(0, 10) });
     if (to) qb.andWhere('d.exceptionDate <= :to', { to: to.slice(0, 10) });
+
     if (groupId) {
-      qb.andWhere('(d.groupId IS NULL OR d.groupId = :gid)', { gid: groupId });
+      const g = await this.groupsRepository.findOne({ where: { id: groupId } });
+      if (!g) return [];
+      qb.andWhere('(d.groupId = :gid OR (d.groupId IS NULL AND d.schoolId = :sid))', {
+        gid: groupId,
+        sid: g.schoolId
+      });
+    } else if (staffSchoolScope) {
+      qb.andWhere(
+        '(d.schoolId = :scope OR EXISTS (SELECT 1 FROM groups g WHERE g.id = d.groupId AND g.school_id = :scope))',
+        { scope: staffSchoolScope }
+      );
     }
 
     return qb.getMany();
   }
 
-  async remove(id: string) {
-    const res = await this.daysRepository.delete({ id });
-    if (!res.affected) throw new NotFoundException('Registro no encontrado');
-    return { deleted: true };
-  }
-
   /**
-   * Día sin clases para la fecha y el grupo del estudiante (o solo institución si groupId es null).
+   * Día sin clases para la fecha y el grupo del estudiante (globales de la escuela + del grupo).
    */
   async getNonInstructionalForDate(dateStr: string, groupId: string | null): Promise<NonInstructionalInfo> {
-    const date = dateStr.slice(0, 10);
-    const qb = this.daysRepository
-      .createQueryBuilder('d')
-      .where('d.exceptionDate = :date', { date });
-
-    // No pasar null como :gid: en Postgres el tipo del parámetro queda indeterminado ("$2").
     if (groupId === null) {
-      qb.andWhere('d.groupId IS NULL');
-    } else {
-      qb.andWhere('(d.groupId IS NULL OR d.groupId = :gid)', { gid: groupId });
+      return { nonInstructional: false, reasons: [] };
     }
-
-    const rows = await qb.getMany();
-
-    const reasons = rows.map((r) => r.reason).filter((x): x is string => !!x?.trim());
-    return { nonInstructional: rows.length > 0, reasons };
+    return this.getNonInstructionalForGroupDate(dateStr, groupId);
   }
 
   assertInstructionalDay(info: NonInstructionalInfo): void {
@@ -146,7 +240,7 @@ export class SchoolCalendarService {
     );
   }
 
-  /** Solo filas de alcance global (toda la institución). */
+  /** Cualquier suspensión institucional global en la fecha (para tableros multi-escuela). */
   async isGloballyNonInstructional(dateStr: string): Promise<boolean> {
     const date = dateStr.slice(0, 10);
     const n = await this.daysRepository
@@ -158,13 +252,45 @@ export class SchoolCalendarService {
   }
 
   async getNonInstructionalForGroupDate(dateStr: string, groupId: string): Promise<NonInstructionalInfo> {
+    const group = await this.groupsRepository.findOne({ where: { id: groupId } });
+    if (!group) throw new NotFoundException('Grupo no encontrado');
     const date = dateStr.slice(0, 10);
     const rows = await this.daysRepository
       .createQueryBuilder('d')
       .where('d.exceptionDate = :date', { date })
-      .andWhere('(d.groupId IS NULL OR d.groupId = :gid)', { gid: groupId })
+      .andWhere('(d.groupId = :gid OR (d.groupId IS NULL AND d.schoolId = :sid))', {
+        gid: groupId,
+        sid: group.schoolId
+      })
       .getMany();
     const reasons = rows.map((r) => r.reason).filter((x): x is string => !!x?.trim());
     return { nonInstructional: rows.length > 0, reasons };
+  }
+
+  private async assertDocenteAssignedToGroup(userId: string, groupId: string): Promise<void> {
+    const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1 FROM teachers t
+        INNER JOIN teacher_groups tg ON tg.teacher_id = t.id AND tg.group_id = $2
+        WHERE t.user_id = $1
+      ) AS ok`,
+      [userId, groupId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No tiene asignación docente en este grupo');
+    }
+  }
+
+  private async assertAdministrativoSchool(userId: string, schoolId: string): Promise<void> {
+    const rows = await this.usersRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1 FROM users u
+        WHERE u.id = $1 AND u.role = 'ADMINISTRATIVO' AND u.school_id = $2
+      ) AS ok`,
+      [userId, schoolId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No tiene permisos sobre esta escuela');
+    }
   }
 }

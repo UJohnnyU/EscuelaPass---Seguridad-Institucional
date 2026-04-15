@@ -46,24 +46,28 @@ export class SchoolCalendarController {
   }
 
   @Get('non-instructional-days')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   list(
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
-    @Query('groupId') groupId: string | undefined
+    @Query('groupId') groupId: string | undefined,
+    @Req() req: Request & { user: JwtUser }
   ) {
-    return this.schoolCalendarService.list(from, to, groupId);
+    return this.schoolCalendarService.listForStaff(req.user, from, to, groupId);
   }
 
   @Post('non-instructional-days')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   create(@Body() dto: CreateNonInstructionalDayDto, @Req() req: Request & { user: JwtUser }) {
-    return this.schoolCalendarService.create(dto, req.user.userId);
+    return this.schoolCalendarService.create(dto, req.user.userId, req.user.role);
   }
 
   @Delete('non-instructional-days/:id')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schoolCalendarService.remove(id);
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  remove(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolCalendarService.remove(id, req.user.userId, req.user.role);
   }
 }

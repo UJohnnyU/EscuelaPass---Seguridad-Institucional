@@ -369,14 +369,16 @@ CREATE TABLE IF NOT EXISTS school_non_instructional_days (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     exception_date DATE NOT NULL,
     group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
     reason TEXT,
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_non_instr_global_has_school CHECK (group_id IS NOT NULL OR school_id IS NOT NULL)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_school_non_instr_global
-ON school_non_instructional_days (exception_date)
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_school_non_instr_school_date
+ON school_non_instructional_days (school_id, exception_date)
 WHERE group_id IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_school_non_instr_group

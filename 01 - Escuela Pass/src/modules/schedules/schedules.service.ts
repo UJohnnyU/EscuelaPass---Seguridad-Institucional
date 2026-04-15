@@ -12,7 +12,7 @@ import { SubjectEntity } from '../../database/entities/subject.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
-import { UserRole } from '../../database/entities/user.entity';
+import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { CreateScheduleSlotDto } from './dto/create-schedule-slot.dto';
 import { UpdateScheduleSlotDto } from './dto/update-schedule-slot.dto';
 
@@ -30,7 +30,9 @@ export class SchedulesService {
     @InjectRepository(ParentEntity)
     private readonly parentsRepository: Repository<ParentEntity>,
     @InjectRepository(TeacherEntity)
-    private readonly teachersRepository: Repository<TeacherEntity>
+    private readonly teachersRepository: Repository<TeacherEntity>,
+    @InjectRepository(UserEntity)
+    private readonly usersRepository: Repository<UserEntity>
   ) {}
 
   async create(dto: CreateScheduleSlotDto) {
@@ -179,6 +181,19 @@ export class SchedulesService {
     if (role === UserRole.ADMIN) {
       return this.groupsRepository
         .createQueryBuilder('g')
+        .orderBy('g.name', 'ASC')
+        .select(['g.id', 'g.name', 'g.grade', 'g.schoolYear'])
+        .getMany();
+    }
+
+    if (role === UserRole.ADMINISTRATIVO) {
+      const u = await this.usersRepository.findOne({ where: { id: userId } });
+      if (!u?.schoolId) {
+        throw new ForbiddenException('Su usuario no tiene escuela asignada');
+      }
+      return this.groupsRepository
+        .createQueryBuilder('g')
+        .where('g.school_id = :sid', { sid: u.schoolId })
         .orderBy('g.name', 'ASC')
         .select(['g.id', 'g.name', 'g.grade', 'g.schoolYear'])
         .getMany();

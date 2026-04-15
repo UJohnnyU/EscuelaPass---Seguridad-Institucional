@@ -24,7 +24,7 @@ type SlotRow = {
   room: string | null;
 };
 type SubjectRow = { id: string; name: string };
-type CalEntity = { id: string; exceptionDate: string; reason: string | null };
+type CalEntity = { id: string; exceptionDate: string; reason: string | null; groupId?: string | null };
 
 function weekRangeISO(offsetWeeks: number): { from: string; to: string; label: string } {
   const now = new Date();
@@ -63,6 +63,13 @@ export function StaffScheduleBrowsePage() {
   const [err, setErr] = useState<string | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [instDate, setInstDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [instReason, setInstReason] = useState('');
+  const [instSaving, setInstSaving] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const canMarkInstitutionWide =
+    user?.role === 'ADMINISTRATIVO' || (user?.role === 'ADMIN' && (!platformAdmin || !!schoolFilter.trim()));
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -173,6 +180,45 @@ export function StaffScheduleBrowsePage() {
       return x >= from && x <= to;
     });
   }, [calendarDays, from, to]);
+
+  async function addInstitutionalDayOff() {
+    if (!canMarkInstitutionWide) return;
+    if (user?.role === 'ADMIN' && platformAdmin && !schoolFilter.trim()) {
+      setErr('Seleccione una institución para marcar un día sin clases global.');
+      return;
+    }
+    setInstSaving(true);
+    setErr(null);
+    try {
+      const body: Record<string, unknown> = {
+        exceptionDate: instDate,
+        reason: instReason.trim() || undefined
+      };
+      if (user?.role === 'ADMIN' && schoolFilter.trim()) {
+        body.schoolId = schoolFilter.trim();
+      }
+      await api.post('/api/v1/calendar/non-instructional-days', body);
+      setInstReason('');
+      await loadSchedule();
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo registrar el día sin clases.'));
+    } finally {
+      setInstSaving(false);
+    }
+  }
+
+  async function removeCalendarEntry(id: string) {
+    setRemovingId(id);
+    setErr(null);
+    try {
+      await api.delete(`/api/v1/calendar/non-instructional-days/${id}`);
+      await loadSchedule();
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo eliminar el registro.'));
+    } finally {
+      setRemovingId(null);
+    }
+  }
 
   async function downloadPdf() {
     if (!groupId) return;
@@ -348,6 +394,49 @@ export function StaffScheduleBrowsePage() {
         </div>
       )}
 
+      {canMarkInstitutionWide ? (
+        <section className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Suspender clases en toda la institución</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Ese día no se toma asistencia escolar y no cuenta en los controles del grupo. Afecta a todos los grupos de
+            su escuela.
+          </p>
+          {user?.role === 'ADMIN' && platformAdmin && !schoolFilter.trim() ? (
+            <p className="mt-3 text-sm text-amber-900">Seleccione una institución en el filtro superior para continuar.</p>
+          ) : (
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-sm text-slate-700">
+                Fecha
+                <input
+                  type="date"
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  value={instDate}
+                  onChange={(e) => setInstDate(e.target.value)}
+                />
+              </label>
+              <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700">
+                Motivo (opcional)
+                <input
+                  type="text"
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  value={instReason}
+                  onChange={(e) => setInstReason(e.target.value)}
+                  placeholder="Ej. Junta de académicos"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={instSaving}
+                onClick={() => void addInstitutionalDayOff()}
+                className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              >
+                {instSaving ? 'Guardando…' : 'Marcar día sin clases'}
+              </button>
+            </div>
+          )}
+        </section>
+      ) : null}
+
       <section>
         <h2 className="font-serif text-lg font-semibold text-slate-900">Calendario: días sin clases (esta semana)</h2>
         <p className="mt-1 text-xs text-slate-500">Incluye suspensiones globales o del grupo seleccionado.</p>
@@ -358,16 +447,31 @@ export function StaffScheduleBrowsePage() {
             {weekCalendarDays.map((d) => (
               <li
                 key={d.id}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
+                className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
               >
-                <span className="font-medium text-slate-900">
-                  {new Date(String(d.exceptionDate).slice(0, 10) + 'T12:00:00').toLocaleDateString('es', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long'
-                  })}
-                </span>
-                {d.reason ? <span className="mt-1 block text-slate-600">{d.reason}</span> : null}
+                <div>
+                  <span className="font-medium text-slate-900">
+                    {new Date(String(d.exceptionDate).slice(0, 10) + 'T12:00:00').toLocaleDateString('es', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long'
+                    })}
+                  </span>
+                  <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                    {d.groupId ? 'Solo este grupo' : 'Toda la institución'}
+                  </span>
+                  {d.reason ? <span className="mt-1 block text-slate-600">{d.reason}</span> : null}
+                </div>
+                {(user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO') && (
+                  <button
+                    type="button"
+                    disabled={removingId === d.id}
+                    onClick={() => void removeCalendarEntry(d.id)}
+                    className="shrink-0 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                  >
+                    {removingId === d.id ? '…' : 'Quitar'}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

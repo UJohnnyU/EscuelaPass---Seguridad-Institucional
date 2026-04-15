@@ -8,9 +8,13 @@ export class SchoolNonInstructionalDayEntity {
   @Column({ name: 'exception_date', type: 'date' })
   exceptionDate!: string;
 
-  /** Null = toda la institución; si no, solo ese grupo. */
+  /** Null = toda la escuela (`schoolId`); si no, solo ese grupo. */
   @Column({ name: 'group_id', type: 'uuid', nullable: true })
   groupId!: string | null;
+
+  /** Si `groupId` es null: escuela a la que aplica el día sin clases. */
+  @Column({ name: 'school_id', type: 'uuid', nullable: true })
+  schoolId!: string | null;
 
   @Column({ type: 'text', nullable: true })
   reason!: string | null;

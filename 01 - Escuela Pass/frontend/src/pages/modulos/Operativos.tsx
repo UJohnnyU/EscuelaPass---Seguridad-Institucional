@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -6,6 +6,98 @@ import { Panel, ValueView } from '@/components/ValueView';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isStaff } from '@/lib/roles';
 import axios from 'axios';
+
+type TeacherGroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
+type TeacherAttendanceStudentRow = { studentId: string; matricula: string; fullName: string };
+type TeacherAttendanceRecordRow = {
+  id: string;
+  studentId: string;
+  status: 'PRESENTE' | 'AUSENTE' | 'RETARDO';
+  isJustified: boolean | null;
+  notes: string | null;
+  attendanceDate: string;
+};
+
+type DayAttendanceResponse = {
+  view: 'day';
+  date: string;
+  canEdit: boolean;
+  nonInstructionalDay: boolean;
+  reasons?: string[];
+  records: TeacherAttendanceRecordRow[];
+  students: TeacherAttendanceStudentRow[];
+};
+
+type RangeAttendanceResponse = {
+  view: 'range';
+  dateFrom: string;
+  dateTo: string;
+  dates: string[];
+  canEdit: false;
+  records: TeacherAttendanceRecordRow[];
+  students: TeacherAttendanceStudentRow[];
+};
+
+function todayISODateLocal(): string {
+  const n = new Date();
+  const y = n.getFullYear();
+  const m = String(n.getMonth() + 1).padStart(2, '0');
+  const d = String(n.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function computeAttendanceQuery(
+  period: 'day' | 'week' | 'month',
+  refDate: string
+): { kind: 'day'; date: string } | { kind: 'range'; from: string; to: string } {
+  if (period === 'day') return { kind: 'day', date: refDate };
+  const [y, m, d] = refDate.split('-').map((x) => Number.parseInt(x, 10));
+  const dt = new Date(y, m - 1, d);
+  if (period === 'week') {
+    const day = dt.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const mon = new Date(dt);
+    mon.setDate(mon.getDate() + diff);
+    const sun = new Date(mon);
+    sun.setDate(sun.getDate() + 6);
+    return { kind: 'range', from: toISODate(mon), to: toISODate(sun) };
+  }
+  const first = new Date(dt.getFullYear(), dt.getMonth(), 1);
+  const last = new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
+  return { kind: 'range', from: toISODate(first), to: toISODate(last) };
+}
+
+function formatShortISODate(iso: string): string {
+  const p = iso.slice(0, 10).split('-');
+  if (p.length < 3) return iso;
+  return `${p[2]}/${p[1]}`;
+}
+
+function attendanceRecordAbbrev(r: TeacherAttendanceRecordRow | undefined): string {
+  if (!r) return '—';
+  if (r.status === 'PRESENTE') return 'P';
+  if (r.status === 'RETARDO') return 'R';
+  if (r.status === 'AUSENTE') return r.isJustified ? 'Ae' : 'Af';
+  return '—';
+}
+
+function shiftISODateLocal(iso: string, deltaDays: number): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map((x) => Number.parseInt(x, 10));
+  const dt = new Date(y, m - 1, d + deltaDays);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+type DocenteCalRow = { id: string; exceptionDate: string; reason: string | null; groupId: string | null };
 
 export function ModulosHubPage() {
   const { user } = useAuth();
@@ -26,7 +118,7 @@ export function ModulosHubPage() {
       to: '/app/modulos/academico',
       title: 'Académico',
       desc: 'Asistencia y calificaciones vinculadas a su cuenta.',
-      show: hasRole(user, 'ALUMNO', 'PADRE', 'DOCENTE')
+      show: hasRole(user, 'ALUMNO', 'PADRE', 'DOCENTE', 'ADMINISTRATIVO')
     },
     {
       to: '/app/modulos/calificaciones-docente',
@@ -50,7 +142,7 @@ export function ModulosHubPage() {
       to: '/app/modulos/administracion',
       title: 'Administración e informes',
       desc: 'Tablero, auditoría, informes y calendario administrativo.',
-      show: isAdmin(user) || hasRole(user, 'DOCENTE')
+      show: isAdmin(user) || hasRole(user, 'DOCENTE', 'ADMINISTRATIVO')
     },
     {
       to: '/app/modulos/herramientas',
@@ -230,16 +322,6 @@ export function AcademicoPage() {
     groupId: string | null;
     days: Array<{ id: string; exceptionDate: string; reason: string | null }>;
   };
-  type TeacherGroup = { id: string; name: string; grade: string | null; schoolYear: string };
-  type TeacherAttendanceStudent = { studentId: string; matricula: string; fullName: string };
-  type TeacherAttendanceRecord = {
-    id: string;
-    studentId: string;
-    status: 'PRESENTE' | 'AUSENTE' | 'RETARDO';
-    isJustified: boolean | null;
-    notes: string | null;
-    attendanceDate: string;
-  };
   const [att, setAtt] = useState<unknown>(null);
   const [grades, setGrades] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -251,21 +333,25 @@ export function AcademicoPage() {
   const [attentionNotes, setAttentionNotes] = useState<unknown>(null);
   const [myNotifications, setMyNotifications] = useState<unknown>(null);
   const [meetings, setMeetings] = useState<unknown>(null);
-  const [teacherGroups, setTeacherGroups] = useState<TeacherGroup[]>([]);
+  const [teacherGroups, setTeacherGroups] = useState<TeacherGroupRow[]>([]);
   const [selectedTeacherGroupId, setSelectedTeacherGroupId] = useState<string>('');
-  const [teacherAttendance, setTeacherAttendance] = useState<{
-    date: string;
-    canEdit: boolean;
-    nonInstructionalDay: boolean;
-    reasons?: string[];
-    records: TeacherAttendanceRecord[];
-    students: TeacherAttendanceStudent[];
-  } | null>(null);
+  const [attendancePeriod, setAttendancePeriod] = useState<'day' | 'week' | 'month'>('day');
+  const [attendanceRefDate, setAttendanceRefDate] = useState(() => todayISODateLocal());
+  const [attendanceStudentFilter, setAttendanceStudentFilter] = useState('');
+  const [teacherAttendance, setTeacherAttendance] = useState<DayAttendanceResponse | RangeAttendanceResponse | null>(
+    null
+  );
   const [savingAttendanceStudentId, setSavingAttendanceStudentId] = useState<string | null>(null);
+  const [docenteGroupCal, setDocenteGroupCal] = useState<DocenteCalRow[]>([]);
+  const [docenteSuspendDate, setDocenteSuspendDate] = useState(() => todayISODateLocal());
+  const [docenteSuspendReason, setDocenteSuspendReason] = useState('');
+  const [docenteCalSaving, setDocenteCalSaving] = useState(false);
+  const [docenteCalRemoving, setDocenteCalRemoving] = useState<string | null>(null);
   const { user, ready } = useAuth();
   const padre = user?.role === 'PADRE';
   const alumno = user?.role === 'ALUMNO';
   const docente = user?.role === 'DOCENTE';
+  const verAsistenciaGrupos = docente || user?.role === 'ADMINISTRATIVO';
   const { from, to } = useMemo(() => weekRangeISO(), []);
   const studentGrades = Array.isArray(grades) ? (grades as Array<{ period?: string | null }>) : [];
   const periods = Array.from(
@@ -339,27 +425,15 @@ export function AcademicoPage() {
             setMeetings(null);
           }
         }
-        if (docente) {
-          const groupsRes = await api.get<TeacherGroup[]>('/api/v1/schedules/me/teacher/groups');
+        if (verAsistenciaGrupos) {
+          const groupsRes = await api.get<TeacherGroupRow[]>('/api/v1/schedules/me/teacher/groups');
           const groups = groupsRes.data ?? [];
           const groupId = groups[0]?.id ?? '';
           if (!cancelled) {
             setTeacherGroups(groups);
             setSelectedTeacherGroupId(groupId);
           }
-          if (groupId) {
-            const attRes = await api.get<{
-              date: string;
-              canEdit: boolean;
-              nonInstructionalDay: boolean;
-              reasons?: string[];
-              records: TeacherAttendanceRecord[];
-              students: TeacherAttendanceStudent[];
-            }>(`/api/v1/attendance/groups/${groupId}`);
-            if (!cancelled) {
-              setTeacherAttendance(attRes.data);
-            }
-          } else if (!cancelled) {
+          if (!groupId && !cancelled) {
             setTeacherAttendance(null);
           }
         }
@@ -370,7 +444,66 @@ export function AcademicoPage() {
     return () => {
       cancelled = true;
     };
-  }, [padre, alumno, docente, from, to]);
+  }, [padre, alumno, verAsistenciaGrupos, from, to]);
+
+  useEffect(() => {
+    setAttendanceStudentFilter('');
+  }, [selectedTeacherGroupId]);
+
+  const loadTeacherAttendance = useCallback(
+    async (groupId: string) => {
+      if (!groupId) {
+        setTeacherAttendance(null);
+        return;
+      }
+      try {
+        setErr(null);
+        const q = computeAttendanceQuery(attendancePeriod, attendanceRefDate);
+        const studentQ =
+          attendanceStudentFilter.length > 0
+            ? `&studentId=${encodeURIComponent(attendanceStudentFilter)}`
+            : '';
+        const path =
+          q.kind === 'day'
+            ? `/api/v1/attendance/groups/${groupId}?date=${encodeURIComponent(q.date)}${studentQ}`
+            : `/api/v1/attendance/groups/${groupId}?from=${encodeURIComponent(q.from)}&to=${encodeURIComponent(q.to)}${studentQ}`;
+        const attRes = await api.get<DayAttendanceResponse | RangeAttendanceResponse>(path);
+        setTeacherAttendance(attRes.data);
+      } catch (e) {
+        setErr(getUserFacingMessage(e));
+      }
+    },
+    [attendancePeriod, attendanceRefDate, attendanceStudentFilter]
+  );
+
+  useEffect(() => {
+    if (!verAsistenciaGrupos || !selectedTeacherGroupId) {
+      if (!selectedTeacherGroupId) setTeacherAttendance(null);
+      return;
+    }
+    void loadTeacherAttendance(selectedTeacherGroupId);
+  }, [verAsistenciaGrupos, selectedTeacherGroupId, loadTeacherAttendance]);
+
+  const loadDocenteGroupCal = useCallback(async () => {
+    if (!docente || !selectedTeacherGroupId) {
+      setDocenteGroupCal([]);
+      return;
+    }
+    try {
+      const from = shiftISODateLocal(todayISODateLocal(), -7);
+      const to = shiftISODateLocal(todayISODateLocal(), 120);
+      const { data } = await api.get<DocenteCalRow[]>(
+        `/api/v1/calendar/non-instructional-days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupId=${encodeURIComponent(selectedTeacherGroupId)}`
+      );
+      setDocenteGroupCal(Array.isArray(data) ? data : []);
+    } catch {
+      setDocenteGroupCal([]);
+    }
+  }, [docente, selectedTeacherGroupId]);
+
+  useEffect(() => {
+    void loadDocenteGroupCal();
+  }, [loadDocenteGroupCal]);
 
   const downloadBulletin = async (period?: string) => {
     try {
@@ -415,31 +548,10 @@ export function AcademicoPage() {
     }
   };
 
-  const loadTeacherAttendance = async (groupId: string) => {
-    if (!groupId) {
-      setTeacherAttendance(null);
-      return;
-    }
-    try {
-      setErr(null);
-      const attRes = await api.get<{
-        date: string;
-        canEdit: boolean;
-        nonInstructionalDay: boolean;
-        reasons?: string[];
-        records: TeacherAttendanceRecord[];
-        students: TeacherAttendanceStudent[];
-      }>(`/api/v1/attendance/groups/${groupId}`);
-      setTeacherAttendance(attRes.data);
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    }
-  };
-
   if (!ready) {
     return <p className="text-slate-600">Cargando…</p>;
   }
-  if (user && !padre && !alumno && !docente) {
+  if (user && !padre && !alumno && !verAsistenciaGrupos) {
     return <Navigate to="/app/modulos" replace />;
   }
 
@@ -452,16 +564,52 @@ export function AcademicoPage() {
     try {
       setErr(null);
       setSavingAttendanceStudentId(studentId);
-      await api.post('/api/v1/attendance/register', {
+      const body: Record<string, unknown> = {
         studentId,
         status,
         isJustified: status === 'AUSENTE' ? Boolean(isJustified) : undefined
-      });
+      };
+      if (teacherAttendance?.view === 'day') {
+        body.attendanceDate = teacherAttendance.date;
+      }
+      await api.post('/api/v1/attendance/register', body);
       await loadTeacherAttendance(selectedTeacherGroupId);
     } catch (e) {
       setErr(getUserFacingMessage(e));
     } finally {
       setSavingAttendanceStudentId(null);
+    }
+  };
+
+  const addDocenteGroupDayOff = async () => {
+    if (!selectedTeacherGroupId || !docente) return;
+    setDocenteCalSaving(true);
+    setErr(null);
+    try {
+      await api.post('/api/v1/calendar/non-instructional-days', {
+        exceptionDate: docenteSuspendDate,
+        groupId: selectedTeacherGroupId,
+        reason: docenteSuspendReason.trim() || undefined
+      });
+      setDocenteSuspendReason('');
+      await loadDocenteGroupCal();
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setDocenteCalSaving(false);
+    }
+  };
+
+  const removeDocenteCal = async (id: string) => {
+    setDocenteCalRemoving(id);
+    setErr(null);
+    try {
+      await api.delete(`/api/v1/calendar/non-instructional-days/${id}`);
+      await loadDocenteGroupCal();
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setDocenteCalRemoving(null);
     }
   };
 
@@ -474,7 +622,11 @@ export function AcademicoPage() {
             ? 'Asistencia y calificaciones de los estudiantes vinculados a su cuenta.'
             : alumno
               ? 'Revise sus calificaciones y descargue boletines del período actual o anteriores.'
-            : 'Esta vista está orientada a familias. Docentes y administración usan informes y exportaciones.'}
+              : verAsistenciaGrupos
+                ? docente
+                  ? 'Registre la asistencia del día en los grupos donde tiene asignación.'
+                  : 'Consulte la asistencia de todos los grupos y alumnos de su institución.'
+                : 'Esta vista está orientada a familias. Docentes y administración usan informes y exportaciones.'}
         </p>
       </div>
       {err && (
@@ -645,121 +797,293 @@ export function AcademicoPage() {
             </div>
           </Panel>
         </>
-      ) : docente ? (
+      ) : verAsistenciaGrupos ? (
         <>
-          <Panel title="Asistencia de sus estudiantes (hoy)">
+          <Panel
+            title="Asistencia por grupo"
+            description="Elija vista por día (registro), semana o mes (consulta). Puede filtrar por un estudiante."
+          >
             {teacherGroups.length === 0 ? (
-              <p className="text-sm text-slate-600">No tiene grupos asignados para registrar asistencia.</p>
+              <p className="text-sm text-slate-600">
+                {docente
+                  ? 'No tiene grupos asignados para registrar asistencia.'
+                  : 'No hay grupos registrados en su institución.'}
+              </p>
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="text-sm text-slate-700">Grupo</label>
-                  <select
-                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                    value={selectedTeacherGroupId}
-                    onChange={(e) => {
-                      const gid = e.target.value;
-                      setSelectedTeacherGroupId(gid);
-                      void loadTeacherAttendance(gid);
-                    }}
-                  >
-                    {teacherGroups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name} · {g.grade ?? '—'} · {g.schoolYear}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col gap-1 text-sm text-slate-700">
+                    Grupo
+                    <select
+                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                      value={selectedTeacherGroupId}
+                      onChange={(e) => setSelectedTeacherGroupId(e.target.value)}
+                    >
+                      {teacherGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name} · {g.grade ?? '—'} · {g.schoolYear}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm text-slate-700">
+                    Vista
+                    <select
+                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                      value={attendancePeriod}
+                      onChange={(e) => setAttendancePeriod(e.target.value as 'day' | 'week' | 'month')}
+                    >
+                      <option value="day">Día</option>
+                      <option value="week">Semana</option>
+                      <option value="month">Mes</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm text-slate-700">
+                    Fecha de referencia
+                    <input
+                      type="date"
+                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                      value={attendanceRefDate}
+                      onChange={(e) => setAttendanceRefDate(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex min-w-[12rem] flex-col gap-1 text-sm text-slate-700">
+                    Estudiante
+                    <select
+                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                      value={attendanceStudentFilter}
+                      onChange={(e) => setAttendanceStudentFilter(e.target.value)}
+                    >
+                      <option value="">Todos</option>
+                      {(teacherAttendance?.students ?? []).map((s) => (
+                        <option key={s.studentId} value={s.studentId}>
+                          {s.fullName} ({s.matricula})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
-                {teacherAttendance?.nonInstructionalDay ? (
+                {teacherAttendance?.view === 'day' && teacherAttendance.nonInstructionalDay ? (
                   <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                     Día no lectivo
                     {teacherAttendance.reasons?.length ? `: ${teacherAttendance.reasons.join('; ')}` : '.'}
                   </div>
                 ) : null}
                 {!teacherAttendance ? (
-                  <p className="text-sm text-slate-600">Seleccione un grupo para continuar.</p>
+                  <p className="text-sm text-slate-600">Cargando asistencia…</p>
+                ) : teacherAttendance.view === 'range' ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-600">
+                      Del {formatShortISODate(teacherAttendance.dateFrom)} al {formatShortISODate(teacherAttendance.dateTo)}{' '}
+                      ({teacherAttendance.dates.length} días). Vista de solo lectura; use la vista <strong>Día</strong> para
+                      registrar o corregir.
+                    </p>
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-full border-collapse text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="sticky left-0 z-10 bg-slate-50 px-2 py-2 font-semibold text-slate-700">
+                              Estudiante
+                            </th>
+                            {teacherAttendance.dates.map((d) => (
+                              <th key={d} className="whitespace-nowrap px-1.5 py-2 text-center text-xs font-semibold text-slate-600">
+                                {formatShortISODate(d)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teacherAttendance.students.map((student) => {
+                            const byDate = new Map<string, TeacherAttendanceRecordRow>();
+                            for (const r of teacherAttendance.records) {
+                              if (r.studentId === student.studentId) {
+                                byDate.set(r.attendanceDate.slice(0, 10), r);
+                              }
+                            }
+                            return (
+                              <tr key={student.studentId} className="border-b border-slate-100">
+                                <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-slate-900">{student.fullName}</td>
+                                {teacherAttendance.dates.map((d) => (
+                                  <td key={d} className="px-1 py-1.5 text-center text-xs text-slate-800">
+                                    {attendanceRecordAbbrev(byDate.get(d))}
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Leyenda: P presente · R retardo · Af ausente falta · Ae ausente con excusa · — sin registro.
+                    </p>
+                  </div>
                 ) : (
-                  <div className="overflow-x-auto rounded border border-slate-200">
-                    <table className="min-w-full border-collapse text-left text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="px-3 py-2 font-semibold text-slate-700">Estudiante</th>
-                          <th className="px-3 py-2 font-semibold text-slate-700">Matrícula</th>
-                          <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
-                          <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {teacherAttendance.students.map((student) => {
-                          const current = teacherAttendance.records.find((r) => r.studentId === student.studentId);
-                          const currentLabel =
-                            !current
-                              ? 'Sin registrar'
-                              : current.status === 'AUSENTE'
-                                ? current.isJustified
-                                  ? 'Ausente con excusa'
-                                  : 'Ausente (falta)'
-                                : current.status === 'PRESENTE'
-                                  ? 'Presente'
-                                  : 'Retardo';
-                          const disabled =
-                            !teacherAttendance.canEdit ||
-                            teacherAttendance.nonInstructionalDay ||
-                            savingAttendanceStudentId === student.studentId;
-                          return (
-                            <tr key={student.studentId} className="border-b border-slate-100">
-                              <td className="px-3 py-2 text-slate-900">{student.fullName}</td>
-                              <td className="px-3 py-2 text-slate-700">{student.matricula}</td>
-                              <td className="px-3 py-2 text-slate-700">{currentLabel}</td>
-                              <td className="px-3 py-2">
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => void upsertAttendance(student.studentId, 'PRESENTE')}
-                                    className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50"
-                                  >
-                                    Presente
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => void upsertAttendance(student.studentId, 'RETARDO')}
-                                    className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800 disabled:opacity-50"
-                                  >
-                                    Retardo
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', false)}
-                                    className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50"
-                                  >
-                                    Ausente (falta)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', true)}
-                                    className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800 disabled:opacity-50"
-                                  >
-                                    Ausente (excusa)
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className="space-y-2">
+                    <p className="text-sm text-slate-600">
+                      Fecha: <strong>{teacherAttendance.date}</strong>
+                    </p>
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-full border-collapse text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-3 py-2 font-semibold text-slate-700">Estudiante</th>
+                            <th className="px-3 py-2 font-semibold text-slate-700">Matrícula</th>
+                            <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
+                            <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teacherAttendance.students.map((student) => {
+                            const current = teacherAttendance.records.find((r) => r.studentId === student.studentId);
+                            const currentLabel =
+                              !current
+                                ? 'Sin registrar'
+                                : current.status === 'AUSENTE'
+                                  ? current.isJustified
+                                    ? 'Ausente con excusa'
+                                    : 'Ausente (falta)'
+                                  : current.status === 'PRESENTE'
+                                    ? 'Presente'
+                                    : 'Retardo';
+                            const disabled =
+                              !teacherAttendance.canEdit ||
+                              teacherAttendance.nonInstructionalDay ||
+                              savingAttendanceStudentId === student.studentId;
+                            return (
+                              <tr key={student.studentId} className="border-b border-slate-100">
+                                <td className="px-3 py-2 text-slate-900">{student.fullName}</td>
+                                <td className="px-3 py-2 text-slate-700">{student.matricula}</td>
+                                <td className="px-3 py-2 text-slate-700">{currentLabel}</td>
+                                <td className="px-3 py-2">
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={disabled}
+                                      onClick={() => void upsertAttendance(student.studentId, 'PRESENTE')}
+                                      className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50"
+                                    >
+                                      Presente
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={disabled}
+                                      onClick={() => void upsertAttendance(student.studentId, 'RETARDO')}
+                                      className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800 disabled:opacity-50"
+                                    >
+                                      Retardo
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={disabled}
+                                      onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', false)}
+                                      className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50"
+                                    >
+                                      Ausente (falta)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={disabled}
+                                      onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', true)}
+                                      className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800 disabled:opacity-50"
+                                    >
+                                      Ausente (excusa)
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {docente ? (
+                      <p className="text-xs text-slate-500">
+                        El docente solo puede modificar asistencias del día actual (vista Día).
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        En vista Día puede registrar o corregir según permisos; use Semana o Mes para revisar el historial.
+                      </p>
+                    )}
                   </div>
                 )}
-                <p className="text-xs text-slate-500">
-                  El docente solo puede modificar asistencias del día actual.
-                </p>
               </div>
             )}
           </Panel>
+          {docente && selectedTeacherGroupId ? (
+            <Panel
+              title="Día sin clases (solo este grupo)"
+              description="Ese día no se toma asistencia para este grupo y no cuenta en los controles. Para toda la escuela debe hacerlo secretaría."
+            >
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-sm text-slate-700">
+                  Fecha
+                  <input
+                    type="date"
+                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    value={docenteSuspendDate}
+                    onChange={(e) => setDocenteSuspendDate(e.target.value)}
+                  />
+                </label>
+                <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700">
+                  Motivo (opcional)
+                  <input
+                    type="text"
+                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    value={docenteSuspendReason}
+                    onChange={(e) => setDocenteSuspendReason(e.target.value)}
+                    placeholder="Ej. Evento deportivo"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={docenteCalSaving}
+                  onClick={() => void addDocenteGroupDayOff()}
+                  className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                >
+                  {docenteCalSaving ? 'Guardando…' : 'Marcar día'}
+                </button>
+              </div>
+              <div className="mt-6 space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vigentes (referencia próximos meses)</p>
+                {docenteGroupCal.length === 0 ? (
+                  <p className="text-sm text-slate-600">No hay días marcados en el rango consultado.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {docenteGroupCal.map((row) => {
+                      const isGroup = row.groupId === selectedTeacherGroupId;
+                      const label = !row.groupId ? 'Institución (toda la escuela)' : isGroup ? 'Este grupo' : 'Otro alcance';
+                      return (
+                        <li
+                          key={row.id}
+                          className="flex flex-wrap items-start justify-between gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm"
+                        >
+                          <div>
+                            <span className="font-medium text-slate-900">
+                              {String(row.exceptionDate).slice(0, 10)}
+                            </span>
+                            <span className="ml-2 text-xs text-slate-600">{label}</span>
+                            {row.reason ? <span className="mt-0.5 block text-slate-600">{row.reason}</span> : null}
+                          </div>
+                          {isGroup ? (
+                            <button
+                              type="button"
+                              disabled={docenteCalRemoving === row.id}
+                              onClick={() => void removeDocenteCal(row.id)}
+                              className="text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                            >
+                              {docenteCalRemoving === row.id ? '…' : 'Quitar'}
+                            </button>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </Panel>
+          ) : null}
         </>
       ) : (
         <Panel title="Información">
@@ -846,6 +1170,7 @@ export function AdministracionPage() {
   const { user } = useAuth();
   const admin = isAdmin(user);
   const docente = user?.role === 'DOCENTE';
+  const administrativo = user?.role === 'ADMINISTRATIVO';
 
   useEffect(() => {
     let cancelled = false;
@@ -861,8 +1186,11 @@ export function AdministracionPage() {
             setAudit(a.data);
             setCalendar(cal.data);
           }
+        } else if (administrativo) {
+          const cal = await api.get('/api/v1/calendar/non-instructional-days');
+          if (!cancelled) setCalendar(cal.data);
         }
-        if (admin || docente) {
+        if (admin || docente || administrativo) {
           const cToday = await api.get('/api/v1/reports/circuit/today');
           if (!cancelled) setCircuit(cToday.data);
           if (admin) {
@@ -877,9 +1205,9 @@ export function AdministracionPage() {
     return () => {
       cancelled = true;
     };
-  }, [admin, docente]);
+  }, [admin, docente, administrativo]);
 
-  if (!admin && !docente) {
+  if (!admin && !docente && !administrativo) {
     return (
       <p className="text-sm text-slate-600">
         Esta sección es para personal autorizado. Si necesita un informe, solicítelo a secretaría.
@@ -912,6 +1240,14 @@ export function AdministracionPage() {
           </Panel>
         </>
       )}
+      {administrativo && !admin ? (
+        <Panel title="Días no lectivos (calendario de su escuela)">
+          <ValueView data={calendar} />
+          <p className="mt-3 text-sm text-slate-600">
+            Para marcar o quitar días use <strong>Horarios</strong> en el menú (vista por grupo e institución).
+          </p>
+        </Panel>
+      ) : null}
       <Panel title="Circuito del día (informe)">
         <ValueView data={circuit} />
       </Panel>

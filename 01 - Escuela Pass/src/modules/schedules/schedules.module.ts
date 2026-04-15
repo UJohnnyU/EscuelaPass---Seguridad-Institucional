@@ -6,6 +6,7 @@ import { SubjectEntity } from '../../database/entities/subject.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { SchedulesController } from './schedules.controller';
 import { SchedulesService } from './schedules.service';
@@ -19,7 +20,8 @@ import { SchedulesService } from './schedules.service';
       SubjectEntity,
       StudentEntity,
       ParentEntity,
-      TeacherEntity
+      TeacherEntity,
+      UserEntity
     ])
   ],
   controllers: [SchedulesController],

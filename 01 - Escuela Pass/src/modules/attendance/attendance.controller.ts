@@ -25,9 +25,17 @@ export class AttendanceController {
   listByGroup(
     @Param('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
     @Query('date') date: string | undefined,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Query('studentId') studentId: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
-    return this.attendanceService.listByGroup(groupId, date, req.user.userId, req.user.role);
+    return this.attendanceService.listByGroup(groupId, req.user.userId, req.user.role, {
+      date,
+      from,
+      to,
+      studentId
+    });
   }
 
   @Get('parent/my-children')

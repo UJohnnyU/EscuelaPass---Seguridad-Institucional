@@ -22,6 +22,37 @@ function todayLocalISODate(): string {
   return `${y}-${m}-${d}`;
 }
 
+const MAX_ATTENDANCE_RANGE_DAYS = 100;
+
+function parseISODatePart(s: string): string {
+  return s.slice(0, 10);
+}
+
+function countCalendarDaysInclusive(from: string, to: string): number {
+  const [fy, fm, fd] = from.split('-').map((x) => Number.parseInt(x, 10));
+  const [ty, tm, td] = to.split('-').map((x) => Number.parseInt(x, 10));
+  const a = new Date(fy, fm - 1, fd);
+  const b = new Date(ty, tm - 1, td);
+  return Math.round((b.getTime() - a.getTime()) / (24 * 3600 * 1000)) + 1;
+}
+
+function enumerateISODates(from: string, to: string): string[] {
+  const [fy, fm, fd] = from.split('-').map((x) => Number.parseInt(x, 10));
+  const [ty, tm, td] = to.split('-').map((x) => Number.parseInt(x, 10));
+  const start = new Date(fy, fm - 1, fd);
+  const end = new Date(ty, tm - 1, td);
+  const out: string[] = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const day = String(cur.getDate()).padStart(2, '0');
+    out.push(`${y}-${m}-${day}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
 @Injectable()
 export class AttendanceService {
   private justificationColumnKnown = false;
@@ -108,13 +139,53 @@ export class AttendanceService {
     return saved;
   }
 
-  async listByGroup(groupId: string, dateStr: string | undefined, userId: string, role: UserRole) {
-    const date = dateStr?.slice(0, 10) ?? todayLocalISODate();
+  async listByGroup(
+    groupId: string,
+    userId: string,
+    role: UserRole,
+    opts: { date?: string; from?: string; to?: string; studentId?: string }
+  ) {
     await this.assertCanViewGroup(userId, role, groupId);
 
+    const studentIdFilter = opts.studentId?.trim() || undefined;
+    if (studentIdFilter) {
+      const ok = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+          SELECT 1 FROM students s WHERE s.id = $1 AND s.group_id = $2
+        ) AS ok`,
+        [studentIdFilter, groupId]
+      );
+      if (!ok[0]?.ok) {
+        throw new BadRequestException('El estudiante no pertenece a este grupo');
+      }
+    }
+
+    const hasFrom = Boolean(opts.from?.trim());
+    const hasTo = Boolean(opts.to?.trim());
+    if (hasFrom !== hasTo) {
+      throw new BadRequestException('Indique ambas fechas: desde y hasta');
+    }
+
+    if (hasFrom && hasTo) {
+      return this.listByGroupRange(groupId, {
+        from: parseISODatePart(opts.from!),
+        to: parseISODatePart(opts.to!),
+        studentId: studentIdFilter
+      });
+    }
+
+    const date = parseISODatePart(opts.date ?? todayLocalISODate());
     const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
     const hasJ = await this.hasJustificationColumn();
     const justExpr = hasJ ? 'a.is_justified' : 'NULL::boolean';
+
+    const params: string[] = [groupId, date];
+    let studentSql = '';
+    if (studentIdFilter) {
+      params.push(studentIdFilter);
+      studentSql = ' AND s.id = $3';
+    }
+
     const records = await this.attendanceRepository.query<
       {
         id: string;
@@ -141,27 +212,121 @@ export class AttendanceService {
               a.updated_at AS "updatedAt"
        FROM attendance_records a
        INNER JOIN students s ON s.id = a.student_id
-       WHERE s.group_id = $1 AND a.attendance_date = $2
+       WHERE s.group_id = $1 AND a.attendance_date = $2::date${studentSql}
        ORDER BY a.created_at ASC`,
-      [groupId, date]
+      params
+    );
+
+    let students = await this.studentsRepository.manager.query<
+      { studentId: string; matricula: string; fullName: string }[]
+    >(
+      studentIdFilter
+        ? `SELECT s.id AS "studentId", s.matricula, u.full_name AS "fullName"
+           FROM students s
+           JOIN users u ON u.id = s.user_id
+           WHERE s.group_id = $1 AND s.id = $2
+           ORDER BY u.full_name ASC`
+        : `SELECT s.id AS "studentId", s.matricula, u.full_name AS "fullName"
+           FROM students s
+           JOIN users u ON u.id = s.user_id
+           WHERE s.group_id = $1
+           ORDER BY u.full_name ASC`,
+      studentIdFilter ? [groupId, studentIdFilter] : [groupId]
+    );
+
+    return {
+      view: 'day' as const,
+      date,
+      canEdit: role !== UserRole.DOCENTE || date === todayLocalISODate(),
+      nonInstructionalDay: cal.nonInstructional,
+      reasons: cal.reasons.length ? cal.reasons : undefined,
+      records,
+      students
+    };
+  }
+
+  private async listByGroupRange(
+    groupId: string,
+    range: { from: string; to: string; studentId?: string }
+  ) {
+    const from = range.from;
+    const to = range.to;
+    if (from > to) {
+      throw new BadRequestException('La fecha inicial no puede ser posterior a la final');
+    }
+    const nDays = countCalendarDaysInclusive(from, to);
+    if (nDays > MAX_ATTENDANCE_RANGE_DAYS) {
+      throw new BadRequestException(
+        `El rango máximo es ${MAX_ATTENDANCE_RANGE_DAYS} días (aprox. tres meses)`
+      );
+    }
+
+    const hasJ = await this.hasJustificationColumn();
+    const justExpr = hasJ ? 'a.is_justified' : 'NULL::boolean';
+
+    const params: string[] = [groupId, from, to];
+    let extra = '';
+    if (range.studentId) {
+      params.push(range.studentId);
+      extra = ' AND s.id = $4';
+    }
+
+    const records = await this.attendanceRepository.query<
+      {
+        id: string;
+        studentId: string;
+        groupId: string | null;
+        attendanceDate: string;
+        status: string;
+        isJustified: boolean | null;
+        notes: string | null;
+        registeredBy: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }[]
+    >(
+      `SELECT a.id,
+              a.student_id AS "studentId",
+              a.group_id AS "groupId",
+              a.attendance_date AS "attendanceDate",
+              a.status::text AS status,
+              (${justExpr}) AS "isJustified",
+              a.notes,
+              a.registered_by AS "registeredBy",
+              a.created_at AS "createdAt",
+              a.updated_at AS "updatedAt"
+       FROM attendance_records a
+       INNER JOIN students s ON s.id = a.student_id
+       WHERE s.group_id = $1
+         AND a.attendance_date >= $2::date
+         AND a.attendance_date <= $3::date${extra}
+       ORDER BY a.attendance_date ASC, a.created_at ASC`,
+      params
     );
 
     const students = await this.studentsRepository.manager.query<
       { studentId: string; matricula: string; fullName: string }[]
     >(
-      `SELECT s.id AS "studentId", s.matricula, u.full_name AS "fullName"
-       FROM students s
-       JOIN users u ON u.id = s.user_id
-       WHERE s.group_id = $1
-       ORDER BY u.full_name ASC`,
-      [groupId]
+      range.studentId
+        ? `SELECT s.id AS "studentId", s.matricula, u.full_name AS "fullName"
+           FROM students s
+           JOIN users u ON u.id = s.user_id
+           WHERE s.group_id = $1 AND s.id = $2
+           ORDER BY u.full_name ASC`
+        : `SELECT s.id AS "studentId", s.matricula, u.full_name AS "fullName"
+           FROM students s
+           JOIN users u ON u.id = s.user_id
+           WHERE s.group_id = $1
+           ORDER BY u.full_name ASC`,
+      range.studentId ? [groupId, range.studentId] : [groupId]
     );
 
     return {
-      date,
-      canEdit: role !== UserRole.DOCENTE || date === todayLocalISODate(),
-      nonInstructionalDay: cal.nonInstructional,
-      reasons: cal.reasons.length ? cal.reasons : undefined,
+      view: 'range' as const,
+      dateFrom: from,
+      dateTo: to,
+      dates: enumerateISODates(from, to),
+      canEdit: false,
       records,
       students
     };
