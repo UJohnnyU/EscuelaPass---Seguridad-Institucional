@@ -18,9 +18,12 @@ export function CircuitTodayPage() {
   const [rows, setRows] = useState<CircuitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [circuitEnabled, setCircuitEnabled] = useState<boolean>(true);
+  const [savingCircuit, setSavingCircuit] = useState(false);
 
   const allowed =
     user?.role === 'DOCENTE' || user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
+  const canManageCircuit = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
 
   useEffect(() => {
     if (!allowed) return;
@@ -41,6 +44,36 @@ export function CircuitTodayPage() {
       cancelled = true;
     };
   }, [allowed]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<{ enabled: boolean }>('/api/v1/settings/circuit');
+        if (!cancelled) setCircuitEnabled(Boolean(data?.enabled));
+      } catch {
+        if (!cancelled) setCircuitEnabled(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed]);
+
+  async function toggleCircuit(next: boolean) {
+    if (!canManageCircuit) return;
+    setSavingCircuit(true);
+    setError(null);
+    try {
+      const { data } = await api.patch<{ enabled: boolean }>('/api/v1/settings/circuit', { enabled: next });
+      setCircuitEnabled(Boolean(data?.enabled));
+    } catch (e) {
+      setError(getUserFacingMessage(e, 'No se pudo actualizar el estado del circuito.'));
+    } finally {
+      setSavingCircuit(false);
+    }
+  }
 
   if (!allowed) {
     return (
@@ -67,6 +100,24 @@ export function CircuitTodayPage() {
     <div className="animate-slide-up">
       <h1 className="text-2xl font-bold text-slate-900">Circuito de hoy</h1>
       <p className="mt-1 text-slate-600">Solicitudes con fecha de hoy. Abre una para señales y estado.</p>
+      {canManageCircuit && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <p className="text-sm text-slate-700">
+            Estado del circuito:{' '}
+            <span className={circuitEnabled ? 'font-semibold text-emerald-700' : 'font-semibold text-red-700'}>
+              {circuitEnabled ? 'ACTIVO' : 'INACTIVO'}
+            </span>
+          </p>
+          <button
+            type="button"
+            disabled={savingCircuit}
+            onClick={() => void toggleCircuit(!circuitEnabled)}
+            className="rounded bg-brand-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+          >
+            {circuitEnabled ? 'Desactivar circuito' : 'Activar circuito'}
+          </button>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <p className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-600">

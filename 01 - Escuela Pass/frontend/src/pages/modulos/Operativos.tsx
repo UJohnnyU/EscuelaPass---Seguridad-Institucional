@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -199,6 +199,12 @@ export function ComunicacionPage() {
   const [notifications, setNotifications] = useState<unknown>(null);
   const [notices, setNotices] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [audience, setAudience] = useState<'ALL' | 'ADMINISTRATIVO' | 'DOCENTE' | 'PADRE' | 'ALUMNO'>('ALL');
+  const [important, setImportant] = useState(false);
   const { user } = useAuth();
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
 
@@ -222,6 +228,34 @@ export function ComunicacionPage() {
     };
   }, [staff]);
 
+  async function onCreateNotice(e: FormEvent) {
+    e.preventDefault();
+    if (!staff) return;
+    setSaving(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      await api.post('/api/v1/notices', {
+        title: title.trim(),
+        content: content.trim(),
+        targetType: 'ALL',
+        targetRole: audience === 'ALL' ? undefined : audience,
+        isImportant: important
+      });
+      setTitle('');
+      setContent('');
+      setAudience('ALL');
+      setImportant(false);
+      setMsg('Aviso escolar enviado.');
+      const o = await api.get('/api/v1/notices?page=1&limit=10');
+      setNotices(o.data);
+    } catch (e2) {
+      setErr(getUserFacingMessage(e2, 'No se pudo enviar el aviso.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="max-w-4xl space-y-8">
       <div>
@@ -235,9 +269,68 @@ export function ComunicacionPage() {
         <ValueView data={notifications} />
       </Panel>
       {staff && (
-        <Panel title="Comunicados (gestión)" description="Listado reciente para personal autorizado.">
-          <ValueView data={notices} />
-        </Panel>
+        <>
+          <Panel
+            title="Emitir aviso escolar"
+            description="Envío por audiencia: general, administrativos, docentes, padres o alumnos."
+          >
+            <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-700">Título</span>
+                <input
+                  required
+                  maxLength={255}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-700">Contenido</span>
+                <textarea
+                  required
+                  rows={4}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                />
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-700">Audiencia</span>
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  value={audience}
+                  onChange={(e) =>
+                    setAudience(e.target.value as 'ALL' | 'ADMINISTRATIVO' | 'DOCENTE' | 'PADRE' | 'ALUMNO')
+                  }
+                >
+                  <option value="ALL">General (toda la comunidad)</option>
+                  <option value="ADMINISTRATIVO">Solo administrativos</option>
+                  <option value="DOCENTE">Solo docentes</option>
+                  <option value="PADRE">Solo padres</option>
+                  <option value="ALUMNO">Solo alumnos</option>
+                </select>
+              </label>
+              <label className="mt-6 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={important} onChange={(e) => setImportant(e.target.checked)} />
+                Marcar como importante
+              </label>
+              <div className="sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+                >
+                  Enviar aviso
+                </button>
+              </div>
+            </form>
+            {msg && <p className="mt-3 text-sm text-emerald-700">{msg}</p>}
+          </Panel>
+          <Panel title="Comunicados (gestión)" description="Listado reciente para personal autorizado.">
+            <ValueView data={notices} />
+          </Panel>
+        </>
       )}
     </div>
   );

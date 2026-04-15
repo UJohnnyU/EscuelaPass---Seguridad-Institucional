@@ -40,7 +40,7 @@ export class NoticesService {
 
   async create(dto: CreateNoticeDto, createdByUserId: string, role: UserRole) {
     this.validateTargets(dto);
-    await this.ensureRoleScope(role, createdByUserId, dto);
+    const scopeSchoolId = await this.ensureRoleScope(role, createdByUserId, dto);
     if (dto.targetType === NoticeTargetType.GROUP && dto.targetGroupId) {
       const exists = await this.groupsRepository.exist({ where: { id: dto.targetGroupId } });
       if (!exists) {
@@ -53,7 +53,7 @@ export class NoticesService {
         throw new BadRequestException('Usuario destino no encontrado');
       }
     }
-    const recipientIds = await this.resolveRecipientUserIds(dto);
+    const recipientIds = await this.resolveRecipientUserIds(dto, scopeSchoolId);
     const uniqueIds = [...new Set(recipientIds)];
     const notice = this.noticesRepository.create({
       title: dto.title,
@@ -91,7 +91,7 @@ export class NoticesService {
   async list(page = 1, limit = 20, createdByUserId: string, role: UserRole) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
-    const qb = this.noticesRepository.createQueryBuilder('n').orderBy('n.created_at', 'DESC');
+    const qb = this.noticesRepository.createQueryBuilder('n').orderBy('n.createdAt', 'DESC');
     if (role === UserRole.DOCENTE && createdByUserId) {
       qb.andWhere('n.created_by = :uid', { uid: createdByUserId });
     }
@@ -195,6 +195,9 @@ export class NoticesService {
       if (dto.targetUserId || dto.targetGroupId) {
         throw new BadRequestException('Para ALL no debe enviar targetUserId ni targetGroupId');
       }
+      if (dto.targetRole && !Object.values(UserRole).includes(dto.targetRole)) {
+        throw new BadRequestException('targetRole inválido');
+      }
     }
     if (dto.targetType === NoticeTargetType.USER && !dto.targetUserId) {
       throw new BadRequestException('targetUserId es obligatorio para USER');
@@ -202,9 +205,29 @@ export class NoticesService {
     if (dto.targetType === NoticeTargetType.GROUP && !dto.targetGroupId) {
       throw new BadRequestException('targetGroupId es obligatorio para GROUP');
     }
+    if (dto.targetType !== NoticeTargetType.ALL && dto.targetRole) {
+      throw new BadRequestException('targetRole solo aplica cuando targetType=ALL');
+    }
   }
 
-  private async ensureRoleScope(role: UserRole, userId: string, dto: CreateNoticeDto) {
+  private async ensureRoleScope(role: UserRole, userId: string, dto: CreateNoticeDto): Promise<string | null> {
+    if (role === UserRole.ADMINISTRATIVO) {
+      const adminUser = await this.usersRepository.findOne({ where: { id: userId }, select: ['schoolId'] });
+      if (!adminUser?.schoolId) throw new ForbiddenException('Personal administrativo sin escuela asignada');
+      if (dto.targetType === NoticeTargetType.USER && dto.targetUserId) {
+        const target = await this.usersRepository.findOne({ where: { id: dto.targetUserId }, select: ['schoolId'] });
+        if (!target || target.schoolId !== adminUser.schoolId) {
+          throw new ForbiddenException('Usuario destino fuera de tu institución');
+        }
+      }
+      if (dto.targetType === NoticeTargetType.GROUP && dto.targetGroupId) {
+        const group = await this.groupsRepository.findOne({ where: { id: dto.targetGroupId }, select: ['schoolId'] });
+        if (!group || group.schoolId !== adminUser.schoolId) {
+          throw new ForbiddenException('Grupo fuera de tu institución');
+        }
+      }
+      return adminUser.schoolId;
+    }
     if (role === UserRole.DOCENTE) {
       if (dto.targetType === NoticeTargetType.ALL) {
         throw new ForbiddenException('Docente no puede enviar avisos a todo el plantel');
@@ -251,14 +274,19 @@ export class NoticesService {
         }
       }
     }
+    return null;
   }
 
-  private async resolveRecipientUserIds(dto: CreateNoticeDto): Promise<string[]> {
+  private async resolveRecipientUserIds(dto: CreateNoticeDto, scopeSchoolId?: string | null): Promise<string[]> {
     if (dto.targetType === NoticeTargetType.ALL) {
-      const users = await this.usersRepository.find({
-        where: { status: true },
-        select: ['id']
-      });
+      const qb = this.usersRepository.createQueryBuilder('u').select(['u.id']).where('u.status = :st', { st: true });
+      if (dto.targetRole) {
+        qb.andWhere('u.role = :role', { role: dto.targetRole });
+      }
+      if (scopeSchoolId) {
+        qb.andWhere('u.school_id = :sid', { sid: scopeSchoolId });
+      }
+      const users = await qb.getMany();
       return users.map((u) => u.id);
     }
     if (dto.targetType === NoticeTargetType.USER && dto.targetUserId) {
