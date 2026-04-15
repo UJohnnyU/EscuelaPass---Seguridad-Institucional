@@ -196,6 +196,12 @@ export function ModulosHubPage() {
 }
 
 export function ComunicacionPage() {
+  type SchoolGroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
+  type StudentRow = { id: string; fullName: string; email: string };
+  type TeacherRow = { id: string; fullName: string; email: string };
+  type ParentRow = { id: string; fullName: string; email: string };
+  type NoticeTargetUser = { id: string; label: string };
+
   const [notifications, setNotifications] = useState<unknown>(null);
   const [notices, setNotices] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -203,10 +209,16 @@ export function ComunicacionPage() {
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [targetMode, setTargetMode] = useState<'ROLE' | 'GROUP' | 'USER'>('ROLE');
   const [audience, setAudience] = useState<'ALL' | 'ADMINISTRATIVO' | 'DOCENTE' | 'PADRE' | 'ALUMNO'>('ALL');
+  const [targetGroupId, setTargetGroupId] = useState('');
+  const [targetUserId, setTargetUserId] = useState('');
+  const [groups, setGroups] = useState<SchoolGroupRow[]>([]);
+  const [targetUsers, setTargetUsers] = useState<NoticeTargetUser[]>([]);
   const [important, setImportant] = useState(false);
   const { user } = useAuth();
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
+  const canManageSchoolWideNotices = hasRole(user, 'ADMIN', 'ADMINISTRATIVO');
 
   useEffect(() => {
     let cancelled = false;
@@ -219,6 +231,28 @@ export function ComunicacionPage() {
           const o = await api.get('/api/v1/notices?page=1&limit=10');
           if (!cancelled) setNotices(o.data);
         }
+        if (canManageSchoolWideNotices) {
+          const [gRes, sRes, tRes, pRes] = await Promise.all([
+            api.get<SchoolGroupRow[]>('/api/v1/school/groups'),
+            api.get<StudentRow[]>('/api/v1/school/students'),
+            api.get<TeacherRow[]>('/api/v1/school/teachers'),
+            api.get<ParentRow[]>('/api/v1/school/parents')
+          ]);
+          if (!cancelled) {
+            setGroups(Array.isArray(gRes.data) ? gRes.data : []);
+            const users: NoticeTargetUser[] = [];
+            (Array.isArray(sRes.data) ? sRes.data : []).forEach((x) =>
+              users.push({ id: x.id, label: `${x.fullName} — Alumno (${x.email})` })
+            );
+            (Array.isArray(tRes.data) ? tRes.data : []).forEach((x) =>
+              users.push({ id: x.id, label: `${x.fullName} — Docente (${x.email})` })
+            );
+            (Array.isArray(pRes.data) ? pRes.data : []).forEach((x) =>
+              users.push({ id: x.id, label: `${x.fullName} — Padre (${x.email})` })
+            );
+            setTargetUsers(users);
+          }
+        }
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
       }
@@ -226,25 +260,36 @@ export function ComunicacionPage() {
     return () => {
       cancelled = true;
     };
-  }, [staff]);
+  }, [staff, canManageSchoolWideNotices]);
 
   async function onCreateNotice(e: FormEvent) {
     e.preventDefault();
-    if (!staff) return;
+    if (!staff || !canManageSchoolWideNotices) return;
     setSaving(true);
     setErr(null);
     setMsg(null);
     try {
-      await api.post('/api/v1/notices', {
+      const payload: Record<string, unknown> = {
         title: title.trim(),
         content: content.trim(),
-        targetType: 'ALL',
-        targetRole: audience === 'ALL' ? undefined : audience,
         isImportant: important
-      });
+      };
+      if (targetMode === 'ROLE') {
+        payload.targetType = 'ALL';
+        payload.targetRole = audience === 'ALL' ? undefined : audience;
+      } else if (targetMode === 'GROUP') {
+        payload.targetType = 'GROUP';
+        payload.targetGroupId = targetGroupId;
+      } else {
+        payload.targetType = 'USER';
+        payload.targetUserId = targetUserId;
+      }
+      await api.post('/api/v1/notices', payload);
       setTitle('');
       setContent('');
       setAudience('ALL');
+      setTargetGroupId('');
+      setTargetUserId('');
       setImportant(false);
       setMsg('Aviso escolar enviado.');
       const o = await api.get('/api/v1/notices?page=1&limit=10');
@@ -272,9 +317,10 @@ export function ComunicacionPage() {
         <>
           <Panel
             title="Emitir aviso escolar"
-            description="Envío por audiencia: general, administrativos, docentes, padres o alumnos."
+            description="Envío por audiencia, grupo específico o usuario específico."
           >
-            <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
+            {canManageSchoolWideNotices ? (
+              <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
               <label className="text-sm sm:col-span-2">
                 <span className="text-slate-700">Título</span>
                 <input
@@ -295,22 +341,80 @@ export function ComunicacionPage() {
                   onChange={(e) => setContent(e.target.value)}
                 />
               </label>
-              <label className="text-sm">
-                <span className="text-slate-700">Audiencia</span>
-                <select
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                  value={audience}
-                  onChange={(e) =>
-                    setAudience(e.target.value as 'ALL' | 'ADMINISTRATIVO' | 'DOCENTE' | 'PADRE' | 'ALUMNO')
-                  }
-                >
-                  <option value="ALL">General (toda la comunidad)</option>
-                  <option value="ADMINISTRATIVO">Solo administrativos</option>
-                  <option value="DOCENTE">Solo docentes</option>
-                  <option value="PADRE">Solo padres</option>
-                  <option value="ALUMNO">Solo alumnos</option>
-                </select>
-              </label>
+              {canManageSchoolWideNotices ? (
+                <>
+                  <label className="text-sm">
+                    <span className="text-slate-700">Tipo de destino</span>
+                    <select
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      value={targetMode}
+                      onChange={(e) => setTargetMode(e.target.value as 'ROLE' | 'GROUP' | 'USER')}
+                    >
+                      <option value="ROLE">Por audiencia</option>
+                      <option value="GROUP">Grupo específico</option>
+                      <option value="USER">Usuario específico</option>
+                    </select>
+                  </label>
+                  {targetMode === 'ROLE' && (
+                    <label className="text-sm">
+                      <span className="text-slate-700">Audiencia</span>
+                      <select
+                        className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                        value={audience}
+                        onChange={(e) =>
+                          setAudience(e.target.value as 'ALL' | 'ADMINISTRATIVO' | 'DOCENTE' | 'PADRE' | 'ALUMNO')
+                        }
+                      >
+                        <option value="ALL">General (toda la comunidad)</option>
+                        <option value="ADMINISTRATIVO">Solo administrativos</option>
+                        <option value="DOCENTE">Solo docentes</option>
+                        <option value="PADRE">Solo padres</option>
+                        <option value="ALUMNO">Solo alumnos</option>
+                      </select>
+                    </label>
+                  )}
+                  {targetMode === 'GROUP' && (
+                    <label className="text-sm">
+                      <span className="text-slate-700">Grupo</span>
+                      <select
+                        required
+                        className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                        value={targetGroupId}
+                        onChange={(e) => setTargetGroupId(e.target.value)}
+                      >
+                        <option value="">— Elegir grupo —</option>
+                        {groups.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.name} {g.grade ? `(${g.grade})` : ''} - {g.schoolYear}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {targetMode === 'USER' && (
+                    <label className="text-sm">
+                      <span className="text-slate-700">Usuario</span>
+                      <select
+                        required
+                        className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                        value={targetUserId}
+                        onChange={(e) => setTargetUserId(e.target.value)}
+                      >
+                        <option value="">— Elegir usuario —</option>
+                        {targetUsers.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-slate-600 sm:col-span-2">
+                  Esta versión permite envío detallado (audiencia/grupo/usuario) para administración.
+                </p>
+              )}
               <label className="mt-6 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={important} onChange={(e) => setImportant(e.target.checked)} />
                 Marcar como importante
@@ -324,7 +428,12 @@ export function ComunicacionPage() {
                   Enviar aviso
                 </button>
               </div>
-            </form>
+              </form>
+            ) : (
+              <p className="text-sm text-slate-600">
+                La emisión de avisos se habilita para administración del plantel.
+              </p>
+            )}
             {msg && <p className="mt-3 text-sm text-emerald-700">{msg}</p>}
           </Panel>
           <Panel title="Comunicados (gestión)" description="Listado reciente para personal autorizado.">
