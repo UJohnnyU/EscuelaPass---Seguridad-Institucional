@@ -13,6 +13,7 @@ type Profile = {
   email?: string;
   directorName?: string;
   motto?: string;
+  maxGradeScale?: string;
 };
 
 type SchoolRow = { id: string; name: string; code: string };
@@ -102,9 +103,27 @@ export function InstitutionPage() {
     setMessage(null);
     setError(null);
     try {
+      const payload: Omit<Profile, 'maxGradeScale'> & { maxGradeScale?: number } = {
+        ...form,
+        maxGradeScale: undefined
+      };
+      if (form.maxGradeScale !== undefined) {
+        const n = Number(String(form.maxGradeScale).replace(',', '.'));
+        if (!Number.isFinite(n) || n < 1 || n > 999.99) {
+          setError('El puntaje máximo debe estar entre 1 y 999.99.');
+          setSaving(false);
+          return;
+        }
+        if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-9) {
+          setError('El puntaje máximo permite hasta 2 decimales.');
+          setSaving(false);
+          return;
+        }
+        payload.maxGradeScale = Math.round(n * 100) / 100;
+      }
       const params =
         user?.role === 'ADMIN' && selectedSchoolId ? { schoolId: selectedSchoolId } : undefined;
-      const { data } = await api.patch<Profile>('/api/v1/settings/institution', form, { params });
+      const { data } = await api.patch<Profile>('/api/v1/settings/institution', payload, { params });
       setProfile(data);
       setForm(data);
       setMessage('Cambios guardados correctamente.');
@@ -195,6 +214,21 @@ export function InstitutionPage() {
               />
             </div>
           ))}
+          <div>
+            <label className="block text-sm font-medium text-slate-700" htmlFor="maxGradeScale">
+              Puntaje máximo para calificaciones
+            </label>
+            <input
+              id="maxGradeScale"
+              type="text"
+              inputMode="decimal"
+              value={form.maxGradeScale ?? '100.00'}
+              onChange={(e) => setForm((f) => ({ ...f, maxGradeScale: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
+              placeholder="100.00"
+            />
+            <p className="mt-1 text-xs text-slate-500">Rango permitido: 1 a 999.99, con máximo 2 decimales.</p>
+          </div>
           {error && !profile && (
             <div className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-800" role="alert">
               {error}

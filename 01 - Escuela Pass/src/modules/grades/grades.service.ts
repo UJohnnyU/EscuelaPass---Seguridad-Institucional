@@ -23,6 +23,7 @@ export type TeacherAssignmentRow = {
   subjectName: string;
   schoolId?: string;
   schoolName?: string | null;
+  schoolMaxGradeScale?: string | null;
 };
 
 export type ActivityBoardRow = {
@@ -57,6 +58,33 @@ export class GradesService {
     return s.trim().replace(/\s+/g, ' ');
   }
 
+  private normalizeScoreTo2(n: number): number {
+    return Math.round(n * 100) / 100;
+  }
+
+  private assertTwoDecimalScale(n: number, fieldName: string) {
+    const rounded = this.normalizeScoreTo2(n);
+    if (Math.abs(n - rounded) > 1e-9) {
+      throw new BadRequestException(`${fieldName} debe tener máximo 2 decimales`);
+    }
+  }
+
+  private async resolveSchoolMaxScoreForGroup(groupId: string): Promise<number> {
+    const rows = await this.studentsRepository.manager.query<{ max_score: string }[]>(
+      `SELECT COALESCE(s.max_grade_scale::text, '100.00') AS max_score
+       FROM groups g
+       INNER JOIN schools s ON s.id = g.school_id
+       WHERE g.id = $1
+       LIMIT 1`,
+      [groupId]
+    );
+    const raw = rows[0]?.max_score;
+    if (!raw) throw new NotFoundException('No se encontró la escuela del grupo');
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 1) return 100;
+    return this.normalizeScoreTo2(n);
+  }
+
   async listTeacherAssignments(
     userId: string,
     role: UserRole,
@@ -72,7 +100,8 @@ export class GradesService {
            s.id AS "subjectId",
            s.name AS "subjectName",
            g.school_id AS "schoolId",
-           sch.name AS "schoolName"
+           sch.name AS "schoolName",
+           sch.max_grade_scale::text AS "schoolMaxGradeScale"
          FROM groups g
          INNER JOIN subjects s ON s.school_id = g.school_id
          LEFT JOIN schools sch ON sch.id = g.school_id
@@ -95,7 +124,8 @@ export class GradesService {
          s.id AS "subjectId",
          s.name AS "subjectName",
          g.school_id AS "schoolId",
-         sch.name AS "schoolName"
+         sch.name AS "schoolName",
+         sch.max_grade_scale::text AS "schoolMaxGradeScale"
        FROM teacher_groups tg
        INNER JOIN groups g ON g.id = tg.group_id
        INNER JOIN subjects s ON s.id = tg.subject_id
@@ -144,17 +174,7 @@ export class GradesService {
       canonicalSubject = await this.resolveCanonicalSubjectForTeacher(teacher.id, groupId, subjectNorm);
     }
 
-    const maxRows = await this.studentsRepository.manager.query<{ max_score: string | null }[]>(
-      `SELECT g.max_score::text AS max_score
-       FROM grades g
-       WHERE g.group_id = $1
-         AND LOWER(TRIM(g.period)) = LOWER(TRIM($2::text))
-         AND LOWER(TRIM(g.subject)) = LOWER(TRIM($3::text))
-         AND LOWER(TRIM(g.assessment_name)) = LOWER(TRIM($4::text))
-       LIMIT 1`,
-      [groupId, periodNorm, canonicalSubject, assessmentNorm]
-    );
-    const maxScoreFromDb = maxRows[0]?.max_score ?? null;
+    const schoolMaxScore = await this.resolveSchoolMaxScoreForGroup(groupId);
 
     const roster = await this.studentsRepository.manager.query<
       { id: string; matricula: string; full_name: string }[]
@@ -214,7 +234,7 @@ export class GradesService {
       subject: canonicalSubject,
       period: periodNorm,
       assessmentName: assessmentNorm,
-      maxScore: maxScoreFromDb !== null ? Number(maxScoreFromDb) : null,
+      maxScore: schoolMaxScore,
       rows: boardRows
     };
   }
@@ -226,7 +246,7 @@ export class GradesService {
 
     const periodNorm = this.normText(dto.period);
     const assessmentNorm = this.normText(dto.assessmentName);
-    const maxScore = dto.maxScore;
+    const maxScore = await this.resolveSchoolMaxScoreForGroup(dto.groupId);
 
     const canonicalSubject = await this.resolveSubjectForGrading(role, userId, dto.groupId, dto.subject);
 
@@ -239,9 +259,14 @@ export class GradesService {
       const studentRepo = mgr.getRepository(StudentEntity);
 
       for (const entry of dto.entries) {
+        this.assertTwoDecimalScale(entry.score, 'score');
+        if (entry.score < 0) {
+          throw new BadRequestException('La calificación no puede ser negativa');
+        }
         if (entry.score > maxScore) {
           throw new BadRequestException(`La calificación no puede superar el máximo (${maxScore})`);
         }
+        const scoreFixed = this.normalizeScoreTo2(entry.score);
 
         const student = await studentRepo.findOne({ where: { id: entry.studentId } });
         if (!student) throw new NotFoundException(`Estudiante no encontrado: ${entry.studentId}`);
@@ -258,8 +283,8 @@ export class GradesService {
           .getOne();
 
         if (existing) {
-          existing.score = String(entry.score);
-          existing.maxScore = String(maxScore);
+          existing.score = scoreFixed.toFixed(2);
+          existing.maxScore = maxScore.toFixed(2);
           existing.notes = entry.notes?.trim() ? this.normText(entry.notes) : null;
           existing.gradedBy = userId;
           existing.gradedAt = new Date();
@@ -272,8 +297,8 @@ export class GradesService {
             subject: canonicalSubject,
             period: periodNorm,
             assessmentName: assessmentNorm,
-            score: String(entry.score),
-            maxScore: String(maxScore),
+            score: scoreFixed.toFixed(2),
+            maxScore: maxScore.toFixed(2),
             notes: entry.notes?.trim() ? this.normText(entry.notes) : null,
             gradedBy: userId,
             gradedAt: new Date()
@@ -292,18 +317,19 @@ export class GradesService {
 
     const periodNorm = this.normText(dto.period);
     const assessmentNorm = this.normText(dto.assessmentName);
-    const maxScore = dto.maxScore ?? 100;
-
     const groupId = student.groupId;
     if (!groupId) throw new BadRequestException('El estudiante no tiene grupo asignado');
+    const maxScore = await this.resolveSchoolMaxScoreForGroup(groupId);
 
     const canonicalSubject = await this.resolveSubjectForGrading(role, userId, groupId, dto.subject);
 
     await this.assertCanGradeStudent(userId, role, student, canonicalSubject);
 
+    this.assertTwoDecimalScale(dto.score, 'score');
     if (dto.score > maxScore) {
       throw new BadRequestException('score no puede ser mayor que maxScore');
     }
+    const scoreFixed = this.normalizeScoreTo2(dto.score);
 
     const existing = await this.gradesRepository
       .createQueryBuilder('g')
@@ -314,8 +340,8 @@ export class GradesService {
       .getOne();
 
     if (existing) {
-      existing.score = String(dto.score);
-      existing.maxScore = String(maxScore);
+      existing.score = scoreFixed.toFixed(2);
+      existing.maxScore = maxScore.toFixed(2);
       existing.notes = dto.notes?.trim() ? this.normText(dto.notes) : null;
       existing.gradedBy = userId;
       existing.gradedAt = dto.gradedAt ? new Date(dto.gradedAt) : new Date();
@@ -332,8 +358,8 @@ export class GradesService {
       subject: canonicalSubject,
       period: periodNorm,
       assessmentName: assessmentNorm,
-      score: String(dto.score),
-      maxScore: String(maxScore),
+      score: scoreFixed.toFixed(2),
+      maxScore: maxScore.toFixed(2),
       notes: dto.notes?.trim() ? this.normText(dto.notes) : null,
       gradedBy: userId,
       gradedAt: dto.gradedAt ? new Date(dto.gradedAt) : new Date()

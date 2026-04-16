@@ -14,6 +14,7 @@ type TeacherAssignment = {
   subjectName: string;
   schoolId?: string;
   schoolName?: string | null;
+  schoolMaxGradeScale?: string | null;
 };
 type SchoolRow = { id: string; name: string; code: string };
 
@@ -65,6 +66,14 @@ export function CalificacionesDocentePage() {
     const [groupId, subjectId] = selectedKey.split('::');
     return assignments.find((a) => a.groupId === groupId && a.subjectId === subjectId) ?? null;
   }, [assignments, selectedKey]);
+
+  useEffect(() => {
+    if (!selected?.schoolMaxGradeScale) return;
+    const n = Number(selected.schoolMaxGradeScale);
+    if (Number.isFinite(n) && n >= 1) {
+      setMaxScore((Math.round(n * 100) / 100).toFixed(2));
+    }
+  }, [selected?.schoolMaxGradeScale]);
 
   const schoolFilterOptions = useMemo(
     () => [
@@ -184,7 +193,16 @@ export function CalificacionesDocentePage() {
 
   const parseMax = (): number => {
     const n = Number(maxScore.replace(',', '.'));
-    return Number.isFinite(n) && n >= 1 ? n : 100;
+    return Number.isFinite(n) && n >= 1 ? Math.round(n * 100) / 100 : 100;
+  };
+
+  const parseScore2Decimals = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed.replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) return null;
+    if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-9) return null;
+    return Math.round(n * 100) / 100;
   };
 
   const saveOne = async (studentId: string) => {
@@ -194,9 +212,9 @@ export function CalificacionesDocentePage() {
       setErr('Ingrese una calificación numérica.');
       return;
     }
-    const score = Number(String(d.score).replace(',', '.'));
-    if (!Number.isFinite(score) || score < 0) {
-      setErr('Calificación no válida.');
+    const score = parseScore2Decimals(String(d.score));
+    if (score === null) {
+      setErr('Calificación no válida. Debe ser un número entre 0 y el máximo, con hasta 2 decimales.');
       return;
     }
     const max = parseMax();
@@ -231,9 +249,9 @@ export function CalificacionesDocentePage() {
     for (const r of board.rows) {
       const d = drafts[r.studentId];
       if (!d?.score?.trim()) continue;
-      const score = Number(String(d.score).replace(',', '.'));
-      if (!Number.isFinite(score) || score < 0) {
-        setErr(`Calificación no válida para ${r.fullName}.`);
+      const score = parseScore2Decimals(String(d.score));
+      if (score === null) {
+        setErr(`Calificación no válida para ${r.fullName}. Use hasta 2 decimales.`);
         return;
       }
       if (score > max) {
@@ -346,9 +364,9 @@ export function CalificacionesDocentePage() {
             <input
               type="text"
               inputMode="decimal"
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
               value={maxScore}
-              onChange={(e) => setMaxScore(e.target.value)}
+              readOnly
             />
           </label>
         </div>

@@ -32,6 +32,10 @@ export class SchoolEntity {
   @Column({ type: 'varchar', length: 500, nullable: true })
   motto!: string | null;
 
+  /** Escala institucional para calificar actividades (0..max), con 2 decimales. */
+  @Column({ name: 'max_grade_scale', type: 'decimal', precision: 5, scale: 2, default: 100 })
+  maxGradeScale!: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

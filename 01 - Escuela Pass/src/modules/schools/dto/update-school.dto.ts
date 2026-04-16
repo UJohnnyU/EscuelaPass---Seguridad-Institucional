@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class UpdateSchoolDto {
   @IsOptional()
@@ -10,4 +11,11 @@ export class UpdateSchoolDto {
   @IsOptional()
   @IsBoolean()
   status?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(999.99)
+  maxGradeScale?: number;
 }

@@ -34,7 +34,8 @@ export class SchoolsService {
     const row = this.schoolsRepository.create({
       name: dto.name.trim(),
       code: dto.code.trim(),
-      status: true
+      status: true,
+      maxGradeScale: dto.maxGradeScale.toFixed(2)
     });
     return this.schoolsRepository.save(row);
   }
@@ -48,6 +49,7 @@ export class SchoolsService {
       row.name = name;
     }
     if (dto.status !== undefined) row.status = dto.status;
+    if (dto.maxGradeScale !== undefined) row.maxGradeScale = dto.maxGradeScale.toFixed(2);
     return this.schoolsRepository.save(row);
   }
 

@@ -1,4 +1,5 @@
-import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateSchoolDto {
   @IsString()
@@ -13,4 +14,10 @@ export class CreateSchoolDto {
     message: 'code solo permite mayúsculas, números, guion y guion bajo'
   })
   code!: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(999.99)
+  maxGradeScale!: number;
 }

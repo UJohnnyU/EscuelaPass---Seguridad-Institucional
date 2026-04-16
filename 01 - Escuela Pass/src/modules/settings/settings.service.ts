@@ -31,6 +31,7 @@ export type InstitutionProfile = {
   email?: string;
   directorName?: string;
   motto?: string;
+  maxGradeScale?: string;
 };
 
 type JwtLike = { role: UserRole; schoolId?: string | null };
@@ -96,7 +97,8 @@ export class SettingsService {
       phone: pick(school.phone, global.phone),
       email: pick(school.email, global.email),
       directorName: pick(school.directorName, global.directorName),
-      motto: pick(school.motto, global.motto)
+      motto: pick(school.motto, global.motto),
+      maxGradeScale: school.maxGradeScale
     };
   }
 
@@ -161,6 +163,9 @@ export class SettingsService {
       school.directorName = dto.directorName.trim() ? dto.directorName.trim() : null;
     }
     if (dto.motto !== undefined) school.motto = dto.motto.trim() ? dto.motto.trim() : null;
+    if (dto.maxGradeScale !== undefined) {
+      school.maxGradeScale = dto.maxGradeScale.toFixed(2);
+    }
 
     await this.schoolsRepository.save(school);
     return this.getMergedProfileForSchoolId(targetSchoolId);

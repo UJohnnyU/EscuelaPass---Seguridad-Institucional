@@ -1,4 +1,5 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UpdateInstitutionProfileDto {
   @IsOptional()
@@ -35,4 +36,11 @@ export class UpdateInstitutionProfileDto {
   @IsString()
   @MaxLength(300)
   motto?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(999.99)
+  maxGradeScale?: number;
 }

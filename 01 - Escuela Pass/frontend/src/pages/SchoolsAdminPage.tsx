@@ -7,6 +7,7 @@ type School = {
   name: string;
   code: string;
   status: boolean;
+  maxGradeScale: string;
 };
 
 export function SchoolsAdminPage() {
@@ -16,6 +17,7 @@ export function SchoolsAdminPage() {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [maxGradeScale, setMaxGradeScale] = useState('100.00');
 
   const loadSchools = async () => {
     setLoading(true);
@@ -36,8 +38,18 @@ export function SchoolsAdminPage() {
   }, []);
 
   const createSchool = async () => {
-    if (!name.trim() || !code.trim()) {
-      setErr('Nombre y código son obligatorios.');
+    if (!name.trim() || !code.trim() || !maxGradeScale.trim()) {
+      setErr('Nombre, código y máximo de calificación son obligatorios.');
+      return;
+    }
+    const max = Number(maxGradeScale.replace(',', '.'));
+    if (!Number.isFinite(max) || max < 1 || max > 999.99) {
+      setErr('Máximo de calificación inválido. Use un valor entre 1 y 999.99.');
+      return;
+    }
+    const maxScaled = Math.round(max * 100);
+    if (Math.abs(max * 100 - maxScaled) > 1e-9) {
+      setErr('El máximo de calificación debe tener máximo 2 decimales.');
       return;
     }
     setErr(null);
@@ -45,11 +57,13 @@ export function SchoolsAdminPage() {
     try {
       await api.post('/api/v1/schools', {
         name: name.trim(),
-        code: code.trim().toUpperCase()
+        code: code.trim().toUpperCase(),
+        maxGradeScale: Number((maxScaled / 100).toFixed(2))
       });
       setOk('Escuela creada correctamente.');
       setName('');
       setCode('');
+      setMaxGradeScale('100.00');
       await loadSchools();
     } catch (e) {
       setErr(getUserFacingMessage(e));
@@ -86,7 +100,7 @@ export function SchoolsAdminPage() {
 
       <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Nueva escuela</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-4">
           <input
             className="rounded border border-slate-300 px-3 py-2 text-sm"
             placeholder="Nombre"
@@ -98,6 +112,13 @@ export function SchoolsAdminPage() {
             placeholder="Código (ej. COLEGIO-NORTE)"
             value={code}
             onChange={(e) => setCode(e.target.value)}
+          />
+          <input
+            className="rounded border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Máximo de calificación (ej. 100.00)"
+            value={maxGradeScale}
+            onChange={(e) => setMaxGradeScale(e.target.value)}
+            inputMode="decimal"
           />
           <button
             type="button"
@@ -124,7 +145,7 @@ export function SchoolsAdminPage() {
                 <div>
                   <p className="font-medium text-slate-900">{s.name}</p>
                   <p className="text-xs text-slate-500">
-                    {s.code} · {s.status ? 'Activa' : 'Inactiva'}
+                    {s.code} · Máximo: {s.maxGradeScale} · {s.status ? 'Activa' : 'Inactiva'}
                   </p>
                 </div>
                 <button
