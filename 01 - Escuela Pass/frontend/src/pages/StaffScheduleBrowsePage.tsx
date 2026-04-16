@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -69,6 +70,7 @@ export function StaffScheduleBrowsePage() {
   const [instReason, setInstReason] = useState('');
   const [instSaving, setInstSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{ id: string; label: string } | null>(null);
 
   const schoolFilterOptions = useMemo(
     () => [
@@ -508,7 +510,12 @@ export function StaffScheduleBrowsePage() {
                   <button
                     type="button"
                     disabled={removingId === d.id}
-                    onClick={() => void removeCalendarEntry(d.id)}
+                    onClick={() =>
+                      setPendingRemoval({
+                        id: d.id,
+                        label: `${String(d.exceptionDate).slice(0, 10)}${d.reason ? ` (${d.reason})` : ''}`
+                      })
+                    }
                     className="shrink-0 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
                   >
                     {removingId === d.id ? '…' : 'Quitar'}
@@ -524,6 +531,22 @@ export function StaffScheduleBrowsePage() {
         Para crear o editar franjas use los módulos de administración académica (horarios) con una cuenta con permisos
         correspondientes.
       </p>
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        title="Quitar día sin clases"
+        description={
+          pendingRemoval
+            ? `Se eliminará el registro "${pendingRemoval.label}". La asistencia de ese día volverá a contarse normalmente.`
+            : ''
+        }
+        confirmLabel="Sí, quitar registro"
+        busy={removingId !== null}
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={() => {
+          if (!pendingRemoval) return;
+          void removeCalendarEntry(pendingRemoval.id).finally(() => setPendingRemoval(null));
+        }}
+      />
     </div>
   );
 }

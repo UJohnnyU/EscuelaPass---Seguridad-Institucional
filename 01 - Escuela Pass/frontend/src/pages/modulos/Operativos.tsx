@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { Panel, ValueView } from '@/components/ValueView';
@@ -573,6 +574,7 @@ export function AcademicoPage() {
   const [docenteSuspendReason, setDocenteSuspendReason] = useState('');
   const [docenteCalSaving, setDocenteCalSaving] = useState(false);
   const [docenteCalRemoving, setDocenteCalRemoving] = useState<string | null>(null);
+  const [pendingDocenteCalRemoval, setPendingDocenteCalRemoval] = useState<{ id: string; label: string } | null>(null);
   const { user, ready } = useAuth();
   const padre = user?.role === 'PADRE';
   const alumno = user?.role === 'ALUMNO';
@@ -1312,7 +1314,12 @@ export function AcademicoPage() {
                             <button
                               type="button"
                               disabled={docenteCalRemoving === row.id}
-                              onClick={() => void removeDocenteCal(row.id)}
+                              onClick={() =>
+                                setPendingDocenteCalRemoval({
+                                  id: row.id,
+                                  label: `${String(row.exceptionDate).slice(0, 10)}${row.reason ? ` (${row.reason})` : ''}`
+                                })
+                              }
                               className="text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
                             >
                               {docenteCalRemoving === row.id ? '…' : 'Quitar'}
@@ -1335,6 +1342,22 @@ export function AcademicoPage() {
           </p>
         </Panel>
       )}
+      <ConfirmDialog
+        open={pendingDocenteCalRemoval !== null}
+        title="Quitar día sin clases del grupo"
+        description={
+          pendingDocenteCalRemoval
+            ? `Se quitará el registro "${pendingDocenteCalRemoval.label}" para este grupo.`
+            : ''
+        }
+        confirmLabel="Sí, quitar"
+        busy={docenteCalRemoving !== null}
+        onCancel={() => setPendingDocenteCalRemoval(null)}
+        onConfirm={() => {
+          if (!pendingDocenteCalRemoval) return;
+          void removeDocenteCal(pendingDocenteCalRemoval.id).finally(() => setPendingDocenteCalRemoval(null));
+        }}
+      />
     </div>
   );
 }

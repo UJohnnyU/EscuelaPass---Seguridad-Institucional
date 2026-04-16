@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -59,6 +60,10 @@ type AssignmentRow = {
   canAuthorizeDepartures: boolean;
 };
 
+type PendingDelete =
+  | { kind: 'assignment'; id: string; label: string }
+  | { kind: 'link'; id: string; label: string };
+
 function defaultSchoolYear(): string {
   const y = new Date().getFullYear();
   const m = new Date().getMonth();
@@ -117,6 +122,8 @@ export function SchoolRosterPage() {
   const [lPickup, setLPickup] = useState(true);
 
   const [updatingStudentId, setUpdatingStudentId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [confirmDeleting, setConfirmDeleting] = useState(false);
 
   const schoolQuery = useMemo(() => {
     if (platformAdmin && selectedSchoolId) return { schoolId: selectedSchoolId };
@@ -425,6 +432,21 @@ export function SchoolRosterPage() {
       await refreshAll();
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo eliminar el vínculo.'));
+    }
+  }
+
+  async function onConfirmDelete() {
+    if (!pendingDelete) return;
+    setConfirmDeleting(true);
+    try {
+      if (pendingDelete.kind === 'assignment') {
+        await onRemoveAssignment(pendingDelete.id);
+      } else {
+        await onUnlink(pendingDelete.id);
+      }
+      setPendingDelete(null);
+    } finally {
+      setConfirmDeleting(false);
     }
   }
 
@@ -816,7 +838,13 @@ export function SchoolRosterPage() {
                       <button
                         type="button"
                         className="text-sm text-red-700 underline hover:text-red-900"
-                        onClick={() => onRemoveAssignment(r.id)}
+                        onClick={() =>
+                          setPendingDelete({
+                            kind: 'assignment',
+                            id: r.id,
+                            label: `${te?.fullName ?? 'Docente'} / ${gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}`
+                          })
+                        }
                       >
                         Quitar
                       </button>
@@ -969,7 +997,13 @@ export function SchoolRosterPage() {
                     <button
                       type="button"
                       className="text-sm text-red-700 underline hover:text-red-900"
-                      onClick={() => onUnlink(r.id)}
+                      onClick={() =>
+                        setPendingDelete({
+                          kind: 'link',
+                          id: r.id,
+                          label: `${r.studentFullName} ↔ ${r.parentFullName}`
+                        })
+                      }
                     >
                       Quitar vínculo
                     </button>
@@ -981,6 +1015,19 @@ export function SchoolRosterPage() {
           {links.length === 0 && <p className="mt-2 text-slate-500">No hay vínculos registrados.</p>}
         </div>
       </section>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={pendingDelete?.kind === 'assignment' ? 'Quitar asignación docente' : 'Quitar vínculo familia-alumno'}
+        description={
+          pendingDelete
+            ? `Esta acción eliminará "${pendingDelete.label}". Puede afectar la operación diaria y no se puede deshacer fácilmente.`
+            : ''
+        }
+        confirmLabel="Sí, eliminar"
+        busy={confirmDeleting}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void onConfirmDelete()}
+      />
     </div>
   );
 }
