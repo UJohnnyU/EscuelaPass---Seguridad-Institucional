@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
@@ -121,8 +122,53 @@ export function SchoolRosterPage() {
     if (platformAdmin && selectedSchoolId) return { schoolId: selectedSchoolId };
     return undefined;
   }, [platformAdmin, selectedSchoolId]);
-
   const canLoad = !platformAdmin || !!selectedSchoolId;
+
+  const schoolOptions = useMemo(
+    () => schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})` })),
+    [schools]
+  );
+  const groupOptions = useMemo(
+    () => groups.map((g) => ({ value: g.id, label: `${g.name} (${g.schoolYear})` })),
+    [groups]
+  );
+  const teacherOptions = useMemo(() => teachers.map((t) => ({ value: t.id, label: t.fullName })), [teachers]);
+  const loadStudentOptions = useCallback(
+    async (q: string, signal: AbortSignal) => {
+      if (!canLoad) return [];
+      const { data } = await api.get<StudentRow[]>('/api/v1/school/students', {
+        params: { ...(schoolQuery ?? {}), q: q.trim() || undefined, limit: 80 },
+        signal
+      });
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map(
+        (s): SmartSelectOption => ({
+          value: s.id,
+          label: `${s.fullName} (${s.matricula})`,
+          searchText: s.matricula
+        })
+      );
+    },
+    [canLoad, schoolQuery]
+  );
+
+  const loadParentOptions = useCallback(
+    async (q: string, signal: AbortSignal) => {
+      if (!canLoad) return [];
+      const { data } = await api.get<ParentRow[]>('/api/v1/school/parents', {
+        params: { ...(schoolQuery ?? {}), q: q.trim() || undefined, limit: 80 },
+        signal
+      });
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map(
+        (p): SmartSelectOption => ({
+          value: p.id,
+          label: p.fullName
+        })
+      );
+    },
+    [canLoad, schoolQuery]
+  );
 
   const refreshAll = useCallback(async () => {
     if (!canLoad) return;
@@ -400,18 +446,14 @@ export function SchoolRosterPage() {
         ) : (
           <label className="mt-8 block max-w-md text-sm">
             <span className="font-medium text-slate-700">Escuela</span>
-            <select
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-              value={selectedSchoolId}
-              onChange={(e) => setSelectedSchoolId(e.target.value)}
-            >
-              <option value="">— Elegir —</option>
-              {schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
-            </select>
+            <div className="mt-1">
+              <SmartSelect
+                options={schoolOptions}
+                value={selectedSchoolId}
+                onChange={setSelectedSchoolId}
+                placeholder="— Elegir —"
+              />
+            </div>
           </label>
         )}
       </div>
@@ -429,17 +471,9 @@ export function SchoolRosterPage() {
       {platformAdmin && schools.length > 0 && (
         <label className="mt-6 block max-w-md text-sm">
           <span className="font-medium text-slate-700">Escuela activa</span>
-          <select
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={selectedSchoolId}
-            onChange={(e) => setSelectedSchoolId(e.target.value)}
-          >
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.code})
-              </option>
-            ))}
-          </select>
+          <div className="mt-1">
+            <SmartSelect options={schoolOptions} value={selectedSchoolId} onChange={setSelectedSchoolId} />
+          </div>
         </label>
       )}
 
@@ -593,18 +627,14 @@ export function SchoolRosterPage() {
           </label>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Grupo (opcional)</span>
-            <select
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-              value={sGroup}
-              onChange={(e) => setSGroup(e.target.value)}
-            >
-              <option value="">— Sin asignar —</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name} ({g.schoolYear})
-                </option>
-              ))}
-            </select>
+            <div className="mt-1">
+              <SmartSelect
+                options={groupOptions}
+                value={sGroup}
+                onChange={setSGroup}
+                placeholder="— Sin asignar —"
+              />
+            </div>
           </label>
           <div className="sm:col-span-2">
             <button
@@ -738,35 +768,25 @@ export function SchoolRosterPage() {
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onAssignTeacher}>
           <label className="text-sm">
             <span className="text-slate-700">Docente</span>
-            <select
-              required
-              className="mt-1 min-w-[12rem] rounded border border-slate-300 px-3 py-2"
-              value={aTeacher}
-              onChange={(e) => setATeacher(e.target.value)}
-            >
-              <option value="">— Elegir —</option>
-              {teachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.fullName}
-                </option>
-              ))}
-            </select>
+            <div className="mt-1 min-w-[12rem]">
+              <SmartSelect
+                options={teacherOptions}
+                value={aTeacher}
+                onChange={setATeacher}
+                placeholder="— Elegir —"
+              />
+            </div>
           </label>
           <label className="text-sm">
             <span className="text-slate-700">Grupo</span>
-            <select
-              required
-              className="mt-1 min-w-[12rem] rounded border border-slate-300 px-3 py-2"
-              value={aGroup}
-              onChange={(e) => setAGroup(e.target.value)}
-            >
-              <option value="">— Elegir —</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name} ({g.schoolYear})
-                </option>
-              ))}
-            </select>
+            <div className="mt-1 min-w-[12rem]">
+              <SmartSelect
+                options={groupOptions}
+                value={aGroup}
+                onChange={setAGroup}
+                placeholder="— Elegir —"
+              />
+            </div>
           </label>
           <button
             type="submit"
@@ -887,35 +907,25 @@ export function SchoolRosterPage() {
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onLink}>
           <label className="text-sm">
             <span className="text-slate-700">Alumno</span>
-            <select
-              required
-              className="mt-1 min-w-[14rem] rounded border border-slate-300 px-3 py-2"
-              value={lStudent}
-              onChange={(e) => setLStudent(e.target.value)}
-            >
-              <option value="">— Elegir —</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.fullName} ({s.matricula})
-                </option>
-              ))}
-            </select>
+            <div className="mt-1 min-w-[14rem]">
+              <SmartSelect
+                loadOptions={loadStudentOptions}
+                value={lStudent}
+                onChange={setLStudent}
+                placeholder="— Elegir —"
+              />
+            </div>
           </label>
           <label className="text-sm">
             <span className="text-slate-700">Padre / tutor</span>
-            <select
-              required
-              className="mt-1 min-w-[14rem] rounded border border-slate-300 px-3 py-2"
-              value={lParent}
-              onChange={(e) => setLParent(e.target.value)}
-            >
-              <option value="">— Elegir —</option>
-              {parents.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.fullName}
-                </option>
-              ))}
-            </select>
+            <div className="mt-1 min-w-[14rem]">
+              <SmartSelect
+                loadOptions={loadParentOptions}
+                value={lParent}
+                onChange={setLParent}
+                placeholder="— Elegir —"
+              />
+            </div>
           </label>
           <label className="text-sm">
             <span className="text-slate-700">Parentesco</span>

@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { SmartSelect } from '@/components/SmartSelect';
+import { createSchoolGroupsLoadOptions, createTeacherMyGroupsLoadOptions } from '@/lib/schoolGroupsSelect';
 import { Panel } from '@/components/ValueView';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isPlatformAdmin } from '@/lib/roles';
@@ -55,8 +57,8 @@ export function ImportExportPage() {
   const docente = user?.role === 'DOCENTE';
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [schoolFilter, setSchoolFilter] = useState('');
-  const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState('');
+  const [exportGroupLabel, setExportGroupLabel] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -67,6 +69,28 @@ export function ImportExportPage() {
   const [importResult, setImportResult] = useState<ImportSummary | null>(null);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [templateFormat, setTemplateFormat] = useState<TemplateFormat>('xlsx');
+
+  const schoolFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'Todas las instituciones' },
+      ...schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})`, searchText: s.code }))
+    ],
+    [schools]
+  );
+
+  const loadExportGroupOptions = useMemo(() => {
+    if (platformAdmin || administrativo) {
+      return createSchoolGroupsLoadOptions({
+        schoolId: platformAdmin && schoolFilter.trim() ? schoolFilter.trim() : undefined,
+        schools,
+        showSchoolPrefix: platformAdmin && !schoolFilter.trim()
+      });
+    }
+    if (docente) {
+      return createTeacherMyGroupsLoadOptions(schools, false);
+    }
+    return async () => [];
+  }, [administrativo, docente, platformAdmin, schoolFilter, schools]);
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -85,33 +109,53 @@ export function ImportExportPage() {
   }, [platformAdmin]);
 
   useEffect(() => {
+    if (!platformAdmin && !administrativo && !docente) return;
+    const ac = new AbortController();
     let cancelled = false;
-    (async () => {
-      setErr(null);
-      try {
-        if (platformAdmin || administrativo) {
-          const params =
-            platformAdmin && schoolFilter.trim() ? { schoolId: schoolFilter.trim() } : undefined;
-          const { data } = await api.get<Group[]>('/api/v1/school/groups', { params });
-          if (!cancelled && Array.isArray(data)) {
-            setGroups(data);
-            setGroupId(data[0]?.id ?? '');
-          }
-        } else if (docente) {
-          const { data } = await api.get<Group[]>('/api/v1/schedules/me/teacher/groups');
-          if (!cancelled && Array.isArray(data)) {
-            setGroups(data);
-            setGroupId(data[0]?.id ?? '');
-          }
+    setErr(null);
+    loadExportGroupOptions('', ac.signal)
+      .then((rows) => {
+        if (cancelled) return;
+        if (rows.length > 0) {
+          setGroupId((prev) => (prev && rows.some((r) => r.value === prev) ? prev : rows[0].value));
+        } else {
+          setGroupId('');
         }
-      } catch (e) {
-        if (!cancelled) setErr(getUserFacingMessage(e));
-      }
-    })();
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const aborted =
+          e &&
+          typeof e === 'object' &&
+          'name' in e &&
+          ((e as { name?: string }).name === 'CanceledError' || (e as { name?: string }).name === 'AbortError');
+        if (!aborted) setErr(getUserFacingMessage(e));
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [loadExportGroupOptions, platformAdmin, administrativo, docente, schoolFilter]);
+
+  useEffect(() => {
+    if (!groupId) {
+      setExportGroupLabel('');
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<Group>(`/api/v1/school/groups/${groupId}`)
+      .then(({ data: g }) => {
+        if (cancelled) return;
+        setExportGroupLabel(groupLabel(g, platformAdmin && g.schoolId ? schools.find((s) => s.id === g.schoolId)?.name : undefined));
+      })
+      .catch(() => {
+        if (!cancelled) setExportGroupLabel('');
+      });
     return () => {
       cancelled = true;
     };
-  }, [platformAdmin, administrativo, docente, schoolFilter]);
+  }, [groupId, platformAdmin, schools]);
 
   async function loadImportHistory() {
     if (!adminOrStaff) return;
@@ -399,59 +443,49 @@ export function ImportExportPage() {
             : 'Elija un curso y descargue el archivo. Si no aparece ningún grupo, verifique su asignación docente o los permisos con secretaría.'
         }
       >
-        {groups.length > 0 ? (
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        {platformAdmin || administrativo || docente ? (
+          <div className="mb-4 grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {platformAdmin && (
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-medium uppercase text-slate-500">Institución</label>
-                <select
-                  value={schoolFilter}
-                  onChange={(e) => setSchoolFilter(e.target.value)}
-                  className="mt-1 min-w-[200px] rounded border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">Todas las instituciones</option>
-                  {schools.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1">
+                  <SmartSelect
+                    options={schoolFilterOptions}
+                    value={schoolFilter}
+                    onChange={setSchoolFilter}
+                    placeholder="Todas las instituciones"
+                  />
+                </div>
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-medium uppercase text-slate-500">Grupo</label>
-              <select
-                value={groupId}
-                onChange={(e) => setGroupId(e.target.value)}
-                className="mt-1 rounded border border-slate-300 px-3 py-2 text-sm"
-              >
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {groupLabel(
-                      g,
-                      platformAdmin && g.schoolId
-                        ? schools.find((s) => s.id === g.schoolId)?.name
-                        : undefined
-                    )}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1">
+                <SmartSelect
+                  loadOptions={loadExportGroupOptions}
+                  value={groupId}
+                  onChange={setGroupId}
+                  placeholder="— Elegir grupo —"
+                  selectedLabel={exportGroupLabel || undefined}
+                />
+              </div>
             </div>
-            <div>
+            <div className="min-w-0 sm:col-span-2 lg:col-span-1">
               <label className="block text-xs font-medium uppercase text-slate-500">Fecha (asistencia)</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="mt-1 rounded border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full min-w-0 max-w-full rounded border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
           </div>
-        ) : (
+        ) : null}
+        {!groupId && (platformAdmin || administrativo || docente) ? (
           <p className="mb-4 text-sm text-amber-800">
-            No hay grupos disponibles para su usuario. Compruebe que tenga grupos asignados o permisos de consulta.
+            No hay grupos disponibles para su usuario o aún no se ha podido seleccionar uno. Compruebe asignaciones o permisos.
           </p>
-        )}
+        ) : null}
         <div className="flex flex-wrap gap-3">
           <button
             type="button"

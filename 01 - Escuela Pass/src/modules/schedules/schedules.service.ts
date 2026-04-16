@@ -5,7 +5,7 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { ClassScheduleSlotEntity } from '../../database/entities/class-schedule-slot.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { SubjectEntity } from '../../database/entities/subject.entity';
@@ -176,38 +176,43 @@ export class SchedulesService {
     });
   }
 
-  /** Grupos donde el docente tiene asignación (para exportaciones, etc.). */
-  async listMyGroupsAsTeacher(userId: string, role: UserRole) {
-    if (role === UserRole.ADMIN) {
-      return this.groupsRepository
-        .createQueryBuilder('g')
-        .orderBy('g.name', 'ASC')
-        .select(['g.id', 'g.name', 'g.grade', 'g.schoolYear'])
-        .getMany();
-    }
+  /** Grupos donde el docente tiene asignación (para exportaciones, etc.). Opcional búsqueda y límite. */
+  async listMyGroupsAsTeacher(
+    userId: string,
+    role: UserRole,
+    opts?: { q?: string; limit?: number }
+  ) {
+    let qb: SelectQueryBuilder<GroupEntity>;
 
-    if (role === UserRole.ADMINISTRATIVO) {
+    if (role === UserRole.ADMIN) {
+      qb = this.groupsRepository.createQueryBuilder('g');
+    } else if (role === UserRole.ADMINISTRATIVO) {
       const u = await this.usersRepository.findOne({ where: { id: userId } });
       if (!u?.schoolId) {
         throw new ForbiddenException('Su usuario no tiene escuela asignada');
       }
-      return this.groupsRepository
+      qb = this.groupsRepository.createQueryBuilder('g').where('g.schoolId = :sid', { sid: u.schoolId });
+    } else {
+      const teacher = await this.teachersRepository.findOne({ where: { userId } });
+      if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+      qb = this.groupsRepository
         .createQueryBuilder('g')
-        .where('g.school_id = :sid', { sid: u.schoolId })
-        .orderBy('g.name', 'ASC')
-        .select(['g.id', 'g.name', 'g.grade', 'g.schoolYear'])
-        .getMany();
+        .innerJoin('teacher_groups', 'tg', 'tg.group_id = g.id')
+        .where('tg.teacher_id = :tid', { tid: teacher.id });
     }
 
-    const teacher = await this.teachersRepository.findOne({ where: { userId } });
-    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
-    return this.groupsRepository
-      .createQueryBuilder('g')
-      .innerJoin('teacher_groups', 'tg', 'tg.group_id = g.id')
-      .where('tg.teacher_id = :tid', { tid: teacher.id })
-      .orderBy('g.name', 'ASC')
-      .select(['g.id', 'g.name', 'g.grade', 'g.schoolYear'])
-      .getMany();
+    const q = opts?.q?.trim();
+    if (q) {
+      const like = `%${q.toLowerCase()}%`;
+      qb.andWhere(
+        `(LOWER(g.name) LIKE :like OR LOWER(COALESCE(g.grade, '')) LIKE :like OR LOWER(g.schoolYear) LIKE :like)`,
+        { like }
+      );
+    }
+    qb.orderBy('g.name', 'ASC');
+    qb.select(['g.id', 'g.name', 'g.grade', 'g.schoolYear', 'g.schoolId']);
+    if (opts?.limit) qb.take(opts.limit);
+    return qb.getMany();
   }
 
   async update(id: string, dto: UpdateScheduleSlotDto) {

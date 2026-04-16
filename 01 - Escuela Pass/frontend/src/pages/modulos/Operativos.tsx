@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
+import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { Panel, ValueView } from '@/components/ValueView';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isStaff } from '@/lib/roles';
@@ -197,10 +198,9 @@ export function ModulosHubPage() {
 
 export function ComunicacionPage() {
   type SchoolGroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
-  type StudentRow = { id: string; fullName: string; email: string };
-  type TeacherRow = { id: string; fullName: string; email: string };
-  type ParentRow = { id: string; fullName: string; email: string };
-  type NoticeTargetUser = { id: string; label: string };
+  type StudentRow = { id: string; userId: string; fullName: string; email: string; matricula: string };
+  type TeacherRow = { id: string; userId: string; fullName: string; email: string };
+  type ParentRow = { id: string; userId: string; fullName: string; email: string };
 
   const [notifications, setNotifications] = useState<unknown>(null);
   const [notices, setNotices] = useState<unknown>(null);
@@ -213,12 +213,49 @@ export function ComunicacionPage() {
   const [audience, setAudience] = useState<'ALL' | 'ADMINISTRATIVO' | 'DOCENTE' | 'PADRE' | 'ALUMNO'>('ALL');
   const [targetGroupId, setTargetGroupId] = useState('');
   const [targetUserId, setTargetUserId] = useState('');
-  const [groups, setGroups] = useState<SchoolGroupRow[]>([]);
-  const [targetUsers, setTargetUsers] = useState<NoticeTargetUser[]>([]);
   const [important, setImportant] = useState(false);
   const { user } = useAuth();
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
   const canManageSchoolWideNotices = hasRole(user, 'ADMIN', 'ADMINISTRATIVO');
+
+  const loadGroupOptions = useCallback(async (q: string, signal: AbortSignal) => {
+    const { data } = await api.get<SchoolGroupRow[]>('/api/v1/school/groups', {
+      params: { q: q.trim() || undefined, limit: 80 },
+      signal
+    });
+    const rows = Array.isArray(data) ? data : [];
+    return rows.map(
+      (g): SmartSelectOption => ({
+        value: g.id,
+        label: `${g.name}${g.grade ? ` (${g.grade})` : ''} - ${g.schoolYear}`
+      })
+    );
+  }, []);
+
+  const loadNoticeTargetUsers = useCallback(async (q: string, signal: AbortSignal) => {
+    const params = { q: q.trim() || undefined, limit: 50 };
+    const [sRes, tRes, pRes] = await Promise.all([
+      api.get<StudentRow[]>('/api/v1/school/students', { params, signal }),
+      api.get<TeacherRow[]>('/api/v1/school/teachers', { params, signal }),
+      api.get<ParentRow[]>('/api/v1/school/parents', { params, signal })
+    ]);
+    const out: SmartSelectOption[] = [];
+    (Array.isArray(sRes.data) ? sRes.data : []).forEach((x) =>
+      out.push({
+        value: x.userId,
+        label: `${x.fullName} — Alumno (${x.email})`,
+        searchText: x.matricula
+      })
+    );
+    (Array.isArray(tRes.data) ? tRes.data : []).forEach((x) =>
+      out.push({ value: x.userId, label: `${x.fullName} — Docente (${x.email})` })
+    );
+    (Array.isArray(pRes.data) ? pRes.data : []).forEach((x) =>
+      out.push({ value: x.userId, label: `${x.fullName} — Padre (${x.email})` })
+    );
+    out.sort((a, b) => a.label.localeCompare(b.label, 'es'));
+    return out;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -231,28 +268,6 @@ export function ComunicacionPage() {
           const o = await api.get('/api/v1/notices?page=1&limit=10');
           if (!cancelled) setNotices(o.data);
         }
-        if (canManageSchoolWideNotices) {
-          const [gRes, sRes, tRes, pRes] = await Promise.all([
-            api.get<SchoolGroupRow[]>('/api/v1/school/groups'),
-            api.get<StudentRow[]>('/api/v1/school/students'),
-            api.get<TeacherRow[]>('/api/v1/school/teachers'),
-            api.get<ParentRow[]>('/api/v1/school/parents')
-          ]);
-          if (!cancelled) {
-            setGroups(Array.isArray(gRes.data) ? gRes.data : []);
-            const users: NoticeTargetUser[] = [];
-            (Array.isArray(sRes.data) ? sRes.data : []).forEach((x) =>
-              users.push({ id: x.id, label: `${x.fullName} — Alumno (${x.email})` })
-            );
-            (Array.isArray(tRes.data) ? tRes.data : []).forEach((x) =>
-              users.push({ id: x.id, label: `${x.fullName} — Docente (${x.email})` })
-            );
-            (Array.isArray(pRes.data) ? pRes.data : []).forEach((x) =>
-              users.push({ id: x.id, label: `${x.fullName} — Padre (${x.email})` })
-            );
-            setTargetUsers(users);
-          }
-        }
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
       }
@@ -260,7 +275,7 @@ export function ComunicacionPage() {
     return () => {
       cancelled = true;
     };
-  }, [staff, canManageSchoolWideNotices]);
+  }, [staff]);
 
   async function onCreateNotice(e: FormEvent) {
     e.preventDefault();
@@ -376,37 +391,27 @@ export function ComunicacionPage() {
                   {targetMode === 'GROUP' && (
                     <label className="text-sm">
                       <span className="text-slate-700">Grupo</span>
-                      <select
-                        required
-                        className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                        value={targetGroupId}
-                        onChange={(e) => setTargetGroupId(e.target.value)}
-                      >
-                        <option value="">— Elegir grupo —</option>
-                        {groups.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name} {g.grade ? `(${g.grade})` : ''} - {g.schoolYear}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="mt-1">
+                        <SmartSelect
+                          loadOptions={loadGroupOptions}
+                          value={targetGroupId}
+                          onChange={setTargetGroupId}
+                          placeholder="— Elegir grupo —"
+                        />
+                      </div>
                     </label>
                   )}
                   {targetMode === 'USER' && (
                     <label className="text-sm">
                       <span className="text-slate-700">Usuario</span>
-                      <select
-                        required
-                        className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                        value={targetUserId}
-                        onChange={(e) => setTargetUserId(e.target.value)}
-                      >
-                        <option value="">— Elegir usuario —</option>
-                        {targetUsers.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="mt-1">
+                        <SmartSelect
+                          loadOptions={loadNoticeTargetUsers}
+                          value={targetUserId}
+                          onChange={setTargetUserId}
+                          placeholder="— Elegir usuario —"
+                        />
+                      </div>
                     </label>
                   )}
                 </>
@@ -603,6 +608,29 @@ export function AcademicoPage() {
       periods: [...periodsSet].sort((a, b) => b.localeCompare(a))
     }));
   }, [padre, grades, childrenSchedule, childrenCalendar]);
+
+  const teacherGroupSelectOptions = useMemo(
+    () =>
+      teacherGroups.map((g) => ({
+        value: g.id,
+        label: `${g.name} · ${g.grade ?? '—'} · ${g.schoolYear}`,
+        searchText: `${g.name} ${g.grade ?? ''} ${g.schoolYear}`
+      })),
+    [teacherGroups]
+  );
+
+  const attendanceStudentSelectOptions = useMemo(() => {
+    const rows = teacherAttendance?.students ?? [];
+    const opts: SmartSelectOption[] = [{ value: '', label: 'Todos' }];
+    for (const s of rows) {
+      opts.push({
+        value: s.studentId,
+        label: `${s.fullName} (${s.matricula})`,
+        searchText: s.matricula
+      });
+    }
+    return opts;
+  }, [teacherAttendance?.students]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1033,19 +1061,16 @@ export function AcademicoPage() {
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-sm text-slate-700">
                     Grupo
-                    <select
-                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                      value={selectedTeacherGroupId}
-                      onChange={(e) => setSelectedTeacherGroupId(e.target.value)}
-                    >
-                      {teacherGroups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name} · {g.grade ?? '—'} · {g.schoolYear}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-0.5">
+                      <SmartSelect
+                        options={teacherGroupSelectOptions}
+                        value={selectedTeacherGroupId}
+                        onChange={setSelectedTeacherGroupId}
+                        placeholder="— Elegir grupo —"
+                      />
+                    </div>
                   </label>
                   <label className="flex flex-col gap-1 text-sm text-slate-700">
                     Vista
@@ -1068,20 +1093,16 @@ export function AcademicoPage() {
                       onChange={(e) => setAttendanceRefDate(e.target.value)}
                     />
                   </label>
-                  <label className="flex min-w-[12rem] flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex min-w-[12rem] max-w-md flex-1 flex-col gap-1 text-sm text-slate-700">
                     Estudiante
-                    <select
-                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                      value={attendanceStudentFilter}
-                      onChange={(e) => setAttendanceStudentFilter(e.target.value)}
-                    >
-                      <option value="">Todos</option>
-                      {(teacherAttendance?.students ?? []).map((s) => (
-                        <option key={s.studentId} value={s.studentId}>
-                          {s.fullName} ({s.matricula})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-0.5">
+                      <SmartSelect
+                        options={attendanceStudentSelectOptions}
+                        value={attendanceStudentFilter}
+                        onChange={setAttendanceStudentFilter}
+                        placeholder="Todos"
+                      />
+                    </div>
                   </label>
                 </div>
                 {teacherAttendance?.view === 'day' && teacherAttendance.nonInstructionalDay ? (

@@ -47,17 +47,28 @@ export class SchoolController {
     return user.role === UserRole.ADMIN ? undefined : user.schoolId ?? undefined;
   }
 
+  /** Límite opcional para búsquedas (1–100). */
+  private parseSearchLimit(limitRaw: string | undefined): number | undefined {
+    if (!limitRaw?.trim()) return undefined;
+    const n = parseInt(limitRaw, 10);
+    if (Number.isNaN(n)) return undefined;
+    return Math.min(Math.max(n, 1), 100);
+  }
+
   @Get('groups')
   listGroups(
     @Query('schoolId') schoolIdFilter: string | undefined,
+    @Query('q') q: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
     const scoped = this.scopeSchool(req.user);
     const sid = schoolIdFilter?.trim();
+    const opts = { q: q?.trim(), limit: this.parseSearchLimit(limitRaw) };
     if (req.user.role === UserRole.ADMIN && sid) {
-      return this.schoolService.listGroups(sid);
+      return this.schoolService.listGroups(sid, opts);
     }
-    return this.schoolService.listGroups(scoped);
+    return this.schoolService.listGroups(scoped, opts);
   }
 
   @Get('groups/:id')
@@ -122,14 +133,17 @@ export class SchoolController {
   @Get('students')
   listStudents(
     @Query('schoolId') schoolIdFilter: string | undefined,
+    @Query('q') q: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
     const scoped = this.scopeSchool(req.user);
     const sid = schoolIdFilter?.trim();
+    const opts = { q: q?.trim(), limit: this.parseSearchLimit(limitRaw) };
     if (req.user.role === UserRole.ADMIN && sid) {
-      return this.schoolService.listStudents(sid);
+      return this.schoolService.listStudents(sid, opts);
     }
-    return this.schoolService.listStudents(scoped);
+    return this.schoolService.listStudents(scoped, opts);
   }
 
   @Get('students/:id')
@@ -157,14 +171,17 @@ export class SchoolController {
   @Get('teachers')
   listTeachers(
     @Query('schoolId') schoolIdFilter: string | undefined,
+    @Query('q') q: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
     const scoped = this.scopeSchool(req.user);
     const sid = schoolIdFilter?.trim();
+    const opts = { q: q?.trim(), limit: this.parseSearchLimit(limitRaw) };
     if (req.user.role === UserRole.ADMIN && sid) {
-      return this.schoolService.listTeachers(sid);
+      return this.schoolService.listTeachers(sid, opts);
     }
-    return this.schoolService.listTeachers(scoped);
+    return this.schoolService.listTeachers(scoped, opts);
   }
 
   @Get('teachers/:id')
@@ -214,14 +231,17 @@ export class SchoolController {
   @Get('parents')
   listParents(
     @Query('schoolId') schoolIdFilter: string | undefined,
+    @Query('q') q: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
     const scoped = this.scopeSchool(req.user);
     const sid = schoolIdFilter?.trim();
+    const opts = { q: q?.trim(), limit: this.parseSearchLimit(limitRaw) };
     if (req.user.role === UserRole.ADMIN && sid) {
-      return this.schoolService.listParents(sid);
+      return this.schoolService.listParents(sid, opts);
     }
-    return this.schoolService.listParents(scoped);
+    return this.schoolService.listParents(scoped, opts);
   }
 
   @Get('parents/:id')

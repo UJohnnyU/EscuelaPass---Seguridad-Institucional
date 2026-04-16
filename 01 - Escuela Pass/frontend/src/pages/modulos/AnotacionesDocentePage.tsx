@@ -1,6 +1,8 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { createSchoolGroupsLoadOptions, createTeacherMyGroupsLoadOptions } from '@/lib/schoolGroupsSelect';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
 
@@ -39,7 +41,6 @@ export function AnotacionesDocentePage() {
   const [schoolFilter, setSchoolFilter] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-  const [groups, setGroups] = useState<TeacherGroup[]>([]);
   const [groupId, setGroupId] = useState('');
   const [students, setStudents] = useState<RosterStudent[]>([]);
   const [notes, setNotes] = useState<AttentionNoteRow[]>([]);
@@ -51,6 +52,56 @@ export function AnotacionesDocentePage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [occurredAt, setOccurredAt] = useState('');
+
+  const schoolFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'Todas las instituciones' },
+      ...schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})`, searchText: s.code }))
+    ],
+    [schools]
+  );
+
+  const loadGroupOptions = useMemo(() => {
+    if (platformAdmin) {
+      return createSchoolGroupsLoadOptions({
+        schoolId: schoolFilter.trim() || undefined,
+        schools,
+        showSchoolPrefix: !schoolFilter.trim()
+      });
+    }
+    return createTeacherMyGroupsLoadOptions(schools, false);
+  }, [platformAdmin, schoolFilter, schools]);
+
+  const [groupLabelHint, setGroupLabelHint] = useState('');
+
+  const refreshGroupLabelHint = useCallback(
+    async (gid: string) => {
+      if (!gid) {
+        setGroupLabelHint('');
+        return;
+      }
+      try {
+        const { data } = await api.get<TeacherGroup>(`/api/v1/school/groups/${gid}`);
+        const g = data;
+        const schoolName = g.schoolId ? schools.find((s) => s.id === g.schoolId)?.name : undefined;
+        const prefix = platformAdmin && schoolName ? `${schoolName} · ` : '';
+        setGroupLabelHint(`${prefix}${g.name} · ${g.grade ?? '—'} · ${g.schoolYear ?? '—'}`);
+      } catch {
+        setGroupLabelHint('');
+      }
+    },
+    [platformAdmin, schools]
+  );
+
+  const studentSelectOptions = useMemo(
+    () =>
+      students.map((s) => ({
+        value: s.studentId,
+        label: `${s.fullName} (${s.matricula})`,
+        searchText: s.matricula
+      })),
+    [students]
+  );
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -69,39 +120,40 @@ export function AnotacionesDocentePage() {
   }, [platformAdmin]);
 
   useEffect(() => {
+    const ac = new AbortController();
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        if (platformAdmin) {
-          const params = schoolFilter.trim() ? { schoolId: schoolFilter.trim() } : undefined;
-          const { data } = await api.get<TeacherGroup[]>('/api/v1/school/groups', { params });
-          if (cancelled) return;
-          const list = Array.isArray(data) ? data : [];
-          setGroups(list);
-          if (list.length > 0) {
-            setGroupId((g) => g || list[0].id);
-          }
+    setLoading(true);
+    setErr(null);
+    loadGroupOptions('', ac.signal)
+      .then((rows) => {
+        if (cancelled) return;
+        if (rows.length > 0) {
+          setGroupId((g) => (g && rows.some((r) => r.value === g) ? g : rows[0].value));
         } else {
-          const { data } = await api.get<TeacherGroup[]>('/api/v1/schedules/me/teacher/groups');
-          if (cancelled) return;
-          const list = Array.isArray(data) ? data : [];
-          setGroups(list);
-          if (list.length > 0) {
-            setGroupId((g) => g || list[0].id);
-          }
+          setGroupId('');
         }
-      } catch (e) {
-        if (!cancelled) setErr(getUserFacingMessage(e));
-      } finally {
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const aborted =
+          e &&
+          typeof e === 'object' &&
+          'name' in e &&
+          ((e as { name?: string }).name === 'CanceledError' || (e as { name?: string }).name === 'AbortError');
+        if (!aborted) setErr(getUserFacingMessage(e));
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
+      ac.abort();
     };
-  }, [platformAdmin, schoolFilter]);
+  }, [loadGroupOptions, platformAdmin, schoolFilter]);
+
+  useEffect(() => {
+    void refreshGroupLabelHint(groupId);
+  }, [groupId, refreshGroupLabelHint]);
 
   const loadGroupData = async (gid: string) => {
     if (!gid) {
@@ -189,7 +241,7 @@ export function AnotacionesDocentePage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Nueva anotación</h2>
         {loading ? (
           <p className="mt-4 text-sm text-slate-600">Cargando grupos…</p>
-        ) : groups.length === 0 ? (
+        ) : !groupId && !loading ? (
           <p className="mt-4 text-sm text-slate-600">
             {platformAdmin
               ? 'No hay grupos para el filtro elegido. Seleccione otra institución o verifique los datos en Escuelas.'
@@ -201,55 +253,40 @@ export function AnotacionesDocentePage() {
               {platformAdmin && (
                 <label className="block text-sm sm:col-span-2">
                   <span className="text-slate-700">Institución (filtro)</span>
-                  <select
-                    className="mt-1 w-full max-w-md rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                    value={schoolFilter}
-                    onChange={(e) => setSchoolFilter(e.target.value)}
-                  >
-                    <option value="">Todas las instituciones</option>
-                    {schools.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mt-1 max-w-md">
+                    <SmartSelect
+                      options={schoolFilterOptions}
+                      value={schoolFilter}
+                      onChange={setSchoolFilter}
+                      placeholder="Todas las instituciones"
+                    />
+                  </div>
                 </label>
               )}
               <label className="block text-sm">
                 <span className="text-slate-700">Grupo</span>
-                <select
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                  value={groupId}
-                  onChange={(e) => setGroupId(e.target.value)}
-                >
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {platformAdmin && g.schoolId
-                        ? `${schools.find((s) => s.id === g.schoolId)?.name ?? ''} · `
-                        : ''}
-                      {g.name} · {g.grade ?? '—'} · {g.schoolYear ?? '—'}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1">
+                  <SmartSelect
+                    loadOptions={loadGroupOptions}
+                    value={groupId}
+                    onChange={setGroupId}
+                    placeholder="— Elegir grupo —"
+                    selectedLabel={groupLabelHint || undefined}
+                  />
+                </div>
               </label>
               <label className="block text-sm">
                 <span className="text-slate-700">Estudiante</span>
-                <select
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  disabled={students.length === 0}
-                >
-                  {students.length === 0 ? (
-                    <option value="">Sin estudiantes en el grupo</option>
-                  ) : (
-                    students.map((s) => (
-                      <option key={s.studentId} value={s.studentId}>
-                        {s.fullName} ({s.matricula})
-                      </option>
-                    ))
-                  )}
-                </select>
+                <div className="mt-1">
+                  <SmartSelect
+                    options={studentSelectOptions}
+                    value={studentId}
+                    onChange={setStudentId}
+                    disabled={students.length === 0}
+                    placeholder={students.length === 0 ? 'Sin estudiantes en el grupo' : '— Elegir estudiante —'}
+                    emptyLabel="Sin estudiantes en el grupo"
+                  />
+                </div>
               </label>
             </div>
             <label className="block text-sm">

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { createSchoolGroupsLoadOptions } from '@/lib/schoolGroupsSelect';
+import { invalidateSessionCachePrefix, readSessionCache, writeSessionCache } from '@/lib/sessionFetchCache';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
 
@@ -52,7 +55,6 @@ export function StaffScheduleBrowsePage() {
   const platformAdmin = isPlatformAdmin(user);
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [schoolFilter, setSchoolFilter] = useState('');
-  const [groups, setGroups] = useState<GroupRow[]>([]);
   const [groupId, setGroupId] = useState('');
   const [weekOffset, setWeekOffset] = useState(0);
   const { from, to, label } = useMemo(() => weekRangeISO(weekOffset), [weekOffset]);
@@ -67,6 +69,24 @@ export function StaffScheduleBrowsePage() {
   const [instReason, setInstReason] = useState('');
   const [instSaving, setInstSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const schoolFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'Todas (mostrar todos los grupos)' },
+      ...schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})`, searchText: s.code }))
+    ],
+    [schools]
+  );
+
+  const loadGroupOptions = useMemo(
+    () =>
+      createSchoolGroupsLoadOptions({
+        schoolId: platformAdmin && schoolFilter.trim() ? schoolFilter.trim() : undefined,
+        schools,
+        showSchoolPrefix: platformAdmin && !schoolFilter.trim()
+      }),
+    [platformAdmin, schoolFilter, schools]
+  );
 
   const canMarkInstitutionWide =
     user?.role === 'ADMINISTRATIVO' || (user?.role === 'ADMIN' && (!platformAdmin || !!schoolFilter.trim()));
@@ -88,73 +108,108 @@ export function StaffScheduleBrowsePage() {
   }, [platformAdmin]);
 
   useEffect(() => {
+    invalidateSessionCachePrefix('staffsched:');
+    const ac = new AbortController();
     let cancelled = false;
-    (async () => {
-      setLoadingMeta(true);
-      setErr(null);
-      try {
-        const params =
-          platformAdmin && schoolFilter.trim()
-            ? { schoolId: schoolFilter.trim() }
-            : undefined;
-        const { data } = await api.get<GroupRow[]>('/api/v1/school/groups', { params });
+    setLoadingMeta(true);
+    setErr(null);
+    loadGroupOptions('', ac.signal)
+      .then((rows) => {
         if (cancelled) return;
-        const list = Array.isArray(data) ? data : [];
-        setGroups(list);
-        setGroupId((prev) => {
-          if (prev && list.some((g) => g.id === prev)) return prev;
-          return list[0]?.id ?? '';
-        });
-      } catch (e) {
-        if (!cancelled) {
-          setErr(getUserFacingMessage(e));
-          setGroups([]);
+        if (rows.length > 0) {
+          setGroupId((prev) => (prev && rows.some((r) => r.value === prev) ? prev : rows[0].value));
+        } else {
           setGroupId('');
         }
-      } finally {
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const aborted =
+          e &&
+          typeof e === 'object' &&
+          'name' in e &&
+          ((e as { name?: string }).name === 'CanceledError' || (e as { name?: string }).name === 'AbortError');
+        if (!aborted) setErr(getUserFacingMessage(e));
+      })
+      .finally(() => {
         if (!cancelled) setLoadingMeta(false);
-      }
-    })();
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [loadGroupOptions, schoolFilter]);
+
+  const [groupDetail, setGroupDetail] = useState<GroupRow | null>(null);
+
+  useEffect(() => {
+    if (!groupId) {
+      setGroupDetail(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<GroupRow>(`/api/v1/school/groups/${groupId}`)
+      .then(({ data }) => {
+        if (!cancelled) setGroupDetail(data);
+      })
+      .catch(() => {
+        if (!cancelled) setGroupDetail(null);
+      });
     return () => {
       cancelled = true;
     };
-  }, [platformAdmin, schoolFilter, user?.role]);
+  }, [groupId]);
 
-  const selectedGroup = useMemo(
-    () => groups.find((g) => g.id === groupId) ?? null,
-    [groups, groupId]
+  const loadSchedule = useCallback(
+    async (opts?: { bypassCache?: boolean }) => {
+      if (!groupId) {
+        setSlots([]);
+        setCalendarDays([]);
+        return;
+      }
+      const cacheKey = `staffsched:${groupId}:${from}:${to}`;
+      if (!opts?.bypassCache) {
+        const cached = readSessionCache<{
+          slots: SlotRow[];
+          nameMap: Record<string, string>;
+          calendarDays: CalEntity[];
+        }>(cacheKey);
+        if (cached) {
+          setSlots(cached.slots);
+          setNameMap(cached.nameMap);
+          setCalendarDays(cached.calendarDays);
+          return;
+        }
+      }
+      setLoadingSchedule(true);
+      setErr(null);
+      try {
+        const [slotRes, subjRes, calRes] = await Promise.all([
+          api.get<SlotRow[]>(`/api/v1/schedules/groups/${groupId}`),
+          api.get<SubjectRow[]>('/api/v1/school/subjects'),
+          api.get<CalEntity[]>(
+            `/api/v1/calendar/non-instructional-days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupId=${encodeURIComponent(groupId)}`
+          )
+        ]);
+        const rawSlots = Array.isArray(slotRes.data) ? slotRes.data : [];
+        const subjects = Array.isArray(subjRes.data) ? subjRes.data : [];
+        const nameById = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
+        const cal = Array.isArray(calRes.data) ? calRes.data : [];
+        setSlots(rawSlots);
+        setNameMap(nameById);
+        setCalendarDays(cal);
+        writeSessionCache(cacheKey, { slots: rawSlots, nameMap: nameById, calendarDays: cal });
+      } catch (e) {
+        setErr(getUserFacingMessage(e, 'No se pudo cargar el horario.'));
+        setSlots([]);
+        setCalendarDays([]);
+      } finally {
+        setLoadingSchedule(false);
+      }
+    },
+    [groupId, from, to]
   );
-
-  const loadSchedule = useCallback(async () => {
-    if (!groupId) {
-      setSlots([]);
-      setCalendarDays([]);
-      return;
-    }
-    setLoadingSchedule(true);
-    setErr(null);
-    try {
-      const [slotRes, subjRes, calRes] = await Promise.all([
-        api.get<SlotRow[]>(`/api/v1/schedules/groups/${groupId}`),
-        api.get<SubjectRow[]>('/api/v1/school/subjects'),
-        api.get<CalEntity[]>(
-          `/api/v1/calendar/non-instructional-days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupId=${encodeURIComponent(groupId)}`
-        )
-      ]);
-      const rawSlots = Array.isArray(slotRes.data) ? slotRes.data : [];
-      const subjects = Array.isArray(subjRes.data) ? subjRes.data : [];
-      const nameById = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
-      setSlots(rawSlots);
-      setNameMap(nameById);
-      setCalendarDays(Array.isArray(calRes.data) ? calRes.data : []);
-    } catch (e) {
-      setErr(getUserFacingMessage(e, 'No se pudo cargar el horario.'));
-      setSlots([]);
-      setCalendarDays([]);
-    } finally {
-      setLoadingSchedule(false);
-    }
-  }, [groupId, from, to]);
 
   useEffect(() => {
     void loadSchedule();
@@ -199,7 +254,7 @@ export function StaffScheduleBrowsePage() {
       }
       await api.post('/api/v1/calendar/non-instructional-days', body);
       setInstReason('');
-      await loadSchedule();
+      await loadSchedule({ bypassCache: true });
     } catch (e) {
       setErr(getUserFacingMessage(e, 'No se pudo registrar el día sin clases.'));
     } finally {
@@ -212,7 +267,7 @@ export function StaffScheduleBrowsePage() {
     setErr(null);
     try {
       await api.delete(`/api/v1/calendar/non-instructional-days/${id}`);
-      await loadSchedule();
+      await loadSchedule({ bypassCache: true });
     } catch (e) {
       setErr(getUserFacingMessage(e, 'No se pudo eliminar el registro.'));
     } finally {
@@ -254,46 +309,33 @@ export function StaffScheduleBrowsePage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
         {platformAdmin && (
-          <label className="block text-sm text-slate-700">
+          <label className="block min-w-0 flex-1 text-sm text-slate-700 sm:max-w-md">
             Institución
-            <select
-              className="mt-1 w-full min-w-[200px] rounded border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
-              value={schoolFilter}
-              onChange={(e) => setSchoolFilter(e.target.value)}
-            >
-              <option value="">Todas (mostrar todos los grupos)</option>
-              {schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
-            </select>
+            <div className="mt-1">
+              <SmartSelect
+                options={schoolFilterOptions}
+                value={schoolFilter}
+                onChange={setSchoolFilter}
+                placeholder="Todas (mostrar todos los grupos)"
+              />
+            </div>
           </label>
         )}
-        <label className="block min-w-[220px] flex-1 text-sm text-slate-700">
+        <label className="block min-w-0 flex-1 text-sm text-slate-700 sm:min-w-[220px]">
           Grupo
-          <select
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-            value={groupId}
-            disabled={loadingMeta || groups.length === 0}
-            onChange={(e) => setGroupId(e.target.value)}
-          >
-            {groups.length === 0 ? (
-              <option value="">No hay grupos disponibles</option>
-            ) : (
-              groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {platformAdmin && g.schoolId && schools.find((s) => s.id === g.schoolId)
-                    ? `${schools.find((s) => s.id === g.schoolId)?.name ?? ''} · `
-                    : ''}
-                  {g.name}
-                  {g.grade ? ` · ${g.grade}` : ''} · {g.schoolYear}
-                </option>
-              ))
-            )}
-          </select>
+          <div className="mt-1">
+            <SmartSelect
+              loadOptions={loadGroupOptions}
+              value={groupId}
+              onChange={setGroupId}
+              disabled={loadingMeta}
+              placeholder={loadingMeta ? 'Cargando…' : '— Elegir grupo —'}
+              emptyLabel="No hay grupos disponibles"
+              selectedLabel={groupDetail ? `${groupDetail.name} · ${groupDetail.schoolYear}` : undefined}
+            />
+          </div>
         </label>
       </div>
 
@@ -335,10 +377,10 @@ export function StaffScheduleBrowsePage() {
         ) : null}
       </div>
 
-      {selectedGroup && (
+      {groupDetail && (
         <p className="text-sm text-slate-700">
-          <span className="font-medium text-slate-900">{selectedGroup.name}</span>
-          {selectedGroup.grade ? ` · ${selectedGroup.grade}` : ''} · Año {selectedGroup.schoolYear}
+          <span className="font-medium text-slate-900">{groupDetail.name}</span>
+          {groupDetail.grade ? ` · ${groupDetail.grade}` : ''} · Año {groupDetail.schoolYear}
         </p>
       )}
 

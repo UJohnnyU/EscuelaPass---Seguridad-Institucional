@@ -161,14 +161,22 @@ export class SchoolService {
   }
 
   // --- Grupos ---
-  listGroups(scopeSchoolId?: string | null) {
-    if (scopeSchoolId) {
-      return this.groupsRepository.find({
-        where: { schoolId: scopeSchoolId },
-        order: { schoolYear: 'DESC', name: 'ASC' }
-      });
+  listGroups(scopeSchoolId?: string | null, opts?: { q?: string; limit?: number }) {
+    const qb = this.groupsRepository
+      .createQueryBuilder('g')
+      .orderBy('g.schoolYear', 'DESC')
+      .addOrderBy('g.name', 'ASC');
+    if (scopeSchoolId) qb.andWhere('g.schoolId = :schoolId', { schoolId: scopeSchoolId });
+    const q = opts?.q?.trim();
+    if (q) {
+      const like = `%${q.toLowerCase()}%`;
+      qb.andWhere(
+        `(LOWER(g.name) LIKE :like OR LOWER(COALESCE(g.grade, '')) LIKE :like OR LOWER(g.schoolYear) LIKE :like)`,
+        { like }
+      );
     }
-    return this.groupsRepository.find({ order: { schoolYear: 'DESC', name: 'ASC' } });
+    if (opts?.limit) qb.take(opts.limit);
+    return qb.getMany();
   }
 
   async getGroup(id: string, scopeSchoolId?: string | null) {
@@ -266,12 +274,13 @@ export class SchoolService {
   }
 
   // --- Estudiantes (usuario + perfil) ---
-  async listStudents(scopeSchoolId?: string | null) {
+  async listStudents(scopeSchoolId?: string | null, opts?: { q?: string; limit?: number }) {
     const qb = this.studentsRepository
       .createQueryBuilder('s')
       .innerJoin(UserEntity, 'u', 'u.id = s.userId')
       .select([
         's.id AS id',
+        'u.id AS "userId"',
         's.matricula AS matricula',
         's.groupId AS "groupId"',
         's.canLeaveAlone AS "canLeaveAlone"',
@@ -282,6 +291,15 @@ export class SchoolService {
       ])
       .orderBy('u.full_name', 'ASC');
     if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    const q = opts?.q?.trim();
+    if (q) {
+      const like = `%${q.toLowerCase()}%`;
+      qb.andWhere(
+        `(LOWER(u.full_name) LIKE :like OR LOWER(u.email) LIKE :like OR LOWER(s.matricula) LIKE :like)`,
+        { like }
+      );
+    }
+    if (opts?.limit) qb.limit(opts.limit);
     return qb.getRawMany();
   }
 
@@ -361,12 +379,13 @@ export class SchoolService {
   }
 
   // --- Docentes ---
-  async listTeachers(scopeSchoolId?: string | null) {
+  async listTeachers(scopeSchoolId?: string | null, opts?: { q?: string; limit?: number }) {
     const qb = this.teachersRepository
       .createQueryBuilder('t')
       .innerJoin(UserEntity, 'u', 'u.id = t.userId')
       .select([
         't.id AS id',
+        'u.id AS "userId"',
         't.employeeNumber AS "employeeNumber"',
         'u.email AS email',
         'u.fullName AS "fullName"',
@@ -375,6 +394,15 @@ export class SchoolService {
       ])
       .orderBy('u.full_name', 'ASC');
     if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    const q = opts?.q?.trim();
+    if (q) {
+      const like = `%${q.toLowerCase()}%`;
+      qb.andWhere(
+        `(LOWER(u.full_name) LIKE :like OR LOWER(u.email) LIKE :like OR LOWER(t.employeeNumber) LIKE :like)`,
+        { like }
+      );
+    }
+    if (opts?.limit) qb.limit(opts.limit);
     return qb.getRawMany();
   }
 
@@ -505,7 +533,7 @@ export class SchoolService {
   }
 
   // --- Padres / tutores y vínculos con estudiantes ---
-  listParents(scopeSchoolId?: string | null) {
+  listParents(scopeSchoolId?: string | null, opts?: { q?: string; limit?: number }) {
     const qb = this.parentsRepository
       .createQueryBuilder('p')
       .innerJoin(UserEntity, 'u', 'u.id = p.userId')
@@ -519,6 +547,12 @@ export class SchoolService {
       ])
       .orderBy('u.full_name', 'ASC');
     if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    const q = opts?.q?.trim();
+    if (q) {
+      const like = `%${q.toLowerCase()}%`;
+      qb.andWhere(`(LOWER(u.full_name) LIKE :like OR LOWER(u.email) LIKE :like)`, { like });
+    }
+    if (opts?.limit) qb.limit(opts.limit);
     return qb.getRawMany();
   }
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
@@ -64,6 +65,24 @@ export function CalificacionesDocentePage() {
     const [groupId, subjectId] = selectedKey.split('::');
     return assignments.find((a) => a.groupId === groupId && a.subjectId === subjectId) ?? null;
   }, [assignments, selectedKey]);
+
+  const schoolFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'Todas las instituciones' },
+      ...schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})`, searchText: s.code }))
+    ],
+    [schools]
+  );
+
+  const assignmentSelectOptions = useMemo(
+    () =>
+      assignments.map((a) => ({
+        value: `${a.groupId}::${a.subjectId}`,
+        label: `${a.schoolName ? `${a.schoolName} · ` : ''}${a.groupName ?? 'Grupo'} · ${a.grade ?? '—'} · ${a.schoolYear ?? '—'} — ${a.subjectName}`,
+        searchText: [a.groupName, a.subjectName, a.schoolName, a.grade].filter(Boolean).join(' ')
+      })),
+    [assignments]
+  );
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -280,39 +299,29 @@ export function CalificacionesDocentePage() {
           {platformAdmin && (
             <label className="block text-sm sm:col-span-2">
               <span className="text-slate-700">Institución (filtro)</span>
-              <select
-                className="mt-1 w-full max-w-md rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                value={schoolFilter}
-                onChange={(e) => setSchoolFilter(e.target.value)}
-              >
-                <option value="">Todas las instituciones</option>
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1 max-w-md">
+                <SmartSelect
+                  options={schoolFilterOptions}
+                  value={schoolFilter}
+                  onChange={setSchoolFilter}
+                  placeholder="Todas las instituciones"
+                  disabled={loadingAssignments}
+                />
+              </div>
             </label>
           )}
           <label className="block text-sm">
             <span className="text-slate-700">Grupo y materia</span>
-            <select
-              className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-              value={selectedKey}
-              onChange={(e) => setSelectedKey(e.target.value)}
-              disabled={loadingAssignments || assignments.length === 0}
-            >
-              {assignments.length === 0 ? (
-                <option value="">Sin asignaciones</option>
-              ) : (
-                assignments.map((a) => (
-                  <option key={`${a.groupId}-${a.subjectId}`} value={`${a.groupId}::${a.subjectId}`}>
-                    {a.schoolName ? `${a.schoolName} · ` : ''}
-                    {a.groupName ?? 'Grupo'} · {a.grade ?? '—'} · {a.schoolYear ?? '—'} — {a.subjectName}
-                  </option>
-                ))
-              )}
-            </select>
+            <div className="mt-1">
+              <SmartSelect
+                options={assignmentSelectOptions}
+                value={selectedKey}
+                onChange={setSelectedKey}
+                disabled={loadingAssignments || assignments.length === 0}
+                placeholder={assignments.length === 0 ? 'Sin asignaciones' : '— Elegir grupo y materia —'}
+                emptyLabel="Sin asignaciones"
+              />
+            </div>
           </label>
           <label className="block text-sm">
             <span className="text-slate-700">Período evaluativo</span>

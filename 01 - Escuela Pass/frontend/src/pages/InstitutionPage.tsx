@@ -1,4 +1,5 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
@@ -29,6 +30,11 @@ export function InstitutionPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const schoolEditOptions = useMemo(
+    () => schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})`, searchText: s.code })),
+    [schools]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -143,21 +149,15 @@ export function InstitutionPage() {
 
       {platformAdmin && schools.length > 0 && (
         <div className="mt-6">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="school-select">
-            Escuela a editar
-          </label>
-          <select
-            id="school-select"
-            className="mt-1 w-full max-w-md rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-            value={selectedSchoolId}
-            onChange={(e) => setSelectedSchoolId(e.target.value)}
-          >
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.code})
-              </option>
-            ))}
-          </select>
+          <span className="block text-sm font-medium text-slate-700">Escuela a editar</span>
+          <div className="mt-1 max-w-md">
+            <SmartSelect
+              options={schoolEditOptions}
+              value={selectedSchoolId}
+              onChange={setSelectedSchoolId}
+              placeholder="— Elegir escuela —"
+            />
+          </div>
           <p className="mt-2 text-xs text-slate-500">
             Debe elegir la escuela antes de guardar. Si un campo está vacío en la base de datos de esa escuela, puede
             mostrarse el valor de respaldo global del sistema (configuración antigua).

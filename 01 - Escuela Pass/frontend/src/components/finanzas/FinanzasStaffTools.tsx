@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
+import { SmartSelect } from '@/components/SmartSelect';
 
 type PaymentConcept = {
   id: string;
@@ -77,11 +78,46 @@ export function FinanzasStaffTools() {
 
   const canPickSchool = platformAdmin;
   const schoolOk = !canPickSchool || !!schoolId;
+  const schoolOptions = useMemo(
+    () =>
+      schools.map((s) => ({
+        value: s.id,
+        label: `${s.name} (${s.code})`
+      })),
+    [schools]
+  );
+  const conceptOptions = useMemo(
+    () =>
+      concepts
+        .filter((c) => c.isActive)
+        .map((c) => ({
+          value: c.id,
+          label: c.name
+        })),
+    [concepts]
+  );
 
   const studentParams = useMemo(() => {
     if (canPickSchool && schoolId) return { schoolId };
     return undefined;
   }, [canPickSchool, schoolId]);
+
+  const loadStudentOptions = useCallback(
+    async (q: string, signal: AbortSignal) => {
+      if (!schoolOk) return [];
+      const { data } = await api.get<StudentOpt[]>('/api/v1/school/students', {
+        params: { ...(studentParams ?? {}), q: q.trim() || undefined, limit: 80 },
+        signal
+      });
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map((s) => ({
+        value: s.id,
+        label: `${s.fullName} — ${s.matricula}`,
+        searchText: s.matricula
+      }));
+    },
+    [schoolOk, studentParams]
+  );
 
   const refreshConcepts = useCallback(async () => {
     const { data } = await api.get<PaymentConcept[]>('/api/v1/payments/concepts', {
@@ -287,18 +323,9 @@ export function FinanzasStaffTools() {
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
         Seleccione una escuela para cargar alumnos y asignar colegiaturas u otras obligaciones.
         {schools.length > 0 && (
-          <select
-            className="ml-3 rounded border border-amber-300 bg-white px-2 py-1"
-            value={schoolId}
-            onChange={(e) => setSchoolId(e.target.value)}
-          >
-            <option value="">— Elegir —</option>
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <div className="ml-3 mt-2 max-w-sm">
+            <SmartSelect options={schoolOptions} value={schoolId} onChange={setSchoolId} placeholder="— Elegir —" />
+          </div>
         )}
       </div>
     );
@@ -309,17 +336,9 @@ export function FinanzasStaffTools() {
       {canPickSchool && schools.length > 0 && (
         <label className="block max-w-md text-sm">
           <span className="font-medium text-slate-700">Escuela (alumnos para asignar obligaciones)</span>
-          <select
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={schoolId}
-            onChange={(e) => setSchoolId(e.target.value)}
-          >
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.code})
-              </option>
-            ))}
-          </select>
+          <div className="mt-1">
+            <SmartSelect options={schoolOptions} value={schoolId} onChange={setSchoolId} placeholder="Escuela" />
+          </div>
         </label>
       )}
 
@@ -529,40 +548,29 @@ export function FinanzasStaffTools() {
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onAssignDebt}>
           <label className="text-sm">
             <span className="text-slate-700">Alumno</span>
-            <select
-              required
-              className="mt-1 min-w-[14rem] rounded border border-slate-300 px-3 py-2"
-              value={asStudent}
-              onChange={(e) => setAsStudent(e.target.value)}
-            >
-              <option value="">— Elegir —</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.fullName} — {s.matricula}
-                </option>
-              ))}
-            </select>
+            <div className="mt-1 min-w-[14rem]">
+              <SmartSelect
+                loadOptions={loadStudentOptions}
+                value={asStudent}
+                onChange={setAsStudent}
+                placeholder="— Elegir —"
+              />
+            </div>
           </label>
           <label className="text-sm">
             <span className="text-slate-700">Concepto</span>
-            <select
-              required
-              className="mt-1 min-w-[12rem] rounded border border-slate-300 px-3 py-2"
-              value={asConcept}
-              onChange={(e) => {
-                const id = e.target.value;
-                setAsConcept(id);
-                const c = concepts.find((x) => x.id === id);
-                if (c) setAsAmount(String(c.defaultAmount));
-              }}
-            >
-              <option value="">— Elegir —</option>
-              {concepts.filter((c) => c.isActive).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="mt-1 min-w-[12rem]">
+              <SmartSelect
+                options={conceptOptions}
+                value={asConcept}
+                onChange={(id) => {
+                  setAsConcept(id);
+                  const c = concepts.find((x) => x.id === id);
+                  if (c) setAsAmount(String(c.defaultAmount));
+                }}
+                placeholder="— Elegir —"
+              />
+            </div>
           </label>
           <label className="text-sm">
             <span className="text-slate-700">Importe</span>
@@ -593,14 +601,14 @@ export function FinanzasStaffTools() {
           </label>
           <button
             type="submit"
-            disabled={saving || students.length === 0}
+            disabled={saving || !schoolOk}
             className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
           >
             Registrar obligación
           </button>
         </form>
         {students.length === 0 && schoolOk && (
-          <p className="mt-3 text-sm text-amber-800">No hay alumnos en esta escuela o aún no se han cargado.</p>
+          <p className="mt-3 text-sm text-amber-800">No hay alumnos en esta escuela o aún no se han cargado en la tabla.</p>
         )}
       </section>
 
