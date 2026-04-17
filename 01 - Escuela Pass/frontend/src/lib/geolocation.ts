@@ -1,7 +1,7 @@
 /**
  * Geolocalización para «Ya llegué» en circuito de recogida.
- * Primero intenta GPS de alta precisión; si falla (típico en interiores), reintenta con
- * posición asistida por red/Wi‑Fi (menos precisa pero suele devolver un punto útil).
+ * Prioriza respuesta rápida (red/Wi‑Fi) para no bloquear al padre demasiado tiempo.
+ * Si no hay dato útil, intenta GPS preciso como respaldo.
  */
 
 function getCurrentPosition(options: PositionOptions): Promise<GeolocationPosition> {
@@ -22,21 +22,21 @@ export async function requestGeolocationForCircuitArrival(): Promise<Geolocation
     throw new Error('Su navegador no permite obtener la ubicación.');
   }
 
-  /** Alta precisión: puede fallar dentro de edificios (código 2 o 3). */
+  /** Red/Wi‑Fi + posición reciente: suele responder más rápido, incluso en interiores. */
+  const networkAssisted: PositionOptions = {
+    enableHighAccuracy: false,
+    maximumAge: 300_000,
+    timeout: 6_000
+  };
+  /** Alta precisión: respaldo si la vía rápida no logra obtener ubicación. */
   const precise: PositionOptions = {
     enableHighAccuracy: true,
     maximumAge: 0,
-    timeout: 22_000
-  };
-  /** Red/Wi‑Fi + posición reciente en caché: suele responder en interiores. */
-  const networkAssisted: PositionOptions = {
-    enableHighAccuracy: false,
-    maximumAge: 180_000,
-    timeout: 32_000
+    timeout: 10_000
   };
 
   try {
-    return await getCurrentPosition(precise);
+    return await getCurrentPosition(networkAssisted);
   } catch (first) {
     const c1 = geoCode(first);
     if (c1 === 1) {
@@ -46,7 +46,7 @@ export async function requestGeolocationForCircuitArrival(): Promise<Geolocation
     }
 
     try {
-      return await getCurrentPosition(networkAssisted);
+      return await getCurrentPosition(precise);
     } catch (second) {
       const c2 = geoCode(second);
       if (c2 === 1) {
@@ -61,7 +61,7 @@ export async function requestGeolocationForCircuitArrival(): Promise<Geolocation
       }
       if (c2 === 3) {
         throw new Error(
-          'Tiempo de espera agotado. Compruebe la señal o los permisos e inténtelo de nuevo en unos segundos.'
+          'No se pudo obtener ubicación a tiempo. Active ubicación y GPS del dispositivo, muévase a un lugar con mejor señal y vuelva a pulsar «Ya llegué».'
         );
       }
       throw new Error('No se pudo obtener la ubicación. Inténtelo de nuevo.');
