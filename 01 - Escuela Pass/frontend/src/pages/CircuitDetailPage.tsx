@@ -33,6 +33,7 @@ type CircuitReq = {
 };
 
 const REMINDER_WINDOW_MIN = 15;
+const CIRCUIT_AUTO_REFRESH_MS = 5000;
 
 export function CircuitDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -122,6 +123,36 @@ export function CircuitDetailPage() {
       setReminderOpen(true);
     }
   }, [id, row, reminderLogic.urgent]);
+
+  useEffect(() => {
+    if (!id || !row || terminal) return;
+
+    const poll = async () => {
+      if (busy) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        await reload();
+      } catch {
+        // Polling silencioso: evita ruido de errores intermitentes de red.
+      }
+    };
+
+    const intervalId = setInterval(() => {
+      void poll();
+    }, CIRCUIT_AUTO_REFRESH_MS);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void poll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [id, row, terminal, busy, reload]);
 
   async function run(action: () => Promise<void>) {
     setMsg(null);
