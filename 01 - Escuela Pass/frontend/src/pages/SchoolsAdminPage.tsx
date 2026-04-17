@@ -8,6 +8,8 @@ type School = {
   code: string;
   status: boolean;
   maxGradeScale: string;
+  latitude: string;
+  longitude: string;
 };
 
 export function SchoolsAdminPage() {
@@ -18,6 +20,8 @@ export function SchoolsAdminPage() {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [maxGradeScale, setMaxGradeScale] = useState('100.00');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
 
   const loadSchools = async () => {
     setLoading(true);
@@ -38,8 +42,8 @@ export function SchoolsAdminPage() {
   }, []);
 
   const createSchool = async () => {
-    if (!name.trim() || !code.trim() || !maxGradeScale.trim()) {
-      setErr('Nombre, código y máximo de calificación son obligatorios.');
+    if (!name.trim() || !code.trim() || !maxGradeScale.trim() || !latitude.trim() || !longitude.trim()) {
+      setErr('Nombre, código, ubicación y máximo de calificación son obligatorios.');
       return;
     }
     const max = Number(maxGradeScale.replace(',', '.'));
@@ -52,18 +56,32 @@ export function SchoolsAdminPage() {
       setErr('El máximo de calificación debe tener máximo 2 decimales.');
       return;
     }
+    const lat = Number(latitude.replace(',', '.'));
+    const lng = Number(longitude.replace(',', '.'));
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      setErr('Latitud inválida. Use un valor entre -90 y 90.');
+      return;
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setErr('Longitud inválida. Use un valor entre -180 y 180.');
+      return;
+    }
     setErr(null);
     setOk(null);
     try {
       await api.post('/api/v1/schools', {
         name: name.trim(),
         code: code.trim().toUpperCase(),
-        maxGradeScale: Number((maxScaled / 100).toFixed(2))
+        maxGradeScale: Number((maxScaled / 100).toFixed(2)),
+        latitude: Number(lat.toFixed(8)),
+        longitude: Number(lng.toFixed(8))
       });
       setOk('Escuela creada correctamente.');
       setName('');
       setCode('');
       setMaxGradeScale('100.00');
+      setLatitude('');
+      setLongitude('');
       await loadSchools();
     } catch (e) {
       setErr(getUserFacingMessage(e));
@@ -100,7 +118,7 @@ export function SchoolsAdminPage() {
 
       <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Nueva escuela</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+        <div className="mt-3 grid gap-3 sm:grid-cols-6">
           <input
             className="rounded border border-slate-300 px-3 py-2 text-sm"
             placeholder="Nombre"
@@ -118,6 +136,20 @@ export function SchoolsAdminPage() {
             placeholder="Máximo de calificación (ej. 100.00)"
             value={maxGradeScale}
             onChange={(e) => setMaxGradeScale(e.target.value)}
+            inputMode="decimal"
+          />
+          <input
+            className="rounded border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Latitud (ej. 6.21303770)"
+            value={latitude}
+            onChange={(e) => setLatitude(e.target.value)}
+            inputMode="decimal"
+          />
+          <input
+            className="rounded border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Longitud (ej. -75.57724700)"
+            value={longitude}
+            onChange={(e) => setLongitude(e.target.value)}
             inputMode="decimal"
           />
           <button
@@ -146,6 +178,9 @@ export function SchoolsAdminPage() {
                   <p className="font-medium text-slate-900">{s.name}</p>
                   <p className="text-xs text-slate-500">
                     {s.code} · Máximo: {s.maxGradeScale} · {s.status ? 'Activa' : 'Inactiva'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Ubicación: {s.latitude}, {s.longitude}
                   </p>
                 </div>
                 <button

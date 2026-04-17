@@ -23,6 +23,12 @@ export class SchoolEntity {
   @Column({ type: 'varchar', length: 80, nullable: true })
   phone!: string | null;
 
+  @Column({ type: 'numeric', precision: 10, scale: 8, nullable: false })
+  latitude!: string;
+
+  @Column({ type: 'numeric', precision: 11, scale: 8, nullable: false })
+  longitude!: string;
+
   @Column({ type: 'varchar', length: 200, nullable: true })
   email!: string | null;
 

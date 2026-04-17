@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SchoolEntity } from '../../database/entities/school.entity';
@@ -35,7 +35,9 @@ export class SchoolsService {
       name: dto.name.trim(),
       code: dto.code.trim(),
       status: true,
-      maxGradeScale: dto.maxGradeScale.toFixed(2)
+      maxGradeScale: dto.maxGradeScale.toFixed(2),
+      latitude: dto.latitude.toFixed(8),
+      longitude: dto.longitude.toFixed(8)
     });
     return this.schoolsRepository.save(row);
   }
@@ -50,6 +52,13 @@ export class SchoolsService {
     }
     if (dto.status !== undefined) row.status = dto.status;
     if (dto.maxGradeScale !== undefined) row.maxGradeScale = dto.maxGradeScale.toFixed(2);
+    if ((dto.latitude === undefined) !== (dto.longitude === undefined)) {
+      throw new BadRequestException('Para actualizar ubicación debe enviar latitude y longitude juntos.');
+    }
+    if (dto.latitude !== undefined && dto.longitude !== undefined) {
+      row.latitude = dto.latitude.toFixed(8);
+      row.longitude = dto.longitude.toFixed(8);
+    }
     return this.schoolsRepository.save(row);
   }
 

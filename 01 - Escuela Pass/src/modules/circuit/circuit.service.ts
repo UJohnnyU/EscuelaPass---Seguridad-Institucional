@@ -35,6 +35,12 @@ type DistanceResult = {
   source: 'mapbox' | 'haversine';
 };
 
+type SchoolGeo = {
+  latitude: number;
+  longitude: number;
+  radiusKm: number;
+};
+
 @Injectable()
 export class CircuitService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CircuitService.name);
@@ -295,12 +301,15 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     req.parentGpsLatitude = dto.parentGpsLatitude.toString();
     req.parentGpsLongitude = dto.parentGpsLongitude.toString();
 
+    const schoolGeo = await this.getSchoolGeoByRequest(req);
     const proximity = await this.calculateDistanceToSchool(
       dto.parentGpsLatitude,
-      dto.parentGpsLongitude
+      dto.parentGpsLongitude,
+      schoolGeo.latitude,
+      schoolGeo.longitude
     );
 
-    const radiusKm = this.getSchoolRadiusKm();
+    const radiusKm = schoolGeo.radiusKm;
 
     const saved = await this.circuitRepository.save(req);
 
@@ -405,9 +414,10 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   async getMapContext(id: string, userId: string, role: UserRole) {
     const req = await this.findById(id);
     await this.assertCanViewCircuitRequest(req, userId, role);
-    const schoolLat = this.getSchoolLatitude();
-    const schoolLng = this.getSchoolLongitude();
-    const radiusKm = this.getSchoolRadiusKm();
+    const schoolGeo = await this.getSchoolGeoByRequest(req);
+    const schoolLat = schoolGeo.latitude;
+    const schoolLng = schoolGeo.longitude;
+    const radiusKm = schoolGeo.radiusKm;
     let distanceKm: number | null = null;
     let durationSeconds: number | null = null;
     let source: 'mapbox' | 'haversine' | null = null;
@@ -416,7 +426,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     if (snapLatStr != null && snapLngStr != null) {
       const lat = Number(snapLatStr);
       const lng = Number(snapLngStr);
-      const prox = await this.calculateDistanceToSchool(lat, lng);
+      const prox = await this.calculateDistanceToSchool(lat, lng, schoolLat, schoolLng);
       distanceKm = prox.distanceKm;
       durationSeconds = prox.durationSeconds;
       source = prox.source;
@@ -762,21 +772,48 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private getSchoolLatitude() {
-    return Number(process.env.SCHOOL_LATITUDE ?? 4.6097);
-  }
-
-  private getSchoolLongitude() {
-    return Number(process.env.SCHOOL_LONGITUDE ?? -74.0817);
-  }
-
   private getSchoolRadiusKm() {
     return Number(process.env.CIRCUIT_ARRIVAL_RADIUS_KM ?? 1.5);
   }
 
-  private async calculateDistanceToSchool(parentLat: number, parentLng: number): Promise<DistanceResult> {
-    const schoolLat = this.getSchoolLatitude();
-    const schoolLng = this.getSchoolLongitude();
+  private defaultSchoolLatitude() {
+    return Number(process.env.SCHOOL_LATITUDE ?? 4.6097);
+  }
+
+  private defaultSchoolLongitude() {
+    return Number(process.env.SCHOOL_LONGITUDE ?? -74.0817);
+  }
+
+  private async getSchoolGeoByRequest(req: CircuitRequestEntity): Promise<SchoolGeo> {
+    const row = await this.studentsRepository.manager.query<
+      Array<{ school_latitude: string | null; school_longitude: string | null }>
+    >(
+      `SELECT s.latitude AS school_latitude, s.longitude AS school_longitude
+       FROM students st
+       JOIN groups g ON g.id = st.group_id
+       JOIN schools s ON s.id = g.school_id
+       WHERE st.id = $1
+       LIMIT 1`,
+      [req.studentId]
+    );
+    const lat = Number(row[0]?.school_latitude);
+    const lng = Number(row[0]?.school_longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { latitude: lat, longitude: lng, radiusKm: this.getSchoolRadiusKm() };
+    }
+    return {
+      latitude: this.defaultSchoolLatitude(),
+      longitude: this.defaultSchoolLongitude(),
+      radiusKm: this.getSchoolRadiusKm()
+    };
+  }
+
+  private async calculateDistanceToSchool(
+    parentLat: number,
+    parentLng: number,
+    schoolLat: number,
+    schoolLng: number
+  ): Promise<DistanceResult> {
     const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
 
     if (mapboxToken) {
