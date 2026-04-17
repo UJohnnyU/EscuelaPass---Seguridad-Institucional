@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { validateEnv } from './config/env.validation';
 import { buildTypeOrmConfig } from './config/typeorm.config';
+import { AcademicPeriodsModule } from './modules/academic-periods/academic-periods.module';
+import { AcademicSchedulerModule } from './modules/academic-scheduler/academic-scheduler.module';
 import { AccessModule } from './modules/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CircuitModule } from './modules/circuit/circuit.module';
@@ -12,8 +15,8 @@ import { NoticesModule } from './modules/notices/notices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './modules/health/health.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
-import { GradesModule } from './modules/grades/grades.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
+import { ReportCardsModule } from './modules/report-cards/report-cards.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolModule } from './modules/school/school.module';
 import { ExportsModule } from './modules/exports/exports.module';
@@ -46,6 +49,7 @@ import { SchoolsModule } from './modules/schools/schools.module';
         limit: Number(process.env.THROTTLE_LIMIT ?? 100)
       }
     ]),
+    ScheduleModule.forRoot(),
     HealthModule,
     AuthModule,
     AccessModule,
@@ -53,8 +57,10 @@ import { SchoolsModule } from './modules/schools/schools.module';
     NoticesModule,
     PaymentsModule,
     AttendanceModule,
-    GradesModule,
     ActivitiesModule,
+    AcademicPeriodsModule,
+    ReportCardsModule,
+    AcademicSchedulerModule,
     ReportsModule,
     SchoolModule,
     ExportsModule,
@@ -79,4 +85,3 @@ import { SchoolsModule } from './modules/schools/schools.module';
   ]
 })
 export class AppModule {}
-

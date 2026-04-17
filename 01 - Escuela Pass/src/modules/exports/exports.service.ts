@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
 import { Repository } from 'typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
-import { GradeEntity } from '../../database/entities/grade.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
@@ -42,8 +41,6 @@ export class ExportsService {
   constructor(
     @InjectRepository(AttendanceRecordEntity)
     private readonly attendanceRepository: Repository<AttendanceRecordEntity>,
-    @InjectRepository(GradeEntity)
-    private readonly gradesRepository: Repository<GradeEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(GroupEntity)
@@ -175,30 +172,49 @@ export class ExportsService {
   ): Promise<{ headers: string[]; rows: GradesExportRow[] }> {
     await this.assertCanViewGroup(userId, role, groupId);
 
-    const qb = this.gradesRepository
-      .createQueryBuilder('g')
-      .innerJoin(StudentEntity, 's', 's.id = g.studentId')
-      .innerJoin(UserEntity, 'u', 'u.id = s.userId')
-      .select([
-        's.matricula AS matricula',
-        'u.fullName AS full_name',
-        'g.subject AS subject',
-        'g.period AS period',
-        'g.assessmentName AS assessment_name',
-        'g.score AS score',
-        'g.maxScore AS max_score',
-        'g.notes AS notes',
-        'g.gradedAt AS graded_at'
-      ])
-      .where('g.groupId = :gid', { gid: groupId })
-      .orderBy('u.fullName', 'ASC')
-      .addOrderBy('g.subject', 'ASC')
-      .addOrderBy('g.gradedAt', 'DESC');
+    const params: unknown[] = [groupId];
+    const wheres: string[] = ['a.group_id = $1'];
+    if (period) {
+      params.push(period);
+      wheres.push(`a.period = $${params.length}`);
+    }
+    if (subject) {
+      params.push(subject);
+      wheres.push(`a.subject_name = $${params.length}`);
+    }
 
-    if (period) qb.andWhere('g.period = :period', { period });
-    if (subject) qb.andWhere('g.subject = :subject', { subject });
+    const raw = await this.groupsRepository.manager.query<
+      {
+        matricula: string;
+        full_name: string;
+        subject: string;
+        period: string;
+        assessment_name: string;
+        score: string | null;
+        max_score: string;
+        notes: string | null;
+        graded_at: Date | null;
+      }[]
+    >(
+      `SELECT
+         s.matricula AS matricula,
+         u.full_name AS full_name,
+         a.subject_name AS subject,
+         a.period AS period,
+         a.title AS assessment_name,
+         ag.score::text AS score,
+         a.max_score::text AS max_score,
+         ag.notes AS notes,
+         ag.graded_at AS graded_at
+       FROM activities a
+       INNER JOIN students s ON s.group_id = a.group_id
+       INNER JOIN users u ON u.id = s.user_id
+       LEFT JOIN activity_grades ag ON ag.activity_id = a.id AND ag.student_id = s.id
+       WHERE ${wheres.join(' AND ')} AND a.published_at IS NOT NULL
+       ORDER BY u.full_name ASC, a.subject_name ASC, ag.graded_at DESC`,
+      params
+    );
 
-    const raw = await qb.getRawMany();
     const headers = [
       'matricula',
       'full_name',
@@ -216,7 +232,7 @@ export class ExportsService {
       subject: r.subject,
       period: r.period,
       assessment_name: r.assessment_name,
-      score: r.score,
+      score: r.score ?? '',
       max_score: r.max_score,
       notes: r.notes,
       graded_at: r.graded_at ? new Date(r.graded_at).toISOString() : ''

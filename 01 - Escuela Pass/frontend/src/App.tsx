@@ -27,7 +27,10 @@ import {
   VisitasPage
 } from '@/pages/modulos/Operativos';
 import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
+import { BoletinesPage } from '@/pages/modulos/BoletinesPage';
 import { CalificacionesDocentePage } from '@/pages/modulos/CalificacionesDocentePage';
+import { MisCalificacionesPage } from '@/pages/modulos/MisCalificacionesPage';
+import { PeriodosAcademicosPage } from '@/pages/PeriodosAcademicosPage';
 import { SchoolRosterPage } from '@/pages/SchoolRosterPage';
 
 function AuthenticatedShell() {
@@ -83,8 +86,32 @@ export default function App() {
           <Route
             path="modulos/calificaciones-docente"
             element={
-              <RoleGate allow={['DOCENTE']}>
+              <RoleGate allow={['ADMIN', 'ADMINISTRATIVO', 'DOCENTE']}>
                 <CalificacionesDocentePage />
+              </RoleGate>
+            }
+          />
+          <Route
+            path="modulos/mis-calificaciones"
+            element={
+              <RoleGate allow={['ALUMNO', 'PADRE']}>
+                <MisCalificacionesPage />
+              </RoleGate>
+            }
+          />
+          <Route
+            path="modulos/boletines"
+            element={
+              <RoleGate allow={['ADMIN', 'ADMINISTRATIVO', 'DOCENTE', 'ALUMNO', 'PADRE']}>
+                <BoletinesPage />
+              </RoleGate>
+            }
+          />
+          <Route
+            path="modulos/periodos-academicos"
+            element={
+              <RoleGate allow={['ADMIN', 'ADMINISTRATIVO']}>
+                <PeriodosAcademicosPage />
               </RoleGate>
             }
           />

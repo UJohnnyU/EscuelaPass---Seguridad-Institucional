@@ -2,11 +2,11 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import PDFDocument from 'pdfkit';
 import { Repository } from 'typeorm';
-import { GradeEntity } from '../../database/entities/grade.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
+import { ReportCardStatus, ReportCardType } from '../../database/entities/report-card.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
-import { GradesService } from '../grades/grades.service';
+import { ReportCardsService } from '../report-cards/report-cards.service';
 import { SchedulesService } from '../schedules/schedules.service';
 import { SettingsService } from '../settings/settings.service';
 
@@ -15,7 +15,7 @@ const WEEKDAY_LABEL = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 @Injectable()
 export class DocumentsService {
   constructor(
-    private readonly gradesService: GradesService,
+    private readonly reportCardsService: ReportCardsService,
     private readonly schedulesService: SchedulesService,
     private readonly settingsService: SettingsService,
     @InjectRepository(GroupEntity)
@@ -27,29 +27,29 @@ export class DocumentsService {
   ) {}
 
   async buildBulletinPdf(
-    studentId: string,
+    reportCardId: string,
     userId: string,
-    role: UserRole,
-    period?: string
+    role: UserRole
   ): Promise<Buffer> {
-    const grades = await this.gradesService.listByStudent(studentId, userId, role, period, undefined);
-    const student = await this.studentsRepository.findOne({ where: { id: studentId } });
+    const card = await this.reportCardsService.getDetail(reportCardId, userId, role);
+    if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO && role !== UserRole.DOCENTE) {
+      if (card.status !== ReportCardStatus.PUBLISHED) {
+        throw new ForbiddenException('El boletín aún no está publicado');
+      }
+    }
+
+    const student = await this.studentsRepository.findOne({ where: { id: card.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
-    const user = await this.usersRepository.findOne({ where: { id: student.userId } });
-    const name = user?.fullName ?? student.matricula;
     const group = student.groupId
       ? await this.groupsRepository.findOne({ where: { id: student.groupId } })
       : null;
-    const institution = await this.settingsService.getInstitutionProfileForSchoolId(group?.schoolId ?? null);
-
-    const bySubject = new Map<string, GradeEntity[]>();
-    for (const g of grades) {
-      const list = bySubject.get(g.subject) ?? [];
-      list.push(g);
-      bySubject.set(g.subject, list);
-    }
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(
+      group?.schoolId ?? null
+    );
 
     const issued = new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    const title =
+      card.type === ReportCardType.FINAL ? 'BOLETÍN FINAL' : 'BOLETÍN DE PERIODO';
 
     return this.pdfBuffer((doc) => {
       const left = doc.page.margins.left;
@@ -67,47 +67,53 @@ export class DocumentsService {
       if (contact) doc.fontSize(9).text(contact, { align: 'center', width: contentW });
 
       doc.moveDown(1.2);
-      doc.fontSize(14).font('Helvetica-Bold').text('BOLETÍN DE CALIFICACIONES', { align: 'center' });
+      doc.fontSize(14).font('Helvetica-Bold').text(title, { align: 'center' });
       doc.font('Helvetica');
       doc.moveDown(0.8);
 
       doc.fontSize(11);
-      doc.text(`Nombre: ${name}`);
-      doc.text(`Matrícula: ${student.matricula}`);
+      doc.text(`Nombre: ${card.studentName}`);
+      doc.text(`Matrícula: ${card.matricula}`);
       if (group) {
         doc.text(
           `Grupo: ${group.name} · Año escolar: ${group.schoolYear} · Turno: ${group.shift}` +
             (group.grade ? ` · Grado: ${group.grade}` : '')
         );
       }
-      if (period) doc.text(`Período académico (filtro): ${period}`);
+      if (card.periodName) doc.text(`Periodo: ${card.periodName}`);
+      doc.text(`Escala institucional: 0 a ${card.maxGradeScale}`);
+      doc.text(`Nota mínima aprobatoria: ${card.passingGrade}`);
       doc.moveDown(0.6);
 
-      if (!grades.length) {
-        doc.fontSize(10).text('No hay calificaciones registradas para los criterios indicados.');
-        return;
-      }
-
-      for (const [subject, items] of bySubject) {
-        doc.fontSize(12).font('Helvetica-Bold').text(subject, left);
+      if (card.subjects.length === 0) {
+        doc.fontSize(10).text('No hay calificaciones registradas para el periodo.');
+      } else {
+        doc.fontSize(12).font('Helvetica-Bold').text('Materias y promedios', left);
         doc.font('Helvetica');
         doc.fontSize(10);
-        doc.font('Helvetica-Oblique').text(
-          'Período · Evaluación · Calificación · Observaciones',
-          left,
-          doc.y,
-          { width: contentW }
+        doc.moveDown(0.3);
+        for (const s of card.subjects) {
+          const estado = s.isPassing ? 'APROBADA' : 'REPROBADA';
+          doc.text(
+            `${s.subjectName}: ${s.average} / ${card.maxGradeScale} · ${estado} ` +
+              `(actividades: ${s.activityCount}, calificadas: ${s.gradedCount})`,
+            { width: contentW }
+          );
+          doc.moveDown(0.15);
+        }
+      }
+
+      doc.moveDown(0.5);
+      doc.fontSize(12).font('Helvetica-Bold').text(
+        `Promedio general: ${card.overallAverage} / ${card.maxGradeScale}`
+      );
+      doc.font('Helvetica');
+      if (card.type === ReportCardType.FINAL) {
+        doc.fontSize(12).font('Helvetica-Bold').text(
+          `Promoción: ${card.promotionStatus ?? 'SIN ESTADO'} ` +
+            `(materias reprobadas: ${card.failedSubjectsCount}; mínimo para reprobar: ${card.minFailedSubjectsToRepeat})`
         );
         doc.font('Helvetica');
-        doc.moveDown(0.35);
-        for (const g of items) {
-          const line = `${g.period} · ${g.assessmentName}: ${g.score} / ${g.maxScore}${
-            g.notes ? ` — ${g.notes}` : ''
-          }`;
-          doc.text(line, { width: contentW });
-          doc.moveDown(0.2);
-        }
-        doc.moveDown(0.5);
       }
 
       doc.moveDown(0.5);
@@ -121,12 +127,6 @@ export class DocumentsService {
       }
       doc.fillColor('#000000');
     });
-  }
-
-  async buildMyStudentBulletinPdf(studentUserId: string, period?: string): Promise<Buffer> {
-    const student = await this.studentsRepository.findOne({ where: { userId: studentUserId } });
-    if (!student) throw new ForbiddenException('Perfil alumno no encontrado');
-    return this.buildBulletinPdf(student.id, studentUserId, UserRole.ALUMNO, period);
   }
 
   async buildGroupSchedulePdf(groupId: string, userId: string, role: UserRole): Promise<Buffer> {

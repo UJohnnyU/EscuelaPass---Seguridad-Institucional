@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
-import { GradeEntity } from '../../database/entities/grade.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { AuthModule } from '../auth/auth.module';
@@ -15,7 +14,7 @@ import { ExportsService } from './exports.service';
     AuthModule,
     SchoolCalendarModule,
     SettingsModule,
-    TypeOrmModule.forFeature([AttendanceRecordEntity, GradeEntity, GroupEntity, TeacherEntity])
+    TypeOrmModule.forFeature([AttendanceRecordEntity, GroupEntity, TeacherEntity])
   ],
   controllers: [ExportsController],
   providers: [ExportsService]

@@ -21,6 +21,21 @@ type SchoolRow = { id: string; name: string; code: string };
 
 type ActivityStatus = 'OPEN' | 'CLOSED';
 
+type PeriodStatus = 'PLANNED' | 'ACTIVE' | 'CLOSED';
+
+type AcademicPeriod = {
+  id: string;
+  schoolId: string;
+  schoolYear: string;
+  name: string;
+  orderIndex: number;
+  startDate: string;
+  endDate: string;
+  weight: string;
+  status: PeriodStatus;
+  closedAt: string | null;
+};
+
 type ActivityRow = {
   id: string;
   teacherId: string;
@@ -32,10 +47,15 @@ type ActivityRow = {
   subjectName: string;
   title: string;
   period: string;
+  periodId: string | null;
+  periodName: string | null;
   maxScore: string;
   dueDate: string | null;
   status: ActivityStatus;
   closedAt: string | null;
+  reopenedAt: string | null;
+  publishedAt: string | null;
+  underReview: boolean;
   gradedCount: number;
   rosterCount: number;
   createdAt: string;
@@ -51,6 +71,7 @@ type BoardResponse = {
     groupId: string;
     subjectId: string;
     subjectName: string;
+    periodId: string | null;
     title: string;
     description: string | null;
     period: string;
@@ -59,6 +80,8 @@ type BoardResponse = {
     status: ActivityStatus;
     closedAt: string | null;
     reopenedAt: string | null;
+    publishedAt: string | null;
+    underReview: boolean;
   };
   rows: Array<{
     studentId: string;
@@ -77,8 +100,8 @@ type RowDraft = { score: string; notes: string };
 
 type CreateForm = {
   assignmentKey: string;
+  periodId: string;
   title: string;
-  period: string;
   description: string;
   maxScore: string;
   dueDate: string;
@@ -86,8 +109,8 @@ type CreateForm = {
 
 const emptyCreateForm = (): CreateForm => ({
   assignmentKey: '',
+  periodId: '',
   title: '',
-  period: '',
   description: '',
   maxScore: '',
   dueDate: ''
@@ -106,6 +129,9 @@ export function CalificacionesDocentePage() {
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [filterAssignment, setFilterAssignment] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | ActivityStatus>('');
+  const [filterPeriod, setFilterPeriod] = useState('');
+
+  const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
@@ -173,9 +199,10 @@ export function CalificacionesDocentePage() {
       try {
         const params =
           platformAdmin && schoolFilter.trim() ? { schoolId: schoolFilter.trim() } : undefined;
-        const { data } = await api.get<TeacherAssignment[]>('/api/v1/grades/teacher/my-assignments', {
-          params
-        });
+        const { data } = await api.get<TeacherAssignment[]>(
+          '/api/v1/activities/teacher/my-assignments',
+          { params }
+        );
         if (cancelled) return;
         setAssignments(Array.isArray(data) ? data : []);
       } catch (e) {
@@ -192,6 +219,43 @@ export function CalificacionesDocentePage() {
     };
   }, [platformAdmin, schoolFilter]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params: Record<string, string> = {};
+        if (platformAdmin && schoolFilter.trim()) params.schoolId = schoolFilter.trim();
+        const { data } = await api.get<AcademicPeriod[]>('/api/v1/academic-periods', { params });
+        if (!cancelled && Array.isArray(data)) setPeriods(data);
+      } catch {
+        if (!cancelled) setPeriods([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin, schoolFilter]);
+
+  const periodOptions = useMemo(
+    () =>
+      periods.map((p) => ({
+        value: p.id,
+        label: `${p.schoolYear} · ${p.name}${p.status === 'ACTIVE' ? ' · Activo' : p.status === 'CLOSED' ? ' · Cerrado' : ' · Planeado'}`,
+        searchText: `${p.schoolYear} ${p.name}`
+      })),
+    [periods]
+  );
+
+  const activePeriodOptions = useMemo(
+    () => periods.filter((p) => p.status === 'ACTIVE').map((p) => ({ value: p.id, label: `${p.schoolYear} · ${p.name}` })),
+    [periods]
+  );
+
+  const filterPeriodOptions = useMemo(
+    () => [{ value: '', label: 'Todos los periodos' }, ...periodOptions],
+    [periodOptions]
+  );
+
   const loadActivities = useCallback(async () => {
     setLoadingActivities(true);
     setErr(null);
@@ -203,6 +267,7 @@ export function CalificacionesDocentePage() {
         if (subjectId) params.subjectId = subjectId;
       }
       if (filterStatus) params.status = filterStatus;
+      if (filterPeriod) params.periodId = filterPeriod;
       if (platformAdmin && schoolFilter.trim()) params.schoolId = schoolFilter.trim();
       const { data } = await api.get<ActivityRow[]>('/api/v1/activities', { params });
       setActivities(Array.isArray(data) ? data : []);
@@ -212,7 +277,7 @@ export function CalificacionesDocentePage() {
     } finally {
       setLoadingActivities(false);
     }
-  }, [filterAssignment, filterStatus, platformAdmin, schoolFilter]);
+  }, [filterAssignment, filterStatus, filterPeriod, platformAdmin, schoolFilter]);
 
   useEffect(() => {
     void loadActivities();
@@ -249,20 +314,19 @@ export function CalificacionesDocentePage() {
       return;
     }
     const title = createForm.title.trim();
-    const period = createForm.period.trim();
     if (!title) {
       setErr('Indique el título de la actividad.');
       return;
     }
-    if (!period) {
-      setErr('Indique el período evaluativo.');
+    if (!createForm.periodId) {
+      setErr('Seleccione el periodo académico (debe estar ACTIVO).');
       return;
     }
     const body: Record<string, unknown> = {
       groupId: assignment.groupId,
       subjectId: assignment.subjectId,
-      title,
-      period
+      periodId: createForm.periodId,
+      title
     };
     if (createForm.description.trim()) body.description = createForm.description.trim();
     if (createForm.maxScore.trim()) {
@@ -512,6 +576,17 @@ export function CalificacionesDocentePage() {
                   </div>
                 </label>
                 <label className="block text-sm">
+                  <span className="text-slate-700">Periodo</span>
+                  <div className="mt-1">
+                    <SmartSelect
+                      options={filterPeriodOptions}
+                      value={filterPeriod}
+                      onChange={setFilterPeriod}
+                      placeholder="Todos los periodos"
+                    />
+                  </div>
+                </label>
+                <label className="block text-sm">
                   <span className="text-slate-700">Estado</span>
                   <select
                     className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -563,6 +638,7 @@ export function CalificacionesDocentePage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-medium text-slate-900">{a.title}</p>
                         <StatusBadge status={a.status} />
+                        {a.underReview && <ReviewBadge />}
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
                         {a.schoolName ? `${a.schoolName} · ` : ''}
@@ -570,7 +646,7 @@ export function CalificacionesDocentePage() {
                         <span className="font-medium text-slate-700">{a.subjectName}</span>
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500">
-                        Período: {a.period} · Máx: {parseFloat(a.maxScore)} ·{' '}
+                        Periodo: {a.periodName ?? a.period} · Máx: {parseFloat(a.maxScore)} ·{' '}
                         {a.dueDate ? `Entrega: ${a.dueDate} · ` : ''}
                         Calificados: {a.gradedCount}/{a.rosterCount}
                         {a.status === 'CLOSED' && a.closedAt
@@ -620,12 +696,13 @@ export function CalificacionesDocentePage() {
                   <>
                     <p className="truncate text-sm font-semibold text-slate-900">{board.activity.title}</p>
                     <StatusBadge status={board.activity.status} />
+                    {board.activity.underReview && <ReviewBadge />}
                   </>
                 )}
               </div>
               {board && (
                 <p className="mt-1 text-xs text-slate-600">
-                  {board.activity.subjectName} · Período {board.activity.period} · Máx{' '}
+                  {board.activity.subjectName} · Periodo {board.activity.period} · Máx{' '}
                   {parseFloat(board.activity.maxScore)}
                   {board.activity.dueDate ? ` · Entrega ${board.activity.dueDate}` : ''}
                   {board.activity.closedAt
@@ -803,13 +880,20 @@ export function CalificacionesDocentePage() {
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm">
-                  <span className="text-slate-700">Período evaluativo</span>
-                  <input
-                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Ej. 2026-2027 · Bim. 1"
-                    value={createForm.period}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, period: e.target.value }))}
-                  />
+                  <span className="text-slate-700">Periodo académico</span>
+                  <div className="mt-1">
+                    <SmartSelect
+                      options={activePeriodOptions}
+                      value={createForm.periodId}
+                      onChange={(v) => setCreateForm((f) => ({ ...f, periodId: v }))}
+                      placeholder={
+                        activePeriodOptions.length === 0
+                          ? 'No hay periodos ACTIVOS'
+                          : '— Elegir periodo —'
+                      }
+                      disabled={activePeriodOptions.length === 0}
+                    />
+                  </div>
                 </label>
                 <label className="block text-sm">
                   <span className="text-slate-700">Puntaje máximo</span>
@@ -869,6 +953,17 @@ export function CalificacionesDocentePage() {
         </div>
       )}
     </div>
+  );
+}
+
+function ReviewBadge() {
+  return (
+    <span
+      title="Actividad reabierta tras haberse publicado. Las notas visibles quedan 'en revisión' hasta que se vuelva a cerrar."
+      className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900"
+    >
+      En revisión
+    </span>
   );
 }
 

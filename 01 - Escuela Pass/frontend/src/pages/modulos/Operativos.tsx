@@ -552,8 +552,6 @@ export function AcademicoPage() {
   const [att, setAtt] = useState<unknown>(null);
   const [grades, setGrades] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [downloadingPeriod, setDownloadingPeriod] = useState<string | null>(null);
-  const [downloadingChildBulletin, setDownloadingChildBulletin] = useState<string | null>(null);
   const [childrenSchedule, setChildrenSchedule] = useState<ParentScheduleChild[] | null>(null);
   const [childrenCalendar, setChildrenCalendar] = useState<ParentCalendarChild[] | null>(null);
   const [childrenNotifications, setChildrenNotifications] = useState<unknown>(null);
@@ -581,36 +579,6 @@ export function AcademicoPage() {
   const docente = user?.role === 'DOCENTE';
   const verAsistenciaGrupos = docente || user?.role === 'ADMINISTRATIVO';
   const { from, to } = useMemo(() => weekRangeISO(), []);
-  const studentGrades = Array.isArray(grades) ? (grades as Array<{ period?: string | null }>) : [];
-  const periods = Array.from(
-    new Set(studentGrades.map((g) => (g.period ?? '').trim()).filter((p) => p.length > 0))
-  ).sort((a, b) => b.localeCompare(a));
-  const parentBulletinTargets = useMemo(() => {
-    if (!padre || !Array.isArray(grades)) return [];
-    type ParentGradeRow = { studentId?: string; period?: string | null };
-    const rows = grades as ParentGradeRow[];
-    const map = new Map<string, Set<string>>();
-    for (const row of rows) {
-      const studentId = row.studentId;
-      if (!studentId) continue;
-      if (!map.has(studentId)) map.set(studentId, new Set<string>());
-      const p = (row.period ?? '').trim();
-      if (p) map.get(studentId)?.add(p);
-    }
-    const nameByStudent = new Map<string, string>();
-    for (const c of childrenSchedule ?? []) {
-      nameByStudent.set(c.studentId, c.studentName);
-    }
-    for (const c of childrenCalendar ?? []) {
-      if (!nameByStudent.has(c.studentId)) nameByStudent.set(c.studentId, c.studentName);
-    }
-    return [...map.entries()].map(([studentId, periodsSet]) => ({
-      studentId,
-      studentName: nameByStudent.get(studentId) ?? `Estudiante ${studentId.slice(0, 8)}`,
-      periods: [...periodsSet].sort((a, b) => b.localeCompare(a))
-    }));
-  }, [padre, grades, childrenSchedule, childrenCalendar]);
-
   const teacherGroupSelectOptions = useMemo(
     () =>
       teacherGroups.map((g) => ({
@@ -642,7 +610,7 @@ export function AcademicoPage() {
         if (padre) {
           const [a, g, s, c, childNotifs, alerts, mineNotifs, m] = await Promise.all([
             api.get('/api/v1/attendance/parent/my-children'),
-            api.get('/api/v1/grades/parent/my-children'),
+            Promise.resolve({ data: [] as unknown }),
             api.get<{ children: ParentScheduleChild[] }>('/api/v1/schedules/parent/my-children'),
             api.get<{ children: ParentCalendarChild[] }>(
               `/api/v1/calendar/parent/my-children?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
@@ -664,10 +632,9 @@ export function AcademicoPage() {
           }
         }
         if (alumno) {
-          const g = await api.get('/api/v1/grades/me/student');
           if (!cancelled) {
             setAtt(null);
-            setGrades(g.data);
+            setGrades(null);
             setChildrenSchedule(null);
             setChildrenCalendar(null);
             setChildrenNotifications(null);
@@ -755,49 +722,6 @@ export function AcademicoPage() {
   useEffect(() => {
     void loadDocenteGroupCal();
   }, [loadDocenteGroupCal]);
-
-  const downloadBulletin = async (period?: string) => {
-    try {
-      setErr(null);
-      setDownloadingPeriod(period ?? '__all__');
-      const query = period ? `?period=${encodeURIComponent(period)}` : '';
-      const res = await api.get(`/api/v1/documents/bulletin/me/student${query}`, { responseType: 'blob' });
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = period ? `boletin-${period}.pdf` : 'boletin-completo.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    } finally {
-      setDownloadingPeriod(null);
-    }
-  };
-
-  const downloadChildBulletin = async (studentId: string, studentName: string, period?: string) => {
-    try {
-      setErr(null);
-      setDownloadingChildBulletin(`${studentId}:${period ?? '__all__'}`);
-      const query = period ? `?period=${encodeURIComponent(period)}` : '';
-      const res = await api.get(`/api/v1/documents/bulletin/${studentId}${query}`, { responseType: 'blob' });
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      const safeName = studentName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
-      a.download = period ? `boletin-${safeName}-${period}.pdf` : `boletin-${safeName}-completo.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    } finally {
-      setDownloadingChildBulletin(null);
-    }
-  };
 
   if (!ready) {
     return <p className="text-slate-600">Cargando…</p>;
@@ -888,49 +812,27 @@ export function AcademicoPage() {
           <Panel title="Asistencia (familia)">
             <ValueView data={att} />
           </Panel>
-          <Panel title="Calificaciones (familia)">
-            <ValueView data={grades} />
+          <Panel
+            title="Calificaciones de sus hijos"
+            description="Las actividades cerradas por los docentes aparecen en el módulo dedicado."
+          >
+            <Link
+              to="/app/modulos/mis-calificaciones"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            >
+              Ir a Mis calificaciones
+            </Link>
           </Panel>
           <Panel
-            title="Boletines de sus hijos (incluye anteriores)"
-            description="Descargue el boletín completo o por período académico para cada hijo."
+            title="Boletines de sus hijos"
+            description="Los boletines de periodo y final se publican automáticamente al cerrar cada periodo."
           >
-            {parentBulletinTargets.length === 0 ? (
-              <p className="text-sm text-slate-600">Aún no hay períodos de calificaciones disponibles para descargar.</p>
-            ) : (
-              <div className="space-y-4">
-                {parentBulletinTargets.map((target) => (
-                  <div key={target.studentId} className="rounded border border-slate-200 bg-white p-4">
-                    <p className="font-medium text-slate-900">{target.studentName}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void downloadChildBulletin(target.studentId, target.studentName)}
-                        disabled={downloadingChildBulletin !== null}
-                        className="rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {downloadingChildBulletin === `${target.studentId}:__all__`
-                          ? 'Generando…'
-                          : 'Boletín completo'}
-                      </button>
-                      {target.periods.map((period) => (
-                        <button
-                          key={`${target.studentId}-${period}`}
-                          type="button"
-                          onClick={() => void downloadChildBulletin(target.studentId, target.studentName, period)}
-                          disabled={downloadingChildBulletin !== null}
-                          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {downloadingChildBulletin === `${target.studentId}:${period}`
-                            ? `Generando ${period}…`
-                            : `Boletín ${period}`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <Link
+              to="/app/modulos/boletines"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            >
+              Ver boletines
+            </Link>
           </Panel>
           <Panel title="Horarios semanales de sus hijos">
             {!childrenSchedule || childrenSchedule.length === 0 ? (
@@ -1018,34 +920,27 @@ export function AcademicoPage() {
         </>
       ) : alumno ? (
         <>
-          <Panel title="Mis calificaciones">
-            <ValueView data={grades} />
+          <Panel
+            title="Mis calificaciones"
+            description="Las actividades cerradas por los docentes se muestran en el módulo dedicado."
+          >
+            <Link
+              to="/app/modulos/mis-calificaciones"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            >
+              Ir a Mis calificaciones
+            </Link>
           </Panel>
           <Panel
-            title="Boletines PDF"
-            description="Puede descargar su boletín completo o por cada período disponible."
+            title="Boletines"
+            description="Los boletines se publican automáticamente al cerrar cada periodo académico."
           >
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void downloadBulletin()}
-                disabled={downloadingPeriod !== null}
-                className="rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {downloadingPeriod === '__all__' ? 'Generando…' : 'Boletín completo'}
-              </button>
-              {periods.map((period) => (
-                <button
-                  key={period}
-                  type="button"
-                  onClick={() => void downloadBulletin(period)}
-                  disabled={downloadingPeriod !== null}
-                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {downloadingPeriod === period ? `Generando ${period}…` : `Boletín ${period}`}
-                </button>
-              ))}
-            </div>
+            <Link
+              to="/app/modulos/boletines"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            >
+              Ver boletines
+            </Link>
           </Panel>
         </>
       ) : verAsistenciaGrupos ? (

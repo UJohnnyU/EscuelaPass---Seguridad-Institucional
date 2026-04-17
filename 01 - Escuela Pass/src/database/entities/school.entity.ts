@@ -42,6 +42,14 @@ export class SchoolEntity {
   @Column({ name: 'max_grade_scale', type: 'decimal', precision: 5, scale: 2, default: 100 })
   maxGradeScale!: string;
 
+  /** Nota minima aprobatoria (0..max_grade_scale). */
+  @Column({ name: 'passing_grade', type: 'decimal', precision: 5, scale: 2, default: 0 })
+  passingGrade!: string;
+
+  /** Minimo de materias reprobadas en el boletin final para marcar REPROBADO. */
+  @Column({ name: 'min_failed_subjects_to_repeat', type: 'int', default: 3 })
+  minFailedSubjectsToRepeat!: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

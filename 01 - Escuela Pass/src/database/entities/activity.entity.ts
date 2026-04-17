@@ -31,6 +31,9 @@ export class ActivityEntity {
   @Column({ name: 'subject_name', type: 'varchar', length: 100 })
   subjectName!: string;
 
+  @Column({ name: 'period_id', type: 'uuid', nullable: true })
+  periodId!: string | null;
+
   @Column({ type: 'varchar', length: 150 })
   title!: string;
 
@@ -60,6 +63,9 @@ export class ActivityEntity {
 
   @Column({ name: 'reopened_by', type: 'uuid', nullable: true })
   reopenedBy!: string | null;
+
+  @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
+  publishedAt!: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

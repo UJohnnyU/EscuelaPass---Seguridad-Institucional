@@ -31,11 +31,17 @@ export class SchoolsService {
     if (existingByName) throw new ConflictException('Ya existe una escuela con ese nombre');
     const existingByCode = await this.schoolsRepository.findOne({ where: { code: dto.code.trim() } });
     if (existingByCode) throw new ConflictException('Ya existe una escuela con ese código');
+    const passingGrade = dto.passingGrade ?? 0;
+    if (passingGrade > dto.maxGradeScale) {
+      throw new BadRequestException('La nota mínima aprobatoria no puede superar la escala máxima.');
+    }
     const row = this.schoolsRepository.create({
       name: dto.name.trim(),
       code: dto.code.trim(),
       status: true,
       maxGradeScale: dto.maxGradeScale.toFixed(2),
+      passingGrade: passingGrade.toFixed(2),
+      minFailedSubjectsToRepeat: dto.minFailedSubjectsToRepeat ?? 3,
       latitude: dto.latitude.toFixed(8),
       longitude: dto.longitude.toFixed(8)
     });
@@ -52,6 +58,16 @@ export class SchoolsService {
     }
     if (dto.status !== undefined) row.status = dto.status;
     if (dto.maxGradeScale !== undefined) row.maxGradeScale = dto.maxGradeScale.toFixed(2);
+    if (dto.passingGrade !== undefined) {
+      const scale = Number(row.maxGradeScale);
+      if (dto.passingGrade > scale) {
+        throw new BadRequestException('La nota mínima aprobatoria no puede superar la escala máxima.');
+      }
+      row.passingGrade = dto.passingGrade.toFixed(2);
+    }
+    if (dto.minFailedSubjectsToRepeat !== undefined) {
+      row.minFailedSubjectsToRepeat = dto.minFailedSubjectsToRepeat;
+    }
     if ((dto.latitude === undefined) !== (dto.longitude === undefined)) {
       throw new BadRequestException('Para actualizar ubicación debe enviar latitude y longitude juntos.');
     }

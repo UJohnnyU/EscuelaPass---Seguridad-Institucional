@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min
 } from 'class-validator';
@@ -20,9 +21,8 @@ export class UpdateActivityDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  period?: string;
+  @IsUUID()
+  periodId?: string;
 
   @IsOptional()
   @Type(() => Number)

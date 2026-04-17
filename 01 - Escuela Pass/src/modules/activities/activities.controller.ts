@@ -37,6 +37,7 @@ export class ActivitiesController {
     @Req() req: Request & { user: JwtUser },
     @Query('groupId') groupId?: string,
     @Query('subjectId') subjectId?: string,
+    @Query('periodId') periodId?: string,
     @Query('status') status?: string,
     @Query('schoolId') schoolId?: string
   ) {
@@ -47,6 +48,7 @@ export class ActivitiesController {
     return this.activitiesService.list(req.user.userId, req.user.role, {
       groupId: groupId?.trim() || null,
       subjectId: subjectId?.trim() || null,
+      periodId: periodId?.trim() || null,
       status: normalizedStatus ?? null,
       schoolId: schoolId?.trim() || null
     });
@@ -58,11 +60,42 @@ export class ActivitiesController {
     return this.activitiesService.create(dto, req.user.userId, req.user.role);
   }
 
+  @Get('teacher/my-assignments')
+  @Header('Cache-Control', 'no-store, must-revalidate')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  listTeacherAssignments(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    const filter =
+      req.user.role === UserRole.ADMIN && schoolId?.trim() ? schoolId.trim() : undefined;
+    return this.activitiesService.listTeacherAssignments(req.user.userId, req.user.role, filter);
+  }
+
+  @Get('student/me')
+  @Header('Cache-Control', 'no-store, must-revalidate')
+  @Roles(UserRole.ALUMNO)
+  listForStudent(
+    @Req() req: Request & { user: JwtUser },
+    @Query('periodId') periodId?: string
+  ) {
+    return this.activitiesService.listForStudentUser(req.user.userId, {
+      periodId: periodId?.trim() || null
+    });
+  }
+
   @Get('parent/my-children')
   @Header('Cache-Control', 'no-store, must-revalidate')
   @Roles(UserRole.PADRE)
-  listForParent(@Req() req: Request & { user: JwtUser }) {
-    return this.activitiesService.listForParent(req.user.userId);
+  listForParent(
+    @Req() req: Request & { user: JwtUser },
+    @Query('studentId') studentId?: string,
+    @Query('periodId') periodId?: string
+  ) {
+    return this.activitiesService.listForParent(req.user.userId, {
+      studentId: studentId?.trim() || null,
+      periodId: periodId?.trim() || null
+    });
   }
 
   @Get(':id')

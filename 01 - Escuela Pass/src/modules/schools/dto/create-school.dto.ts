@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateSchoolDto {
   @IsString()
@@ -20,6 +20,20 @@ export class CreateSchoolDto {
   @Min(1)
   @Max(999.99)
   maxGradeScale!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(999.99)
+  passingGrade?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  minFailedSubjectsToRepeat?: number;
 
   @Type(() => Number)
   @IsNumber()

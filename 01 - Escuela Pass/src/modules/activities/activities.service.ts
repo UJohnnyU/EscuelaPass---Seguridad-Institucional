@@ -5,13 +5,18 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  AcademicPeriodEntity,
+  AcademicPeriodStatus
+} from '../../database/entities/academic-period.entity';
 import { ActivityEntity, ActivityStatus } from '../../database/entities/activity.entity';
 import { ActivityGradeEntity } from '../../database/entities/activity-grade.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { AcademicNotificationsService } from '../academic-notifications/academic-notifications.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { SaveActivityGradesDto } from './dto/save-activity-grade.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
@@ -21,6 +26,7 @@ type ActivityListFilters = {
   subjectId?: string | null;
   status?: ActivityStatus | null;
   schoolId?: string | null;
+  periodId?: string | null;
 };
 
 export type ActivityListRow = {
@@ -34,10 +40,15 @@ export type ActivityListRow = {
   subjectName: string;
   title: string;
   period: string;
+  periodId: string | null;
+  periodName: string | null;
   maxScore: string;
   dueDate: string | null;
   status: ActivityStatus;
   closedAt: string | null;
+  reopenedAt: string | null;
+  publishedAt: string | null;
+  underReview: boolean;
   gradedCount: number;
   rosterCount: number;
   createdAt: string;
@@ -58,6 +69,18 @@ export type ActivityBoardRow = {
   } | null;
 };
 
+export type TeacherAssignmentRow = {
+  groupId: string;
+  groupName: string | null;
+  grade: string | null;
+  schoolYear: string | null;
+  subjectId: string;
+  subjectName: string;
+  schoolId?: string;
+  schoolName?: string | null;
+  schoolMaxGradeScale?: string | null;
+};
+
 @Injectable()
 export class ActivitiesService {
   constructor(
@@ -72,7 +95,10 @@ export class ActivitiesService {
     @InjectRepository(TeacherEntity)
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(ParentEntity)
-    private readonly parentsRepository: Repository<ParentEntity>
+    private readonly parentsRepository: Repository<ParentEntity>,
+    @InjectRepository(AcademicPeriodEntity)
+    private readonly periodsRepository: Repository<AcademicPeriodEntity>,
+    private readonly notifications: AcademicNotificationsService
   ) {}
 
   private normText(s: string): string {
@@ -90,20 +116,48 @@ export class ActivitiesService {
     }
   }
 
-  private async resolveSchoolMaxScoreForGroup(groupId: string): Promise<number> {
-    const rows = await this.studentsRepository.manager.query<{ max_score: string }[]>(
-      `SELECT COALESCE(s.max_grade_scale::text, '100.00') AS max_score
+  private computeUnderReview(a: ActivityEntity): boolean {
+    if (a.publishedAt == null) return false;
+    if (a.status !== ActivityStatus.OPEN) return false;
+    if (!a.reopenedAt) return false;
+    if (!a.closedAt) return true;
+    return a.reopenedAt.getTime() > a.closedAt.getTime();
+  }
+
+  private async getSchoolInfoForGroup(
+    groupId: string
+  ): Promise<{ schoolId: string; maxScore: number }> {
+    const rows = await this.studentsRepository.manager.query<
+      { school_id: string; max_grade_scale: string }[]
+    >(
+      `SELECT g.school_id, COALESCE(s.max_grade_scale::text, '100.00') AS max_grade_scale
        FROM groups g
        INNER JOIN schools s ON s.id = g.school_id
        WHERE g.id = $1
        LIMIT 1`,
       [groupId]
     );
-    const raw = rows[0]?.max_score;
-    if (!raw) throw new NotFoundException('No se encontró la escuela del grupo');
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 1) return 100;
-    return this.normalizeScoreTo2(n);
+    const row = rows[0];
+    if (!row) throw new NotFoundException('No se encontró la escuela del grupo');
+    const n = Number(row.max_grade_scale);
+    const maxScore =
+      Number.isFinite(n) && n >= 1 ? this.normalizeScoreTo2(n) : 100;
+    return { schoolId: row.school_id, maxScore };
+  }
+
+  private async assertPeriodUsable(
+    periodId: string,
+    schoolId: string
+  ): Promise<AcademicPeriodEntity> {
+    const period = await this.periodsRepository.findOne({ where: { id: periodId } });
+    if (!period) throw new NotFoundException('Periodo académico no encontrado');
+    if (period.schoolId !== schoolId) {
+      throw new ForbiddenException('El periodo no pertenece a la escuela del grupo');
+    }
+    if (period.status === AcademicPeriodStatus.CLOSED) {
+      throw new BadRequestException('El periodo está cerrado. No se pueden crear actividades.');
+    }
+    return period;
   }
 
   private async getTeacherIdByUser(userId: string): Promise<string> {
@@ -170,31 +224,6 @@ export class ActivitiesService {
     }
   }
 
-  private async assertCanAccessGroup(
-    userId: string,
-    role: UserRole,
-    groupId: string
-  ): Promise<void> {
-    if (role === UserRole.ADMIN) return;
-    if (role === UserRole.ADMINISTRATIVO) {
-      await this.assertAdministrativeCanAccessGroup(userId, groupId);
-      return;
-    }
-    if (role !== UserRole.DOCENTE) {
-      throw new ForbiddenException('No autorizado');
-    }
-    const teacherId = await this.getTeacherIdByUser(userId);
-    const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
-      `SELECT EXISTS (
-        SELECT 1 FROM teacher_groups WHERE teacher_id = $1 AND group_id = $2
-      ) AS ok`,
-      [teacherId, groupId]
-    );
-    if (!rows[0]?.ok) {
-      throw new ForbiddenException('No tienes asignación en este grupo');
-    }
-  }
-
   private async loadActivityOrFail(id: string): Promise<ActivityEntity> {
     const row = await this.activitiesRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Actividad no encontrada');
@@ -255,11 +284,11 @@ export class ActivitiesService {
 
     const title = this.normText(dto.title);
     if (!title) throw new BadRequestException('El título es obligatorio');
-    const period = this.normText(dto.period);
-    if (!period) throw new BadRequestException('El período es obligatorio');
     const description = dto.description?.trim() ? this.normText(dto.description) : null;
 
-    const schoolMax = await this.resolveSchoolMaxScoreForGroup(dto.groupId);
+    const { schoolId, maxScore: schoolMax } = await this.getSchoolInfoForGroup(dto.groupId);
+    const period = await this.assertPeriodUsable(dto.periodId, schoolId);
+
     let maxScore = schoolMax;
     if (dto.maxScore !== undefined && dto.maxScore !== null) {
       this.assertTwoDecimalScale(dto.maxScore, 'maxScore');
@@ -305,9 +334,10 @@ export class ActivitiesService {
       groupId: dto.groupId,
       subjectId: dto.subjectId,
       subjectName,
+      periodId: period.id,
       title,
       description,
-      period,
+      period: period.name,
       maxScore: maxScore.toFixed(2),
       dueDate: dto.dueDate ?? null,
       status: ActivityStatus.OPEN
@@ -336,15 +366,16 @@ export class ActivitiesService {
     if (dto.description !== undefined) {
       activity.description = dto.description?.trim() ? this.normText(dto.description) : null;
     }
-    if (dto.period !== undefined) {
-      const p = this.normText(dto.period);
-      if (!p) throw new BadRequestException('El período es obligatorio');
-      activity.period = p;
+    if (dto.periodId !== undefined) {
+      const { schoolId } = await this.getSchoolInfoForGroup(activity.groupId);
+      const period = await this.assertPeriodUsable(dto.periodId, schoolId);
+      activity.periodId = period.id;
+      activity.period = period.name;
     }
     if (dto.maxScore !== undefined) {
       this.assertTwoDecimalScale(dto.maxScore, 'maxScore');
       if (dto.maxScore < 1) throw new BadRequestException('maxScore debe ser mayor o igual a 1');
-      const schoolMax = await this.resolveSchoolMaxScoreForGroup(activity.groupId);
+      const { maxScore: schoolMax } = await this.getSchoolInfoForGroup(activity.groupId);
       if (dto.maxScore > schoolMax) {
         throw new BadRequestException(
           `maxScore no puede superar la escala de la institución (${schoolMax})`
@@ -384,14 +415,78 @@ export class ActivitiesService {
     return { ok: true };
   }
 
+  /**
+   * Cierra la actividad y completa con 0 a los estudiantes del roster que no tengan nota.
+   * Marca publishedAt la primera vez para habilitar visibilidad a padres/alumnos.
+   */
   async close(id: string, userId: string, role: UserRole): Promise<ActivityEntity> {
     const activity = await this.loadActivityOrFail(id);
     await this.assertCanManageActivity(activity, userId, role);
     if (activity.status === ActivityStatus.CLOSED) return activity;
-    activity.status = ActivityStatus.CLOSED;
-    activity.closedAt = new Date();
-    activity.closedBy = userId;
-    return this.activitiesRepository.save(activity);
+
+    const saved = await this.dataSource.transaction(async (mgr) => {
+      await this.fillMissingGradesWithZero(mgr, activity, userId);
+      activity.status = ActivityStatus.CLOSED;
+      activity.closedAt = new Date();
+      activity.closedBy = userId;
+      if (!activity.publishedAt) {
+        activity.publishedAt = activity.closedAt;
+      }
+      return mgr.getRepository(ActivityEntity).save(activity);
+    });
+    try {
+      await this.notifications.notifyActivityClosed(saved);
+    } catch {
+      // no-op: fallo de notificación no revierte el cierre
+    }
+    return saved;
+  }
+
+  async closeManyByPeriod(
+    mgr: EntityManager,
+    periodId: string,
+    systemUserId: string | null
+  ): Promise<{ closed: number; closedActivities: ActivityEntity[] }> {
+    const activities = await mgr
+      .getRepository(ActivityEntity)
+      .find({ where: { periodId, status: ActivityStatus.OPEN } });
+    const closedActivities: ActivityEntity[] = [];
+    for (const a of activities) {
+      await this.fillMissingGradesWithZero(mgr, a, systemUserId);
+      a.status = ActivityStatus.CLOSED;
+      a.closedAt = new Date();
+      a.closedBy = systemUserId;
+      if (!a.publishedAt) a.publishedAt = a.closedAt;
+      await mgr.getRepository(ActivityEntity).save(a);
+      closedActivities.push(a);
+    }
+    return { closed: closedActivities.length, closedActivities };
+  }
+
+  private async fillMissingGradesWithZero(
+    mgr: EntityManager,
+    activity: ActivityEntity,
+    userId: string | null
+  ): Promise<void> {
+    const gradeRepo = mgr.getRepository(ActivityGradeEntity);
+    const roster = await mgr.query<{ id: string }[]>(
+      `SELECT s.id FROM students s WHERE s.group_id = $1`,
+      [activity.groupId]
+    );
+    const existing = await gradeRepo.find({ where: { activityId: activity.id } });
+    const withGrade = new Set(existing.map((g) => g.studentId));
+    const missing = roster.filter((r) => !withGrade.has(r.id));
+    for (const r of missing) {
+      const row = gradeRepo.create({
+        activityId: activity.id,
+        studentId: r.id,
+        score: (0).toFixed(2),
+        notes: 'Sin calificar al cierre (asignado 0 automáticamente)',
+        gradedBy: userId,
+        gradedAt: new Date()
+      });
+      await gradeRepo.save(row);
+    }
   }
 
   async reopen(id: string, userId: string, role: UserRole): Promise<ActivityEntity> {
@@ -403,6 +498,69 @@ export class ActivitiesService {
     activity.reopenedBy = userId;
     return this.activitiesRepository.save(activity);
   }
+
+  private mapListRow = (r: {
+    id: string;
+    teacher_id: string;
+    group_id: string;
+    group_name: string | null;
+    grade: string | null;
+    school_year: string | null;
+    subject_id: string;
+    subject_name: string;
+    title: string;
+    period: string;
+    period_id: string | null;
+    period_name: string | null;
+    max_score: string;
+    due_date: string | null;
+    status: ActivityStatus;
+    closed_at: Date | null;
+    reopened_at: Date | null;
+    published_at: Date | null;
+    created_at: Date;
+    updated_at: Date;
+    school_id: string | null;
+    school_name: string | null;
+    graded_count?: string | null;
+    roster_count?: string | null;
+  }): ActivityListRow => {
+    const closedAt = r.closed_at ? new Date(r.closed_at) : null;
+    const reopenedAt = r.reopened_at ? new Date(r.reopened_at) : null;
+    const publishedAt = r.published_at ? new Date(r.published_at) : null;
+    const underReview =
+      publishedAt != null &&
+      r.status === ActivityStatus.OPEN &&
+      reopenedAt != null &&
+      (!closedAt || reopenedAt.getTime() > closedAt.getTime());
+    return {
+      id: r.id,
+      teacherId: r.teacher_id,
+      groupId: r.group_id,
+      groupName: r.group_name,
+      grade: r.grade,
+      schoolYear: r.school_year,
+      subjectId: r.subject_id,
+      subjectName: r.subject_name,
+      title: r.title,
+      period: r.period,
+      periodId: r.period_id,
+      periodName: r.period_name,
+      maxScore: r.max_score,
+      dueDate: r.due_date,
+      status: r.status,
+      closedAt: closedAt ? closedAt.toISOString() : null,
+      reopenedAt: reopenedAt ? reopenedAt.toISOString() : null,
+      publishedAt: publishedAt ? publishedAt.toISOString() : null,
+      underReview,
+      gradedCount: Number(r.graded_count ?? 0) || 0,
+      rosterCount: Number(r.roster_count ?? 0) || 0,
+      createdAt: new Date(r.created_at).toISOString(),
+      updatedAt: new Date(r.updated_at).toISOString(),
+      schoolId: r.school_id,
+      schoolName: r.school_name
+    };
+  };
 
   async list(
     userId: string,
@@ -437,6 +595,10 @@ export class ActivitiesService {
       params.push(filters.subjectId);
       wheres.push(`a.subject_id = $${params.length}`);
     }
+    if (filters.periodId) {
+      params.push(filters.periodId);
+      wheres.push(`a.period_id = $${params.length}`);
+    }
     if (filters.status) {
       params.push(filters.status);
       wheres.push(`a.status = $${params.length}`);
@@ -447,28 +609,7 @@ export class ActivitiesService {
     }
 
     const rows = await this.studentsRepository.manager.query<
-      {
-        id: string;
-        teacher_id: string;
-        group_id: string;
-        group_name: string | null;
-        grade: string | null;
-        school_year: string | null;
-        subject_id: string;
-        subject_name: string;
-        title: string;
-        period: string;
-        max_score: string;
-        due_date: string | null;
-        status: ActivityStatus;
-        closed_at: Date | null;
-        graded_count: string;
-        roster_count: string;
-        created_at: Date;
-        updated_at: Date;
-        school_id: string | null;
-        school_name: string | null;
-      }[]
+      Parameters<typeof this.mapListRow>[0][]
     >(
       `SELECT
          a.id,
@@ -481,10 +622,14 @@ export class ActivitiesService {
          a.subject_name,
          a.title,
          a.period,
+         a.period_id,
+         ap.name AS period_name,
          a.max_score::text AS max_score,
          a.due_date::text AS due_date,
          a.status,
          a.closed_at,
+         a.reopened_at,
+         a.published_at,
          a.created_at,
          a.updated_at,
          g.school_id,
@@ -494,33 +639,13 @@ export class ActivitiesService {
        FROM activities a
        INNER JOIN groups g ON g.id = a.group_id
        LEFT JOIN schools sch ON sch.id = g.school_id
+       LEFT JOIN academic_periods ap ON ap.id = a.period_id
        WHERE ${wheres.join(' AND ')}
        ORDER BY a.created_at DESC`,
       params
     );
 
-    return rows.map((r) => ({
-      id: r.id,
-      teacherId: r.teacher_id,
-      groupId: r.group_id,
-      groupName: r.group_name,
-      grade: r.grade,
-      schoolYear: r.school_year,
-      subjectId: r.subject_id,
-      subjectName: r.subject_name,
-      title: r.title,
-      period: r.period,
-      maxScore: r.max_score,
-      dueDate: r.due_date,
-      status: r.status,
-      closedAt: r.closed_at ? new Date(r.closed_at).toISOString() : null,
-      gradedCount: Number(r.graded_count) || 0,
-      rosterCount: Number(r.roster_count) || 0,
-      createdAt: new Date(r.created_at).toISOString(),
-      updatedAt: new Date(r.updated_at).toISOString(),
-      schoolId: r.school_id,
-      schoolName: r.school_name
-    }));
+    return rows.map((r) => this.mapListRow(r));
   }
 
   async getBoard(id: string, userId: string, role: UserRole) {
@@ -570,6 +695,7 @@ export class ActivitiesService {
         groupId: activity.groupId,
         subjectId: activity.subjectId,
         subjectName: activity.subjectName,
+        periodId: activity.periodId,
         title: activity.title,
         description: activity.description,
         period: activity.period,
@@ -577,7 +703,9 @@ export class ActivitiesService {
         dueDate: activity.dueDate,
         status: activity.status,
         closedAt: activity.closedAt ? new Date(activity.closedAt).toISOString() : null,
-        reopenedAt: activity.reopenedAt ? new Date(activity.reopenedAt).toISOString() : null
+        reopenedAt: activity.reopenedAt ? new Date(activity.reopenedAt).toISOString() : null,
+        publishedAt: activity.publishedAt ? new Date(activity.publishedAt).toISOString() : null,
+        underReview: this.computeUnderReview(activity)
       },
       rows
     };
@@ -649,33 +777,122 @@ export class ActivitiesService {
     return { ok: true, count: dto.entries.length };
   }
 
-  async listForParent(parentUserId: string): Promise<ActivityListRow[]> {
+  /**
+   * Devuelve las actividades publicadas visibles a un estudiante (por su userId)
+   * junto con la nota del estudiante en esa actividad. Incluye también las que
+   * fueron reabiertas (marcadas como en revisión) mientras ya habían sido publicadas.
+   */
+  async listForStudentUser(
+    userId: string,
+    filters: { periodId?: string | null } = {}
+  ): Promise<(ActivityListRow & { myScore: string | null; myNotes: string | null })[]> {
+    const student = await this.studentsRepository.findOne({ where: { userId } });
+    if (!student) throw new ForbiddenException('Perfil alumno no encontrado');
+    if (!student.groupId) return [];
+    return this.fetchActivitiesForStudent(student.id, student.groupId, filters);
+  }
+
+  async listForParent(
+    parentUserId: string,
+    filters: { periodId?: string | null; studentId?: string | null } = {}
+  ): Promise<(ActivityListRow & { myScore: string | null; myNotes: string | null; studentId: string })[]> {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
-    const rows = await this.studentsRepository.manager.query<
-      {
-        id: string;
-        teacher_id: string;
-        group_id: string;
-        group_name: string | null;
-        grade: string | null;
-        school_year: string | null;
-        subject_id: string;
-        subject_name: string;
-        title: string;
-        period: string;
-        max_score: string;
-        due_date: string | null;
-        status: ActivityStatus;
-        closed_at: Date | null;
-        created_at: Date;
-        updated_at: Date;
-        school_id: string | null;
-        school_name: string | null;
-      }[]
+    const children = await this.studentsRepository.manager.query<
+      { id: string; group_id: string | null }[]
     >(
-      `SELECT DISTINCT
+      `SELECT st.id, st.group_id
+       FROM students st
+       INNER JOIN student_parents sp ON sp.student_id = st.id
+       WHERE sp.parent_id = $1 ${filters.studentId ? 'AND st.id = $2' : ''}`,
+      filters.studentId ? [parent.id, filters.studentId] : [parent.id]
+    );
+
+    const out: (ActivityListRow & {
+      myScore: string | null;
+      myNotes: string | null;
+      studentId: string;
+    })[] = [];
+    for (const child of children) {
+      if (!child.group_id) continue;
+      const rows = await this.fetchActivitiesForStudent(child.id, child.group_id, {
+        periodId: filters.periodId ?? null
+      });
+      rows.forEach((r) => out.push({ ...r, studentId: child.id }));
+    }
+    return out;
+  }
+
+  async listTeacherAssignments(
+    userId: string,
+    role: UserRole,
+    schoolIdFilter?: string | null
+  ): Promise<TeacherAssignmentRow[]> {
+    if (role === UserRole.ADMIN) {
+      return this.studentsRepository.manager.query<TeacherAssignmentRow[]>(
+        `SELECT
+           g.id AS "groupId",
+           g.name AS "groupName",
+           g.grade AS "grade",
+           g.school_year AS "schoolYear",
+           s.id AS "subjectId",
+           s.name AS "subjectName",
+           g.school_id AS "schoolId",
+           sch.name AS "schoolName",
+           sch.max_grade_scale::text AS "schoolMaxGradeScale"
+         FROM groups g
+         INNER JOIN subjects s ON s.school_id = g.school_id
+         LEFT JOIN schools sch ON sch.id = g.school_id
+         WHERE g.school_id IS NOT NULL
+           AND ($1::uuid IS NULL OR g.school_id = $1::uuid)
+         ORDER BY sch.name ASC NULLS LAST, g.name ASC NULLS LAST, s.name ASC`,
+        [schoolIdFilter ?? null]
+      );
+    }
+
+    const teacher = await this.teachersRepository.findOne({ where: { userId } });
+    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+
+    return this.studentsRepository.manager.query<TeacherAssignmentRow[]>(
+      `SELECT
+         g.id AS "groupId",
+         g.name AS "groupName",
+         g.grade AS "grade",
+         g.school_year AS "schoolYear",
+         s.id AS "subjectId",
+         s.name AS "subjectName",
+         g.school_id AS "schoolId",
+         sch.name AS "schoolName",
+         sch.max_grade_scale::text AS "schoolMaxGradeScale"
+       FROM teacher_groups tg
+       INNER JOIN groups g ON g.id = tg.group_id
+       INNER JOIN subjects s ON s.id = tg.subject_id
+       LEFT JOIN schools sch ON sch.id = g.school_id
+       WHERE tg.teacher_id = $1 AND tg.subject_id IS NOT NULL
+       ORDER BY sch.name ASC NULLS LAST, g.name ASC NULLS LAST, s.name ASC`,
+      [teacher.id]
+    );
+  }
+
+  private async fetchActivitiesForStudent(
+    studentId: string,
+    groupId: string,
+    filters: { periodId?: string | null }
+  ): Promise<(ActivityListRow & { myScore: string | null; myNotes: string | null })[]> {
+    const params: unknown[] = [groupId, studentId];
+    let where = `a.group_id = $1 AND a.published_at IS NOT NULL`;
+    if (filters.periodId) {
+      params.push(filters.periodId);
+      where += ` AND a.period_id = $${params.length}`;
+    }
+    const rows = await this.studentsRepository.manager.query<
+      (Parameters<typeof this.mapListRow>[0] & {
+        my_score: string | null;
+        my_notes: string | null;
+      })[]
+    >(
+      `SELECT
          a.id,
          a.teacher_id,
          a.group_id,
@@ -686,72 +903,33 @@ export class ActivitiesService {
          a.subject_name,
          a.title,
          a.period,
+         a.period_id,
+         ap.name AS period_name,
          a.max_score::text AS max_score,
          a.due_date::text AS due_date,
          a.status,
          a.closed_at,
+         a.reopened_at,
+         a.published_at,
          a.created_at,
          a.updated_at,
          g.school_id,
-         sch.name AS school_name
+         sch.name AS school_name,
+         ag.score::text AS my_score,
+         ag.notes AS my_notes
        FROM activities a
        INNER JOIN groups g ON g.id = a.group_id
        LEFT JOIN schools sch ON sch.id = g.school_id
-       INNER JOIN students st ON st.group_id = a.group_id
-       INNER JOIN student_parents sp ON sp.student_id = st.id AND sp.parent_id = $1
-       WHERE a.status = 'CLOSED'
-       ORDER BY a.created_at DESC`,
-      [parent.id]
+       LEFT JOIN academic_periods ap ON ap.id = a.period_id
+       LEFT JOIN activity_grades ag ON ag.activity_id = a.id AND ag.student_id = $2
+       WHERE ${where}
+       ORDER BY a.period, a.created_at DESC`,
+      params
     );
-
     return rows.map((r) => ({
-      id: r.id,
-      teacherId: r.teacher_id,
-      groupId: r.group_id,
-      groupName: r.group_name,
-      grade: r.grade,
-      schoolYear: r.school_year,
-      subjectId: r.subject_id,
-      subjectName: r.subject_name,
-      title: r.title,
-      period: r.period,
-      maxScore: r.max_score,
-      dueDate: r.due_date,
-      status: r.status,
-      closedAt: r.closed_at ? new Date(r.closed_at).toISOString() : null,
-      gradedCount: 0,
-      rosterCount: 0,
-      createdAt: new Date(r.created_at).toISOString(),
-      updatedAt: new Date(r.updated_at).toISOString(),
-      schoolId: r.school_id,
-      schoolName: r.school_name
+      ...this.mapListRow(r),
+      myScore: r.my_score,
+      myNotes: r.my_notes
     }));
-  }
-
-  async getMyStudentActivityGrade(
-    activityId: string,
-    requesterUserId: string,
-    role: UserRole
-  ): Promise<{ activity: ActivityEntity; grade: ActivityGradeEntity | null }> {
-    const activity = await this.loadActivityOrFail(activityId);
-    if (activity.status !== ActivityStatus.CLOSED && role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Esta actividad aún no fue cerrada por el docente');
-    }
-
-    let studentId: string | null = null;
-    if (role === UserRole.ALUMNO) {
-      const st = await this.studentsRepository.findOne({ where: { userId: requesterUserId } });
-      if (!st) throw new ForbiddenException('Perfil alumno no encontrado');
-      studentId = st.id;
-    } else if (role === UserRole.PADRE) {
-      throw new BadRequestException('Padre debe indicar studentId para ver la calificación');
-    } else {
-      throw new ForbiddenException('Rol no soportado en esta vista');
-    }
-
-    const grade = await this.activityGradesRepository.findOne({
-      where: { activityId, studentId }
-    });
-    return { activity, grade };
   }
 }

@@ -90,6 +90,11 @@ CREATE TABLE IF NOT EXISTS schools (
     email VARCHAR(200),
     director_name VARCHAR(200),
     motto VARCHAR(500),
+    max_grade_scale NUMERIC(5,2) NOT NULL DEFAULT 100.00,
+    passing_grade NUMERIC(5,2) NOT NULL DEFAULT 0,
+    min_failed_subjects_to_repeat INT NOT NULL DEFAULT 3,
+    latitude NUMERIC(10,8),
+    longitude NUMERIC(11,8),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -397,22 +402,28 @@ INSERT INTO institution_settings (setting_key, value)
 VALUES ('circuit.enabled', 'true')
 ON CONFLICT (setting_key) DO NOTHING;
 
-CREATE TABLE IF NOT EXISTS grades (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
-    subject VARCHAR(100) NOT NULL,
-    period VARCHAR(50) NOT NULL,
-    assessment_name VARCHAR(120) NOT NULL,
-    score DECIMAL(5, 2) NOT NULL,
-    max_score DECIMAL(5, 2) NOT NULL DEFAULT 100,
-    notes TEXT,
-    graded_by UUID REFERENCES users(id) ON DELETE SET NULL,
-    graded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-- Periodos academicos por escuela y ciclo escolar.
+CREATE TABLE IF NOT EXISTS academic_periods (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+    school_year VARCHAR(20) NOT NULL,
+    name VARCHAR(80) NOT NULL,
+    order_index INT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    weight NUMERIC(5,2) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'PLANNED',
+    closed_at TIMESTAMPTZ NULL,
+    closed_by UUID NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (student_id, subject, period, assessment_name)
+    CONSTRAINT ck_academic_periods_status CHECK (status IN ('PLANNED','ACTIVE','CLOSED')),
+    CONSTRAINT ck_academic_periods_dates CHECK (end_date >= start_date)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_academic_periods_order
+    ON academic_periods (school_id, school_year, order_index);
+CREATE INDEX IF NOT EXISTS ix_academic_periods_school_status
+    ON academic_periods (school_id, status);
 
 -- Actividades del docente (por grupo y materia) con ciclo de vida OPEN/CLOSED.
 CREATE TABLE IF NOT EXISTS activities (
@@ -421,6 +432,7 @@ CREATE TABLE IF NOT EXISTS activities (
     group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
     subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,
     subject_name VARCHAR(100) NOT NULL,
+    period_id UUID NULL REFERENCES academic_periods(id) ON DELETE SET NULL,
     title VARCHAR(150) NOT NULL,
     description TEXT NULL,
     period VARCHAR(50) NOT NULL,
@@ -431,6 +443,7 @@ CREATE TABLE IF NOT EXISTS activities (
     closed_by UUID NULL,
     reopened_at TIMESTAMPTZ NULL,
     reopened_by UUID NULL,
+    published_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_activities_status CHECK (status IN ('OPEN','CLOSED'))
@@ -453,6 +466,47 @@ CREATE TABLE IF NOT EXISTS activity_grades (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_grades_activity_student
     ON activity_grades (activity_id, student_id);
 CREATE INDEX IF NOT EXISTS ix_activity_grades_student ON activity_grades (student_id);
+
+-- Boletines de periodo y finales.
+CREATE TABLE IF NOT EXISTS report_cards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+    school_year VARCHAR(20) NOT NULL,
+    type VARCHAR(10) NOT NULL,
+    period_id UUID NULL REFERENCES academic_periods(id) ON DELETE SET NULL,
+    overall_average NUMERIC(6,2) NULL,
+    failed_subjects_count INT NOT NULL DEFAULT 0,
+    promotion_status VARCHAR(32) NULL,
+    generated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMPTZ NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'DRAFT',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_report_cards_type CHECK (type IN ('PERIOD','FINAL')),
+    CONSTRAINT ck_report_cards_status CHECK (status IN ('DRAFT','PUBLISHED'))
+);
+CREATE INDEX IF NOT EXISTS ix_report_cards_student_year
+    ON report_cards (student_id, school_year);
+CREATE INDEX IF NOT EXISTS ix_report_cards_school_year
+    ON report_cards (school_id, school_year);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_report_cards_period
+    ON report_cards (student_id, period_id) WHERE period_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_report_cards_final
+    ON report_cards (student_id, school_year) WHERE type = 'FINAL';
+
+CREATE TABLE IF NOT EXISTS report_card_subjects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_card_id UUID NOT NULL REFERENCES report_cards(id) ON DELETE CASCADE,
+    subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,
+    subject_name VARCHAR(100) NOT NULL,
+    average NUMERIC(6,2) NOT NULL,
+    activity_count INT NOT NULL DEFAULT 0,
+    graded_count INT NOT NULL DEFAULT 0,
+    is_passing BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_report_card_subjects_card_subject
+    ON report_card_subjects (report_card_id, subject_id);
 
 CREATE TABLE IF NOT EXISTS import_jobs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -570,8 +624,6 @@ CREATE INDEX IF NOT EXISTS idx_access_events_user_date ON access_events(user_id,
 CREATE INDEX IF NOT EXISTS idx_debts_student ON debts(student_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, attendance_date);
-CREATE INDEX IF NOT EXISTS idx_grades_student ON grades(student_id);
-CREATE INDEX IF NOT EXISTS idx_grades_group ON grades(group_id);
 CREATE INDEX IF NOT EXISTS idx_import_jobs_kind_created ON import_jobs(kind, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_visit_requests_parent ON visit_requests(parent_id);
 CREATE INDEX IF NOT EXISTS idx_visit_requests_student ON visit_requests(student_id);

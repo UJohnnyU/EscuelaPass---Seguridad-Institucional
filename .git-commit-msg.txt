@@ -1,0 +1,25 @@
+feat(academico): sistema academico completo con actividades, periodos y boletines
+
+Backend:
+- Nuevas entidades: AcademicPeriod, ReportCard, ReportCardSubject.
+- Actividades evolucionadas con estado OPEN/CLOSED, underReview al reabrir,
+  periodId obligatorio y cierre automatico de calificaciones.
+- Regla institucional: passing_grade y min_failed_subjects_to_repeat por escuela.
+- Modulos: AcademicPeriodsModule, ReportCardsModule (promotion status:
+  APROBADO / APROBADO_CON_PENDIENTES / REPROBADO) y AcademicSchedulerModule
+  (@nestjs/schedule) para cierres automatizados y publicacion de boletines.
+- Eliminado GradesModule legado, schema v3 y ensure-runtime-schema actualizados.
+- DocumentsService: PDF de boletin por reportCardId (controller simplificado).
+
+Frontend:
+- PeriodosAcademicosPage (ADMIN/ADMINISTRATIVO) con creacion, activacion,
+  cierre y validacion de peso total 100 %.
+- SchoolsAdminPage: campos passingGrade y minFailedSubjectsToRepeat.
+- CalificacionesDocentePage: endpoint activities/teacher/my-assignments,
+  selector de periodo, badge "En revision" al reabrir actividad.
+- MisCalificacionesPage: alumno/padre ven actividades publicadas y promedio
+  parcial por asignatura.
+- BoletinesPage: listado por anio y detalle de boletin de periodo/final.
+- App.tsx + navConfig.ts con nuevas rutas.
+- Operativos.tsx deja de depender del modulo viejo y enlaza a las nuevas
+  paginas de calificaciones y boletines.

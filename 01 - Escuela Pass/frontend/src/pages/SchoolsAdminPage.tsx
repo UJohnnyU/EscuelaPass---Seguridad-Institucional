@@ -8,8 +8,16 @@ type School = {
   code: string;
   status: boolean;
   maxGradeScale: string;
+  passingGrade: string;
+  minFailedSubjectsToRepeat: number;
   latitude: string;
   longitude: string;
+};
+
+type EditDraft = {
+  maxGradeScale: string;
+  passingGrade: string;
+  minFailedSubjectsToRepeat: string;
 };
 
 export function SchoolsAdminPage() {
@@ -17,18 +25,34 @@ export function SchoolsAdminPage() {
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [maxGradeScale, setMaxGradeScale] = useState('100.00');
+  const [passingGrade, setPassingGrade] = useState('60.00');
+  const [minFailedSubjectsToRepeat, setMinFailedSubjectsToRepeat] = useState('3');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
+
+  const [editing, setEditing] = useState<Record<string, EditDraft>>({});
 
   const loadSchools = async () => {
     setLoading(true);
     setErr(null);
     try {
       const { data } = await api.get<School[]>('/api/v1/schools');
-      setSchools(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setSchools(list);
+      const next: Record<string, EditDraft> = {};
+      for (const s of list) {
+        next[s.id] = {
+          maxGradeScale: String(parseFloat(s.maxGradeScale)),
+          passingGrade: String(parseFloat(s.passingGrade)),
+          minFailedSubjectsToRepeat: String(s.minFailedSubjectsToRepeat)
+        };
+      }
+      setEditing(next);
     } catch (e) {
       setErr(getUserFacingMessage(e));
       setSchools([]);
@@ -41,19 +65,31 @@ export function SchoolsAdminPage() {
     void loadSchools();
   }, []);
 
+  const parseDec2 = (s: string): number | null => {
+    const n = Number(s.replace(',', '.'));
+    if (!Number.isFinite(n)) return null;
+    if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-9) return null;
+    return Math.round(n * 100) / 100;
+  };
+
   const createSchool = async () => {
     if (!name.trim() || !code.trim() || !maxGradeScale.trim() || !latitude.trim() || !longitude.trim()) {
       setErr('Nombre, código, ubicación y máximo de calificación son obligatorios.');
       return;
     }
-    const max = Number(maxGradeScale.replace(',', '.'));
-    if (!Number.isFinite(max) || max < 1 || max > 999.99) {
-      setErr('Máximo de calificación inválido. Use un valor entre 1 y 999.99.');
+    const max = parseDec2(maxGradeScale);
+    if (max === null || max < 1 || max > 999.99) {
+      setErr('Máximo de calificación inválido. Use entre 1 y 999.99 con máximo 2 decimales.');
       return;
     }
-    const maxScaled = Math.round(max * 100);
-    if (Math.abs(max * 100 - maxScaled) > 1e-9) {
-      setErr('El máximo de calificación debe tener máximo 2 decimales.');
+    const pass = parseDec2(passingGrade);
+    if (pass === null || pass < 0 || pass > max) {
+      setErr(`Nota mínima aprobatoria inválida. Use un valor entre 0 y ${max}.`);
+      return;
+    }
+    const minFailed = Number(minFailedSubjectsToRepeat);
+    if (!Number.isInteger(minFailed) || minFailed < 1 || minFailed > 50) {
+      setErr('Mínimo de materias reprobadas para repetir inválido. Use un entero entre 1 y 50.');
       return;
     }
     const lat = Number(latitude.replace(',', '.'));
@@ -72,7 +108,9 @@ export function SchoolsAdminPage() {
       await api.post('/api/v1/schools', {
         name: name.trim(),
         code: code.trim().toUpperCase(),
-        maxGradeScale: Number((maxScaled / 100).toFixed(2)),
+        maxGradeScale: max,
+        passingGrade: pass,
+        minFailedSubjectsToRepeat: minFailed,
         latitude: Number(lat.toFixed(8)),
         longitude: Number(lng.toFixed(8))
       });
@@ -80,6 +118,8 @@ export function SchoolsAdminPage() {
       setName('');
       setCode('');
       setMaxGradeScale('100.00');
+      setPassingGrade('60.00');
+      setMinFailedSubjectsToRepeat('3');
       setLatitude('');
       setLongitude('');
       await loadSchools();
@@ -92,9 +132,7 @@ export function SchoolsAdminPage() {
     setErr(null);
     setOk(null);
     try {
-      await api.patch(`/api/v1/schools/${school.id}`, {
-        status: !school.status
-      });
+      await api.patch(`/api/v1/schools/${school.id}`, { status: !school.status });
       setOk(`Escuela ${!school.status ? 'activada' : 'desactivada'}.`);
       await loadSchools();
     } catch (e) {
@@ -102,12 +140,55 @@ export function SchoolsAdminPage() {
     }
   };
 
+  const saveConfig = async (school: School) => {
+    const draft = editing[school.id];
+    if (!draft) return;
+    const max = parseDec2(draft.maxGradeScale);
+    const pass = parseDec2(draft.passingGrade);
+    const minFailed = Number(draft.minFailedSubjectsToRepeat);
+    if (max === null || max < 1 || max > 999.99) {
+      setErr('Máximo de calificación inválido.');
+      return;
+    }
+    if (pass === null || pass < 0 || pass > max) {
+      setErr(`Nota mínima aprobatoria inválida. Use un valor entre 0 y ${max}.`);
+      return;
+    }
+    if (!Number.isInteger(minFailed) || minFailed < 1 || minFailed > 50) {
+      setErr('Mínimo de materias reprobadas inválido.');
+      return;
+    }
+    setSavingId(school.id);
+    setErr(null);
+    setOk(null);
+    try {
+      await api.patch(`/api/v1/schools/${school.id}`, {
+        maxGradeScale: max,
+        passingGrade: pass,
+        minFailedSubjectsToRepeat: minFailed
+      });
+      setOk('Reglas académicas actualizadas.');
+      await loadSchools();
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const patchDraft = (id: string, patch: Partial<EditDraft>) =>
+    setEditing((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { maxGradeScale: '', passingGrade: '', minFailedSubjectsToRepeat: '' }), ...patch }
+    }));
+
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Escuelas (administración global)</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Este panel es exclusivo del rol <strong>ADMIN</strong> para crear y administrar escuelas en la plataforma.
+          Configure la escala de calificación, la nota mínima aprobatoria y el mínimo de materias reprobadas
+          para marcar a un alumno como <strong>REPROBADO</strong> en el boletín final.
         </p>
       </div>
 
@@ -118,47 +199,80 @@ export function SchoolsAdminPage() {
 
       <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Nueva escuela</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-6">
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Nombre"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Código (ej. COLEGIO-NORTE)"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Máximo de calificación (ej. 100.00)"
-            value={maxGradeScale}
-            onChange={(e) => setMaxGradeScale(e.target.value)}
-            inputMode="decimal"
-          />
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Latitud (ej. 6.21303770)"
-            value={latitude}
-            onChange={(e) => setLatitude(e.target.value)}
-            inputMode="decimal"
-          />
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Longitud (ej. -75.57724700)"
-            value={longitude}
-            onChange={(e) => setLongitude(e.target.value)}
-            inputMode="decimal"
-          />
-          <button
-            type="button"
-            onClick={() => void createSchool()}
-            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            Crear escuela
-          </button>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="block text-sm">
+            <span className="text-slate-700">Nombre</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-700">Código</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="COLEGIO-NORTE"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-700">Escala (máx. de calificación)</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={maxGradeScale}
+              onChange={(e) => setMaxGradeScale(e.target.value)}
+              inputMode="decimal"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-700">Nota mínima aprobatoria</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={passingGrade}
+              onChange={(e) => setPassingGrade(e.target.value)}
+              inputMode="decimal"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-700">Mín. de materias reprobadas para REPROBAR</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={minFailedSubjectsToRepeat}
+              onChange={(e) => setMinFailedSubjectsToRepeat(e.target.value)}
+              inputMode="numeric"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-700">Latitud</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+              placeholder="6.21303770"
+              inputMode="decimal"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-700">Longitud</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+              placeholder="-75.57724700"
+              inputMode="decimal"
+            />
+          </label>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <button
+              type="button"
+              onClick={() => void createSchool()}
+              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Crear escuela
+            </button>
+          </div>
         </div>
       </section>
 
@@ -172,26 +286,72 @@ export function SchoolsAdminPage() {
           <p className="px-4 py-4 text-sm text-slate-600">No hay escuelas registradas.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {schools.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <p className="font-medium text-slate-900">{s.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {s.code} · Máximo: {s.maxGradeScale} · {s.status ? 'Activa' : 'Inactiva'}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Ubicación: {s.latitude}, {s.longitude}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void toggleSchoolStatus(s)}
-                  className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
-                >
-                  {s.status ? 'Desactivar' : 'Activar'}
-                </button>
-              </li>
-            ))}
+            {schools.map((s) => {
+              const d = editing[s.id] ?? {
+                maxGradeScale: String(parseFloat(s.maxGradeScale)),
+                passingGrade: String(parseFloat(s.passingGrade)),
+                minFailedSubjectsToRepeat: String(s.minFailedSubjectsToRepeat)
+              };
+              return (
+                <li key={s.id} className="grid gap-3 px-4 py-4 md:grid-cols-[2fr,3fr,auto] md:items-center">
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-900">{s.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {s.code} · {s.status ? 'Activa' : 'Inactiva'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Ubicación: {s.latitude}, {s.longitude}
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <label className="block text-xs text-slate-700">
+                      Escala máx.
+                      <input
+                        className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                        value={d.maxGradeScale}
+                        onChange={(e) => patchDraft(s.id, { maxGradeScale: e.target.value })}
+                        inputMode="decimal"
+                      />
+                    </label>
+                    <label className="block text-xs text-slate-700">
+                      Mínima aprobatoria
+                      <input
+                        className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                        value={d.passingGrade}
+                        onChange={(e) => patchDraft(s.id, { passingGrade: e.target.value })}
+                        inputMode="decimal"
+                      />
+                    </label>
+                    <label className="block text-xs text-slate-700">
+                      Mín. materias reprobadas
+                      <input
+                        className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                        value={d.minFailedSubjectsToRepeat}
+                        onChange={(e) => patchDraft(s.id, { minFailedSubjectsToRepeat: e.target.value })}
+                        inputMode="numeric"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => void saveConfig(s)}
+                      disabled={savingId === s.id}
+                      className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {savingId === s.id ? 'Guardando…' : 'Guardar reglas'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void toggleSchoolStatus(s)}
+                      className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                    >
+                      {s.status ? 'Desactivar' : 'Activar'}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

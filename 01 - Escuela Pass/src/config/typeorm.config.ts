@@ -1,4 +1,5 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { AcademicPeriodEntity } from '../database/entities/academic-period.entity';
 import { ActivityEntity } from '../database/entities/activity.entity';
 import { ActivityGradeEntity } from '../database/entities/activity-grade.entity';
 import { AttendanceRecordEntity } from '../database/entities/attendance-record.entity';
@@ -13,7 +14,8 @@ import { ParentTeacherMeetingEntity } from '../database/entities/parent-teacher-
 import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
-import { GradeEntity } from '../database/entities/grade.entity';
+import { ReportCardEntity } from '../database/entities/report-card.entity';
+import { ReportCardSubjectEntity } from '../database/entities/report-card-subject.entity';
 import { SubjectEntity } from '../database/entities/subject.entity';
 import { TeacherGroupEntity } from '../database/entities/teacher-group.entity';
 import { PaymentConceptEntity } from '../database/entities/payment-concept.entity';
@@ -68,9 +70,11 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       DebtEntity,
       PaymentRecordEntity,
       AttendanceRecordEntity,
-      GradeEntity,
+      AcademicPeriodEntity,
       ActivityEntity,
       ActivityGradeEntity,
+      ReportCardEntity,
+      ReportCardSubjectEntity,
       SubjectEntity,
       TeacherGroupEntity,
       ImportJobEntity,

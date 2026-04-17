@@ -494,21 +494,10 @@ VALUES
 ON CONFLICT (setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
 
 -- ---------- Calificaciones ----------
-INSERT INTO grades (student_id, group_id, subject, period, assessment_name, score, max_score, notes, graded_by)
-SELECT s.id, s.group_id, 'Matemáticas', 'P1', 'Examen parcial', 8.50, 10.0, 'Buen desempeño', u.id
-FROM students s
-JOIN users u ON u.id = (SELECT id FROM users WHERE email = 'docente1@escuelapass.local')
-JOIN users su ON su.id = s.user_id
-WHERE su.email = 'alumno1@escuelapass.local'
-ON CONFLICT (student_id, subject, period, assessment_name) DO NOTHING;
-
-INSERT INTO grades (student_id, group_id, subject, period, assessment_name, score, max_score, notes, graded_by)
-SELECT s.id, s.group_id, 'Lengua', 'P1', 'Examen parcial', 9.00, 10.0, NULL, u.id
-FROM students s
-JOIN users u ON u.id = (SELECT id FROM users WHERE email = 'docente2@escuelapass.local')
-JOIN users su ON su.id = s.user_id
-WHERE su.email = 'alumno2@escuelapass.local'
-ON CONFLICT (student_id, subject, period, assessment_name) DO NOTHING;
+-- El modulo legado de calificaciones (tabla `grades`) fue eliminado en la
+-- refactorizacion del sistema academico. Los docentes ahora cargan notas a
+-- traves de actividades (`activities` + `activity_grades`) cuya demo se deja
+-- a cargo de la UI (docentes/administrativos las crean al iniciar periodos).
 
 -- ---------- Importación demo ----------
 INSERT INTO import_jobs (kind, total_rows, created_count, error_count, dry_run, errors_json)

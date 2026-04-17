@@ -16,6 +16,9 @@ export class CreateActivityDto {
   @IsUUID()
   subjectId!: string;
 
+  @IsUUID()
+  periodId!: string;
+
   @IsString()
   @MaxLength(150)
   title!: string;
@@ -24,10 +27,6 @@ export class CreateActivityDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
-
-  @IsString()
-  @MaxLength(50)
-  period!: string;
 
   @IsOptional()
   @Type(() => Number)

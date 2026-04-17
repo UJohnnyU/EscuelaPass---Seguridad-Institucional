@@ -3,7 +3,6 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
-  Query,
   Req,
   Res,
   UseGuards
@@ -22,35 +21,26 @@ type JwtUser = { userId: string; email: string; role: UserRole };
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  @Get('bulletin/:studentId')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE, UserRole.ALUMNO)
+  @Get('bulletin/:reportCardId')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.ADMINISTRATIVO,
+    UserRole.DOCENTE,
+    UserRole.PADRE,
+    UserRole.ALUMNO
+  )
   async bulletinPdf(
-    @Param('studentId', new ParseUUIDPipe({ version: '4' })) studentId: string,
-    @Query('period') period: string | undefined,
+    @Param('reportCardId', new ParseUUIDPipe({ version: '4' })) reportCardId: string,
     @Req() req: Request & { user: JwtUser },
     @Res() res: Response
   ) {
     const buf = await this.documentsService.buildBulletinPdf(
-      studentId,
+      reportCardId,
       req.user.userId,
-      req.user.role,
-      period
+      req.user.role
     );
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="boletin-${studentId}.pdf"`);
-    res.end(buf);
-  }
-
-  @Get('bulletin/me/student')
-  @Roles(UserRole.ALUMNO)
-  async myBulletinPdf(
-    @Query('period') period: string | undefined,
-    @Req() req: Request & { user: JwtUser },
-    @Res() res: Response
-  ) {
-    const buf = await this.documentsService.buildMyStudentBulletinPdf(req.user.userId, period);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="boletin-mis-calificaciones.pdf"');
+    res.setHeader('Content-Disposition', `attachment; filename="boletin-${reportCardId}.pdf"`);
     res.end(buf);
   }
 
