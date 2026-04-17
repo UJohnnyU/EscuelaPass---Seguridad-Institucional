@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
 const OSM_FALLBACK_STYLE = {
   version: 8,
@@ -31,11 +31,10 @@ export type MapContextPayload = {
 };
 
 type CircuitArrivalMapProps = {
-  accessToken: string;
   ctx: MapContextPayload;
 };
 
-export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) {
+export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   const latStr = ctx.arrivalSnapshotLatitude ?? ctx.parentGpsLatitude ?? null;
@@ -49,23 +48,23 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
     const el = wrapRef.current;
     if (!hasParent || !el) return;
 
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: el,
       style: OSM_FALLBACK_STYLE as never,
       center: [ctx.schoolLongitude, ctx.schoolLatitude],
       zoom: 14
     });
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
-    const schoolMarker = new mapboxgl.Marker({ color: '#0f766e' })
+    const schoolMarker = new maplibregl.Marker({ color: '#0f766e' })
       .setLngLat([ctx.schoolLongitude, ctx.schoolLatitude])
-      .setPopup(new mapboxgl.Popup({ offset: 16 }).setHTML('<strong>Institución</strong>'))
+      .setPopup(new maplibregl.Popup({ offset: 16 }).setHTML('<strong>Institución</strong>'))
       .addTo(map);
 
-    const parentMarker = new mapboxgl.Marker({ color: '#b45309' })
+    const parentMarker = new maplibregl.Marker({ color: '#b45309' })
       .setLngLat([lng, lat])
       .setPopup(
-        new mapboxgl.Popup({ offset: 16 }).setHTML(
+        new maplibregl.Popup({ offset: 16 }).setHTML(
           `<strong>${fromSnapshot ? 'Ubicación al marcar «Ya llegué»' : 'Última ubicación GPS registrada'}</strong>` +
             (ctx.arrivalSnapshotAt
               ? `<br/><span style="font-size:12px">${new Date(ctx.arrivalSnapshotAt).toLocaleString('es')}</span>`
@@ -74,7 +73,7 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
       )
       .addTo(map);
 
-    const bounds = new mapboxgl.LngLatBounds()
+    const bounds = new maplibregl.LngLatBounds()
       .extend([ctx.schoolLongitude, ctx.schoolLatitude])
       .extend([lng, lat]);
     map.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: 0 });

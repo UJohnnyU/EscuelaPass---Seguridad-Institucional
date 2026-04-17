@@ -14,8 +14,6 @@ const CircuitArrivalMap = lazy(() =>
   import('@/components/CircuitArrivalMap').then((m) => ({ default: m.CircuitArrivalMap }))
 );
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
-
 type CircuitReq = {
   id: string;
   studentId: string;
@@ -392,7 +390,7 @@ export function CircuitDetailPage() {
                 <Suspense
                   fallback={<p className="text-sm text-slate-500">Cargando mapa…</p>}
                 >
-                  <CircuitArrivalMap accessToken={MAPBOX_TOKEN ?? ''} ctx={mapCtx} />
+                  <CircuitArrivalMap ctx={mapCtx} />
                 </Suspense>
               ) : (
                 <p className="text-sm text-slate-500">
