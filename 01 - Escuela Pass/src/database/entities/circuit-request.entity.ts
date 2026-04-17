@@ -63,6 +63,16 @@ export class CircuitRequestEntity {
   @Column({ name: 'parent_gps_longitude', type: 'numeric', precision: 11, scale: 8, nullable: true })
   parentGpsLongitude!: string | null;
 
+  /** Instantánea de GPS al marcar «llegué» (validación del docente en mapa). */
+  @Column({ name: 'arrival_snapshot_latitude', type: 'numeric', precision: 10, scale: 8, nullable: true })
+  arrivalSnapshotLatitude!: string | null;
+
+  @Column({ name: 'arrival_snapshot_longitude', type: 'numeric', precision: 11, scale: 8, nullable: true })
+  arrivalSnapshotLongitude!: string | null;
+
+  @Column({ name: 'arrival_snapshot_at', type: 'timestamptz', nullable: true })
+  arrivalSnapshotAt!: Date | null;
+
   @Column({ name: 'vehicle_id', type: 'uuid', nullable: true })
   vehicleId!: string | null;
 

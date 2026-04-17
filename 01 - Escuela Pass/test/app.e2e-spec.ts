@@ -584,7 +584,11 @@ describe('App (e2e)', () => {
     const p2 = await request(app.getHttpServer())
       .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/parent-progress`)
       .set(authHeader(padre.accessToken))
-      .send({ status: 'NOTIFICADO_LLEGADA' })
+      .send({
+        status: 'NOTIFICADO_LLEGADA',
+        parentGpsLatitude: 4.6097,
+        parentGpsLongitude: -74.0817
+      })
       .expect(200);
     expect(p2.body.status).toBe('NOTIFICADO_LLEGADA');
   });
@@ -619,7 +623,22 @@ describe('App (e2e)', () => {
 
     const requestId = created.body.requestId as string;
 
-    for (const status of ['NOTIFICADO_LLEGADA', 'AUTORIZADO_SALIR', 'EN_CAMINO'] as const) {
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${requestId}/parent-progress`)
+      .set(authHeader(padre.accessToken))
+      .send({ status: 'PADRE_EN_CAMINO' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${requestId}/parent-progress`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        status: 'NOTIFICADO_LLEGADA',
+        parentGpsLatitude: 4.6097,
+        parentGpsLongitude: -74.0817
+      })
+      .expect(200);
+
+    for (const status of ['AUTORIZADO_SALIR', 'EN_CAMINO'] as const) {
       await request(app.getHttpServer())
         .patch(`/${apiPrefix}/circuit-requests/${requestId}/status`)
         .set(authHeader(admin.accessToken))

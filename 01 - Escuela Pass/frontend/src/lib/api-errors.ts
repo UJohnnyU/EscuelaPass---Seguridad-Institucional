@@ -23,10 +23,18 @@ export function getUserFacingMessage(err: unknown, fallback = 'Ocurrió un error
     return 'No hay conexión con el servidor. Comprueba tu red o que la aplicación esté disponible.';
   }
 
+  /** `throw new Error(...)` en el cliente (p. ej. geolocalización); no es Axios. */
+  if (!ax?.response && err instanceof Error && err.message.trim()) {
+    return err.message.trim();
+  }
+
   const status = ax?.response?.status;
   if (status === 401) return 'Sesión expirada o credenciales incorrectas. Inicia sesión de nuevo.';
   if (status === 403) return 'No tienes permiso para esta acción.';
   if (status === 404) return 'No se encontró lo que buscabas.';
+  if (status === 400) {
+    return 'La solicitud no fue aceptada por el servidor. Revise los datos e intente de nuevo.';
+  }
   if (status === 409) return 'Conflicto con datos existentes. Revisa e intenta de nuevo.';
   if (status === 422) return 'Algunos datos no son válidos. Revisa el formulario.';
   if (status === 503) return 'El servicio no está disponible en este momento. Intenta más tarde.';

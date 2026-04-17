@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -7,6 +7,14 @@ import { getNextPedagogicalSignal, isCircuitTerminal } from '@/lib/circuit-utils
 import { STAFF_ALLOWED_NEXT, getPrimaryNextOperationalStatus } from '@/lib/circuit-transitions';
 import { useAuth } from '@/context/useAuth';
 import { isStaff as userIsStaff } from '@/lib/roles';
+import { requestGeolocationForCircuitArrival } from '@/lib/geolocation';
+import type { MapContextPayload } from '@/components/CircuitArrivalMap';
+
+const CircuitArrivalMap = lazy(() =>
+  import('@/components/CircuitArrivalMap').then((m) => ({ default: m.CircuitArrivalMap }))
+);
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
 
 type CircuitReq = {
   id: string;
@@ -19,6 +27,7 @@ type CircuitReq = {
   vehicleId: string | null;
   parentConfirmDeadlineAt?: string | null;
   parentReceiptConfirmedAt?: string | null;
+  arrivalSnapshotAt?: string | null;
 };
 
 const REMINDER_WINDOW_MIN = 15;
@@ -33,6 +42,7 @@ export function CircuitDetailPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [mapCtx, setMapCtx] = useState<MapContextPayload | null>(null);
 
   const isParent = user?.role === 'PADRE';
   const isStaff = userIsStaff(user);
@@ -41,7 +51,15 @@ export function CircuitDetailPage() {
     if (!id) return;
     const { data } = await api.get<CircuitReq>(`/api/v1/circuit-requests/${id}`);
     setRow(data);
-  }, [id]);
+    if (isStaff) {
+      try {
+        const { data: m } = await api.get<MapContextPayload>(`/api/v1/circuit-requests/${id}/map`);
+        setMapCtx(m);
+      } catch {
+        setMapCtx(null);
+      }
+    }
+  }, [id, isStaff]);
 
   useEffect(() => {
     if (!id) return;
@@ -251,9 +269,9 @@ export function CircuitDetailPage() {
       {isParent && !terminal && (
         <div className="mt-8 space-y-3">
           <p className="text-sm text-slate-600 leading-relaxed">
-            Avanza el circuito cuando corresponda. El GPS no cambia el estado automáticamente. Podrás confirmar que ya
-            recibiste a tu hijo o hija solo cuando el plantel haya indicado que va en camino hacia la salida (en
-            tránsito).
+            Avanza el circuito cuando corresponda. Al pulsar «Ya llegué» se envía su ubicación en ese momento para
+            revisión en el plantel. Podrás confirmar que ya recibiste a tu hijo o hija solo cuando el plantel haya
+            indicado que va en camino hacia la salida (en tránsito).
           </p>
           {row.status === 'PENDIENTE' && (
             <button
@@ -274,13 +292,18 @@ export function CircuitDetailPage() {
               type="button"
               disabled={busy}
               onClick={() =>
-                run(() =>
-                  api.patch(`/api/v1/circuit-requests/${id}/parent-progress`, { status: 'NOTIFICADO_LLEGADA' })
-                )
+                run(async () => {
+                  const pos = await requestGeolocationForCircuitArrival();
+                  await api.patch(`/api/v1/circuit-requests/${id}/parent-progress`, {
+                    status: 'NOTIFICADO_LLEGADA',
+                    parentGpsLatitude: Number(pos.coords.latitude),
+                    parentGpsLongitude: Number(pos.coords.longitude)
+                  });
+                })
               }
               className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
             >
-              Ya llegué
+              Ya llegué (con ubicación)
             </button>
           )}
           {row.status !== 'ENTREGADO' && row.status !== 'CANCELADO' && row.status !== 'CERRADO_SIN_CONFIRMACION_PADRE' && (
@@ -308,6 +331,45 @@ export function CircuitDetailPage() {
 
       {isStaff && !terminal && (
         <div className="mt-8 space-y-6 rounded border border-slate-200 bg-white p-6 shadow-sm">
+          <div>
+            <h2 className="font-serif text-base font-semibold text-slate-900">Mapa de llegada del padre o madre</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Muestra la posición capturada al marcar «Ya llegué». Si la ubicación no es creíble, use el botón inferior
+              para pedir que se acerquen y vuelvan a confirmar con GPS.
+            </p>
+            <div className="mt-4">
+              {mapCtx ? (
+                <Suspense
+                  fallback={<p className="text-sm text-slate-500">Cargando mapa…</p>}
+                >
+                  <CircuitArrivalMap accessToken={MAPBOX_TOKEN ?? ''} ctx={mapCtx} />
+                </Suspense>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  {loading ? 'Cargando…' : 'No hay datos de mapa para esta solicitud.'}
+                </p>
+              )}
+            </div>
+            {row.status === 'NOTIFICADO_LLEGADA' && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'PADRE_EN_CAMINO' }))
+                  }
+                  className="w-full rounded border border-amber-600 bg-amber-50 py-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  Pedir acercarse y reconfirmar llegada
+                </button>
+                <p className="mt-2 text-xs text-slate-500">
+                  El estado volverá a «En camino» y la familia recibirá un aviso para marcar de nuevo «Ya llegué» con
+                  ubicación actualizada.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div>
             <h2 className="font-serif text-base font-semibold text-slate-900">Señal pedagógica a la familia</h2>
             <p className="mt-1 text-xs text-slate-500">
@@ -361,6 +423,11 @@ export function CircuitDetailPage() {
               <p className="mt-4 text-sm text-slate-600">
                 En este estado el menor va hacia la salida; la confirmación de recibimiento la hace la familia. Solo puede
                 cancelar la solicitud abajo si corresponde.
+              </p>
+            ) : row.status === 'PADRE_EN_CAMINO' ? (
+              <p className="mt-4 text-sm text-slate-600">
+                Espere a que la familia marque «Ya llegué» con ubicación; entonces podrá revisar el mapa y continuar el
+                flujo.
               </p>
             ) : (
               <p className="mt-4 text-sm text-slate-600">No hay otro avance operativo desde este estado.</p>

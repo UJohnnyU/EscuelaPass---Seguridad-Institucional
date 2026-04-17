@@ -338,6 +338,27 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     this.assertParentTransition(req.status, next);
 
+    if (next === CircuitStatus.NOTIFICADO_LLEGADA) {
+      const lat =
+        dto.parentGpsLatitude === null || dto.parentGpsLatitude === undefined
+          ? NaN
+          : Number(dto.parentGpsLatitude as number | string);
+      const lng =
+        dto.parentGpsLongitude === null || dto.parentGpsLongitude === undefined
+          ? NaN
+          : Number(dto.parentGpsLongitude as number | string);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new BadRequestException(
+          'Debe permitir el acceso a la ubicación y enviar coordenadas al marcar que ya llegó al plantel.'
+        );
+      }
+      req.parentGpsLatitude = lat.toString();
+      req.parentGpsLongitude = lng.toString();
+      req.arrivalSnapshotLatitude = lat.toString();
+      req.arrivalSnapshotLongitude = lng.toString();
+      req.arrivalSnapshotAt = new Date();
+    }
+
     req.status = next;
     const saved = await this.circuitRepository.save(req);
 
@@ -387,14 +408,18 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     let distanceKm: number | null = null;
     let durationSeconds: number | null = null;
     let source: 'mapbox' | 'haversine' | null = null;
-    if (req.parentGpsLatitude != null && req.parentGpsLongitude != null) {
-      const lat = Number(req.parentGpsLatitude);
-      const lng = Number(req.parentGpsLongitude);
+    const snapLatStr = req.arrivalSnapshotLatitude ?? req.parentGpsLatitude;
+    const snapLngStr = req.arrivalSnapshotLongitude ?? req.parentGpsLongitude;
+    if (snapLatStr != null && snapLngStr != null) {
+      const lat = Number(snapLatStr);
+      const lng = Number(snapLngStr);
       const prox = await this.calculateDistanceToSchool(lat, lng);
       distanceKm = prox.distanceKm;
       durationSeconds = prox.durationSeconds;
       source = prox.source;
     }
+    const withinRadius =
+      distanceKm !== null ? distanceKm <= radiusKm + 1e-6 : null;
     return {
       circuitRequestId: req.id,
       studentId: req.studentId,
@@ -406,10 +431,14 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       parentReceiptConfirmedAt: req.parentReceiptConfirmedAt,
       parentGpsLatitude: req.parentGpsLatitude,
       parentGpsLongitude: req.parentGpsLongitude,
+      arrivalSnapshotLatitude: req.arrivalSnapshotLatitude,
+      arrivalSnapshotLongitude: req.arrivalSnapshotLongitude,
+      arrivalSnapshotAt: req.arrivalSnapshotAt,
       schoolLatitude: schoolLat,
       schoolLongitude: schoolLng,
       arrivalRadiusKm: radiusKm,
       distanceToSchoolKm: distanceKm !== null ? Number(distanceKm.toFixed(3)) : null,
+      withinSchoolArrivalRadius: withinRadius,
       etaMinutes: durationSeconds != null ? Math.ceil(durationSeconds / 60) : null,
       distanceSource: source
     };
@@ -620,6 +649,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('No autorizado a cambiar el estado del circuito');
     }
 
+    if (dto.status === CircuitStatus.NOTIFICADO_LLEGADA) {
+      throw new BadRequestException(
+        'La llegada al plantel solo la registra el padre o madre con ubicación (acción «Ya llegué»).'
+      );
+    }
+
     const req = await this.findById(id);
     if (role === UserRole.ADMINISTRATIVO) {
       await this.assertAdministrativeCanAccessStudent(userId, req.studentId);
@@ -628,6 +663,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Circuito cerrado; no se puede cambiar el estado.');
     }
     const next = dto.status;
+    const prevStatus = req.status;
 
     if (req.status === next) {
       return { message: 'Sin cambios', id: req.id, status: req.status };
@@ -641,31 +677,50 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       req.parentConfirmDeadlineAt = null;
     }
 
+    if (prevStatus === CircuitStatus.NOTIFICADO_LLEGADA && next === CircuitStatus.PADRE_EN_CAMINO) {
+      this.clearArrivalSnapshot(req);
+      req.parentGpsLatitude = null;
+      req.parentGpsLongitude = null;
+    }
+
     req.status = next;
     // Nota: el esquema actual no tiene columna notes; dto.notes se deja para futuro
     const saved = await this.circuitRepository.save(req);
 
     const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
     const name = await this.studentDisplayName(saved.studentId);
-    const copy = this.circuitPushCopy(next, name);
-    if (copy) {
-      this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+
+    if (prevStatus === CircuitStatus.NOTIFICADO_LLEGADA && next === CircuitStatus.PADRE_EN_CAMINO) {
+      this.pushCircuitToParent(
+        parentUid,
+        saved.id,
+        saved.status,
+        'Confirme su llegada nuevamente',
+        `El plantel solicita acercarse al colegio y volver a marcar «Ya llegué» con la ubicación activa (${name}).`
+      );
+    } else {
+      const copy = this.circuitPushCopy(next, name);
+      if (copy) {
+        this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+      }
     }
 
     return { message: 'Estado actualizado', id: saved.id, status: saved.status, changedBy: userId };
   }
 
+  private clearArrivalSnapshot(req: CircuitRequestEntity) {
+    req.arrivalSnapshotLatitude = null;
+    req.arrivalSnapshotLongitude = null;
+    req.arrivalSnapshotAt = null;
+  }
+
   private assertValidTransition(from: CircuitStatus, to: CircuitStatus) {
     const allowed: Record<CircuitStatus, CircuitStatus[]> = {
-      [CircuitStatus.PENDIENTE]: [
-        CircuitStatus.PADRE_EN_CAMINO,
-        CircuitStatus.NOTIFICADO_LLEGADA,
-        CircuitStatus.CANCELADO,
-        CircuitStatus.CONSENTIDO_SOLO
-      ],
-      [CircuitStatus.PADRE_EN_CAMINO]: [CircuitStatus.NOTIFICADO_LLEGADA, CircuitStatus.CANCELADO],
+      [CircuitStatus.PENDIENTE]: [CircuitStatus.PADRE_EN_CAMINO, CircuitStatus.CANCELADO, CircuitStatus.CONSENTIDO_SOLO],
+      [CircuitStatus.PADRE_EN_CAMINO]: [CircuitStatus.CANCELADO],
       [CircuitStatus.NOTIFICADO_LLEGADA]: [
         CircuitStatus.AUTORIZADO_SALIR,
+        CircuitStatus.PADRE_EN_CAMINO,
         CircuitStatus.CANCELADO
       ],
       [CircuitStatus.AUTORIZADO_SALIR]: [
