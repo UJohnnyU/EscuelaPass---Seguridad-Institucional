@@ -50,6 +50,12 @@ export function CircuitDetailPage() {
 
   const isParent = user?.role === 'PADRE';
   const isStaff = userIsStaff(user);
+  const canMarkArrivalFromDevice = useMemo(() => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const coarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || coarsePointer;
+  }, []);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -314,33 +320,41 @@ export function CircuitDetailPage() {
             </button>
           )}
           {row.status === 'PADRE_EN_CAMINO' && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                runWithCircuitBody(async () => {
-                  const pos = await requestGeolocationForCircuitArrival();
-                  const parentGpsLatitude = Number(pos.coords.latitude);
-                  const parentGpsLongitude = Number(pos.coords.longitude);
-                  await api.patch(`/api/v1/circuit-requests/${id}/gps`, {
-                    parentGpsLatitude,
-                    parentGpsLongitude
-                  });
-                  const { data } = await api.patch<CircuitReq>(
-                    `/api/v1/circuit-requests/${id}/parent-progress`,
-                    {
-                      status: 'NOTIFICADO_LLEGADA',
-                      parentGpsLatitude,
-                      parentGpsLongitude
-                    }
-                  );
-                  return data;
-                })
-              }
-              className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
-            >
-              Ya llegué (con ubicación)
-            </button>
+            <>
+              {canMarkArrivalFromDevice ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    runWithCircuitBody(async () => {
+                      const pos = await requestGeolocationForCircuitArrival();
+                      const parentGpsLatitude = Number(pos.coords.latitude);
+                      const parentGpsLongitude = Number(pos.coords.longitude);
+                      await api.patch(`/api/v1/circuit-requests/${id}/gps`, {
+                        parentGpsLatitude,
+                        parentGpsLongitude
+                      });
+                      const { data } = await api.patch<CircuitReq>(
+                        `/api/v1/circuit-requests/${id}/parent-progress`,
+                        {
+                          status: 'NOTIFICADO_LLEGADA',
+                          parentGpsLatitude,
+                          parentGpsLongitude
+                        }
+                      );
+                      return data;
+                    })
+                  }
+                  className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+                >
+                  Ya llegué (con ubicación)
+                </button>
+              ) : (
+                <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                  Para confirmar «Ya llegué» debes continuar desde el móvil y aceptar el uso de ubicación.
+                </div>
+              )}
+            </>
           )}
           {row.status !== 'ENTREGADO' && row.status !== 'CANCELADO' && row.status !== 'CERRADO_SIN_CONFIRMACION_PADRE' && (
             <button
