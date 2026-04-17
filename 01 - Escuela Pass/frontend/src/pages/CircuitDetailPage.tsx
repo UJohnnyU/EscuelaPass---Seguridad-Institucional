@@ -33,7 +33,7 @@ type CircuitReq = {
 };
 
 const REMINDER_WINDOW_MIN = 15;
-const CIRCUIT_AUTO_REFRESH_MS = 5000;
+const CIRCUIT_AUTO_REFRESH_MS = 3000;
 
 export function CircuitDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -125,10 +125,9 @@ export function CircuitDetailPage() {
   }, [id, row, reminderLogic.urgent]);
 
   useEffect(() => {
-    if (!id || !row || terminal) return;
+    if (!id) return;
 
     const poll = async () => {
-      if (busy) return;
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         await reload();
@@ -152,7 +151,7 @@ export function CircuitDetailPage() {
       clearInterval(intervalId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [id, row, terminal, busy, reload]);
+  }, [id, reload]);
 
   async function run(action: () => Promise<void>) {
     setMsg(null);

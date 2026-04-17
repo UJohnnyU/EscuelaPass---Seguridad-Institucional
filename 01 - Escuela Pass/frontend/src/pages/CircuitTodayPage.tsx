@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -20,30 +20,40 @@ export function CircuitTodayPage() {
   const [error, setError] = useState<string | null>(null);
   const [circuitEnabled, setCircuitEnabled] = useState<boolean>(true);
   const [savingCircuit, setSavingCircuit] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
   const allowed =
     user?.role === 'DOCENTE' || user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
   const canManageCircuit = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
 
-  useEffect(() => {
-    if (!allowed) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const loadToday = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!allowed) return;
+      const silent = Boolean(opts?.silent);
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       setError(null);
       try {
-        const { data } = await api.get<CircuitRow[]>('/api/v1/circuit-requests/today');
-        if (!cancelled) setRows(data);
+        const { data } = await api.get<CircuitRow[]>('/api/v1/circuit-requests/today', {
+          params: { _t: String(Date.now()) }
+        });
+        setRows(data);
+        setLastUpdatedAt(Date.now());
       } catch (e) {
-        if (!cancelled) setError(getUserFacingMessage(e, 'No se pudo cargar el listado.'));
+        setError(getUserFacingMessage(e, 'No se pudo cargar el listado.'));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (silent) setRefreshing(false);
+        else setLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [allowed]);
+    },
+    [allowed]
+  );
+
+  useEffect(() => {
+    if (!allowed) return;
+    void loadToday();
+  }, [allowed, loadToday]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -60,6 +70,20 @@ export function CircuitTodayPage() {
       cancelled = true;
     };
   }, [allowed]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void loadToday({ silent: true });
+    }, 10000);
+    return () => clearInterval(id);
+  }, [allowed, loadToday]);
+
+  const lastUpdatedLabel = useMemo(() => {
+    if (!lastUpdatedAt) return 'Sin actualizar';
+    return new Date(lastUpdatedAt).toLocaleTimeString('es');
+  }, [lastUpdatedAt]);
 
   async function toggleCircuit(next: boolean) {
     if (!canManageCircuit) return;
@@ -100,6 +124,17 @@ export function CircuitTodayPage() {
     <div className="animate-slide-up">
       <h1 className="text-2xl font-bold text-slate-900">Circuito de hoy</h1>
       <p className="mt-1 text-slate-600">Solicitudes con fecha de hoy. Abre una para señales y estado.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        <button
+          type="button"
+          onClick={() => void loadToday({ silent: true })}
+          disabled={refreshing}
+          className="rounded border border-slate-300 px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {refreshing ? 'Actualizando…' : 'Actualizar listado'}
+        </button>
+        <span className="text-slate-500">Última actualización: {lastUpdatedLabel}</span>
+      </div>
       {canManageCircuit && (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
           <p className="text-sm text-slate-700">
