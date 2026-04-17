@@ -339,17 +339,19 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     this.assertParentTransition(req.status, next);
 
     if (next === CircuitStatus.NOTIFICADO_LLEGADA) {
-      const lat =
+      const latFromDto =
         dto.parentGpsLatitude === null || dto.parentGpsLatitude === undefined
           ? NaN
           : Number(dto.parentGpsLatitude as number | string);
-      const lng =
+      const lngFromDto =
         dto.parentGpsLongitude === null || dto.parentGpsLongitude === undefined
           ? NaN
           : Number(dto.parentGpsLongitude as number | string);
+      const lat = Number.isFinite(latFromDto) ? latFromDto : Number(req.parentGpsLatitude);
+      const lng = Number.isFinite(lngFromDto) ? lngFromDto : Number(req.parentGpsLongitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         throw new BadRequestException(
-          'Debe permitir el acceso a la ubicación y enviar coordenadas al marcar que ya llegó al plantel.'
+          'Debe permitir el acceso a la ubicación y enviar coordenadas al marcar que ya llegó al plantel. Si falla, reintente con GPS activo.'
         );
       }
       req.parentGpsLatitude = lat.toString();

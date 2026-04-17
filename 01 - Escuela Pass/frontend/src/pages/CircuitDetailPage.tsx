@@ -320,12 +320,18 @@ export function CircuitDetailPage() {
               onClick={() =>
                 runWithCircuitBody(async () => {
                   const pos = await requestGeolocationForCircuitArrival();
+                  const parentGpsLatitude = Number(pos.coords.latitude);
+                  const parentGpsLongitude = Number(pos.coords.longitude);
+                  await api.patch(`/api/v1/circuit-requests/${id}/gps`, {
+                    parentGpsLatitude,
+                    parentGpsLongitude
+                  });
                   const { data } = await api.patch<CircuitReq>(
                     `/api/v1/circuit-requests/${id}/parent-progress`,
                     {
                       status: 'NOTIFICADO_LLEGADA',
-                      parentGpsLatitude: Number(pos.coords.latitude),
-                      parentGpsLongitude: Number(pos.coords.longitude)
+                      parentGpsLatitude,
+                      parentGpsLongitude
                     }
                   );
                   return data;
