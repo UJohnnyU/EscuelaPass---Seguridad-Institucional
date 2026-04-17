@@ -333,7 +333,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     const next = dto.status;
     if (req.status === next) {
-      return { message: 'Sin cambios', id: req.id, status: req.status };
+      return this.findByIdForViewer(req.id, parentUserId, UserRole.PADRE);
     }
 
     this.assertParentTransition(req.status, next);
@@ -369,7 +369,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
     }
 
-    return { message: 'Estado actualizado', id: saved.id, status: saved.status };
+    /** Misma forma que GET /circuit-requests/:id (evita estado desincronizado en el cliente tras el PATCH). */
+    return this.findByIdForViewer(saved.id, parentUserId, UserRole.PADRE);
   }
 
   private assertParentTransition(from: CircuitStatus, to: CircuitStatus) {

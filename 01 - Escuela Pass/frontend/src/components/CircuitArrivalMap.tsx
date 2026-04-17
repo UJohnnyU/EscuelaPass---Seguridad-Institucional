@@ -8,6 +8,9 @@ export type MapContextPayload = {
   arrivalSnapshotLatitude: string | null;
   arrivalSnapshotLongitude: string | null;
   arrivalSnapshotAt: string | null;
+  /** Respaldo si la instantánea aún no está en el cliente (misma posición guardada al marcar llegada). */
+  parentGpsLatitude?: string | null;
+  parentGpsLongitude?: string | null;
   arrivalRadiusKm: number;
   distanceToSchoolKm: number | null;
   withinSchoolArrivalRadius: boolean | null;
@@ -22,9 +25,12 @@ type CircuitArrivalMapProps = {
 export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const lat = ctx.arrivalSnapshotLatitude != null ? Number(ctx.arrivalSnapshotLatitude) : NaN;
-  const lng = ctx.arrivalSnapshotLongitude != null ? Number(ctx.arrivalSnapshotLongitude) : NaN;
+  const latStr = ctx.arrivalSnapshotLatitude ?? ctx.parentGpsLatitude ?? null;
+  const lngStr = ctx.arrivalSnapshotLongitude ?? ctx.parentGpsLongitude ?? null;
+  const lat = latStr != null ? Number(latStr) : NaN;
+  const lng = lngStr != null ? Number(lngStr) : NaN;
   const hasParent = Number.isFinite(lat) && Number.isFinite(lng);
+  const fromSnapshot = ctx.arrivalSnapshotLatitude != null && ctx.arrivalSnapshotLongitude != null;
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -49,7 +55,7 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
       .setLngLat([lng, lat])
       .setPopup(
         new mapboxgl.Popup({ offset: 16 }).setHTML(
-          '<strong>Ubicación al marcar «Ya llegué»</strong>' +
+          `<strong>${fromSnapshot ? 'Ubicación al marcar «Ya llegué»' : 'Última ubicación GPS registrada'}</strong>` +
             (ctx.arrivalSnapshotAt
               ? `<br/><span style="font-size:12px">${new Date(ctx.arrivalSnapshotAt).toLocaleString('es')}</span>`
               : '')
@@ -67,7 +73,7 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
       parentMarker.remove();
       map.remove();
     };
-  }, [accessToken, ctx.schoolLatitude, ctx.schoolLongitude, ctx.arrivalSnapshotAt, hasParent, lat, lng]);
+  }, [accessToken, ctx.schoolLatitude, ctx.schoolLongitude, ctx.arrivalSnapshotAt, fromSnapshot, hasParent, lat, lng]);
 
   if (!accessToken) {
     return (

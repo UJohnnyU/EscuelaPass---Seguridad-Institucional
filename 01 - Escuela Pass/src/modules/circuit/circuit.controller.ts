@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+  UseGuards
+} from '@nestjs/common';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -58,6 +69,7 @@ export class CircuitController {
   }
 
   @Get(':id/map')
+  @Header('Cache-Control', 'no-store, must-revalidate')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
   getMapContext(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -67,6 +79,7 @@ export class CircuitController {
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'no-store, must-revalidate')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
   findOne(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

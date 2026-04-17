@@ -28,6 +28,10 @@ type CircuitReq = {
   parentConfirmDeadlineAt?: string | null;
   parentReceiptConfirmedAt?: string | null;
   arrivalSnapshotAt?: string | null;
+  parentGpsLatitude?: string | null;
+  parentGpsLongitude?: string | null;
+  arrivalSnapshotLatitude?: string | null;
+  arrivalSnapshotLongitude?: string | null;
 };
 
 const REMINDER_WINDOW_MIN = 15;
@@ -49,11 +53,12 @@ export function CircuitDetailPage() {
 
   const reload = useCallback(async () => {
     if (!id) return;
-    const { data } = await api.get<CircuitReq>(`/api/v1/circuit-requests/${id}`);
+    const cacheBust = { params: { _t: String(Date.now()) } };
+    const { data } = await api.get<CircuitReq>(`/api/v1/circuit-requests/${id}`, cacheBust);
     setRow(data);
     if (isStaff) {
       try {
-        const { data: m } = await api.get<MapContextPayload>(`/api/v1/circuit-requests/${id}/map`);
+        const { data: m } = await api.get<MapContextPayload>(`/api/v1/circuit-requests/${id}/map`, cacheBust);
         setMapCtx(m);
       } catch {
         setMapCtx(null);
@@ -120,6 +125,23 @@ export function CircuitDetailPage() {
     setBusy(true);
     try {
       await action();
+      await reload();
+      setMsg('Actualizado.');
+    } catch (e) {
+      setError(getUserFacingMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Aplica de inmediato la fila devuelta por PATCH parent-progress (misma forma que GET). */
+  async function runWithCircuitBody(action: () => Promise<CircuitReq>) {
+    setMsg(null);
+    setError(null);
+    setBusy(true);
+    try {
+      const data = await action();
+      setRow(data);
       await reload();
       setMsg('Actualizado.');
     } catch (e) {
@@ -278,9 +300,13 @@ export function CircuitDetailPage() {
               type="button"
               disabled={busy}
               onClick={() =>
-                run(() =>
-                  api.patch(`/api/v1/circuit-requests/${id}/parent-progress`, { status: 'PADRE_EN_CAMINO' })
-                )
+                runWithCircuitBody(async () => {
+                  const { data } = await api.patch<CircuitReq>(
+                    `/api/v1/circuit-requests/${id}/parent-progress`,
+                    { status: 'PADRE_EN_CAMINO' }
+                  );
+                  return data;
+                })
               }
               className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
             >
@@ -292,13 +318,17 @@ export function CircuitDetailPage() {
               type="button"
               disabled={busy}
               onClick={() =>
-                run(async () => {
+                runWithCircuitBody(async () => {
                   const pos = await requestGeolocationForCircuitArrival();
-                  await api.patch(`/api/v1/circuit-requests/${id}/parent-progress`, {
-                    status: 'NOTIFICADO_LLEGADA',
-                    parentGpsLatitude: Number(pos.coords.latitude),
-                    parentGpsLongitude: Number(pos.coords.longitude)
-                  });
+                  const { data } = await api.patch<CircuitReq>(
+                    `/api/v1/circuit-requests/${id}/parent-progress`,
+                    {
+                      status: 'NOTIFICADO_LLEGADA',
+                      parentGpsLatitude: Number(pos.coords.latitude),
+                      parentGpsLongitude: Number(pos.coords.longitude)
+                    }
+                  );
+                  return data;
                 })
               }
               className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
