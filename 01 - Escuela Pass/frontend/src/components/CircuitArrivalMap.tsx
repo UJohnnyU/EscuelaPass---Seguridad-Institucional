@@ -2,6 +2,19 @@ import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
+const OSM_FALLBACK_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '&copy; OpenStreetMap contributors'
+    }
+  },
+  layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+};
+
 export type MapContextPayload = {
   schoolLatitude: number;
   schoolLongitude: number;
@@ -34,15 +47,23 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
 
   useEffect(() => {
     const el = wrapRef.current;
-    if (!accessToken || !hasParent || !el) return;
+    if (!hasParent || !el) return;
 
-    mapboxgl.accessToken = accessToken;
+    if (accessToken) {
+      mapboxgl.accessToken = accessToken;
+    }
 
     const map = new mapboxgl.Map({
       container: el,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: accessToken ? 'mapbox://styles/mapbox/streets-v12' : (OSM_FALLBACK_STYLE as never),
       center: [ctx.schoolLongitude, ctx.schoolLatitude],
       zoom: 14
+    });
+    let fallbackApplied = !accessToken;
+    map.on('error', () => {
+      if (fallbackApplied) return;
+      fallbackApplied = true;
+      map.setStyle(OSM_FALLBACK_STYLE as never);
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
@@ -74,15 +95,6 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
       map.remove();
     };
   }, [accessToken, ctx.schoolLatitude, ctx.schoolLongitude, ctx.arrivalSnapshotAt, fromSnapshot, hasParent, lat, lng]);
-
-  if (!accessToken) {
-    return (
-      <p className="text-sm text-amber-900">
-        Falta <code className="rounded bg-amber-100 px-1">VITE_MAPBOX_ACCESS_TOKEN</code> en el frontend para mostrar el
-        mapa.
-      </p>
-    );
-  }
 
   if (!hasParent) {
     return (
