@@ -37,6 +37,8 @@ type CircuitArrivalMapProps = {
 
 export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const token = accessToken.trim();
+  const hasUsableToken = token.startsWith('pk.');
 
   const latStr = ctx.arrivalSnapshotLatitude ?? ctx.parentGpsLatitude ?? null;
   const lngStr = ctx.arrivalSnapshotLongitude ?? ctx.parentGpsLongitude ?? null;
@@ -49,21 +51,15 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
     const el = wrapRef.current;
     if (!hasParent || !el) return;
 
-    if (accessToken) {
-      mapboxgl.accessToken = accessToken;
+    if (hasUsableToken) {
+      mapboxgl.accessToken = token;
     }
 
     const map = new mapboxgl.Map({
       container: el,
-      style: accessToken ? 'mapbox://styles/mapbox/streets-v12' : (OSM_FALLBACK_STYLE as never),
+      style: hasUsableToken ? 'mapbox://styles/mapbox/streets-v12' : (OSM_FALLBACK_STYLE as never),
       center: [ctx.schoolLongitude, ctx.schoolLatitude],
       zoom: 14
-    });
-    let fallbackApplied = !accessToken;
-    map.on('error', () => {
-      if (fallbackApplied) return;
-      fallbackApplied = true;
-      map.setStyle(OSM_FALLBACK_STYLE as never);
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
@@ -94,7 +90,7 @@ export function CircuitArrivalMap({ accessToken, ctx }: CircuitArrivalMapProps) 
       parentMarker.remove();
       map.remove();
     };
-  }, [accessToken, ctx.schoolLatitude, ctx.schoolLongitude, ctx.arrivalSnapshotAt, fromSnapshot, hasParent, lat, lng]);
+  }, [ctx.schoolLatitude, ctx.schoolLongitude, ctx.arrivalSnapshotAt, fromSnapshot, hasParent, hasUsableToken, lat, lng, token]);
 
   if (!hasParent) {
     return (
