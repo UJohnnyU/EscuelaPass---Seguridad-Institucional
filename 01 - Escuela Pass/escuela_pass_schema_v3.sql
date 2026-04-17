@@ -414,6 +414,46 @@ CREATE TABLE IF NOT EXISTS grades (
     UNIQUE (student_id, subject, period, assessment_name)
 );
 
+-- Actividades del docente (por grupo y materia) con ciclo de vida OPEN/CLOSED.
+CREATE TABLE IF NOT EXISTS activities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    teacher_id UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+    group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,
+    subject_name VARCHAR(100) NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    description TEXT NULL,
+    period VARCHAR(50) NOT NULL,
+    max_score NUMERIC(6,2) NOT NULL,
+    due_date DATE NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'OPEN',
+    closed_at TIMESTAMPTZ NULL,
+    closed_by UUID NULL,
+    reopened_at TIMESTAMPTZ NULL,
+    reopened_by UUID NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_activities_status CHECK (status IN ('OPEN','CLOSED'))
+);
+CREATE INDEX IF NOT EXISTS ix_activities_group_status ON activities (group_id, status);
+CREATE INDEX IF NOT EXISTS ix_activities_teacher ON activities (teacher_id);
+
+-- Calificaciones por actividad (una fila por estudiante).
+CREATE TABLE IF NOT EXISTS activity_grades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    score NUMERIC(6,2) NOT NULL,
+    notes TEXT NULL,
+    graded_by UUID NULL,
+    graded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_grades_activity_student
+    ON activity_grades (activity_id, student_id);
+CREATE INDEX IF NOT EXISTS ix_activity_grades_student ON activity_grades (student_id);
+
 CREATE TABLE IF NOT EXISTS import_jobs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     kind VARCHAR(50) NOT NULL,

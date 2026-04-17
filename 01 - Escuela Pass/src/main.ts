@@ -1,11 +1,13 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { existsSync, mkdirSync } from 'fs';
 import helmet from 'helmet';
 import { join } from 'path';
 import * as express from 'express';
+import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
+import { ensureRuntimeSchema } from './database/ensure-runtime-schema';
 
 async function bootstrap() {
   const uploadsRoot = join(process.cwd(), 'uploads');
@@ -15,6 +17,14 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+
+  try {
+    const dataSource = app.get(DataSource);
+    await ensureRuntimeSchema(dataSource);
+  } catch (err) {
+    const logger = new Logger('ensureRuntimeSchema');
+    logger.error('No se pudo garantizar el esquema en tiempo de arranque', err as Error);
+  }
 
   app.use('/uploads', express.static(uploadsRoot));
 
