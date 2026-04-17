@@ -13,6 +13,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './modules/health/health.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { GradesModule } from './modules/grades/grades.module';
+import { ActivitiesModule } from './modules/activities/activities.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolModule } from './modules/school/school.module';
 import { ExportsModule } from './modules/exports/exports.module';
@@ -53,6 +54,7 @@ import { SchoolsModule } from './modules/schools/schools.module';
     PaymentsModule,
     AttendanceModule,
     GradesModule,
+    ActivitiesModule,
     ReportsModule,
     SchoolModule,
     ExportsModule,

@@ -1,0 +1,8 @@
+feat(actividades): actividades del docente con apertura/cierre y calificaciones
+
+- Nuevas entidades ActivityEntity y ActivityGradeEntity + migracion
+- Modulo activities con endpoints CRUD, close/reopen y tablero
+- Reglas: solo docente creador (o admin/administrativo institucional) gestiona;
+  calificaciones solo editables con actividad OPEN; CLOSED bloquea cambios
+- Frontend: rediseno de Calificaciones docente con lista, filtros,
+  creacion en modal y tablero con estado y acciones cerrar/reabrir

@@ -1,4 +1,6 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { ActivityEntity } from '../database/entities/activity.entity';
+import { ActivityGradeEntity } from '../database/entities/activity-grade.entity';
 import { AttendanceRecordEntity } from '../database/entities/attendance-record.entity';
 import { AccessCredentialEntity } from '../database/entities/access-credential.entity';
 import { AccessEventEntity } from '../database/entities/access-event.entity';
@@ -67,6 +69,8 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       PaymentRecordEntity,
       AttendanceRecordEntity,
       GradeEntity,
+      ActivityEntity,
+      ActivityGradeEntity,
       SubjectEntity,
       TeacherGroupEntity,
       ImportJobEntity,
