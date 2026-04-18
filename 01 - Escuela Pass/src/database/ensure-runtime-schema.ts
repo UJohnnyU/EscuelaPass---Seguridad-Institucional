@@ -156,6 +156,125 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
     );
 
     await runner.query(`DROP TABLE IF EXISTS grades CASCADE`);
+
+    await runner.query(`DROP TABLE IF EXISTS parent_teacher_meetings CASCADE`);
+    await runner.query(`DROP TYPE IF EXISTS meeting_status CASCADE`);
+
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS external_visits (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        created_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        creator_role varchar(20) NOT NULL,
+        title varchar(150) NOT NULL,
+        purpose text NOT NULL,
+        visitor_name varchar(150) NOT NULL,
+        visitor_organization varchar(150) NULL,
+        location varchar(200) NULL,
+        visit_datetime timestamptz NOT NULL,
+        duration_minutes int NOT NULL DEFAULT 60,
+        audience_scope varchar(16) NOT NULL,
+        status varchar(16) NOT NULL DEFAULT 'PROGRAMADA',
+        cancellation_reason text NULL,
+        previous_datetime timestamptz NULL,
+        reminded_24h_at timestamptz NULL,
+        reminded_1h_at timestamptz NULL,
+        auto_finalized_at timestamptz NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT ck_external_visits_scope CHECK (audience_scope IN ('SCHOOL','GROUPS','STUDENTS')),
+        CONSTRAINT ck_external_visits_status CHECK (status IN ('PROGRAMADA','REPROGRAMADA','REALIZADA','CANCELADA')),
+        CONSTRAINT ck_external_visits_duration CHECK (duration_minutes BETWEEN 5 AND 600)
+      )
+    `);
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_external_visits_school_datetime ON external_visits (school_id, visit_datetime)`
+    );
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_external_visits_created_by ON external_visits (created_by_user_id)`
+    );
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_external_visits_status ON external_visits (status)`
+    );
+
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS external_visit_groups (
+        visit_id uuid NOT NULL REFERENCES external_visits(id) ON DELETE CASCADE,
+        group_id uuid NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        PRIMARY KEY (visit_id, group_id)
+      )
+    `);
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_external_visit_groups_group ON external_visit_groups (group_id)`
+    );
+
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS external_visit_students (
+        visit_id uuid NOT NULL REFERENCES external_visits(id) ON DELETE CASCADE,
+        student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        PRIMARY KEY (visit_id, student_id)
+      )
+    `);
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_external_visit_students_student ON external_visit_students (student_id)`
+    );
+
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS meetings (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        organizer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        organizer_role varchar(20) NOT NULL,
+        title varchar(150) NOT NULL,
+        purpose text NOT NULL,
+        modality varchar(16) NOT NULL DEFAULT 'PRESENCIAL',
+        location varchar(200) NULL,
+        meeting_link varchar(500) NULL,
+        start_at timestamptz NOT NULL,
+        duration_minutes int NOT NULL DEFAULT 30,
+        status varchar(16) NOT NULL DEFAULT 'PROGRAMADA',
+        cancellation_reason text NULL,
+        previous_start_at timestamptz NULL,
+        reminded_24h_at timestamptz NULL,
+        reminded_1h_at timestamptz NULL,
+        auto_finalized_at timestamptz NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT ck_meetings_modality CHECK (modality IN ('PRESENCIAL','VIRTUAL')),
+        CONSTRAINT ck_meetings_status CHECK (status IN ('PROGRAMADA','REPROGRAMADA','EN_CURSO','REALIZADA','CANCELADA')),
+        CONSTRAINT ck_meetings_duration CHECK (duration_minutes BETWEEN 5 AND 600)
+      )
+    `);
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_meetings_school_start ON meetings (school_id, start_at)`
+    );
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_meetings_organizer ON meetings (organizer_user_id)`
+    );
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_meetings_status ON meetings (status)`
+    );
+
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS meeting_participants (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        participant_role varchar(20) NOT NULL,
+        student_context_id uuid NULL REFERENCES students(id) ON DELETE SET NULL,
+        rsvp varchar(16) NOT NULL DEFAULT 'PENDIENTE',
+        responded_at timestamptz NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT ck_meeting_participants_rsvp CHECK (rsvp IN ('PENDIENTE','ACEPTADA','DECLINADA'))
+      )
+    `);
+    await runner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS uq_meeting_participants_user ON meeting_participants (meeting_id, user_id)`
+    );
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_meeting_participants_user ON meeting_participants (user_id)`
+    );
   } finally {
     await runner.release();
   }

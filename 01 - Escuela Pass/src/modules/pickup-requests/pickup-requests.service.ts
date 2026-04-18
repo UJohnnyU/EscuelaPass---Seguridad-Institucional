@@ -2,21 +2,21 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ParentEntity } from '../../database/entities/parent.entity';
+import {
+  PickupRequestEntity,
+  PickupRequestStatus
+} from '../../database/entities/pickup-request.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
-import {
-  VisitRequestEntity,
-  VisitRequestStatus
-} from '../../database/entities/visit-request.entity';
 import { UserRole } from '../../database/entities/user.entity';
-import { CreateVisitDto } from './dto/create-visit.dto';
-import { UpdateVisitStatusDto } from './dto/update-visit-status.dto';
+import { CreatePickupRequestDto } from './dto/create-pickup-request.dto';
+import { UpdatePickupRequestStatusDto } from './dto/update-pickup-request-status.dto';
 
 @Injectable()
-export class VisitsService {
+export class PickupRequestsService {
   constructor(
-    @InjectRepository(VisitRequestEntity)
-    private readonly visitsRepository: Repository<VisitRequestEntity>,
+    @InjectRepository(PickupRequestEntity)
+    private readonly requestsRepository: Repository<PickupRequestEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(ParentEntity)
@@ -25,27 +25,27 @@ export class VisitsService {
     private readonly teachersRepository: Repository<TeacherEntity>
   ) {}
 
-  async create(dto: CreateVisitDto, parentUserId: string) {
+  async create(dto: CreatePickupRequestDto, parentUserId: string) {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
     await this.assertParentLinkedToStudent(parent.id, dto.studentId);
 
-    const row = this.visitsRepository.create({
+    const row = this.requestsRepository.create({
       parentId: parent.id,
       studentId: dto.studentId,
       visitDatetime: new Date(dto.visitDatetime),
       reason: dto.reason?.trim() ?? null,
-      status: VisitRequestStatus.PENDIENTE
+      status: PickupRequestStatus.PENDIENTE
     });
-    return this.visitsRepository.save(row);
+    return this.requestsRepository.save(row);
   }
 
   async listMine(parentUserId: string) {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
-    return this.visitsRepository.find({
+    return this.requestsRepository.find({
       where: { parentId: parent.id },
       order: { visitDatetime: 'DESC' }
     });
@@ -53,10 +53,10 @@ export class VisitsService {
 
   async listForStaff(userId: string, role: UserRole) {
     if (role === UserRole.ADMIN) {
-      return this.visitsRepository.find({ order: { visitDatetime: 'DESC' } });
+      return this.requestsRepository.find({ order: { visitDatetime: 'DESC' } });
     }
     if (role === UserRole.ADMINISTRATIVO) {
-      return this.visitsRepository
+      return this.requestsRepository
         .createQueryBuilder('vr')
         .innerJoin('students', 's', 's.id = vr.student_id')
         .innerJoin('groups', 'g', 'g.id = s.group_id')
@@ -71,7 +71,7 @@ export class VisitsService {
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
 
-    return this.visitsRepository
+    return this.requestsRepository
       .createQueryBuilder('vr')
       .innerJoin('students', 's', 's.id = vr.student_id')
       .where('s.group_id IS NOT NULL')
@@ -83,13 +83,13 @@ export class VisitsService {
       .getMany();
   }
 
-  async updateStatus(id: string, dto: UpdateVisitStatusDto, userId: string, role: UserRole) {
-    const row = await this.visitsRepository.findOne({ where: { id } });
+  async updateStatus(id: string, dto: UpdatePickupRequestStatusDto, userId: string, role: UserRole) {
+    const row = await this.requestsRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Solicitud no encontrada');
 
     if (role === UserRole.ADMIN) {
       row.status = dto.status;
-      return this.visitsRepository.save(row);
+      return this.requestsRepository.save(row);
     }
     if (role === UserRole.ADMINISTRATIVO) {
       const st = await this.studentsRepository.findOne({ where: { id: row.studentId } });
@@ -106,14 +106,14 @@ export class VisitsService {
       );
       if (!rows[0]?.ok) throw new ForbiddenException('No autorizado');
       row.status = dto.status;
-      return this.visitsRepository.save(row);
+      return this.requestsRepository.save(row);
     }
     if (role !== UserRole.DOCENTE) {
       throw new ForbiddenException('No autorizado');
     }
     await this.assertDocenteCanAccessStudentGroup(userId, row.studentId);
     row.status = dto.status;
-    return this.visitsRepository.save(row);
+    return this.requestsRepository.save(row);
   }
 
   private async assertParentLinkedToStudent(parentId: string, studentId: string) {

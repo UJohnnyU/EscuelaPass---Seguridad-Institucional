@@ -21,8 +21,10 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolModule } from './modules/school/school.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { VisitsModule } from './modules/visits/visits.module';
+import { PickupRequestsModule } from './modules/pickup-requests/pickup-requests.module';
+import { ExternalVisitsModule } from './modules/external-visits/external-visits.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
+import { EventSchedulerModule } from './modules/event-scheduler/event-scheduler.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { SchoolCalendarModule } from './modules/school-calendar/school-calendar.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -65,8 +67,10 @@ import { SchoolsModule } from './modules/schools/schools.module';
     SchoolModule,
     ExportsModule,
     DashboardModule,
-    VisitsModule,
+    PickupRequestsModule,
+    ExternalVisitsModule,
     MeetingsModule,
+    EventSchedulerModule,
     SchedulesModule,
     SchoolCalendarModule,
     SettingsModule,

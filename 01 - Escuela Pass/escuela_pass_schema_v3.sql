@@ -70,11 +70,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE meeting_status AS ENUM (
-    'PENDIENTE', 'CONFIRMADA', 'REALIZADA', 'CANCELADA'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
   CREATE TYPE attention_severity AS ENUM ('LEVE', 'MODERADA', 'GRAVE');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -532,19 +527,76 @@ CREATE TABLE IF NOT EXISTS visit_requests (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Reuniones padre-docente
-CREATE TABLE IF NOT EXISTS parent_teacher_meetings (
+-- Visitas externas (administrativos/docentes invitan a visitantes externos)
+CREATE TABLE IF NOT EXISTS external_visits (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    parent_id UUID NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
-    teacher_id UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
-    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    meeting_datetime TIMESTAMPTZ NOT NULL,
-    duration_minutes INTEGER NOT NULL DEFAULT 30 CHECK (duration_minutes > 0 AND duration_minutes <= 480),
-    topic VARCHAR(255),
-    notes TEXT,
-    status meeting_status NOT NULL DEFAULT 'PENDIENTE',
+    school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+    created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    creator_role VARCHAR(20) NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    purpose TEXT NOT NULL,
+    visitor_name VARCHAR(150) NOT NULL,
+    visitor_organization VARCHAR(150),
+    location VARCHAR(200),
+    visit_datetime TIMESTAMPTZ NOT NULL,
+    duration_minutes INTEGER NOT NULL DEFAULT 60 CHECK (duration_minutes BETWEEN 5 AND 600),
+    audience_scope VARCHAR(16) NOT NULL CHECK (audience_scope IN ('SCHOOL','GROUPS','STUDENTS')),
+    status VARCHAR(16) NOT NULL DEFAULT 'PROGRAMADA' CHECK (status IN ('PROGRAMADA','REPROGRAMADA','REALIZADA','CANCELADA')),
+    cancellation_reason TEXT,
+    previous_datetime TIMESTAMPTZ,
+    reminded_24h_at TIMESTAMPTZ,
+    reminded_1h_at TIMESTAMPTZ,
+    auto_finalized_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS external_visit_groups (
+    visit_id UUID NOT NULL REFERENCES external_visits(id) ON DELETE CASCADE,
+    group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    PRIMARY KEY (visit_id, group_id)
+);
+
+CREATE TABLE IF NOT EXISTS external_visit_students (
+    visit_id UUID NOT NULL REFERENCES external_visits(id) ON DELETE CASCADE,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    PRIMARY KEY (visit_id, student_id)
+);
+
+-- Reuniones internas (organizador invita a padres, docentes, administrativos)
+CREATE TABLE IF NOT EXISTS meetings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+    organizer_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    organizer_role VARCHAR(20) NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    purpose TEXT NOT NULL,
+    modality VARCHAR(16) NOT NULL DEFAULT 'PRESENCIAL' CHECK (modality IN ('PRESENCIAL','VIRTUAL')),
+    location VARCHAR(200),
+    meeting_link VARCHAR(500),
+    start_at TIMESTAMPTZ NOT NULL,
+    duration_minutes INTEGER NOT NULL DEFAULT 30 CHECK (duration_minutes BETWEEN 5 AND 600),
+    status VARCHAR(16) NOT NULL DEFAULT 'PROGRAMADA' CHECK (status IN ('PROGRAMADA','REPROGRAMADA','EN_CURSO','REALIZADA','CANCELADA')),
+    cancellation_reason TEXT,
+    previous_start_at TIMESTAMPTZ,
+    reminded_24h_at TIMESTAMPTZ,
+    reminded_1h_at TIMESTAMPTZ,
+    auto_finalized_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS meeting_participants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    participant_role VARCHAR(20) NOT NULL,
+    student_context_id UUID REFERENCES students(id) ON DELETE SET NULL,
+    rsvp VARCHAR(16) NOT NULL DEFAULT 'PENDIENTE' CHECK (rsvp IN ('PENDIENTE','ACEPTADA','DECLINADA')),
+    responded_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (meeting_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS student_attention_notes (
@@ -627,8 +679,16 @@ CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(stu
 CREATE INDEX IF NOT EXISTS idx_import_jobs_kind_created ON import_jobs(kind, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_visit_requests_parent ON visit_requests(parent_id);
 CREATE INDEX IF NOT EXISTS idx_visit_requests_student ON visit_requests(student_id);
-CREATE INDEX IF NOT EXISTS idx_meetings_parent ON parent_teacher_meetings(parent_id);
-CREATE INDEX IF NOT EXISTS idx_meetings_teacher ON parent_teacher_meetings(teacher_id);
+CREATE INDEX IF NOT EXISTS ix_external_visits_school_datetime ON external_visits(school_id, visit_datetime);
+CREATE INDEX IF NOT EXISTS ix_external_visits_created_by ON external_visits(created_by_user_id);
+CREATE INDEX IF NOT EXISTS ix_external_visits_status ON external_visits(status);
+CREATE INDEX IF NOT EXISTS ix_external_visit_groups_group ON external_visit_groups(group_id);
+CREATE INDEX IF NOT EXISTS ix_external_visit_students_student ON external_visit_students(student_id);
+CREATE INDEX IF NOT EXISTS ix_meetings_school_start ON meetings(school_id, start_at);
+CREATE INDEX IF NOT EXISTS ix_meetings_organizer ON meetings(organizer_user_id);
+CREATE INDEX IF NOT EXISTS ix_meetings_status ON meetings(status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_meeting_participants_user ON meeting_participants(meeting_id, user_id);
+CREATE INDEX IF NOT EXISTS ix_meeting_participants_user ON meeting_participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_slots_group ON class_schedule_slots(group_id);
 CREATE INDEX IF NOT EXISTS idx_user_fcm_tokens_user ON user_fcm_tokens(user_id);
 

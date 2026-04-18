@@ -19,9 +19,9 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import {
-  VisitRequestEntity,
-  VisitRequestStatus
-} from '../../database/entities/visit-request.entity';
+  PickupRequestEntity,
+  PickupRequestStatus
+} from '../../database/entities/pickup-request.entity';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
 function addCalendarDays(isoDate: string, deltaDays: number): string {
@@ -49,8 +49,8 @@ export class DashboardService {
     private readonly groupsRepository: Repository<GroupEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
-    @InjectRepository(VisitRequestEntity)
-    private readonly visitRequestsRepository: Repository<VisitRequestEntity>,
+    @InjectRepository(PickupRequestEntity)
+    private readonly visitRequestsRepository: Repository<PickupRequestEntity>,
     private readonly schoolCalendarService: SchoolCalendarService
   ) {}
 
@@ -170,7 +170,7 @@ export class DashboardService {
 
     const [summary, visitsPending, circuitDayStatusRows, circuitGroupRows] = await Promise.all([
       this.summary(endDate),
-      this.visitRequestsRepository.count({ where: { status: VisitRequestStatus.PENDIENTE } }),
+      this.visitRequestsRepository.count({ where: { status: PickupRequestStatus.PENDIENTE } }),
       this.circuitRepository
         .createQueryBuilder('cr')
         .select("TO_CHAR(DATE(cr.request_time), 'YYYY-MM-DD')", 'day')

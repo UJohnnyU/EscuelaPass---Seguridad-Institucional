@@ -10,7 +10,11 @@ import { CircuitRequestEntity } from '../database/entities/circuit-request.entit
 import { GroupEntity } from '../database/entities/group.entity';
 import { ClassScheduleSlotEntity } from '../database/entities/class-schedule-slot.entity';
 import { ImportJobEntity } from '../database/entities/import-job.entity';
-import { ParentTeacherMeetingEntity } from '../database/entities/parent-teacher-meeting.entity';
+import { MeetingEntity } from '../database/entities/meeting.entity';
+import { MeetingParticipantEntity } from '../database/entities/meeting-participant.entity';
+import { ExternalVisitEntity } from '../database/entities/external-visit.entity';
+import { ExternalVisitGroupEntity } from '../database/entities/external-visit-group.entity';
+import { ExternalVisitStudentEntity } from '../database/entities/external-visit-student.entity';
 import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
@@ -32,7 +36,7 @@ import { StudentEntity } from '../database/entities/student.entity';
 import { TeacherEntity } from '../database/entities/teacher.entity';
 import { UserEntity } from '../database/entities/user.entity';
 import { UserFcmTokenEntity } from '../database/entities/user-fcm-token.entity';
-import { VisitRequestEntity } from '../database/entities/visit-request.entity';
+import { PickupRequestEntity } from '../database/entities/pickup-request.entity';
 import { VehicleEntity } from '../database/entities/vehicle.entity';
 import { AuditLogEntity } from '../database/entities/audit-log.entity';
 import { PrivacyPolicyEntity } from '../database/entities/privacy-policy.entity';
@@ -78,8 +82,12 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       SubjectEntity,
       TeacherGroupEntity,
       ImportJobEntity,
-      VisitRequestEntity,
-      ParentTeacherMeetingEntity,
+      PickupRequestEntity,
+      ExternalVisitEntity,
+      ExternalVisitGroupEntity,
+      ExternalVisitStudentEntity,
+      MeetingEntity,
+      MeetingParticipantEntity,
       ClassScheduleSlotEntity,
       UserFcmTokenEntity,
       SchoolNonInstructionalDayEntity,

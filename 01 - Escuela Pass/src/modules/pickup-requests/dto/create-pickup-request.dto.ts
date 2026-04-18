@@ -1,6 +1,6 @@
 import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
-export class CreateVisitDto {
+export class CreatePickupRequestDto {
   @IsUUID('4')
   studentId!: string;
 

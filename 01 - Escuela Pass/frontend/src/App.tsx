@@ -23,13 +23,14 @@ import {
   ComunicacionPage,
   FinanzasPage,
   HerramientasPage,
-  ModulosHubPage,
-  VisitasPage
+  ModulosHubPage
 } from '@/pages/modulos/Operativos';
 import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
 import { BoletinesPage } from '@/pages/modulos/BoletinesPage';
 import { CalificacionesDocentePage } from '@/pages/modulos/CalificacionesDocentePage';
 import { MisCalificacionesPage } from '@/pages/modulos/MisCalificacionesPage';
+import { ReunionesPage } from '@/pages/modulos/ReunionesPage';
+import { VisitasPage } from '@/pages/modulos/VisitasPage';
 import { PeriodosAcademicosPage } from '@/pages/PeriodosAcademicosPage';
 import { SchoolRosterPage } from '@/pages/SchoolRosterPage';
 
@@ -124,6 +125,7 @@ export default function App() {
             }
           />
           <Route path="modulos/visitas" element={<VisitasPage />} />
+          <Route path="modulos/reuniones" element={<ReunionesPage />} />
           <Route path="modulos/administracion" element={<AdministracionPage />} />
           <Route path="modulos/herramientas" element={<HerramientasPage />} />
           <Route

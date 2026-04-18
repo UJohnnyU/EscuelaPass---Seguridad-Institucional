@@ -143,9 +143,15 @@ export function ModulosHubPage() {
     },
     {
       to: '/app/modulos/visitas',
-      title: 'Visitas y reuniones',
-      desc: 'Visitas al plantel y citas con docentes.',
-      show: hasRole(user, 'PADRE', 'DOCENTE', 'ADMIN', 'ADMINISTRATIVO')
+      title: 'Visitas externas',
+      desc: 'Visitantes externos agendados por la escuela con notificación automática.',
+      show: true
+    },
+    {
+      to: '/app/modulos/reuniones',
+      title: 'Reuniones',
+      desc: 'Citas internas con padres, docentes o administración. Confirme asistencia.',
+      show: true
     },
     {
       to: '/app/modulos/administracion',
@@ -1253,69 +1259,6 @@ export function AcademicoPage() {
           void removeDocenteCal(pendingDocenteCalRemoval.id).finally(() => setPendingDocenteCalRemoval(null));
         }}
       />
-    </div>
-  );
-}
-
-export function VisitasPage() {
-  const [visits, setVisits] = useState<unknown>(null);
-  const [meetings, setMeetings] = useState<unknown>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const { user } = useAuth();
-  const padre = user?.role === 'PADRE';
-  const staff = hasRole(user, 'DOCENTE', 'ADMIN', 'ADMINISTRATIVO');
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setErr(null);
-      try {
-        if (padre) {
-          const [v, m] = await Promise.all([
-            api.get('/api/v1/visits/me'),
-            api.get('/api/v1/meetings/me')
-          ]);
-          if (!cancelled) {
-            setVisits(v.data);
-            setMeetings(m.data);
-          }
-        } else if (staff) {
-          const [v, m] = await Promise.all([api.get('/api/v1/visits'), api.get('/api/v1/meetings')]);
-          if (!cancelled) {
-            setVisits(v.data);
-            setMeetings(m.data);
-          }
-        }
-      } catch (e) {
-        if (!cancelled) setErr(getUserFacingMessage(e));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [padre, staff]);
-
-  return (
-    <div className="max-w-4xl space-y-8">
-      <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Visitas y reuniones</h1>
-        <p className="mt-1 text-sm text-slate-600">Solicitudes y seguimiento según corresponda a su rol.</p>
-      </div>
-      {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
-      )}
-      {!padre && !staff ? (
-        <p className="text-sm text-slate-600">No hay datos disponibles para su perfil en esta sección.</p>
-      ) : (
-        <>
-          <Panel title="Visitas">
-            <ValueView data={visits} />
-          </Panel>
-          <Panel title="Reuniones padre–docente">
-            <ValueView data={meetings} />
-          </Panel>
-        </>
-      )}
     </div>
   );
 }
