@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL } from '@/lib/circuit-labels';
@@ -13,8 +13,25 @@ type CircuitRow = {
   requestTime: string;
 };
 
+type SchoolOption = { id: string; name: string };
+
+const STORAGE_CIRCUIT_SCHOOL = 'circuitTodaySchoolId';
+
+function pickSchoolIdForAdmin(
+  list: SchoolOption[],
+  opts: { fromUrl: string | null; stored: string | null; userSchoolId: string | null }
+): string {
+  if (list.length === 0) return '';
+  const { fromUrl, stored, userSchoolId } = opts;
+  if (fromUrl && list.some((s) => s.id === fromUrl)) return fromUrl;
+  if (stored && list.some((s) => s.id === stored)) return stored;
+  if (userSchoolId && list.some((s) => s.id === userSchoolId)) return userSchoolId;
+  return list[0]?.id ?? '';
+}
+
 export function CircuitTodayPage() {
   const { user } = useAuth();
+  const [, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<CircuitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,22 +39,77 @@ export function CircuitTodayPage() {
   const [savingCircuit, setSavingCircuit] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [schoolsLoadError, setSchoolsLoadError] = useState<string | null>(null);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>('');
 
   const allowed =
     user?.role === 'DOCENTE' || user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
   const canManageCircuit = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
+  const isAdmin = user?.role === 'ADMIN';
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      setSchoolsLoadError(null);
+      try {
+        const { data } = await api.get<SchoolOption[]>('/api/v1/schools');
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setSchools(list);
+        const fromUrl =
+          typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('schoolId')?.trim() || null
+            : null;
+        const stored =
+          typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_CIRCUIT_SCHOOL) : null;
+        const userSchoolId = user?.schoolId?.trim() || null;
+        const pick = pickSchoolIdForAdmin(list, { fromUrl, stored, userSchoolId });
+        setSelectedSchoolId(pick);
+        if (pick) {
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev);
+              next.set('schoolId', pick);
+              return next;
+            },
+            { replace: true }
+          );
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setSchools([]);
+          setSelectedSchoolId('');
+          setSchoolsLoadError(getUserFacingMessage(e, 'No se pudo cargar el listado de instituciones.'));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, setSearchParams, user?.schoolId]);
 
   const loadToday = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!allowed) return;
+      if (isAdmin && !selectedSchoolId) {
+        setRows([]);
+        setLastUpdatedAt(Date.now());
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
       const silent = Boolean(opts?.silent);
       if (silent) setRefreshing(true);
       else setLoading(true);
       setError(null);
       try {
-        const { data } = await api.get<CircuitRow[]>('/api/v1/circuit-requests/today', {
-          params: { _t: String(Date.now()) }
-        });
+        const params: Record<string, string> = { _t: String(Date.now()) };
+        if (isAdmin && selectedSchoolId) {
+          params.schoolId = selectedSchoolId;
+        }
+        const { data } = await api.get<CircuitRow[]>('/api/v1/circuit-requests/today', { params });
         setRows(data);
         setLastUpdatedAt(Date.now());
       } catch (e) {
@@ -47,13 +119,18 @@ export function CircuitTodayPage() {
         else setLoading(false);
       }
     },
-    [allowed]
+    [allowed, isAdmin, selectedSchoolId]
   );
 
   useEffect(() => {
     if (!allowed) return;
     void loadToday();
   }, [allowed, loadToday]);
+
+  useEffect(() => {
+    if (!isAdmin || !selectedSchoolId || typeof sessionStorage === 'undefined') return;
+    sessionStorage.setItem(STORAGE_CIRCUIT_SCHOOL, selectedSchoolId);
+  }, [isAdmin, selectedSchoolId]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -110,20 +187,62 @@ export function CircuitTodayPage() {
     );
   }
 
-  if (loading) return <p className="text-slate-600">Cargando solicitudes del día…</p>;
-
-  if (error) {
-    return (
-      <div className="rounded-xl bg-red-50 px-4 py-3 text-red-800 ring-1 ring-red-200" role="alert">
-        {error}
-      </div>
-    );
+  if (loading && !(isAdmin && !selectedSchoolId)) {
+    return <p className="text-slate-600">Cargando solicitudes del día…</p>;
   }
+
+  const onAdminSchoolChange = (schoolId: string) => {
+    setSelectedSchoolId(schoolId);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (schoolId) next.set('schoolId', schoolId);
+        else next.delete('schoolId');
+        return next;
+      },
+      { replace: true }
+    );
+  };
 
   return (
     <div className="animate-slide-up">
       <h1 className="text-2xl font-bold text-slate-900">Circuito de hoy</h1>
       <p className="mt-1 text-slate-600">Solicitudes con fecha de hoy. Abre una para señales y estado.</p>
+      {error && (
+        <div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-red-800 ring-1 ring-red-200" role="alert">
+          {error}
+        </div>
+      )}
+      {isAdmin && (
+        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <label className="flex min-w-[14rem] flex-col gap-1 text-sm text-slate-700">
+            Institución
+            <select
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-slate-900"
+              value={selectedSchoolId}
+              onChange={(e) => onAdminSchoolChange(e.target.value)}
+              disabled={Boolean(schoolsLoadError) || schools.length === 0}
+            >
+              <option value="">— Elegir —</option>
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="max-w-md text-xs text-slate-500">
+            El listado se filtra por la escuela elegida (también puede usar{' '}
+            <code className="rounded bg-slate-100 px-1">?schoolId=…</code> en la URL). Docentes y administrativos de
+            plantel solo ven su institución.
+          </p>
+        </div>
+      )}
+      {isAdmin && schoolsLoadError && (
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+          {schoolsLoadError}
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         <button
           type="button"
@@ -154,7 +273,11 @@ export function CircuitTodayPage() {
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {isAdmin && !selectedSchoolId ? (
+        <p className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950">
+          Elija una institución para ver el circuito de hoy.
+        </p>
+      ) : rows.length === 0 ? (
         <p className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-600">
           No hay solicitudes registradas para hoy.
         </p>
