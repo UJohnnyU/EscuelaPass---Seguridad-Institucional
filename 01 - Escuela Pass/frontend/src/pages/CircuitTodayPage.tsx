@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL } from '@/lib/circuit-labels';
@@ -20,11 +20,10 @@ const STORAGE_CIRCUIT_SCHOOL = 'circuitTodaySchoolId';
 
 function pickSchoolIdForAdmin(
   list: SchoolOption[],
-  opts: { fromUrl: string | null; stored: string | null; userSchoolId: string | null }
+  opts: { stored: string | null; userSchoolId: string | null }
 ): string {
   if (list.length === 0) return '';
-  const { fromUrl, stored, userSchoolId } = opts;
-  if (fromUrl && list.some((s) => s.id === fromUrl)) return fromUrl;
+  const { stored, userSchoolId } = opts;
   if (stored && list.some((s) => s.id === stored)) return stored;
   if (userSchoolId && list.some((s) => s.id === userSchoolId)) return userSchoolId;
   return list[0]?.id ?? '';
@@ -32,7 +31,6 @@ function pickSchoolIdForAdmin(
 
 export function CircuitTodayPage() {
   const { user } = useAuth();
-  const [, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<CircuitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,25 +57,11 @@ export function CircuitTodayPage() {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : [];
         setSchools(list);
-        const fromUrl =
-          typeof window !== 'undefined'
-            ? new URLSearchParams(window.location.search).get('schoolId')?.trim() || null
-            : null;
         const stored =
           typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_CIRCUIT_SCHOOL) : null;
         const userSchoolId = user?.schoolId?.trim() || null;
-        const pick = pickSchoolIdForAdmin(list, { fromUrl, stored, userSchoolId });
+        const pick = pickSchoolIdForAdmin(list, { stored, userSchoolId });
         setSelectedSchoolId(pick);
-        if (pick) {
-          setSearchParams(
-            (prev) => {
-              const next = new URLSearchParams(prev);
-              next.set('schoolId', pick);
-              return next;
-            },
-            { replace: true }
-          );
-        }
       } catch (e) {
         if (!cancelled) {
           setSchools([]);
@@ -89,7 +73,7 @@ export function CircuitTodayPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, setSearchParams, user?.schoolId]);
+  }, [isAdmin, user?.schoolId]);
 
   const loadToday = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -199,15 +183,6 @@ export function CircuitTodayPage() {
 
   const onAdminSchoolChange = (schoolId: string) => {
     setSelectedSchoolId(schoolId);
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (schoolId) next.set('schoolId', schoolId);
-        else next.delete('schoolId');
-        return next;
-      },
-      { replace: true }
-    );
   };
 
   return (
@@ -243,9 +218,8 @@ export function CircuitTodayPage() {
             />
           </label>
           <p className="max-w-md text-xs text-slate-500">
-            El listado se filtra por la escuela elegida (también puede usar{' '}
-            <code className="rounded bg-slate-100 px-1">?schoolId=…</code> en la URL). Docentes y administrativos de
-            plantel solo ven su institución.
+            El listado se filtra por la escuela elegida. Docentes y administrativos de plantel solo ven su
+            institución.
           </p>
         </div>
       )}
