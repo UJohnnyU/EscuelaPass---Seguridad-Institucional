@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards
 } from '@nestjs/common';
@@ -37,8 +38,11 @@ export class CircuitController {
 
   @Get('today')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  findToday() {
-    return this.circuitService.findToday();
+  findToday(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.circuitService.findToday(req.user.userId, req.user.role, schoolId);
   }
 
   /** Solicitud en curso del padre (si existe); para redirigir al detalle sin pasar por el formulario nuevo. */

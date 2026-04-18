@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL } from '@/lib/circuit-labels';
 import { useAuth } from '@/context/useAuth';
+import { SmartSelect, type SmartSelectOption } from '@/components/SmartSelect';
 
 type CircuitRow = {
   id: string;
@@ -162,6 +163,11 @@ export function CircuitTodayPage() {
     return new Date(lastUpdatedAt).toLocaleTimeString('es');
   }, [lastUpdatedAt]);
 
+  const schoolSelectOptions = useMemo<SmartSelectOption[]>(
+    () => schools.map((s) => ({ value: s.id, label: s.name })),
+    [schools]
+  );
+
   async function toggleCircuit(next: boolean) {
     if (!canManageCircuit) return;
     setSavingCircuit(true);
@@ -217,19 +223,24 @@ export function CircuitTodayPage() {
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
           <label className="flex min-w-[14rem] flex-col gap-1 text-sm text-slate-700">
             Institución
-            <select
-              className="rounded border border-slate-300 bg-white px-3 py-2 text-slate-900"
+            <div className="mt-0.5">
+              <SmartSelect
+                options={schoolSelectOptions}
+                value={selectedSchoolId}
+                onChange={onAdminSchoolChange}
+                placeholder="— Elegir —"
+                emptyLabel="Sin instituciones"
+                noResultsLabel="Sin coincidencias"
+                disabled={Boolean(schoolsLoadError) || schools.length === 0}
+              />
+            </div>
+            {/* Mantiene el role/aria del label original y evita perder contraste visual */}
+            <input
+              type="hidden"
               value={selectedSchoolId}
-              onChange={(e) => onAdminSchoolChange(e.target.value)}
-              disabled={Boolean(schoolsLoadError) || schools.length === 0}
-            >
-              <option value="">— Elegir —</option>
-              {schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              readOnly
+              aria-hidden="true"
+            />
           </label>
           <p className="max-w-md text-xs text-slate-500">
             El listado se filtra por la escuela elegida (también puede usar{' '}

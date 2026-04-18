@@ -16,6 +16,7 @@ import {
   TeacherCircuitSignal
 } from '../../database/entities/circuit-request.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
+import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
@@ -390,13 +391,57 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     throw new BadRequestException(`Transición de padre no permitida: ${from} -> ${to}`);
   }
 
-  async findToday() {
+  /**
+   * Solicitudes del día según rol:
+   * - ADMIN: requiere `schoolId` (UUID de institución) para no mezclar escuelas.
+   * - ADMINISTRATIVO: solo la institución vinculada a su usuario.
+   * - DOCENTE: solo alumnos de grupos donde tiene asignación.
+   */
+  async findToday(userId: string, role: UserRole, schoolIdParam?: string | null) {
     const today = new Date().toISOString().slice(0, 10);
-    return this.circuitRepository
+    const qb = this.circuitRepository
       .createQueryBuilder('cr')
-      .where('DATE(cr.request_time) = :today', { today })
-      .orderBy('cr.request_time', 'DESC')
-      .getMany();
+      .innerJoin(StudentEntity, 'st', 'st.id = cr.studentId')
+      .innerJoin(GroupEntity, 'g', 'g.id = st.groupId')
+      .where('DATE(cr.request_time) = :today', { today });
+
+    if (role === UserRole.ADMIN) {
+      const sid = schoolIdParam?.trim();
+      if (!sid || !this.isUuid(sid)) {
+        return [];
+      }
+      qb.andWhere('g.schoolId = :schoolId', { schoolId: sid });
+    } else if (role === UserRole.ADMINISTRATIVO) {
+      const schoolId = await this.userSchoolId(userId);
+      if (!schoolId) {
+        return [];
+      }
+      qb.andWhere('g.schoolId = :schoolId', { schoolId });
+    } else if (role === UserRole.DOCENTE) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1 FROM teachers t
+          INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
+          WHERE t.user_id = :uid AND tg.group_id = st.group_id
+        )`,
+        { uid: userId }
+      );
+    }
+
+    return qb.orderBy('cr.request_time', 'DESC').getMany();
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private async userSchoolId(userId: string): Promise<string | null> {
+    const rows = await this.studentsRepository.manager.query<{ school_id: string | null }[]>(
+      `SELECT school_id FROM users WHERE id = $1`,
+      [userId]
+    );
+    const sid = rows[0]?.school_id ?? null;
+    return sid;
   }
 
   async findById(id: string) {
