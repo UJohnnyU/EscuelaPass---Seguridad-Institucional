@@ -8,6 +8,10 @@ export type StoredUser = {
   role: string;
   fullName: string;
   schoolId?: string | null;
+  /** Ruta `/uploads/avatars/…` */
+  avatarUrl?: string | null;
+  /** Ruta `/uploads/school-logos/…` */
+  schoolLogoUrl?: string | null;
 };
 
 export function loadTokens(): { access: string | null; refresh: string | null } {

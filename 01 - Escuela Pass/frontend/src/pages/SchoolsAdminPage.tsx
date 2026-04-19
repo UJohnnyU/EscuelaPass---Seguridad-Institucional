@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { publicAssetUrl } from '@/lib/asset-url';
+import { uploadSchoolLogo } from '@/lib/uploads-api';
 
 type School = {
   id: string;
@@ -12,6 +14,7 @@ type School = {
   minFailedSubjectsToRepeat: number;
   latitude: string;
   longitude: string;
+  logoPath?: string | null;
 };
 
 type EditDraft = {
@@ -34,6 +37,8 @@ export function SchoolsAdminPage() {
   const [minFailedSubjectsToRepeat, setMinFailedSubjectsToRepeat] = useState('3');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
+  const [newSchoolLogo, setNewSchoolLogo] = useState<File | null>(null);
+  const [logoUploadingId, setLogoUploadingId] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<Record<string, EditDraft>>({});
 
@@ -105,7 +110,7 @@ export function SchoolsAdminPage() {
     setErr(null);
     setOk(null);
     try {
-      await api.post('/api/v1/schools', {
+      const { data: created } = await api.post<School>('/api/v1/schools', {
         name: name.trim(),
         code: code.trim().toUpperCase(),
         maxGradeScale: max,
@@ -114,7 +119,15 @@ export function SchoolsAdminPage() {
         latitude: Number(lat.toFixed(8)),
         longitude: Number(lng.toFixed(8))
       });
-      setOk('Escuela creada correctamente.');
+      if (newSchoolLogo && created?.id) {
+        setLogoUploadingId(created.id);
+        try {
+          await uploadSchoolLogo(created.id, newSchoolLogo);
+        } finally {
+          setLogoUploadingId(null);
+        }
+      }
+      setOk(newSchoolLogo ? 'Escuela creada y escudo subido.' : 'Escuela creada correctamente.');
       setName('');
       setCode('');
       setMaxGradeScale('100.00');
@@ -122,6 +135,7 @@ export function SchoolsAdminPage() {
       setMinFailedSubjectsToRepeat('3');
       setLatitude('');
       setLongitude('');
+      setNewSchoolLogo(null);
       await loadSchools();
     } catch (e) {
       setErr(getUserFacingMessage(e));
@@ -264,13 +278,23 @@ export function SchoolsAdminPage() {
               inputMode="decimal"
             />
           </label>
+          <label className="block text-sm sm:col-span-2 lg:col-span-3">
+            <span className="text-slate-700">Escudo o logo (opcional, JPG/PNG/WEBP, máx. 2&nbsp;MB)</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border file:border-slate-300 file:bg-white file:px-3 file:py-1.5 file:text-sm"
+              onChange={(e) => setNewSchoolLogo(e.target.files?.[0] ?? null)}
+            />
+          </label>
           <div className="sm:col-span-2 lg:col-span-3">
             <button
               type="button"
               onClick={() => void createSchool()}
-              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              disabled={!!logoUploadingId}
+              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              Crear escuela
+              {logoUploadingId ? 'Subiendo escudo…' : 'Crear escuela'}
             </button>
           </div>
         </div>
@@ -295,6 +319,21 @@ export function SchoolsAdminPage() {
               return (
                 <li key={s.id} className="grid gap-3 px-4 py-4 md:grid-cols-[2fr,3fr,auto] md:items-center">
                   <div className="min-w-0">
+                    <div className="flex items-start gap-3">
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                        {publicAssetUrl(s.logoPath ?? null) ? (
+                          <img
+                            src={publicAssetUrl(s.logoPath ?? null)!}
+                            alt=""
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-400">
+                            —
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
                     <p className="font-medium text-slate-900">{s.name}</p>
                     <p className="text-xs text-slate-500">
                       {s.code} · {s.status ? 'Activa' : 'Inactiva'}
@@ -302,6 +341,37 @@ export function SchoolsAdminPage() {
                     <p className="mt-1 text-xs text-slate-500">
                       Ubicación: {s.latitude}, {s.longitude}
                     </p>
+                    <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+                      <span className="font-medium text-slate-700">Cambiar escudo</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={logoUploadingId === s.id}
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!f) return;
+                          setErr(null);
+                          setOk(null);
+                          setLogoUploadingId(s.id);
+                          try {
+                            await uploadSchoolLogo(s.id, f);
+                            setOk('Escudo actualizado.');
+                            await loadSchools();
+                          } catch (err) {
+                            setErr(getUserFacingMessage(err));
+                          } finally {
+                            setLogoUploadingId(null);
+                          }
+                        }}
+                      />
+                      <span className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50">
+                        {logoUploadingId === s.id ? 'Subiendo…' : 'Elegir archivo'}
+                      </span>
+                    </label>
+                      </div>
+                    </div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <label className="block text-xs text-slate-700">

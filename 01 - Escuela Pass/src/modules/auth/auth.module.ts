@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RefreshTokenEntity } from '../../database/entities/refresh-token.entity';
+import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -10,7 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, RefreshTokenEntity]),
+    TypeOrmModule.forFeature([UserEntity, RefreshTokenEntity, SchoolEntity]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET ?? 'dev-secret'

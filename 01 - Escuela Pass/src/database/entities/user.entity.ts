@@ -37,4 +37,8 @@ export class UserEntity {
 
   @Column({ name: 'school_id', type: 'uuid', nullable: true })
   schoolId!: string | null;
+
+  /** Ruta pública bajo `/uploads/avatars/…` */
+  @Column({ name: 'avatar_path', type: 'varchar', length: 500, nullable: true })
+  avatarPath!: string | null;
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
+import { publicAssetUrl } from '@/lib/asset-url';
 import { navVisibleForRole, SIDEBAR_NAV } from '@/navigation/navConfig';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -18,9 +19,17 @@ const navCls = ({ isActive }: { isActive: boolean }) =>
       : 'text-slate-300 hover:bg-white/5 hover:text-white'
   }`;
 
+function headerInitials(fullName: string) {
+  const n = fullName.trim();
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return n.slice(0, 2).toUpperCase();
+}
+
 export function AppShell() {
   const { user, logout } = useAuth();
   const role = user?.role;
+  const avatarSrc = publicAssetUrl(user?.avatarUrl ?? null);
   const navItems = SIDEBAR_NAV.filter((item) => navVisibleForRole(item, role));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -124,9 +133,20 @@ export function AppShell() {
         )}
 
         <header className="hidden items-center justify-between gap-4 border-b border-slate-200/80 bg-white px-8 py-4 lg:flex">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">{user?.fullName}</p>
-            <p className="truncate text-xs text-slate-500">{user?.email}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-slate-200">
+              {avatarSrc ? (
+                <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-slate-900 text-xs font-semibold text-white">
+                  {user?.fullName ? headerInitials(user.fullName) : '—'}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-slate-900">{user?.fullName}</p>
+              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">

@@ -3,8 +3,10 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { publicAssetUrl } from '@/lib/asset-url';
+import { uploadUserAvatar } from '@/lib/uploads-api';
 import { useAuth } from '@/context/useAuth';
-import { isPlatformAdmin } from '@/lib/roles';
+import { isPlatformAdmin, isStaff } from '@/lib/roles';
 
 type SchoolRow = { id: string; name: string; code: string };
 
@@ -20,24 +22,30 @@ type GroupRow = {
 
 type StudentRow = {
   id: string;
+  userId: string;
   matricula: string;
   groupId: string | null;
   fullName: string;
   email: string;
+  avatarUrl?: string | null;
 };
 
 type TeacherRow = {
   id: string;
+  userId: string;
   employeeNumber: string;
   fullName: string;
   email: string;
+  avatarUrl?: string | null;
 };
 
 type ParentRow = {
   id: string;
+  userId: string;
   fullName: string;
   email: string;
   isPrimaryContact: boolean;
+  avatarUrl?: string | null;
 };
 
 type LinkRow = {
@@ -64,6 +72,52 @@ type PendingDelete =
   | { kind: 'assignment'; id: string; label: string }
   | { kind: 'link'; id: string; label: string };
 
+function rosterInitials(fullName: string): string {
+  const n = fullName.trim();
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return n.slice(0, 2).toUpperCase();
+}
+
+function RosterAvatar({
+  fullName,
+  avatarUrl,
+  canUpload,
+  busy,
+  onPick
+}: {
+  fullName: string;
+  avatarUrl?: string | null;
+  canUpload: boolean;
+  busy: boolean;
+  onPick: (file: File) => void;
+}) {
+  const src = publicAssetUrl(avatarUrl ?? null);
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-slate-200 text-center text-[11px] font-semibold leading-9 text-slate-700">
+        {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : rosterInitials(fullName)}
+      </div>
+      {canUpload ? (
+        <label className="cursor-pointer text-[11px] text-brand-800 underline">
+          {busy ? '…' : 'Foto'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            disabled={busy}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) onPick(f);
+            }}
+          />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
 function defaultSchoolYear(): string {
   const y = new Date().getFullYear();
   const m = new Date().getMonth();
@@ -74,6 +128,7 @@ function defaultSchoolYear(): string {
 export function SchoolRosterPage() {
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
+  const canUploadAvatars = isStaff(user);
 
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState('');
@@ -122,6 +177,7 @@ export function SchoolRosterPage() {
   const [lPickup, setLPickup] = useState(true);
 
   const [updatingStudentId, setUpdatingStudentId] = useState<string | null>(null);
+  const [uploadingAvatarUserId, setUploadingAvatarUserId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [confirmDeleting, setConfirmDeleting] = useState(false);
 
@@ -199,6 +255,21 @@ export function SchoolRosterPage() {
       setError(getUserFacingMessage(e, 'No se pudieron cargar los datos de la escuela.'));
     }
   }, [canLoad, schoolQuery]);
+
+  async function onUserAvatarFile(userId: string, file: File) {
+    setUploadingAvatarUserId(userId);
+    setError(null);
+    setMessage(null);
+    try {
+      await uploadUserAvatar(userId, file);
+      setMessage('Foto de perfil actualizada.');
+      await refreshAll();
+    } catch (e) {
+      setError(getUserFacingMessage(e, 'No se pudo subir la imagen.'));
+    } finally {
+      setUploadingAvatarUserId(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -674,6 +745,7 @@ export function SchoolRosterPage() {
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
+                <th className="w-28 py-2 pr-2 font-medium">Foto</th>
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">Matrícula</th>
                 <th className="min-w-[14rem] py-2 font-medium">Grupo</th>
@@ -682,6 +754,15 @@ export function SchoolRosterPage() {
             <tbody>
               {students.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100">
+                  <td className="py-2 pr-2 align-middle">
+                    <RosterAvatar
+                      fullName={r.fullName}
+                      avatarUrl={r.avatarUrl}
+                      canUpload={canUploadAvatars}
+                      busy={uploadingAvatarUserId === r.userId}
+                      onPick={(file) => void onUserAvatarFile(r.userId, file)}
+                    />
+                  </td>
                   <td className="py-2 pr-4 align-middle">{r.fullName}</td>
                   <td className="py-2 pr-4 align-middle">{r.matricula}</td>
                   <td className="py-2 align-middle">
@@ -766,6 +847,7 @@ export function SchoolRosterPage() {
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
+                <th className="w-28 py-2 pr-2 font-medium">Foto</th>
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">No. empleado</th>
                 <th className="py-2 font-medium">Correo</th>
@@ -774,6 +856,15 @@ export function SchoolRosterPage() {
             <tbody>
               {teachers.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100">
+                  <td className="py-2 pr-2 align-middle">
+                    <RosterAvatar
+                      fullName={r.fullName}
+                      avatarUrl={r.avatarUrl}
+                      canUpload={canUploadAvatars}
+                      busy={uploadingAvatarUserId === r.userId}
+                      onPick={(file) => void onUserAvatarFile(r.userId, file)}
+                    />
+                  </td>
                   <td className="py-2 pr-4">{r.fullName}</td>
                   <td className="py-2 pr-4">{r.employeeNumber}</td>
                   <td className="py-2">{r.email}</td>
@@ -908,6 +999,7 @@ export function SchoolRosterPage() {
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
+                <th className="w-28 py-2 pr-2 font-medium">Foto</th>
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">Correo</th>
                 <th className="py-2 font-medium">Principal</th>
@@ -916,6 +1008,15 @@ export function SchoolRosterPage() {
             <tbody>
               {parents.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100">
+                  <td className="py-2 pr-2 align-middle">
+                    <RosterAvatar
+                      fullName={r.fullName}
+                      avatarUrl={r.avatarUrl}
+                      canUpload={canUploadAvatars}
+                      busy={uploadingAvatarUserId === r.userId}
+                      onPick={(file) => void onUserAvatarFile(r.userId, file)}
+                    />
+                  </td>
                   <td className="py-2 pr-4">{r.fullName}</td>
                   <td className="py-2 pr-4">{r.email}</td>
                   <td className="py-2">{r.isPrimaryContact ? 'Sí' : '—'}</td>

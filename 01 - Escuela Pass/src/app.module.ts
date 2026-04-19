@@ -34,6 +34,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { AttentionNotesModule } from './modules/attention-notes/attention-notes.module';
 import { SchoolsModule } from './modules/schools/schools.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -79,7 +80,8 @@ import { SchoolsModule } from './modules/schools/schools.module';
     AuditModule,
     PrivacyModule,
     AttentionNotesModule,
-    SchoolsModule
+    SchoolsModule,
+    UploadsModule
   ],
   providers: [
     {

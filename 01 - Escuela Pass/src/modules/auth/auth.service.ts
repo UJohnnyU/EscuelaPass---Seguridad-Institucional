@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { DataSource, Repository } from 'typeorm';
 import { RefreshTokenEntity } from '../../database/entities/refresh-token.entity';
+import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
@@ -28,6 +29,8 @@ export class AuthService {
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokensRepository: Repository<RefreshTokenEntity>,
+    @InjectRepository(SchoolEntity)
+    private readonly schoolsRepository: Repository<SchoolEntity>,
     private readonly jwtService: JwtService,
     @InjectDataSource()
     private readonly dataSource: DataSource
@@ -37,6 +40,7 @@ export class AuthService {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
     const contactSections = await this.buildProfileContactSections(user);
+    const schoolLogoUrl = await this.resolveSchoolLogoUrl(user.schoolId);
     return {
       id: user.id,
       email: user.email,
@@ -45,8 +49,19 @@ export class AuthService {
       schoolId: user.schoolId,
       canAccessCampus: user.canAccessCampus,
       phone: user.phone ?? null,
+      avatarUrl: user.avatarPath ?? null,
+      schoolLogoUrl,
       contactSections
     };
+  }
+
+  private async resolveSchoolLogoUrl(schoolId: string | null | undefined): Promise<string | null> {
+    if (!schoolId) return null;
+    const school = await this.schoolsRepository.findOne({
+      where: { id: schoolId },
+      select: ['logoPath']
+    });
+    return school?.logoPath ?? null;
   }
 
   private async buildProfileContactSections(user: UserEntity): Promise<ProfileContactSection[]> {
@@ -284,6 +299,7 @@ export class AuthService {
       expiresAt
     });
     await this.refreshTokensRepository.save(tokenEntity);
+    const schoolLogoUrl = await this.resolveSchoolLogoUrl(user.schoolId);
     return {
       message: 'Login OK',
       accessToken,
@@ -293,7 +309,9 @@ export class AuthService {
         email: user.email,
         role: user.role,
         fullName: user.fullName,
-        schoolId: user.schoolId
+        schoolId: user.schoolId,
+        avatarUrl: user.avatarPath ?? null,
+        schoolLogoUrl
       }
     };
   }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { publicAssetUrl } from '@/lib/asset-url';
 import { useAuth } from '@/context/useAuth';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -20,6 +21,8 @@ export function PerfilPage() {
     role: string;
     canAccessCampus: boolean;
     phone: string | null;
+    avatarUrl?: string | null;
+    schoolLogoUrl?: string | null;
     contactSections?: Array<{
       title: string;
       items: Array<{ fullName: string; phone: string | null; subtitle?: string }>;
@@ -60,6 +63,8 @@ export function PerfilPage() {
     return n.slice(0, 2).toUpperCase();
   }, [me?.fullName, user?.fullName]);
 
+  const avatarSrc = publicAssetUrl(me?.avatarUrl ?? user?.avatarUrl ?? null);
+
   return (
     <div className="max-w-lg animate-fade-in">
       <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi perfil</h1>
@@ -72,11 +77,14 @@ export function PerfilPage() {
       )}
 
       <div className="mt-8 flex flex-col items-center rounded border border-slate-200 bg-white p-8 shadow-sm sm:flex-row sm:items-start sm:gap-8">
-        <div
-          className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-slate-900 text-2xl font-semibold text-white"
-          aria-hidden
-        >
-          {initials}
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-slate-900" aria-hidden>
+          {avatarSrc ? (
+            <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-white">
+              {initials}
+            </div>
+          )}
         </div>
         <dl className="mt-6 w-full text-center sm:mt-0 sm:text-left">
           <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Nombre</dt>

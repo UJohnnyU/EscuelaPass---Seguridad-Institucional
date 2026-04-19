@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { publicAssetUrl } from '@/lib/asset-url';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
 
@@ -14,6 +15,7 @@ type Profile = {
   directorName?: string;
   motto?: string;
   maxGradeScale?: string;
+  logoUrl?: string | null;
 };
 
 type SchoolRow = { id: string; name: string; code: string };
@@ -189,6 +191,22 @@ export function InstitutionPage() {
           {error}
         </div>
       )}
+
+      {profile?.logoUrl ? (
+        <div className="mt-6 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+            <img
+              src={publicAssetUrl(profile.logoUrl) ?? ''}
+              alt=""
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
+          <p className="max-w-md text-xs text-slate-600">
+            Escudo o logo de la escuela. Para cambiarlo use la sección <strong>Escuelas</strong> (administración de
+            plataforma).
+          </p>
+        </div>
+      ) : null}
 
       {canEdit && profile ? (
         <form className="mt-8 space-y-4" onSubmit={onSave}>

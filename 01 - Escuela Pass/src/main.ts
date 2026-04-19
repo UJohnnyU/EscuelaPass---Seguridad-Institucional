@@ -11,9 +11,11 @@ import { ensureRuntimeSchema } from './database/ensure-runtime-schema';
 
 async function bootstrap() {
   const uploadsRoot = join(process.cwd(), 'uploads');
-  const comprobantesDir = join(uploadsRoot, 'comprobantes');
-  if (!existsSync(comprobantesDir)) {
-    mkdirSync(comprobantesDir, { recursive: true });
+  for (const sub of ['comprobantes', 'avatars', 'school-logos']) {
+    const dir = join(uploadsRoot, sub);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
   }
 
   const app = await NestFactory.create(AppModule);

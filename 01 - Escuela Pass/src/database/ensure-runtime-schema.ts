@@ -275,6 +275,9 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
     await runner.query(
       `CREATE INDEX IF NOT EXISTS ix_meeting_participants_user ON meeting_participants (user_id)`
     );
+
+    await runner.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(500) NULL`);
+    await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500) NULL`);
   } finally {
     await runner.release();
   }

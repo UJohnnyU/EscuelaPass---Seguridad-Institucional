@@ -50,6 +50,10 @@ export class SchoolEntity {
   @Column({ name: 'min_failed_subjects_to_repeat', type: 'int', default: 3 })
   minFailedSubjectsToRepeat!: number;
 
+  /** Ruta pública bajo `/uploads/school-logos/…` */
+  @Column({ name: 'logo_path', type: 'varchar', length: 500, nullable: true })
+  logoPath!: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

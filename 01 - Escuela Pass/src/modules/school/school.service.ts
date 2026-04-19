@@ -286,6 +286,7 @@ export class SchoolService {
         's.canLeaveAlone AS "canLeaveAlone"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
@@ -315,6 +316,7 @@ export class SchoolService {
         'u.id AS "userId"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
@@ -389,6 +391,7 @@ export class SchoolService {
         't.employeeNumber AS "employeeNumber"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
@@ -416,6 +419,7 @@ export class SchoolService {
         'u.id AS "userId"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
@@ -543,6 +547,7 @@ export class SchoolService {
         'u.email AS email',
         'u.fullName AS "fullName"',
         'u.id AS "userId"',
+        'u.avatarPath AS "avatarUrl"',
         'u.status AS "userStatus"'
       ])
       .orderBy('u.full_name', 'ASC');
@@ -566,6 +571,7 @@ export class SchoolService {
         'u.email AS email',
         'u.fullName AS "fullName"',
         'u.id AS "userId"',
+        'u.avatarPath AS "avatarUrl"',
         'u.status AS "userStatus"'
       ])
       .where('p.id = :id', { id });
