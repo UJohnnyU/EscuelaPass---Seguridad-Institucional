@@ -107,107 +107,6 @@ function shiftISODateLocal(iso: string, deltaDays: number): string {
 
 type DocenteCalRow = { id: string; exceptionDate: string; reason: string | null; groupId: string | null };
 
-export function ModulosHubPage() {
-  const { user } = useAuth();
-  const cards: { to: string; title: string; desc: string; show: boolean }[] = [
-    {
-      to: '/app/modulos/comunicacion',
-      title: 'Comunicación',
-      desc: 'Comunicados institucionales y bandeja de avisos.',
-      show: true
-    },
-    {
-      to: '/app/modulos/finanzas',
-      title: 'Finanzas y pagos',
-      desc: 'Conceptos, deudas y comprobantes según su perfil.',
-      show: true
-    },
-    {
-      to: '/app/gestion-escolar',
-      title: 'Grupos y personas',
-      desc: 'Alta de grupos, alumnos, docentes, padres y asignaciones en su escuela.',
-      show: hasRole(user, 'ADMIN', 'ADMINISTRATIVO')
-    },
-    {
-      to: '/app/modulos/academico',
-      title: 'Académico',
-      desc: 'Asistencia y calificaciones vinculadas a su cuenta.',
-      show: hasRole(user, 'ALUMNO', 'PADRE', 'DOCENTE', 'ADMINISTRATIVO')
-    },
-    {
-      to: '/app/modulos/calificaciones-docente',
-      title: 'Calificaciones (docente)',
-      desc: 'Actividades por grupo y materia: nombre de evaluación y notas alumno por alumno.',
-      show: hasRole(user, 'DOCENTE', 'ADMIN')
-    },
-    {
-      to: '/app/modulos/anotaciones-docente',
-      title: 'Anotaciones a alumnos',
-      desc: 'Registre observaciones; la familia recibe aviso en notificaciones.',
-      show: hasRole(user, 'DOCENTE', 'ADMIN')
-    },
-    {
-      to: '/app/modulos/visitas',
-      title: 'Visitas externas',
-      desc: 'Visitantes externos agendados por la escuela con notificación automática.',
-      show: true
-    },
-    {
-      to: '/app/modulos/reuniones',
-      title: 'Reuniones',
-      desc: 'Citas internas con padres, docentes o administración. Confirme asistencia.',
-      show: true
-    },
-    {
-      to: '/app/modulos/administracion',
-      title: 'Administración e informes',
-      desc: 'Tablero, auditoría, informes y calendario administrativo.',
-      show: isAdmin(user) || hasRole(user, 'DOCENTE', 'ADMINISTRATIVO')
-    },
-    {
-      to: '/app/modulos/herramientas',
-      title: 'Herramientas',
-      desc: 'Horarios, vehículos, privacidad y documentos PDF.',
-      show: isStaff(user)
-    },
-    {
-      to: '/app/horario',
-      title: user?.role === 'ALUMNO' ? 'Mi horario' : 'Horarios',
-      desc:
-        user?.role === 'ALUMNO'
-          ? 'Horario semanal del grupo, calendario sin clases y avisos recibidos.'
-          : 'Consulte horarios por institución y grupo; calendario de días sin clases.',
-      show: hasRole(user, 'ALUMNO', 'ADMIN', 'ADMINISTRATIVO')
-    }
-  ];
-
-  return (
-    <div className="max-w-5xl animate-fade-in">
-      <h1 className="font-serif text-3xl font-semibold tracking-tight text-slate-900">Módulos operativos</h1>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-        Acceda a cada área para revisar datos en tiempo real. La información se presenta de forma clara; los errores
-        se muestran como mensajes comprensibles.
-      </p>
-      <ul className="mt-10 grid gap-4 sm:grid-cols-2">
-        {cards
-          .filter((c) => c.show)
-          .map((c) => (
-            <li key={c.to}>
-              <Link
-                to={c.to}
-                className="flex h-full flex-col rounded border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow"
-              >
-                <span className="font-medium text-slate-900">{c.title}</span>
-                <span className="mt-2 flex-1 text-sm text-slate-600">{c.desc}</span>
-                <span className="mt-4 text-xs font-semibold uppercase tracking-wide text-brand-800">Abrir</span>
-              </Link>
-            </li>
-          ))}
-      </ul>
-    </div>
-  );
-}
-
 export function ComunicacionPage() {
   type SchoolGroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
   type StudentRow = { id: string; userId: string; fullName: string; email: string; matricula: string };
@@ -736,7 +635,7 @@ export function AcademicoPage() {
     return <p className="text-slate-600">Cargando…</p>;
   }
   if (user && !padre && !alumno && !verAsistenciaGrupos) {
-    return <Navigate to="/app/modulos" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const upsertAttendance = async (

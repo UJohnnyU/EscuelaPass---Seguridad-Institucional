@@ -22,8 +22,7 @@ import {
   AdministracionPage,
   ComunicacionPage,
   FinanzasPage,
-  HerramientasPage,
-  ModulosHubPage
+  HerramientasPage
 } from '@/pages/modulos/Operativos';
 import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
 import { BoletinesPage } from '@/pages/modulos/BoletinesPage';
@@ -80,7 +79,7 @@ export default function App() {
               </RoleGate>
             }
           />
-          <Route path="modulos" element={<ModulosHubPage />} />
+          <Route path="modulos" element={<Navigate to="/app" replace />} />
           <Route path="modulos/comunicacion" element={<ComunicacionPage />} />
           <Route path="modulos/finanzas" element={<FinanzasPage />} />
           <Route path="modulos/academico" element={<AcademicoPage />} />
