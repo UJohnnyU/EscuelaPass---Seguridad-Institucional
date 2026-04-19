@@ -231,19 +231,21 @@ export function ComunicacionPage() {
     <div className="max-w-4xl space-y-8">
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Comunicación</h1>
-        <p className="mt-1 text-sm text-slate-600">Notificaciones personales y, si aplica, comunicados emitidos.</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Sus avisos personales y los comunicados que publica la escuela.
+        </p>
       </div>
       {err && (
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
-      <Panel title="Mis notificaciones" description="Avisos entregados a su usuario.">
+      <Panel title="Mis notificaciones" description="Avisos que la escuela le ha enviado.">
         <ValueView data={notifications} />
       </Panel>
       {staff && (
         <>
           <Panel
-            title="Emitir aviso escolar"
-            description="Envío por audiencia, grupo específico o usuario específico."
+            title="Publicar un aviso"
+            description="Envíelo a toda la comunidad, a un grupo o a una persona específica."
           >
             {canManageSchoolWideNotices ? (
               <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
@@ -328,7 +330,7 @@ export function ComunicacionPage() {
                 </>
               ) : (
                 <p className="text-sm text-slate-600 sm:col-span-2">
-                  Esta versión permite envío detallado (audiencia/grupo/usuario) para administración.
+                  Solo la administración del plantel puede elegir el grupo o la persona destinataria.
                 </p>
               )}
               <label className="mt-6 flex items-center gap-2 text-sm">
@@ -347,12 +349,12 @@ export function ComunicacionPage() {
               </form>
             ) : (
               <p className="text-sm text-slate-600">
-                La emisión de avisos se habilita para administración del plantel.
+                Esta función está reservada para la administración del plantel.
               </p>
             )}
             {msg && <p className="mt-3 text-sm text-emerald-700">{msg}</p>}
           </Panel>
-          <Panel title="Comunicados (gestión)" description="Listado reciente para personal autorizado.">
+          <Panel title="Comunicados publicados" description="Los últimos avisos que ha publicado la escuela.">
             <ValueView data={notices} />
           </Panel>
         </>
@@ -394,17 +396,18 @@ export function FinanzasPage() {
     <div className="max-w-4xl space-y-8">
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Finanzas</h1>
-        <p className="mt-1 text-sm text-slate-600">Conceptos de cobro y estado de obligaciones según su rol.</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Consulte sus pagos pendientes y los conceptos de cobro de la escuela.
+        </p>
       </div>
       {err && (
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
       {admin && (
         <div>
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Gestión (administración)</h2>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Gestión de cobros</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Personal administrativo y administradores pueden crear y editar conceptos, y asignar colegiaturas u otras
-            obligaciones a alumnos de la institución.
+            Cree o edite los conceptos de cobro de la escuela y asigne colegiaturas o pagos a los alumnos.
           </p>
           <div className="mt-4">
             <FinanzasStaffTools />
@@ -412,12 +415,12 @@ export function FinanzasPage() {
         </div>
       )}
       {!admin && (
-        <Panel title="Conceptos">
+        <Panel title="Conceptos de cobro">
           <ValueView data={concepts} />
         </Panel>
       )}
       {padre && (
-        <Panel title="Mis obligaciones">
+        <Panel title="Mis pagos pendientes">
           <ValueView data={debts} />
         </Panel>
       )}
@@ -702,14 +705,14 @@ export function AcademicoPage() {
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Académico</h1>
         <p className="mt-1 text-sm text-slate-600">
           {padre
-            ? 'Asistencia y calificaciones de los estudiantes vinculados a su cuenta.'
+            ? 'Asistencia, calificaciones y horarios de sus hijos.'
             : alumno
-              ? 'Revise sus calificaciones y descargue boletines del período actual o anteriores.'
+              ? 'Vea sus calificaciones y descargue sus boletines.'
               : verAsistenciaGrupos
                 ? docente
-                  ? 'Registre la asistencia del día en los grupos donde tiene asignación.'
-                  : 'Consulte la asistencia de todos los grupos y alumnos de su institución.'
-                : 'Esta vista está orientada a familias. Docentes y administración usan informes y exportaciones.'}
+                  ? 'Tome asistencia diaria a los grupos que tiene a su cargo.'
+                  : 'Consulte la asistencia de todos los grupos y alumnos de la escuela.'
+                : 'Esta vista está pensada para familias y alumnos. La administración cuenta con informes y exportaciones.'}
         </p>
       </div>
       {err && (
@@ -717,12 +720,12 @@ export function AcademicoPage() {
       )}
       {padre ? (
         <>
-          <Panel title="Asistencia (familia)">
+          <Panel title="Asistencia de sus hijos">
             <ValueView data={att} />
           </Panel>
           <Panel
             title="Calificaciones de sus hijos"
-            description="Las actividades cerradas por los docentes aparecen en el módulo dedicado."
+            description="A medida que los docentes cierren cada actividad, sus calificaciones aparecerán aquí."
           >
             <Link
               to="/app/modulos/mis-calificaciones"
@@ -733,7 +736,7 @@ export function AcademicoPage() {
           </Panel>
           <Panel
             title="Boletines de sus hijos"
-            description="Los boletines de periodo y final se publican automáticamente al cerrar cada periodo."
+            description="Cada vez que la escuela cierra un periodo, los boletines quedan disponibles para descargar."
           >
             <Link
               to="/app/modulos/boletines"
@@ -789,13 +792,13 @@ export function AcademicoPage() {
               </div>
             )}
           </Panel>
-          <Panel title="Eventos de sus hijos (calendario semanal)">
+          <Panel title="Eventos y días sin clases (de la semana)">
             <ValueView data={childrenCalendar} />
           </Panel>
-          <Panel title="Avisos notificados para sus hijos">
+          <Panel title="Avisos enviados a sus hijos">
             <ValueView data={childrenNotifications} />
           </Panel>
-          <Panel title="Anotaciones y llamados de atención de sus hijos">
+          <Panel title="Llamados de atención y anotaciones de sus hijos">
             <ValueView data={attentionNotes} />
           </Panel>
           <Panel title="Sus avisos personales">
@@ -809,7 +812,7 @@ export function AcademicoPage() {
         <>
           <Panel
             title="Mis calificaciones"
-            description="Las actividades cerradas por los docentes se muestran en el módulo dedicado."
+            description="A medida que sus docentes cierren cada actividad, sus calificaciones aparecerán aquí."
           >
             <Link
               to="/app/modulos/mis-calificaciones"
@@ -820,7 +823,7 @@ export function AcademicoPage() {
           </Panel>
           <Panel
             title="Boletines"
-            description="Los boletines se publican automáticamente al cerrar cada periodo académico."
+            description="Cuando la escuela cierra un periodo, su boletín queda disponible para descargar."
           >
             <Link
               to="/app/modulos/boletines"
@@ -834,7 +837,7 @@ export function AcademicoPage() {
         <>
           <Panel
             title="Asistencia por grupo"
-            description="Elija vista por día (registro), semana o mes (consulta). Puede filtrar por un estudiante."
+            description="Use la vista de día para tomar o corregir asistencia. Las vistas de semana y mes son solo para consulta."
           >
             {teacherGroups.length === 0 ? (
               <p className="text-sm text-slate-600">
@@ -891,7 +894,7 @@ export function AcademicoPage() {
                 </div>
                 {teacherAttendance?.view === 'day' && teacherAttendance.nonInstructionalDay ? (
                   <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    Día no lectivo
+                    Este día no hay clases
                     {teacherAttendance.reasons?.length ? `: ${teacherAttendance.reasons.join('; ')}` : '.'}
                   </div>
                 ) : null}
@@ -901,8 +904,8 @@ export function AcademicoPage() {
                   <div className="space-y-3">
                     <p className="text-sm text-slate-600">
                       Del {formatShortISODate(teacherAttendance.dateFrom)} al {formatShortISODate(teacherAttendance.dateTo)}{' '}
-                      ({teacherAttendance.dates.length} días). Vista de solo lectura; use la vista <strong>Día</strong> para
-                      registrar o corregir.
+                      ({teacherAttendance.dates.length} días). Esta vista es solo para consultar. Para tomar o corregir
+                      asistencia abra la vista <strong>Día</strong>.
                     </p>
                     <div className="overflow-x-auto rounded border border-slate-200">
                       <table className="min-w-full border-collapse text-left text-sm">
@@ -941,7 +944,8 @@ export function AcademicoPage() {
                       </table>
                     </div>
                     <p className="text-xs text-slate-500">
-                      Leyenda: P presente · R retardo · Af ausente falta · Ae ausente con excusa · — sin registro.
+                      Leyenda: P presente · R retardo · Af ausente sin justificar · Ae ausente con excusa · — sin
+                      registro.
                     </p>
                   </div>
                 ) : (
@@ -1025,11 +1029,12 @@ export function AcademicoPage() {
                     </div>
                     {docente ? (
                       <p className="text-xs text-slate-500">
-                        El docente solo puede modificar asistencias del día actual (vista Día).
+                        Solo puede registrar o corregir la asistencia del día actual.
                       </p>
                     ) : (
                       <p className="text-xs text-slate-500">
-                        En vista Día puede registrar o corregir según permisos; use Semana o Mes para revisar el historial.
+                        Use Día para tomar o corregir asistencia. Las vistas Semana y Mes son solo para revisar el
+                        historial.
                       </p>
                     )}
                   </div>
@@ -1039,8 +1044,8 @@ export function AcademicoPage() {
           </Panel>
           {docente && selectedTeacherGroupId ? (
             <Panel
-              title="Día sin clases (solo este grupo)"
-              description="Ese día no se toma asistencia para este grupo y no cuenta en los controles. Para toda la escuela debe hacerlo secretaría."
+              title="Marcar día sin clases para este grupo"
+              description="Ese día no se tomará asistencia a este grupo. Si el día sin clases es para toda la escuela, solicítelo a secretaría."
             >
               <div className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-sm text-slate-700">
@@ -1117,10 +1122,10 @@ export function AcademicoPage() {
           ) : null}
         </>
       ) : (
-        <Panel title="Información">
+        <Panel title="¿Necesita un informe?">
           <p className="text-sm text-slate-600">
-            Use el módulo <strong>Administración e informes</strong> para reportes por grupo o las exportaciones en
-            Excel.
+            Encuentre los reportes por grupo y las descargas en Excel dentro de
+            {' '}<strong>Administración e informes</strong>.
           </p>
         </Panel>
       )}
@@ -1194,7 +1199,7 @@ export function AdministracionPage() {
   if (!admin && !docente && !administrativo) {
     return (
       <p className="text-sm text-slate-600">
-        Esta sección es para personal autorizado. Si necesita un informe, solicítelo a secretaría.
+        Esta sección es para el personal del plantel. Si necesita un informe, solicítelo en secretaría.
       </p>
     );
   }
@@ -1203,36 +1208,38 @@ export function AdministracionPage() {
     <div className="max-w-5xl space-y-8">
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Administración e informes</h1>
-        <p className="mt-1 text-sm text-slate-600">Resumen operativo y trazas para evaluación en ejecución.</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Indicadores del día y reportes para llevar el control del plantel.
+        </p>
       </div>
       {err && (
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
       {admin && (
         <>
-          <Panel title="Tablero general">
+          <Panel title="Resumen del día">
             <ValueView data={summary} />
           </Panel>
-          <Panel title="Auditoría reciente">
+          <Panel title="Actividad reciente del sistema">
             <ValueView data={audit} />
           </Panel>
-          <Panel title="Días no lectivos (calendario)">
+          <Panel title="Días sin clases del calendario escolar">
             <ValueView data={calendar} />
           </Panel>
-          <Panel title="Pagos pendientes (informe)">
+          <Panel title="Pagos pendientes">
             <ValueView data={repAtt} />
           </Panel>
         </>
       )}
       {administrativo && !admin ? (
-        <Panel title="Días no lectivos (calendario de su escuela)">
+        <Panel title="Días sin clases de su escuela">
           <ValueView data={calendar} />
           <p className="mt-3 text-sm text-slate-600">
-            Para marcar o quitar días use <strong>Horarios</strong> en el menú (vista por grupo e institución).
+            Para marcar o quitar días sin clases abra <strong>Horarios</strong> en el menú.
           </p>
         </Panel>
       ) : null}
-      <Panel title="Circuito del día (informe)">
+      <Panel title="Recogidas del día (informe)">
         <ValueView data={circuit} />
       </Panel>
     </div>
@@ -1337,18 +1344,18 @@ export function HerramientasPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Herramientas</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Privacidad, horarios y vehículos según su perfil. Para importar o exportar archivos use el apartado
-          correspondiente en el menú.
+          Política de privacidad, horarios y vehículos para la recogida. Para importar o exportar archivos abra el
+          apartado correspondiente en el menú.
         </p>
       </div>
-      <Panel title="Política de privacidad vigente" description="Texto institucional y tratamiento de datos.">
+      <Panel title="Política de privacidad" description="Texto vigente sobre cómo se usan y protegen sus datos.">
         {errPolicy && (
           <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errPolicy}</div>
         )}
         {policyHint && <p className="mb-4 text-sm text-slate-600">{policyHint}</p>}
         <ValueView data={policy} />
       </Panel>
-      <Panel title="Mis aceptaciones de privacidad">
+      <Panel title="Mis aceptaciones de la política">
         {errAcceptances && (
           <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
             {errAcceptances}
@@ -1357,7 +1364,7 @@ export function HerramientasPage() {
         <ValueView data={privacy} />
       </Panel>
       {padre && (
-        <Panel title="Vehículos registrados" description="Vehículos dados de alta para el circuito de recogida.">
+        <Panel title="Mis vehículos" description="Vehículos autorizados para recoger a su hijo o hija.">
           {errVehicles && (
             <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errVehicles}</div>
           )}
@@ -1365,7 +1372,7 @@ export function HerramientasPage() {
         </Panel>
       )}
       {docente && (
-        <Panel title="Mi horario semanal" description="Franjas asignadas como docente, agrupadas por día.">
+        <Panel title="Mi horario semanal" description="Las clases que tiene asignadas a lo largo de la semana.">
           {errSchedule && (
             <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errSchedule}</div>
           )}
@@ -1388,8 +1395,8 @@ export function HerramientasPage() {
       )}
       <Panel title="Acceso al plantel">
         <p className="text-sm leading-relaxed text-slate-600">
-          Su credencial QR de campus está en <strong>Mi perfil</strong>. El personal autorizado puede registrar
-          ingresos en <strong>Escáner de acceso</strong>.
+          Su código QR personal para entrar al plantel está en <strong>Mi perfil</strong>. El personal del plantel
+          puede registrar el ingreso desde <strong>Escáner de acceso</strong>.
         </p>
       </Panel>
     </div>

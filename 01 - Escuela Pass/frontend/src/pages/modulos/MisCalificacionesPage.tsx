@@ -106,8 +106,8 @@ export function MisCalificacionesPage() {
           {isParent ? 'Calificaciones de mis hijos' : 'Mis calificaciones'}
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Solo se muestran las actividades que ya fueron <strong>publicadas</strong> por el docente. Si ve un
-          indicador <em>En revisión</em>, la nota puede cambiar hasta que el docente vuelva a cerrar la actividad.
+          Aquí solo aparecen las actividades que el docente ya <strong>publicó</strong>. Si ve la marca{' '}
+          <em>En revisión</em>, la nota podría cambiar hasta que el docente la cierre nuevamente.
         </p>
       </div>
 

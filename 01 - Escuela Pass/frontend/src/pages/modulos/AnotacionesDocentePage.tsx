@@ -220,9 +220,8 @@ export function AnotacionesDocentePage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Anotaciones a estudiantes</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-          Registre observaciones o llamados de atención vinculados a un alumno. Si el estudiante tiene familia
-          vinculada en el sistema, se genera automáticamente una <strong>notificación</strong> para los tutores
-          (misma bandeja que otros avisos institucionales).
+          Registre observaciones o llamados de atención de un alumno. Si su familia está registrada en el sistema,
+          recibirá un aviso en la misma bandeja donde llegan los demás comunicados de la escuela.
         </p>
       </div>
 
@@ -244,8 +243,8 @@ export function AnotacionesDocentePage() {
         ) : !groupId && !loading ? (
           <p className="mt-4 text-sm text-slate-600">
             {platformAdmin
-              ? 'No hay grupos para el filtro elegido. Seleccione otra institución o verifique los datos en Escuelas.'
-              : 'No tiene grupos asignados para registrar anotaciones.'}
+              ? 'No hay grupos para mostrar. Cambie de escuela o revise que los grupos estén creados.'
+              : 'Aún no tiene grupos asignados para registrar anotaciones.'}
           </p>
         ) : (
           <form className="mt-4 space-y-4" onSubmit={(e) => void submit(e)}>

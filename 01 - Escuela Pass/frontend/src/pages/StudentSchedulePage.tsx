@@ -159,7 +159,7 @@ export function StudentSchedulePage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi horario semanal</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Clases de su grupo, días sin clases publicados en el calendario y avisos enviados a su cuenta.
+          Las clases de su grupo, los días sin clases de la semana y los avisos que le ha enviado la escuela.
         </p>
       </div>
 
@@ -216,7 +216,7 @@ export function StudentSchedulePage() {
 
       {!schedule?.groupId && (
         <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Su cuenta aún no tiene un grupo asignado. Cuando secretaría lo registre, verá aquí el horario.
+          Aún no tiene un grupo asignado. En cuanto la secretaría lo asigne, su horario aparecerá aquí.
         </p>
       )}
 
@@ -229,9 +229,9 @@ export function StudentSchedulePage() {
       ) : null}
 
       <section>
-        <h2 className="font-serif text-lg font-semibold text-slate-900">Calendario: días sin clases (esta semana)</h2>
+        <h2 className="font-serif text-lg font-semibold text-slate-900">Días sin clases de esta semana</h2>
         <p className="mt-1 text-xs text-slate-500">
-          Incluye suspensiones para toda la institución o para su grupo cuando la institución las publica.
+          Incluye los días sin clases para toda la escuela y los específicos de su grupo.
         </p>
         {weekCalendarDays.length === 0 ? (
           <p className="mt-3 text-sm text-slate-600">No hay días marcados sin clases en esta semana.</p>

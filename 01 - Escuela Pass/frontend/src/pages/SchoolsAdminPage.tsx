@@ -199,10 +199,10 @@ export function SchoolsAdminPage() {
   return (
     <div className="max-w-5xl space-y-6">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Escuelas (administración global)</h1>
+        <h1 className="font-serif text-2xl font-semibold text-slate-900">Escuelas</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Configure la escala de calificación, la nota mínima aprobatoria y el mínimo de materias reprobadas
-          para marcar a un alumno como <strong>REPROBADO</strong> en el boletín final.
+          Defina, para cada escuela, la nota máxima con la que se califica, la nota mínima para aprobar y cuántas
+          materias reprobadas hacen que un alumno aparezca como <strong>REPROBADO</strong> en su boletín final.
         </p>
       </div>
 
@@ -232,7 +232,7 @@ export function SchoolsAdminPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-700">Escala (máx. de calificación)</span>
+            <span className="text-slate-700">Nota máxima de la escala</span>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
               value={maxGradeScale}
@@ -250,7 +250,7 @@ export function SchoolsAdminPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-700">Mín. de materias reprobadas para REPROBAR</span>
+            <span className="text-slate-700">Materias reprobadas para reprobar el año</span>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
               value={minFailedSubjectsToRepeat}
@@ -279,7 +279,7 @@ export function SchoolsAdminPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2 lg:col-span-3">
-            <span className="text-slate-700">Escudo o logo (opcional, JPG/PNG/WEBP, máx. 2&nbsp;MB)</span>
+            <span className="text-slate-700">Escudo o logo (opcional, formatos JPG, PNG o WEBP — máximo 2&nbsp;MB)</span>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"

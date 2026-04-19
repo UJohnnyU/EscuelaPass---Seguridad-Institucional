@@ -206,9 +206,9 @@ export function PeriodosAcademicosPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Periodos académicos</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Configure los bimestres o trimestres de cada ciclo escolar. Al <strong>activar</strong> un periodo los docentes
-          pueden crear actividades. Al <strong>cerrar</strong> un periodo las notas quedan fijas, se asignan ceros a los
-          alumnos sin calificar y se generan automáticamente los boletines del periodo.
+          Defina los bimestres o trimestres del año escolar. Al <strong>activar</strong> un periodo, los docentes
+          pueden crear actividades y poner notas. Al <strong>cerrar</strong> un periodo, las notas quedan fijas, los
+          alumnos sin calificar reciben cero y los boletines se publican a las familias.
         </p>
       </div>
 

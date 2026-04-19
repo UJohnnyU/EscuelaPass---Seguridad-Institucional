@@ -525,9 +525,9 @@ export function CalificacionesDocentePage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Actividades y calificaciones</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Cree <strong>actividades</strong> para sus grupos y califique a cada estudiante. Al terminar, <strong>cierre</strong>{' '}
-          la actividad para publicar las notas y bloquear ediciones. Si necesita corregir, puede <strong>reabrirla</strong>{' '}
-          en cualquier momento.
+          Cree <strong>actividades</strong> para sus grupos y registre la nota de cada alumno. Cuando termine, pulse{' '}
+          <strong>cerrar</strong> para publicar las notas a las familias. Si necesita corregir algo, puede{' '}
+          <strong>reabrir</strong> la actividad en cualquier momento.
         </p>
       </div>
 

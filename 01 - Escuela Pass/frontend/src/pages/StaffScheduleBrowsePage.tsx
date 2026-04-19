@@ -310,8 +310,8 @@ export function StaffScheduleBrowsePage() {
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Horarios por grupo</h1>
         <p className="mt-2 text-sm text-slate-600">
           {platformAdmin
-            ? 'Seleccione una institución (opcional) y un grupo para revisar el horario semanal y el calendario de días sin clases.'
-            : 'Seleccione un grupo de su institución para revisar el horario y el calendario escolar.'}
+            ? 'Elija una escuela (opcional) y un grupo para ver su horario semanal y los días sin clases.'
+            : 'Elija un grupo de su escuela para ver su horario semanal y los días sin clases.'}
         </p>
       </div>
 
@@ -418,13 +418,12 @@ export function StaffScheduleBrowsePage() {
 
       {canMarkInstitutionWide ? (
         <section className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Suspender clases en toda la institución</h2>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Marcar día sin clases para toda la escuela</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Ese día no se toma asistencia escolar y no cuenta en los controles del grupo. Afecta a todos los grupos de
-            su escuela.
+            Ese día no se tomará asistencia y no contará en ninguno de los grupos. Afecta a toda la escuela.
           </p>
           {user?.role === 'ADMIN' && platformAdmin && !schoolFilter.trim() ? (
-            <p className="mt-3 text-sm text-amber-900">Seleccione una institución en el filtro superior para continuar.</p>
+            <p className="mt-3 text-sm text-amber-900">Elija una escuela en el filtro de arriba para continuar.</p>
           ) : (
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <label className="flex flex-col gap-1 text-sm text-slate-700">
@@ -460,8 +459,8 @@ export function StaffScheduleBrowsePage() {
       ) : null}
 
       <section>
-        <h2 className="font-serif text-lg font-semibold text-slate-900">Calendario: días sin clases (esta semana)</h2>
-        <p className="mt-1 text-xs text-slate-500">Incluye suspensiones globales o del grupo seleccionado.</p>
+        <h2 className="font-serif text-lg font-semibold text-slate-900">Días sin clases de esta semana</h2>
+        <p className="mt-1 text-xs text-slate-500">Incluye los días sin clases para toda la escuela y los del grupo seleccionado.</p>
         {weekCalendarDays.length === 0 ? (
           <p className="mt-3 text-sm text-slate-600">No hay días marcados sin clases en esta semana.</p>
         ) : (

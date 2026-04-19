@@ -121,7 +121,7 @@ export function CircuitPadrePage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="text-xl font-bold text-slate-900">Circuito de recogida</h1>
         <p className="mt-2 text-slate-600">
-          No hay estudiantes vinculados a tu cuenta. Si crees que es un error, contacta a secretaría.
+          Aún no hay alumnos vinculados a su cuenta. Si cree que es un error, comuníquese con secretaría.
         </p>
       </div>
     );
@@ -129,9 +129,10 @@ export function CircuitPadrePage() {
 
   return (
     <div className="max-w-lg animate-slide-up">
-      <h1 className="text-2xl font-bold text-slate-900">Nueva solicitud de circuito</h1>
+      <h1 className="text-2xl font-bold text-slate-900">Nueva solicitud de recogida</h1>
       <p className="mt-1 text-sm text-slate-600">
-        Indica cómo vendrás a retirar. El estado lo avanzas tú con los botones en la solicitud (en camino, llegada).
+        Indique cómo va a recoger a su hijo o hija. Después podrá avisar que va en camino y marcar su llegada desde
+        la misma solicitud.
       </p>
 
       <form className="mt-8 space-y-4" onSubmit={onSubmit}>
@@ -192,7 +193,8 @@ export function CircuitPadrePage() {
             </select>
             {vehicles.length === 0 && (
               <p className="mt-2 text-sm text-amber-800">
-                No tienes vehículos dados de alta. Registra uno desde la institución o elige otro método de retiro.
+                Aún no tiene vehículos registrados. Pídale al plantel que dé de alta su vehículo o elija otra forma de
+                recoger.
               </p>
             )}
           </div>

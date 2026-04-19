@@ -21,28 +21,28 @@ export function AppHomePage() {
   const summaryBullets = useMemo(() => {
     if (role === 'ALUMNO') {
       return [
-        'Consulte su horario semanal, calificaciones y boletines desde las entradas correspondientes del menú.',
-        'En Comunicación encontrará avisos institucionales y notificaciones dirigidas a su usuario.',
-        'En Institución puede ver los datos de contacto y el perfil público de la escuela.'
+        'Revise su horario, sus calificaciones y descargue sus boletines desde las opciones del menú.',
+        'En Comunicación encontrará los avisos de la escuela y los mensajes dirigidos a usted.',
+        'En Institución puede ver el contacto y la información pública de la escuela.'
       ];
     }
     if (role === 'PADRE') {
       return [
-        'En Circuito (familia) siga las solicitudes de recogida y confirme la entrega cuando corresponda.',
-        'Mis calificaciones y Boletines concentran el rendimiento académico de sus hijos.',
-        'Comunicación y Finanzas reúnen avisos y obligaciones de pago según lo que la institución publique.'
+        'En Circuito puede pedir la recogida de sus hijos y avisar cuando esté en camino.',
+        'En Mis calificaciones y Boletines sigue el rendimiento académico de sus hijos.',
+        'En Comunicación recibe los avisos de la escuela y en Finanzas consulta los pagos pendientes.'
       ];
     }
     if (role === 'DOCENTE') {
       return [
-        'Circuito del día y el módulo Académico le permiten seguir asistencia y el trabajo en clase.',
-        'Actividades y notas y Anotaciones son el canal principal de evaluación y observaciones a familias.',
-        'Visitas externas y Reuniones organizan agendas con externos y con la comunidad educativa.'
+        'Tome asistencia y siga el día de clases desde Académico y Circuito del día.',
+        'Cargue actividades, califique y deje observaciones a las familias en Actividades y notas y en Anotaciones.',
+        'Programe encuentros con familias o externos en Reuniones y Visitas externas.'
       ];
     }
     return [
-      'Use el menú lateral para abrir cada área habilitada para su rol.',
-      'Si no ve alguna opción, su cuenta no tiene permisos para esa función.'
+      'Abra cualquier opción del menú lateral para entrar a esa sección.',
+      'Si no ve alguna opción, es porque su cuenta no la tiene habilitada.'
     ];
   }, [role]);
 
@@ -55,14 +55,14 @@ export function AppHomePage() {
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-600">
         {isInstitutionPanel ? (
           <>
-            Este inicio muestra indicadores del día y la tendencia de circuitos para su institución. El detalle de cada
-            área (comunicación, finanzas, visitas, reuniones, informes) está en el{' '}
-            <strong className="font-medium text-slate-800">menú lateral</strong>, según los permisos de su rol.
+            Aquí tiene un vistazo del día y de la última semana en su escuela. Para entrar a comunicación, finanzas,
+            visitas, reuniones e informes use el{' '}
+            <strong className="font-medium text-slate-800">menú lateral</strong>.
           </>
         ) : (
           <>
-            Aquí encontrará un resumen orientativo. Todas las herramientas y pantallas de trabajo están en el{' '}
-            <strong className="font-medium text-slate-800">menú lateral</strong>, filtradas por su tipo de cuenta.
+            Este es su punto de partida. Todas las funciones de su cuenta están a un clic en el{' '}
+            <strong className="font-medium text-slate-800">menú lateral</strong>.
           </>
         )}
       </p>
@@ -86,7 +86,7 @@ export function AppHomePage() {
 
       {role === 'ALUMNO' && (
         <p className="mt-8 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700">
-          Otras gestiones las coordina la escuela con usted o con su familia; ante dudas, consulte en secretaría.
+          Para cualquier otra gestión, hable con su familia o acérquese a secretaría.
         </p>
       )}
     </div>

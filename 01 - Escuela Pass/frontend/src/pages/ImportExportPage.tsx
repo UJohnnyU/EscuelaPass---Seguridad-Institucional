@@ -247,7 +247,7 @@ export function ImportExportPage() {
   if (!admin && !docente) {
     return (
       <p className="text-sm text-slate-600">
-        Esta sección es para personal de la institución. Si necesita un archivo, solicítelo en secretaría.
+        Esta sección es para el personal del plantel. Si necesita un archivo, solicítelo en secretaría.
       </p>
     );
   }
@@ -257,9 +257,8 @@ export function ImportExportPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Importar y exportar información</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          Descargue plantillas y archivos de trabajo en Excel según los permisos de su cuenta. Las cargas masivas
-          suelen realizarse desde herramientas autorizadas; aquí tiene las <strong>plantillas oficiales</strong> y las{' '}
-          <strong>exportaciones</strong> por grupo.
+          Descargue las <strong>plantillas oficiales</strong> para preparar listas de alumnos, docentes o grupos, y
+          obtenga <strong>exportaciones</strong> en Excel con la información de cada grupo.
         </p>
       </div>
       {err && (
@@ -268,8 +267,8 @@ export function ImportExportPage() {
       {ok && <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{ok}</div>}
 
       <Panel
-        title="Plantillas de importación (Excel y CSV)"
-        description="Descargue el formato esperado por el sistema para cargas masivas."
+        title="Plantillas para importar (Excel y CSV)"
+        description="Use estos archivos como base: complételos con los datos y luego cárguelos al sistema."
       >
         <div className="mb-4">
           <label className="text-sm text-slate-700">
@@ -352,17 +351,19 @@ export function ImportExportPage() {
           </button>
         </div>
         <p className="mt-4 text-xs text-slate-500">
-          Para carga masiva use también CSV; primero haga validación (dry-run) y luego ejecute la importación final.
+          Recomendamos primero subir el archivo en modo de validación para detectar errores y luego confirmar la
+          carga.
         </p>
       </Panel>
 
       <Panel
-        title="Carga masiva (validar y ejecutar)"
-        description="Flujo recomendado: 1) subir archivo, 2) validar con dry-run, 3) corregir errores, 4) ejecutar importación."
+        title="Cargar información en bloque"
+        description="Pasos: 1) suba el archivo, 2) revise los errores en modo de validación, 3) corrija lo necesario, 4) confirme la carga."
       >
         {!adminOrStaff ? (
           <p className="text-sm text-slate-600">
-            Su rol puede descargar plantillas y exportaciones, pero la carga masiva está reservada para administración.
+            Puede descargar las plantillas y exportaciones. La carga de información en bloque está reservada para la
+            administración del plantel.
           </p>
         ) : (
           <div className="space-y-4">
@@ -393,7 +394,7 @@ export function ImportExportPage() {
             </div>
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
-              Validar sin guardar cambios (dry-run)
+              Solo validar el archivo (no guardar cambios)
             </label>
             <div className="flex flex-wrap gap-2">
               <button
@@ -410,13 +411,13 @@ export function ImportExportPage() {
                 onClick={() => void runImport(true)}
                 className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
               >
-                Ejecutar importación real
+                Confirmar y guardar
               </button>
             </div>
             {importResult && (
               <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
                 <p className="font-medium text-slate-800">
-                  Resultado: {importResult.totalRows} filas ·{' '}
+                  Resultado: {importResult.totalRows} filas leídas ·{' '}
                   {'created' in importResult ? `creadas ${importResult.created ?? 0}` : `actualizadas ${importResult.updated ?? 0}`}{' '}
                   · errores {importResult.errors.length}
                 </p>
@@ -436,11 +437,11 @@ export function ImportExportPage() {
       </Panel>
 
       <Panel
-        title="Exportaciones por grupo"
+        title="Descargar información por grupo"
         description={
           platformAdmin
-            ? 'Elija institución (opcional), curso y descargue el archivo. Como administrador de plataforma puede ver todos los grupos o filtrar por escuela.'
-            : 'Elija un curso y descargue el archivo. Si no aparece ningún grupo, verifique su asignación docente o los permisos con secretaría.'
+            ? 'Elija una escuela (opcional) y un grupo, y descargue el archivo en Excel. Si no filtra por escuela verá los grupos de todas.'
+            : 'Elija un grupo y descargue el archivo en Excel. Si no ve ningún grupo, consulte con secretaría sus asignaciones.'
         }
       >
         {platformAdmin || administrativo || docente ? (
@@ -483,7 +484,8 @@ export function ImportExportPage() {
         ) : null}
         {!groupId && (platformAdmin || administrativo || docente) ? (
           <p className="mb-4 text-sm text-amber-800">
-            No hay grupos disponibles para su usuario o aún no se ha podido seleccionar uno. Compruebe asignaciones o permisos.
+            Aún no ha elegido un grupo, o su cuenta no tiene grupos asignados. Si cree que es un error, consulte con
+            secretaría.
           </p>
         ) : null}
         <div className="flex flex-wrap gap-3">
@@ -519,9 +521,9 @@ export function ImportExportPage() {
       </Panel>
 
       {adminOrStaff && (
-        <Panel title="Historial de cargas masivas" description="Últimas importaciones realizadas en la plataforma.">
+        <Panel title="Cargas recientes" description="Las últimas importaciones realizadas en su escuela.">
           {history.length === 0 ? (
-            <p className="text-sm text-slate-600">No hay registros recientes.</p>
+            <p className="text-sm text-slate-600">Aún no hay cargas recientes.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-left text-sm">

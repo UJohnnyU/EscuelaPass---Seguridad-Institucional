@@ -153,8 +153,8 @@ export function InstitutionPage() {
       <div className="max-w-xl animate-slide-up">
         <h1 className="text-2xl font-bold text-slate-900">Institución</h1>
         <p className="mt-4 text-sm text-slate-600">
-          No hay escuelas registradas. Cree escuelas en <strong>Escuelas</strong> y luego podrá definir el perfil de
-          cada una.
+          Aún no hay escuelas registradas. Agréguelas desde <strong>Escuelas</strong> en el menú y luego podrá
+          completar sus datos aquí.
         </p>
       </div>
     );
@@ -164,8 +164,8 @@ export function InstitutionPage() {
     <div className="max-w-xl animate-slide-up">
       <h1 className="text-2xl font-bold text-slate-900">Institución</h1>
       <p className="mt-1 text-slate-600">
-        Estos datos corresponden a cada <strong>escuela</strong> (misma entidad que en &quot;Escuelas&quot;). El nombre
-        legal o comercial y los datos de contacto se guardan aquí por institución.
+        Datos de su escuela visibles para la comunidad: nombre, contacto, dirección, dirección a cargo y mensaje
+        institucional.
       </p>
 
       {platformAdmin && schools.length > 0 && (
@@ -180,8 +180,7 @@ export function InstitutionPage() {
             />
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Debe elegir la escuela antes de guardar. Si un campo está vacío en la base de datos de esa escuela, puede
-            mostrarse el valor de respaldo global del sistema (configuración antigua).
+            Elija la escuela cuyos datos quiere actualizar antes de guardar.
           </p>
         </div>
       )}
@@ -202,8 +201,7 @@ export function InstitutionPage() {
             />
           </div>
           <p className="max-w-md text-xs text-slate-600">
-            Escudo o logo de la escuela. Para cambiarlo use la sección <strong>Escuelas</strong> (administración de
-            plataforma).
+            Escudo o logo de la escuela. Para cambiarlo abra <strong>Escuelas</strong> en el menú.
           </p>
         </div>
       ) : null}
@@ -245,7 +243,10 @@ export function InstitutionPage() {
               className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
               placeholder="100.00"
             />
-            <p className="mt-1 text-xs text-slate-500">Rango permitido: 1 a 999.99, con máximo 2 decimales.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Por ejemplo, escriba <strong>10</strong> si las notas se otorgan sobre 10, o <strong>100</strong> si se
+              califica sobre 100.
+            </p>
           </div>
           {error && !profile && (
             <div className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-800" role="alert">

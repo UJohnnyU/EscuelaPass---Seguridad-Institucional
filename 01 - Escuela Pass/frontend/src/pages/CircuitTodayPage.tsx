@@ -187,8 +187,10 @@ export function CircuitTodayPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="text-2xl font-bold text-slate-900">Circuito de hoy</h1>
-      <p className="mt-1 text-slate-600">Solicitudes con fecha de hoy. Abre una para señales y estado.</p>
+      <h1 className="text-2xl font-bold text-slate-900">Recogidas de hoy</h1>
+      <p className="mt-1 text-slate-600">
+        Solicitudes de recogida del día. Abra una para enviar avisos a la familia y avanzar su estado.
+      </p>
       {error && (
         <div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-red-800 ring-1 ring-red-200" role="alert">
           {error}

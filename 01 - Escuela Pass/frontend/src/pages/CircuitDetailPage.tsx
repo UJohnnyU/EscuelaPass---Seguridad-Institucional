@@ -449,10 +449,10 @@ export function CircuitDetailPage() {
           </div>
 
           <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900">Señal pedagógica a la familia</h2>
+            <h2 className="font-serif text-base font-semibold text-slate-900">Aviso al padre o madre</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Orden fijo: primero solo &quot;Preparando salida&quot;; después solo &quot;Alumno en camino a salida&quot;. No
-              se puede saltar ni alternar libremente.
+              Envíelos en este orden: primero &quot;Preparando salida&quot; y después &quot;Alumno en camino a la
+              salida&quot;.
             </p>
             {nextPedagogical ? (
               <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -477,10 +477,10 @@ export function CircuitDetailPage() {
           </div>
 
           <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900">Estado operativo</h2>
+            <h2 className="font-serif text-base font-semibold text-slate-900">Avance de la recogida</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Un paso cada vez, en orden: familia en camino → llegada → autorizado → en camino a la salida. La entrega
-              final la confirma la familia. La cancelación va aparte.
+              Avance paso a paso: familia en camino → llegada → autorizado → camino a la salida. La entrega la
+              confirma la familia. Si necesita anularla use el botón Cancelar.
             </p>
             {primaryOperational ? (
               <div className="mt-4">
@@ -499,16 +499,15 @@ export function CircuitDetailPage() {
               </div>
             ) : row.status === 'EN_CAMINO' ? (
               <p className="mt-4 text-sm text-slate-600">
-                En este estado el menor va hacia la salida; la confirmación de recibimiento la hace la familia. Solo puede
-                cancelar la solicitud abajo si corresponde.
+                El alumno va camino a la salida. La familia confirmará cuando lo reciba. Si necesita anular la
+                solicitud, use el botón Cancelar.
               </p>
             ) : row.status === 'PADRE_EN_CAMINO' ? (
               <p className="mt-4 text-sm text-slate-600">
-                Espere a que la familia marque «Ya llegué» con ubicación; entonces podrá revisar el mapa y continuar el
-                flujo.
+                Espere a que la familia marque «Ya llegué» con su ubicación. Entonces podrá ver el mapa y continuar.
               </p>
             ) : (
-              <p className="mt-4 text-sm text-slate-600">No hay otro avance operativo desde este estado.</p>
+              <p className="mt-4 text-sm text-slate-600">No hay otro paso disponible en este momento.</p>
             )}
 
             {canStaffCancel && (

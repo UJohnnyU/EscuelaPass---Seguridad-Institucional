@@ -69,7 +69,7 @@ export function PerfilPage() {
     <div className="max-w-lg animate-fade-in">
       <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi perfil</h1>
       <p className="mt-1 text-sm text-slate-600">
-        Datos de su cuenta y credencial para acceso al plantel cuando corresponda.
+        Sus datos personales y, si tiene autorizado el acceso, su código QR para entrar al plantel.
       </p>
 
       {err && (
@@ -134,10 +134,10 @@ export function PerfilPage() {
 
       {qrValue && (
         <div className="mt-10 rounded border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Credencial QR</h2>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Mi código QR</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Presente este código en el lector del colegio para registrar ingreso o salida, según las normas de la
-            institución. En pantallas pequeñas puede ampliarlo para facilitar la lectura.
+            Muestre este código al personal del plantel para registrar su ingreso o salida. Si la pantalla es pequeña,
+            ábralo en pantalla completa para que se lea mejor.
           </p>
           <div className="mt-6 flex flex-col items-center gap-4">
             <div className="rounded border border-slate-100 bg-white p-4">

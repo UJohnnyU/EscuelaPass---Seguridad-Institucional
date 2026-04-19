@@ -530,11 +530,11 @@ export function SchoolRosterPage() {
       <div className="max-w-3xl animate-fade-in">
         <h1 className="font-serif text-3xl font-semibold tracking-tight text-slate-900">Grupos y personas</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Seleccione una escuela para administrar grupos, alumnos, docentes y familias.
+          Elija una escuela para administrar sus grupos, alumnos, docentes y familias.
         </p>
         {schools.length === 0 ? (
           <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            No hay escuelas registradas. Cree una desde Escuelas (administración de plataforma).
+            Aún no hay escuelas registradas. Agréguelas desde la sección <strong>Escuelas</strong> del menú.
           </p>
         ) : (
           <label className="mt-8 block max-w-md text-sm">
@@ -557,8 +557,8 @@ export function SchoolRosterPage() {
     <div className="max-w-5xl animate-fade-in">
       <h1 className="font-serif text-3xl font-semibold tracking-tight text-slate-900">Grupos y personas</h1>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-        Cree grupos, registre alumnos y docentes, asigne docentes a grupos y gestione padres o tutores vinculados a
-        alumnos ya dados de alta.
+        Cree grupos, registre alumnos y docentes, asigne docentes a cada grupo y vincule a padres o tutores con sus
+        hijos.
       </p>
 
       {platformAdmin && schools.length > 0 && (
@@ -1029,9 +1029,9 @@ export function SchoolRosterPage() {
       </section>
 
       <section className="mt-8 mb-12 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Vínculos padre / tutor ↔ alumno</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Vincular padre o tutor con alumno</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Elija un alumno y un padre ya registrados en esta escuela e indique el parentesco.
+          Elija un alumno y un padre o tutor ya registrados en esta escuela e indique el parentesco.
         </p>
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onLink}>
           <label className="text-sm">

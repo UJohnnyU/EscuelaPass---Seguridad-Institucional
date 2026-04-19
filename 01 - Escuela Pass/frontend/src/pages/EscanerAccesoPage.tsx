@@ -95,8 +95,8 @@ export function EscanerAccesoPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Escáner de acceso</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          Use la cámara para leer el código QR de un estudiante o visitante autorizado. Verá el nombre y datos útiles
-          para el registro en portería o aula.
+          Use la cámara para leer el código QR de un estudiante, padre o visitante autorizado. Aparecerán su nombre y
+          los datos necesarios para registrar el ingreso o la salida.
         </p>
       </div>
 
@@ -153,7 +153,7 @@ export function EscanerAccesoPage() {
         </div>
       </Panel>
 
-      <Panel title="Entrada manual (contenido del QR)">
+      <Panel title="Si la cámara no funciona, escriba el código">
         <form
           className="flex flex-col gap-3 sm:flex-row sm:items-end"
           onSubmit={(e) => {
@@ -164,11 +164,11 @@ export function EscanerAccesoPage() {
           }}
         >
           <div className="flex-1">
-            <label className="block text-xs font-medium text-slate-600">Pegue el texto leído</label>
+            <label className="block text-xs font-medium text-slate-600">Texto del código QR</label>
             <input
               name="manual"
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Contenido del código"
+              placeholder="Pegue o escriba el contenido del código"
             />
           </div>
           <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white">

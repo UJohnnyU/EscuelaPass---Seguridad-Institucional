@@ -241,8 +241,8 @@ export function ReunionesPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Reuniones</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Reuniones internas con confirmación de asistencia. Recibirá recordatorios automáticos 24 h
-          y 1 h antes.
+          Encuentros con la comunidad de la escuela. Confirme su asistencia y reciba un aviso un día antes y una hora
+          antes.
         </p>
       </div>
       {err && (

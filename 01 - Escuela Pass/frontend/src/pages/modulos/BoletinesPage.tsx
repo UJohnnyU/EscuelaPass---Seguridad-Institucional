@@ -113,8 +113,8 @@ export function BoletinesPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Boletines</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Los boletines de periodo se publican automáticamente al cerrarse cada periodo académico. El boletín final
-          se publica cuando todos los periodos del ciclo están cerrados.
+          Cada vez que la escuela cierra un periodo, su boletín queda disponible aquí para descargarlo. El boletín
+          final aparece cuando se cierran todos los periodos del año escolar.
         </p>
       </div>
 

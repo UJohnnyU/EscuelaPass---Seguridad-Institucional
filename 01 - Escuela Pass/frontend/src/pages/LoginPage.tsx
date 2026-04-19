@@ -116,11 +116,10 @@ export function LoginPage() {
                 className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-50"
                 role="status"
               >
-                <strong className="block font-semibold">Falta la URL del servidor API</strong>
+                <strong className="block font-semibold">El servicio no está disponible en este momento</strong>
                 <p className="mt-1 text-amber-100/90">
-                  En Vercel, define la variable <code className="rounded bg-black/20 px-1">VITE_API_BASE</code> con la URL
-                  del backend (Nest), por ejemplo <code className="rounded bg-black/20 px-1">https://tu-api.vercel.app</code>
-                  , sin barra al final. Luego vuelve a desplegar el frontend (un nuevo build) para que se aplique.
+                  Inténtelo nuevamente más tarde. Si el problema continúa, comuníquese con el área de sistemas de su
+                  plantel.
                 </p>
               </div>
             )}

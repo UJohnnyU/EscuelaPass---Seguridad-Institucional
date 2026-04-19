@@ -200,8 +200,7 @@ export function VisitasPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Visitas externas</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Visitantes externos agendados por la institución. Recibirá notificaciones automáticas con
-          recordatorios 24 h y 1 h antes del evento.
+          Visitas que organiza la escuela. Le avisaremos un día antes y una hora antes para que no se le pase.
         </p>
       </div>
       {err && (

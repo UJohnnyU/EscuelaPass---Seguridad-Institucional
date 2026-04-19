@@ -364,8 +364,8 @@ export function FinanzasStaffTools() {
           </label>
         </div>
         <p className="mt-1 text-sm text-slate-600">
-          Defina plantillas (por ejemplo colegiatura mensual) y el importe sugerido. Las obligaciones por alumno se
-          generan aparte.
+          Cree los conceptos que la escuela cobra (por ejemplo, colegiatura mensual o materiales) y su importe
+          habitual. Los pagos se asignan después a cada alumno.
         </p>
 
         <form className="mt-6 grid gap-3 border-t border-slate-100 pt-6 sm:grid-cols-2" onSubmit={onCreateConcept}>
@@ -541,9 +541,10 @@ export function FinanzasStaffTools() {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Asignar obligación a un alumno</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Asignar un pago a un alumno</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Genera un adeudo (por ejemplo una mensualidad) para un estudiante de su institución, a partir de un concepto.
+          Registre un pago a cobrar (por ejemplo, una mensualidad) a un alumno de su escuela, partiendo de un
+          concepto ya creado.
         </p>
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onAssignDebt}>
           <label className="text-sm">
@@ -604,16 +605,16 @@ export function FinanzasStaffTools() {
             disabled={saving || !schoolOk}
             className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
           >
-            Registrar obligación
+            Asignar pago
           </button>
         </form>
         {students.length === 0 && schoolOk && (
-          <p className="mt-3 text-sm text-amber-800">No hay alumnos en esta escuela o aún no se han cargado en la tabla.</p>
+          <p className="mt-3 text-sm text-amber-800">Aún no hay alumnos cargados en esta escuela.</p>
         )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Obligaciones recientes</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Pagos asignados recientes</h2>
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>

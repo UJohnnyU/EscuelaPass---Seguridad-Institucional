@@ -131,14 +131,14 @@ export function AdminDashboardPanel() {
     <section className="space-y-6" aria-label="Panel institucional">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-serif text-xl font-semibold text-slate-900">Panel institucional</h2>
+          <h2 className="font-serif text-xl font-semibold text-slate-900">Panel de su escuela</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Vista operativa del día y tendencia de circuitos. En este despliegue la unidad es la institución; el
-            desglose detallado es por <strong className="font-medium text-slate-800">grupo / curso</strong>.
+            Resumen del día y de la última semana de su institución, con desglose por
+            {' '}<strong className="font-medium text-slate-800">grupo o curso</strong>.
           </p>
           {data && (
             <p className="mt-2 text-xs text-slate-500">
-              Ventana: {data.window.label} ({formatRange(data.window.startDate, data.window.endDate)})
+              Período: {data.window.label} ({formatRange(data.window.startDate, data.window.endDate)})
             </p>
           )}
         </div>
@@ -188,28 +188,28 @@ export function AdminDashboardPanel() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <KpiCard
-              title="Circuitos (hoy)"
+              title="Recogidas de hoy"
               value={summary.circuitToday.total}
               tone="brand"
-              hint="Solicitudes con fecha del día de referencia"
+              hint="Solicitudes registradas para el día"
             />
-            <KpiCard title="Asistencia registrada" value={summary.attendanceToday.total} hint="Registros del día" />
+            <KpiCard title="Asistencia del día" value={summary.attendanceToday.total} hint="Estudiantes con asistencia tomada" />
             <KpiCard
               title="Pagos pendientes"
               value={summary.payments.pendingDebts}
               tone="amber"
               hint={
                 summary.payments.overdueDebts > 0
-                  ? `${summary.payments.overdueDebts} con vencimiento pasado`
-                  : 'Sin vencidas hoy'
+                  ? `${summary.payments.overdueDebts} con la fecha vencida`
+                  : 'Ninguna vencida hoy'
               }
             />
-            <KpiCard title="Accesos (hoy)" value={summary.accessToday.total} hint="Eventos de acceso del día" />
+            <KpiCard title="Accesos del día" value={summary.accessToday.total} hint="Ingresos al plantel registrados" />
             <KpiCard
               title="Visitas por aprobar"
               value={data?.visits.pendingApproval ?? 0}
               tone="amber"
-              hint="Solicitudes en estado pendiente"
+              hint="Solicitudes a la espera de respuesta"
             />
             <KpiCard
               title="Comunidad"
@@ -220,15 +220,15 @@ export function AdminDashboardPanel() {
 
           {summary.payments.pendingWithVoucher > 0 && (
             <p className="text-sm text-slate-600">
-              <span className="font-medium text-slate-800">{summary.payments.pendingWithVoucher}</span> deuda(s)
-              pendiente(s) con comprobante cargado — revisar en finanzas.
+              <span className="font-medium text-slate-800">{summary.payments.pendingWithVoucher}</span> pago(s)
+              pendiente(s) tienen comprobante cargado por la familia. Revíselos en Finanzas.
             </p>
           )}
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="font-medium text-slate-900">Circuitos por día</h3>
-              <p className="mt-1 text-xs text-slate-500">Total de solicitudes en la ventana de 7 días</p>
+              <h3 className="font-medium text-slate-900">Recogidas por día</h3>
+              <p className="mt-1 text-xs text-slate-500">Solicitudes registradas durante los últimos 7 días</p>
               <div className="mt-6 flex h-44 items-end justify-between gap-1 border-b border-slate-200 pb-1">
                 {(data?.circuits.byDay ?? []).map((d) => {
                   const h = Math.round((d.total / maxDay) * 100);
@@ -251,8 +251,8 @@ export function AdminDashboardPanel() {
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="font-medium text-slate-900">Circuitos hoy por estado</h3>
-              <p className="mt-1 text-xs text-slate-500">Distribución del día de referencia</p>
+              <h3 className="font-medium text-slate-900">Recogidas de hoy por estado</h3>
+              <p className="mt-1 text-xs text-slate-500">En qué etapa se encuentra cada solicitud del día</p>
               {circuitStatusEntries.length === 0 ? (
                 <p className="mt-8 text-sm text-slate-500">Sin solicitudes este día.</p>
               ) : (
@@ -279,9 +279,9 @@ export function AdminDashboardPanel() {
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-medium text-slate-900">Circuitos por grupo (ventana de 7 días)</h3>
+            <h3 className="font-medium text-slate-900">Recogidas por grupo (últimos 7 días)</h3>
             <p className="mt-1 text-xs text-slate-500">
-              Agrupado por curso/sección; equivalente operativo a “por unidad” dentro de la institución.
+              Total de solicitudes de recogida agrupadas por curso o sección.
             </p>
             {groupsTop.length === 0 ? (
               <p className="mt-6 text-sm text-slate-500">Sin datos en el período.</p>
