@@ -170,10 +170,26 @@ export class SchedulesService {
   async listMySlotsAsTeacher(userId: string) {
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
-    return this.slotsRepository.find({
+    const slots = await this.slotsRepository.find({
       where: { teacherId: teacher.id },
       order: { weekday: 'ASC', startTime: 'ASC' }
     });
+    if (slots.length === 0) return slots.map((s) => ({ ...s, subjectName: null, groupName: null }));
+    const subjectIds = [...new Set(slots.map((s) => s.subjectId).filter((x): x is string => !!x))];
+    const groupIds = [...new Set(slots.map((s) => s.groupId).filter((x): x is string => !!x))];
+    const subjects =
+      subjectIds.length > 0 ? await this.subjectsRepository.find({ where: { id: In(subjectIds) } }) : [];
+    const groups =
+      groupIds.length > 0 ? await this.groupsRepository.find({ where: { id: In(groupIds) } }) : [];
+    const subjectName = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
+    const groupName = Object.fromEntries(
+      groups.map((g) => [g.id, `${g.name}${g.grade ? ` · ${g.grade}` : ''} · ${g.schoolYear}`])
+    );
+    return slots.map((s) => ({
+      ...s,
+      subjectName: s.subjectId ? subjectName[s.subjectId] ?? null : null,
+      groupName: s.groupId ? groupName[s.groupId] ?? null : null
+    }));
   }
 
   /** Grupos donde el docente tiene asignación (para exportaciones, etc.). Opcional búsqueda y límite. */

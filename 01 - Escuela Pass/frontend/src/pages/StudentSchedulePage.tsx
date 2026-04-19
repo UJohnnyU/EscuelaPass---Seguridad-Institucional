@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
-
-const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
-const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+import {
+  buildWeekDays,
+  WeekScheduleEvent,
+  WeekScheduleGrid
+} from '@/components/WeekScheduleGrid';
 
 type SlotRow = {
   id: string;
@@ -54,10 +56,6 @@ function weekRangeISO(offsetWeeks: number): { from: string; to: string; label: s
   return { from: fmt(start), to: fmt(end), label };
 }
 
-function timeShort(t: string) {
-  return t.slice(0, 5);
-}
-
 export function StudentSchedulePage() {
   const { user } = useAuth();
   const [weekOffset, setWeekOffset] = useState(0);
@@ -98,21 +96,6 @@ export function StudentSchedulePage() {
     void load();
   }, [load]);
 
-  const slotsByWeekday = useMemo(() => {
-    const slots = schedule?.slots ?? [];
-    const m = new Map<number, SlotRow[]>();
-    for (const s of slots) {
-      const list = m.get(s.weekday) ?? [];
-      list.push(s);
-      m.set(s.weekday, list);
-    }
-    for (const wd of WEEKDAY_ORDER) {
-      const list = m.get(wd);
-      if (list) list.sort((a, b) => a.startTime.localeCompare(b.startTime));
-    }
-    return m;
-  }, [schedule?.slots]);
-
   const weekCalendarDays = useMemo(() => {
     const days = calendar?.days ?? [];
     return days.filter((d) => {
@@ -120,6 +103,29 @@ export function StudentSchedulePage() {
       return x >= from && x <= to;
     });
   }, [calendar?.days, from, to]);
+
+  const dayOffByISO = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const d of weekCalendarDays) {
+      map.set(d.exceptionDate.slice(0, 10), d.reason ?? null);
+    }
+    return map;
+  }, [weekCalendarDays]);
+
+  const weekDays = useMemo(() => buildWeekDays(from, dayOffByISO), [from, dayOffByISO]);
+
+  const weekEvents = useMemo<WeekScheduleEvent[]>(() => {
+    return (schedule?.slots ?? []).map((s) => ({
+      id: s.id,
+      weekday: s.weekday,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      title: s.subjectName ?? 'Clase',
+      subtitle: null,
+      room: s.room,
+      colorKey: s.subjectName ?? s.subjectId ?? s.id
+    }));
+  }, [schedule?.slots]);
 
   async function downloadPdf() {
     if (!schedule?.groupId) return;
@@ -214,48 +220,13 @@ export function StudentSchedulePage() {
         </p>
       )}
 
-      {schedule?.groupId &&
-        (schedule.slots.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500 shadow-sm">
-            No hay franjas cargadas para su grupo.
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="min-w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-3 py-2 font-semibold text-slate-700">Día</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Horario</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Materia</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Aula</th>
-                </tr>
-              </thead>
-              <tbody>
-                {WEEKDAY_ORDER.flatMap((wd) => {
-                  const rows = slotsByWeekday.get(wd) ?? [];
-                  if (rows.length === 0) return [];
-                  return rows.map((slot, i) => (
-                    <tr key={slot.id} className="border-b border-slate-100">
-                      {i === 0 ? (
-                        <td
-                          className="whitespace-nowrap px-3 py-2 font-medium text-slate-800"
-                          rowSpan={rows.length}
-                        >
-                          {WEEKDAY_SHORT[wd]}
-                        </td>
-                      ) : null}
-                      <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-700">
-                        {timeShort(slot.startTime)} – {timeShort(slot.endTime)}
-                      </td>
-                      <td className="px-3 py-2 text-slate-800">{slot.subjectName ?? '—'}</td>
-                      <td className="px-3 py-2 text-slate-600">{slot.room ?? '—'}</td>
-                    </tr>
-                  ));
-                })}
-              </tbody>
-            </table>
-          </div>
-        ))}
+      {schedule?.groupId ? (
+        <WeekScheduleGrid
+          events={weekEvents}
+          days={weekDays}
+          emptyLabel="No hay franjas cargadas para su grupo."
+        />
+      ) : null}
 
       <section>
         <h2 className="font-serif text-lg font-semibold text-slate-900">Calendario: días sin clases (esta semana)</h2>

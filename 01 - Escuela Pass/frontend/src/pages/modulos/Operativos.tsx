@@ -6,6 +6,11 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { Panel, ValueView } from '@/components/ValueView';
+import {
+  buildWeekDays,
+  WeekScheduleEvent,
+  WeekScheduleGrid
+} from '@/components/WeekScheduleGrid';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isStaff } from '@/lib/roles';
 import axios from 'axios';
@@ -522,8 +527,6 @@ export function FinanzasPage() {
 }
 
 export function AcademicoPage() {
-  const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-  const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
   const weekRangeISO = () => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -844,20 +847,28 @@ export function AcademicoPage() {
             {!childrenSchedule || childrenSchedule.length === 0 ? (
               <p className="text-sm text-slate-600">No hay estudiantes vinculados a su cuenta.</p>
             ) : (
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {childrenSchedule.map((child) => {
-                  const byDay = new Map<number, ParentScheduleSlot[]>();
-                  for (const slot of child.slots ?? []) {
-                    const list = byDay.get(slot.weekday) ?? [];
-                    list.push(slot);
-                    byDay.set(slot.weekday, list);
-                  }
-                  for (const wd of WEEKDAY_ORDER) {
-                    const rows = byDay.get(wd);
-                    if (rows) rows.sort((a, b) => a.startTime.localeCompare(b.startTime));
+                  const events: WeekScheduleEvent[] = (child.slots ?? []).map((s) => ({
+                    id: s.id,
+                    weekday: s.weekday,
+                    startTime: s.startTime,
+                    endTime: s.endTime,
+                    title: s.subjectName ?? 'Clase',
+                    subtitle: null,
+                    room: s.room,
+                    colorKey: s.subjectName ?? s.id
+                  }));
+                  const childCal = childrenCalendar?.find((c) => c.studentId === child.studentId);
+                  const dayOff = new Map<string, string | null>();
+                  for (const d of childCal?.days ?? []) {
+                    const iso = String(d.exceptionDate).slice(0, 10);
+                    if (iso >= from && iso <= to) {
+                      dayOff.set(iso, d.reason ?? null);
+                    }
                   }
                   return (
-                    <div key={child.studentId} className="rounded border border-slate-200 bg-white p-4">
+                    <div key={child.studentId} className="rounded-xl border border-slate-200 bg-white p-4">
                       <p className="font-semibold text-slate-900">{child.studentName}</p>
                       {child.group ? (
                         <p className="mt-1 text-xs text-slate-600">
@@ -866,42 +877,13 @@ export function AcademicoPage() {
                       ) : (
                         <p className="mt-1 text-xs text-amber-800">Sin grupo asignado.</p>
                       )}
-                      {child.slots.length === 0 ? (
-                        <p className="mt-3 text-sm text-slate-600">No hay franjas horarias registradas.</p>
-                      ) : (
-                        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-                          <table className="min-w-full border-collapse text-left text-sm">
-                            <thead>
-                              <tr className="border-b border-slate-200 bg-slate-50">
-                                <th className="px-3 py-2 font-semibold text-slate-700">Día</th>
-                                <th className="px-3 py-2 font-semibold text-slate-700">Horario</th>
-                                <th className="px-3 py-2 font-semibold text-slate-700">Materia</th>
-                                <th className="px-3 py-2 font-semibold text-slate-700">Aula</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {WEEKDAY_ORDER.flatMap((wd) => {
-                                const rows = byDay.get(wd) ?? [];
-                                if (rows.length === 0) return [];
-                                return rows.map((slot, i) => (
-                                  <tr key={slot.id} className="border-b border-slate-100">
-                                    {i === 0 ? (
-                                      <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800" rowSpan={rows.length}>
-                                        {WEEKDAY_SHORT[wd]}
-                                      </td>
-                                    ) : null}
-                                    <td className="whitespace-nowrap px-3 py-2 text-slate-700">
-                                      {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
-                                    </td>
-                                    <td className="px-3 py-2 text-slate-800">{slot.subjectName ?? '—'}</td>
-                                    <td className="px-3 py-2 text-slate-600">{slot.room ?? '—'}</td>
-                                  </tr>
-                                ));
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                      <div className="mt-3">
+                        <WeekScheduleGrid
+                          events={events}
+                          days={buildWeekDays(from, dayOff)}
+                          emptyLabel="No hay franjas horarias registradas."
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -1358,12 +1340,33 @@ export function AdministracionPage() {
   );
 }
 
+type TeacherSelfSlot = {
+  id: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  subjectId: string | null;
+  subjectName: string | null;
+  groupId: string | null;
+  groupName: string | null;
+};
+
+function teacherTodayWeekRange(): string {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diff);
+  return start.toISOString().slice(0, 10);
+}
+
 export function HerramientasPage() {
   const [privacy, setPrivacy] = useState<unknown>(null);
   const [policy, setPolicy] = useState<unknown>(null);
   const [policyHint, setPolicyHint] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<unknown>(null);
-  const [schedule, setSchedule] = useState<unknown>(null);
+  const [schedule, setSchedule] = useState<TeacherSelfSlot[] | null>(null);
   const [scheduleHint, setScheduleHint] = useState<string | null>(null);
   const [errAcceptances, setErrAcceptances] = useState<string | null>(null);
   const [errPolicy, setErrPolicy] = useState<string | null>(null);
@@ -1411,8 +1414,8 @@ export function HerramientasPage() {
       }
       try {
         if (docente) {
-          const s = await api.get('/api/v1/schedules/me/teacher');
-          if (!cancelled) setSchedule(s.data);
+          const s = await api.get<TeacherSelfSlot[]>('/api/v1/schedules/me/teacher');
+          if (!cancelled) setSchedule(Array.isArray(s.data) ? s.data : []);
         }
       } catch (e) {
         if (axios.isAxiosError(e) && e.response?.status === 403) {
@@ -1463,12 +1466,25 @@ export function HerramientasPage() {
         </Panel>
       )}
       {docente && (
-        <Panel title="Mis franjas de horario" description="Horario asignado en el sistema.">
+        <Panel title="Mi horario semanal" description="Franjas asignadas como docente, agrupadas por día.">
           {errSchedule && (
             <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errSchedule}</div>
           )}
           {scheduleHint && <p className="mb-4 text-sm text-amber-800">{scheduleHint}</p>}
-          <ValueView data={schedule} />
+          <WeekScheduleGrid
+            events={(schedule ?? []).map<WeekScheduleEvent>((s) => ({
+              id: s.id,
+              weekday: s.weekday,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              title: s.subjectName ?? 'Clase',
+              subtitle: s.groupName,
+              room: s.room,
+              colorKey: s.subjectName ?? s.subjectId ?? s.id
+            }))}
+            days={buildWeekDays(teacherTodayWeekRange())}
+            emptyLabel="Aún no tiene franjas horarias asignadas."
+          />
         </Panel>
       )}
       <Panel title="Acceso al plantel">
