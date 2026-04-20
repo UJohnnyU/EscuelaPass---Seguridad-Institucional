@@ -66,7 +66,7 @@ export function PerfilPage() {
   const avatarSrc = publicAssetUrl(me?.avatarUrl ?? user?.avatarUrl ?? null);
 
   return (
-    <div className="max-w-lg animate-fade-in">
+    <div className="max-w-3xl animate-fade-in">
       <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi perfil</h1>
       <p className="mt-1 text-sm text-slate-600">
         Sus datos personales y, si tiene autorizado el acceso, su código QR para entrar al plantel.
@@ -76,7 +76,7 @@ export function PerfilPage() {
         <div className="mt-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
 
-      <div className="mt-8 flex flex-col items-center rounded border border-slate-200 bg-white p-8 shadow-sm sm:flex-row sm:items-start sm:gap-8">
+      <div className="mt-8 flex max-w-xl flex-col items-center rounded-xl border border-slate-200 bg-white p-8 shadow-sm sm:flex-row sm:items-start sm:gap-8">
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-slate-900" aria-hidden>
           {avatarSrc ? (
             <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
@@ -100,40 +100,76 @@ export function PerfilPage() {
         </dl>
       </div>
 
-      {me?.contactSections?.length ? (
-        <div className="mt-8 space-y-6">
-          {me.contactSections.map((section) => (
-            <div key={section.title} className="rounded border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="font-serif text-lg font-semibold text-slate-900">{section.title}</h2>
-              <ul className="mt-4 divide-y divide-slate-100">
-                {section.items.map((item, idx) => (
-                  <li key={`${item.fullName}-${idx}`} className="py-3 first:pt-0 last:pb-0">
-                    <p className="font-medium text-slate-900">{item.fullName}</p>
-                    {item.subtitle ? (
-                      <p className="mt-0.5 text-xs text-slate-500">{item.subtitle}</p>
-                    ) : null}
-                    <p className="mt-1 text-sm text-slate-800">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        Celular{' '}
-                      </span>
-                      {item.phone?.trim() ? (
-                        <a href={`tel:${item.phone.replace(/\s/g, '')}`} className="text-slate-900 underline">
-                          {item.phone}
-                        </a>
-                      ) : (
-                        '—'
-                      )}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {me?.contactSections?.length
+        ? me.contactSections.map((section) => (
+            <section key={section.title} className="mt-10">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="font-serif text-lg font-semibold text-slate-900">{section.title}</h2>
+                <span className="text-xs text-slate-500">
+                  {section.items.length} {section.items.length === 1 ? 'persona' : 'personas'}
+                </span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {section.items.map((item, idx) => {
+                  const initials = (() => {
+                    const n = (item.fullName || '?').trim();
+                    const parts = n.split(/\s+/).filter(Boolean);
+                    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                    return n.slice(0, 2).toUpperCase();
+                  })();
+                  const cleanPhone = item.phone?.replace(/\s/g, '');
+                  return (
+                    <article
+                      key={`${item.fullName}-${idx}`}
+                      className="flex gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow"
+                    >
+                      <div
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white"
+                        aria-hidden
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-slate-900">{item.fullName}</p>
+                        {item.subtitle ? (
+                          <p className="mt-0.5 truncate text-xs text-slate-500">{item.subtitle}</p>
+                        ) : null}
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                          {cleanPhone ? (
+                            <a
+                              href={`tel:${cleanPhone}`}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-800 transition hover:border-slate-300 hover:bg-white"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="h-3.5 w-3.5"
+                                aria-hidden
+                              >
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+                              </svg>
+                              {item.phone}
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400">Sin celular registrado</span>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))
+        : null}
 
       {qrValue && (
-        <div className="mt-10 rounded border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mt-10 max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="font-serif text-lg font-semibold text-slate-900">Mi código QR</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
             Muestre este código al personal del plantel para registrar su ingreso o salida. Si la pantalla es pequeña,

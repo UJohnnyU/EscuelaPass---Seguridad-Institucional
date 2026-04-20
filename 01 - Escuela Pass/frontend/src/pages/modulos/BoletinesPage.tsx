@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
-import { isPlatformAdmin } from '@/lib/roles';
+import { hasRole, isPlatformAdmin } from '@/lib/roles';
+import { SmartSelect, type SmartSelectOption } from '@/components/SmartSelect';
 
 type ReportCardType = 'PERIOD' | 'FINAL';
 type ReportCardStatus = 'DRAFT' | 'PUBLISHED';
@@ -18,6 +19,8 @@ type ReportCardSummary = {
   type: ReportCardType;
   periodId: string | null;
   periodName: string | null;
+  groupId: string | null;
+  groupName: string | null;
   overallAverage: string;
   failedSubjectsCount: number;
   promotionStatus: PromotionStatus | null;
@@ -41,18 +44,48 @@ type ReportCardDetail = ReportCardSummary & {
   }[];
 };
 
+async function downloadPdfBlob(url: string, filename: string): Promise<void> {
+  const res = await api.get<Blob>(url, { responseType: 'blob' });
+  const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'application/pdf' });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 export function BoletinesPage() {
   const { user } = useAuth();
   const role = user?.role ?? '';
   const platformAdmin = isPlatformAdmin(user);
   const isStudent = role === 'ALUMNO';
   const isParent = role === 'PADRE';
+  const isStaff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
 
   const [rows, setRows] = useState<ReportCardSummary[]>([]);
   const [selected, setSelected] = useState<ReportCardDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const handleDownloadPdf = useCallback(async (id: string, label: string) => {
+    setErr(null);
+    setDownloadingId(id);
+    try {
+      await downloadPdfBlob(
+        `/api/v1/documents/bulletin/${id}`,
+        `boletin-${label.replace(/[^A-Za-z0-9]+/g, '_')}.pdf`
+      );
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo descargar el boletín en PDF.'));
+    } finally {
+      setDownloadingId(null);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,6 +137,14 @@ export function BoletinesPage() {
         onBack={() => setSelected(null)}
         loading={loadingDetail}
         err={err}
+        downloading={downloadingId === selected.id}
+        canDownload={selected.status === 'PUBLISHED' || isStaff}
+        onDownload={() =>
+          void handleDownloadPdf(
+            selected.id,
+            `${selected.studentName || 'estudiante'}-${selected.periodName ?? selected.type}-${selected.schoolYear}`
+          )
+        }
       />
     );
   }
@@ -119,6 +160,8 @@ export function BoletinesPage() {
       </div>
 
       {err && <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>}
+
+      {isStaff && <BulkDownloadPanel rows={rows} onError={setErr} />}
 
       <div className="flex justify-end">
         <button
@@ -172,13 +215,45 @@ export function BoletinesPage() {
                         : ''}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void openDetail(r.id)}
-                    className="rounded border border-brand-800 bg-white px-3 py-1.5 text-xs font-medium text-brand-900 hover:bg-slate-50"
-                  >
-                    Ver detalle
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void openDetail(r.id)}
+                      className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                    >
+                      Ver detalle
+                    </button>
+                    {(r.status === 'PUBLISHED' || isStaff) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleDownloadPdf(
+                            r.id,
+                            `${r.studentName || 'estudiante'}-${r.periodName ?? r.type}-${r.schoolYear}`
+                          )
+                        }
+                        disabled={downloadingId === r.id}
+                        className="inline-flex items-center gap-1.5 rounded bg-brand-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                          aria-hidden
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        {downloadingId === r.id ? 'Descargando…' : 'Descargar PDF'}
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -193,25 +268,58 @@ function ReportCardDetailView({
   detail,
   onBack,
   loading,
-  err
+  err,
+  canDownload,
+  downloading,
+  onDownload
 }: {
   detail: ReportCardDetail;
   onBack: () => void;
   loading: boolean;
   err: string | null;
+  canDownload: boolean;
+  downloading: boolean;
+  onDownload: () => void;
 }) {
   const passingGrade = Number(detail.passingGrade);
   const scale = Number(detail.maxGradeScale);
 
   return (
     <div className="max-w-4xl animate-fade-in space-y-6">
-      <button
-        type="button"
-        onClick={onBack}
-        className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-      >
-        ← Volver a boletines
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+        >
+          ← Volver a boletines
+        </button>
+        {canDownload && (
+          <button
+            type="button"
+            onClick={onDownload}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 rounded bg-brand-900 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {downloading ? 'Descargando…' : 'Descargar PDF'}
+          </button>
+        )}
+      </div>
 
       {err && <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>}
       {loading && <p className="text-sm text-slate-500">Cargando…</p>}
@@ -331,5 +439,258 @@ function PromotionBadge({ status }: { status: PromotionStatus }) {
     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
       Aprobado con pendientes
     </span>
+  );
+}
+
+function BulkDownloadPanel({
+  rows,
+  onError
+}: {
+  rows: ReportCardSummary[];
+  onError: (msg: string | null) => void;
+}) {
+  const [scope, setScope] = useState<'STUDENT' | 'GROUP' | 'ALL'>('ALL');
+  const [schoolYear, setSchoolYear] = useState<string>('');
+  const [periodId, setPeriodId] = useState<string>('');
+  const [type, setType] = useState<'PERIOD' | 'FINAL' | ''>('');
+  const [studentId, setStudentId] = useState<string>('');
+  const [groupId, setGroupId] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (schoolYear && r.schoolYear !== schoolYear) return false;
+      if (periodId && r.periodId !== periodId) return false;
+      if (type && r.type !== type) return false;
+      return true;
+    });
+  }, [rows, schoolYear, periodId, type]);
+
+  const publishedCount = useMemo(() => {
+    return filteredRows.filter((r) => {
+      if (r.status !== 'PUBLISHED') return false;
+      if (scope === 'STUDENT' && studentId && r.studentId !== studentId) return false;
+      if (scope === 'GROUP' && groupId && r.groupId !== groupId) return false;
+      return true;
+    }).length;
+  }, [filteredRows, scope, studentId, groupId]);
+
+  const yearOptions = useMemo<SmartSelectOption[]>(() => {
+    const set = new Set<string>();
+    for (const r of rows) if (r.schoolYear) set.add(r.schoolYear);
+    return [
+      { value: '', label: 'Todos los años' },
+      ...[...set].sort().reverse().map((y) => ({ value: y, label: `Ciclo ${y}` }))
+    ];
+  }, [rows]);
+
+  const periodOptions = useMemo<SmartSelectOption[]>(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      if (r.periodId && r.periodName) {
+        const key = r.periodId;
+        const label = `${r.periodName}${r.schoolYear ? ` · ${r.schoolYear}` : ''}`;
+        if (!map.has(key)) map.set(key, label);
+      }
+    }
+    return [
+      { value: '', label: 'Todos los periodos' },
+      ...[...map.entries()].map(([value, label]) => ({ value, label }))
+    ];
+  }, [rows]);
+
+  const studentOptions = useMemo<SmartSelectOption[]>(() => {
+    const map = new Map<string, { name: string; matricula: string }>();
+    for (const r of rows) {
+      if (!map.has(r.studentId)) {
+        map.set(r.studentId, { name: r.studentName, matricula: r.matricula });
+      }
+    }
+    return [...map.entries()]
+      .map(([value, info]) => ({
+        value,
+        label: `${info.name}${info.matricula ? ` (${info.matricula})` : ''}`,
+        searchText: info.matricula
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }, [rows]);
+
+  const groupOptions = useMemo<SmartSelectOption[]>(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      if (r.groupId && r.groupName && !map.has(r.groupId)) {
+        map.set(r.groupId, r.groupName);
+      }
+    }
+    return [...map.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }, [rows]);
+
+  const handleDownload = async () => {
+    onError(null);
+    setInfo(null);
+    setBusy(true);
+    try {
+      const params: Record<string, string> = {};
+      if (schoolYear) params.schoolYear = schoolYear;
+      if (periodId) params.periodId = periodId;
+      if (type) params.type = type;
+      if (scope === 'STUDENT') {
+        if (!studentId) throw new Error('Seleccione un alumno.');
+        params.studentId = studentId;
+      } else if (scope === 'GROUP') {
+        if (!groupId) throw new Error('Seleccione un grupo.');
+        params.groupId = groupId;
+      }
+      const res = await api.get<Blob>('/api/v1/documents/bulletins/bulk', {
+        params,
+        responseType: 'blob'
+      });
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'application/pdf' });
+      const count = Number(res.headers['x-bulletin-count'] ?? '0') || 0;
+      const fileLabel =
+        scope === 'STUDENT'
+          ? 'alumno'
+          : scope === 'GROUP'
+            ? 'grupo'
+            : 'plantel';
+      const filenameParts = ['boletines', fileLabel];
+      if (type) filenameParts.push(type === 'FINAL' ? 'finales' : 'periodo');
+      if (schoolYear) filenameParts.push(schoolYear);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${filenameParts.join('-')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setInfo(`Se descargaron ${count} boletín${count === 1 ? '' : 'es'} en un solo PDF.`);
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : getUserFacingMessage(e, 'No se pudo generar la descarga.');
+      onError(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Descarga masiva</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Descargue los boletines publicados de un alumno, un grupo o de toda la escuela. Se entrega un único PDF
+            con un boletín por página.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="block text-sm">
+          <span className="text-slate-700">Alcance</span>
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value as 'STUDENT' | 'GROUP' | 'ALL')}
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="ALL">Todos los alumnos</option>
+            <option value="GROUP">Un grupo</option>
+            <option value="STUDENT">Un alumno</option>
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className="text-slate-700">Año escolar</span>
+          <div className="mt-1">
+            <SmartSelect options={yearOptions} value={schoolYear} onChange={setSchoolYear} />
+          </div>
+        </label>
+        <label className="block text-sm">
+          <span className="text-slate-700">Periodo</span>
+          <div className="mt-1">
+            <SmartSelect options={periodOptions} value={periodId} onChange={setPeriodId} />
+          </div>
+        </label>
+        <label className="block text-sm">
+          <span className="text-slate-700">Tipo</span>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as 'PERIOD' | 'FINAL' | '')}
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">Periodo y final</option>
+            <option value="PERIOD">Solo de periodo</option>
+            <option value="FINAL">Solo finales</option>
+          </select>
+        </label>
+
+        {scope === 'STUDENT' && (
+          <label className="block text-sm sm:col-span-2 lg:col-span-2">
+            <span className="text-slate-700">Alumno</span>
+            <div className="mt-1">
+              <SmartSelect
+                options={studentOptions}
+                value={studentId}
+                onChange={setStudentId}
+                placeholder="— Buscar alumno —"
+                emptyLabel="No hay alumnos en los boletines listados"
+              />
+            </div>
+          </label>
+        )}
+        {scope === 'GROUP' && (
+          <label className="block text-sm sm:col-span-2 lg:col-span-2">
+            <span className="text-slate-700">Grupo</span>
+            <div className="mt-1">
+              <SmartSelect
+                options={groupOptions}
+                value={groupId}
+                onChange={setGroupId}
+                placeholder="— Buscar grupo —"
+                emptyLabel="No hay grupos en los boletines listados"
+              />
+            </div>
+          </label>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-slate-500">
+        {publishedCount > 0
+          ? `Se incluirán ${publishedCount} boletín${publishedCount === 1 ? '' : 'es'} publicados con los filtros actuales.`
+          : 'No hay boletines publicados que coincidan con los filtros seleccionados.'}
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void handleDownload()}
+          disabled={busy || publishedCount === 0}
+          className="inline-flex items-center gap-2 rounded bg-brand-900 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+            aria-hidden
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          {busy ? 'Generando…' : 'Descargar boletines en PDF'}
+        </button>
+        {info && <p className="text-sm text-emerald-700">{info}</p>}
+      </div>
+    </section>
   );
 }

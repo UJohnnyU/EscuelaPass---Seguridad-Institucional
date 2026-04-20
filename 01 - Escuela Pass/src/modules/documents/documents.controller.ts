@@ -3,11 +3,13 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Query,
   Req,
   Res,
   UseGuards
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { ReportCardType } from '../../database/entities/report-card.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -42,6 +44,37 @@ export class DocumentsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="boletin-${reportCardId}.pdf"`);
     res.end(buf);
+  }
+
+  @Get('bulletins/bulk')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  async bulletinsBulkPdf(
+    @Req() req: Request & { user: JwtUser },
+    @Res() res: Response,
+    @Query('schoolId') schoolId?: string,
+    @Query('schoolYear') schoolYear?: string,
+    @Query('periodId') periodId?: string,
+    @Query('type') type?: string,
+    @Query('studentId') studentId?: string,
+    @Query('groupId') groupId?: string
+  ) {
+    const t = type === 'PERIOD' || type === 'FINAL' ? (type as ReportCardType) : null;
+    const result = await this.documentsService.buildBulletinsBulkPdf(
+      req.user.userId,
+      req.user.role,
+      {
+        schoolId: schoolId?.trim() || null,
+        schoolYear: schoolYear?.trim() || null,
+        periodId: periodId?.trim() || null,
+        type: t,
+        studentId: studentId?.trim() || null,
+        groupId: groupId?.trim() || null
+      }
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('X-Bulletin-Count', String(result.count));
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.end(result.buffer);
   }
 
   @Get('schedule/group/:groupId')

@@ -101,14 +101,59 @@ export class PaymentsService {
   async listMyDebtsAsParent(userId: string) {
     const parent = await this.parentsRepository.findOne({ where: { userId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
-    return this.debtsRepository
+    const rows = await this.debtsRepository
       .createQueryBuilder('d')
       .innerJoin('students', 's', 's.id = d.student_id')
+      .innerJoin('users', 'su', 'su.id = s.user_id')
+      .innerJoin('payment_concepts', 'pc', 'pc.id = d.concept_id')
       .innerJoin('student_parents', 'sp', 'sp.student_id = s.id AND sp.parent_id = :pid', {
         pid: parent.id
       })
+      .select([
+        'd.id AS id',
+        'd.student_id AS "studentId"',
+        'su.full_name AS "studentName"',
+        'd.concept_id AS "conceptId"',
+        'pc.name AS "conceptName"',
+        'pc.description AS "conceptDescription"',
+        'd.amount::text AS amount',
+        'd.due_date AS "dueDate"',
+        'd.status AS status',
+        'd.description AS description',
+        'd.voucher_path AS "voucherPath"',
+        'd.uploaded_at AS "uploadedAt"',
+        'd.verified_at AS "verifiedAt"',
+        'd.notes AS notes',
+        'd.created_at AS "createdAt"'
+      ])
       .orderBy('d.due_date', 'ASC')
-      .getMany();
+      .getRawMany<{
+        id: string;
+        studentId: string;
+        studentName: string;
+        conceptId: string;
+        conceptName: string;
+        conceptDescription: string | null;
+        amount: string;
+        dueDate: string;
+        status: PaymentStatus;
+        description: string | null;
+        voucherPath: string | null;
+        uploadedAt: Date | null;
+        verifiedAt: Date | null;
+        notes: string | null;
+        createdAt: Date;
+      }>();
+    return rows.map((r) => ({
+      ...r,
+      dueDate:
+        typeof r.dueDate === 'string'
+          ? r.dueDate.slice(0, 10)
+          : new Date(r.dueDate as unknown as Date).toISOString().slice(0, 10),
+      uploadedAt: r.uploadedAt ? new Date(r.uploadedAt).toISOString() : null,
+      verifiedAt: r.verifiedAt ? new Date(r.verifiedAt).toISOString() : null,
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null
+    }));
   }
 
   async listDebtsForAdmin(

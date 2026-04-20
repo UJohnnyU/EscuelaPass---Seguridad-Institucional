@@ -7,6 +7,17 @@ import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { Panel, ValueView } from '@/components/ValueView';
 import {
+  AttendanceChildrenView,
+  AttentionNotesList,
+  DebtsList,
+  MeetingsList,
+  NoticesList,
+  NonInstructionalDaysList,
+  NotificationsList,
+  PaymentConceptsList,
+  VehiclesList
+} from '@/components/modulos/InfoCards';
+import {
   buildWeekDays,
   WeekScheduleEvent,
   WeekScheduleGrid
@@ -239,7 +250,7 @@ export function ComunicacionPage() {
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
       <Panel title="Mis notificaciones" description="Avisos que la escuela le ha enviado.">
-        <ValueView data={notifications} />
+        <NotificationsList data={notifications} />
       </Panel>
       {staff && (
         <>
@@ -355,7 +366,7 @@ export function ComunicacionPage() {
             {msg && <p className="mt-3 text-sm text-emerald-700">{msg}</p>}
           </Panel>
           <Panel title="Comunicados publicados" description="Los últimos avisos que ha publicado la escuela.">
-            <ValueView data={notices} />
+            <NoticesList data={notices} />
           </Panel>
         </>
       )}
@@ -415,13 +426,19 @@ export function FinanzasPage() {
         </div>
       )}
       {!admin && (
-        <Panel title="Conceptos de cobro">
-          <ValueView data={concepts} />
+        <Panel
+          title="Conceptos de cobro"
+          description="Estos son los pagos vigentes que ha publicado la escuela."
+        >
+          <PaymentConceptsList data={concepts} />
         </Panel>
       )}
       {padre && (
-        <Panel title="Mis pagos pendientes">
-          <ValueView data={debts} />
+        <Panel
+          title="Mis pagos pendientes"
+          description="Vea aquí lo que debe pagar y cuándo vence cada cobro."
+        >
+          <DebtsList data={debts} />
         </Panel>
       )}
     </div>
@@ -637,7 +654,10 @@ export function AcademicoPage() {
   if (!ready) {
     return <p className="text-slate-600">Cargando…</p>;
   }
-  if (user && !padre && !alumno && !verAsistenciaGrupos) {
+  if (user && alumno) {
+    return <Navigate to="/app/modulos/mis-calificaciones" replace />;
+  }
+  if (user && !padre && !verAsistenciaGrupos) {
     return <Navigate to="/app" replace />;
   }
 
@@ -720,8 +740,11 @@ export function AcademicoPage() {
       )}
       {padre ? (
         <>
-          <Panel title="Asistencia de sus hijos">
-            <ValueView data={att} />
+          <Panel
+            title="Asistencia de sus hijos"
+            description="Resumen de asistencia y los últimos registros publicados por la escuela."
+          >
+            <AttendanceChildrenView data={att} />
           </Panel>
           <Panel
             title="Calificaciones de sus hijos"
@@ -792,20 +815,33 @@ export function AcademicoPage() {
               </div>
             )}
           </Panel>
-          <Panel title="Eventos y días sin clases (de la semana)">
-            <ValueView data={childrenCalendar} />
+          <Panel
+            title="Eventos y días sin clases (de la semana)"
+            description="Días en los que la escuela suspende clases para sus hijos."
+          >
+            <NonInstructionalDaysList data={childrenCalendar} />
           </Panel>
-          <Panel title="Avisos enviados a sus hijos">
-            <ValueView data={childrenNotifications} />
+          <Panel
+            title="Avisos enviados a sus hijos"
+            description="Notificaciones que la escuela envió directamente a sus hijos."
+          >
+            <NotificationsList
+              data={childrenNotifications}
+              emptyTitle="Sus hijos no tienen avisos recientes"
+              emptyHint="Aquí aparecerán los avisos que la escuela les envíe."
+            />
           </Panel>
-          <Panel title="Llamados de atención y anotaciones de sus hijos">
-            <ValueView data={attentionNotes} />
+          <Panel
+            title="Llamados de atención y anotaciones"
+            description="Observaciones registradas por docentes sobre sus hijos."
+          >
+            <AttentionNotesList data={attentionNotes} />
           </Panel>
-          <Panel title="Sus avisos personales">
-            <ValueView data={myNotifications} />
+          <Panel title="Sus avisos personales" description="Notificaciones dirigidas a usted.">
+            <NotificationsList data={myNotifications} />
           </Panel>
-          <Panel title="Reuniones con docentes">
-            <ValueView data={meetings} />
+          <Panel title="Reuniones con docentes" description="Citas confirmadas o solicitudes de reunión.">
+            <MeetingsList data={meetings} />
           </Panel>
         </>
       ) : alumno ? (
@@ -1233,7 +1269,7 @@ export function AdministracionPage() {
       )}
       {administrativo && !admin ? (
         <Panel title="Días sin clases de su escuela">
-          <ValueView data={calendar} />
+          <NonInstructionalDaysList data={calendar} />
           <p className="mt-3 text-sm text-slate-600">
             Para marcar o quitar días sin clases abra <strong>Horarios</strong> en el menú.
           </p>
@@ -1368,7 +1404,7 @@ export function HerramientasPage() {
           {errVehicles && (
             <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errVehicles}</div>
           )}
-          <ValueView data={vehicles} />
+          <VehiclesList data={vehicles} />
         </Panel>
       )}
       {docente && (

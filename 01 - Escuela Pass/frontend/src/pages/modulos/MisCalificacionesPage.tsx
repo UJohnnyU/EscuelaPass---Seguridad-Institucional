@@ -161,27 +161,37 @@ export function MisCalificacionesPage() {
               closedScored.length > 0
                 ? closedScored.reduce((acc, r) => {
                     const score = Number(r.myScore);
-                    const max = Number(r.maxScore);
-                    if (!Number.isFinite(score) || !Number.isFinite(max) || max <= 0) return acc;
-                    return acc + (score / max) * 100;
+                    if (!Number.isFinite(score)) return acc;
+                    return acc + score;
                   }, 0) / closedScored.length
                 : null;
+            const maxScale = g.items.reduce(
+              (acc, r) => Math.max(acc, Number(r.maxScore) || 0),
+              0
+            );
             return (
               <div
                 key={g.subjectName}
-                className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
+                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
               >
-                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
                   <h3 className="text-sm font-semibold text-slate-800">{g.subjectName}</h3>
                   {avg !== null && (
                     <p className="text-xs text-slate-600">
-                      Promedio parcial: <span className="font-semibold text-slate-900">{avg.toFixed(2)}%</span>
+                      Promedio:{' '}
+                      <span className="font-semibold text-slate-900">{avg.toFixed(2)}</span>
+                      {maxScale > 0 ? (
+                        <span className="text-slate-500"> / {maxScale.toFixed(2)}</span>
+                      ) : null}
                     </p>
                   )}
                 </div>
                 <ul className="divide-y divide-slate-100">
                   {g.items.map((r) => (
-                    <li key={r.id + (r.studentId ?? '')} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                    <li
+                      key={r.id + (r.studentId ?? '')}
+                      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                    >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-sm font-medium text-slate-900">{r.title}</p>
@@ -209,11 +219,6 @@ export function MisCalificacionesPage() {
                             / {parseFloat(r.maxScore)}
                           </span>
                         </p>
-                        {r.myScore != null && Number(r.maxScore) > 0 && (
-                          <p className="text-[11px] text-slate-500">
-                            {((Number(r.myScore) / Number(r.maxScore)) * 100).toFixed(2)}%
-                          </p>
-                        )}
                       </div>
                     </li>
                   ))}

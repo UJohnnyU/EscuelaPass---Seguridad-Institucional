@@ -32,6 +32,8 @@ export type ReportCardSummary = {
   type: ReportCardType;
   periodId: string | null;
   periodName: string | null;
+  groupId: string | null;
+  groupName: string | null;
   overallAverage: string;
   failedSubjectsCount: number;
   promotionStatus: PromotionStatus | null;
@@ -104,7 +106,7 @@ export class ReportCardsService {
           subject_name: string;
           activity_count: string;
           graded_count: string;
-          avg_pct: string;
+          avg_score: string | null;
         }[]
       >(
         `SELECT
@@ -118,12 +120,12 @@ export class ReportCardsService {
              WHEN SUM(CASE WHEN a.status = 'CLOSED' THEN 1 ELSE 0 END) = 0 THEN NULL
              ELSE AVG(
                CASE
-                 WHEN a.status = 'CLOSED' AND a.max_score > 0
-                   THEN (COALESCE(ag.score, 0) / a.max_score) * 100.0
+                 WHEN a.status = 'CLOSED'
+                   THEN COALESCE(ag.score, 0)
                  ELSE NULL
                END
              )::text
-           END AS avg_pct
+           END AS avg_score
          FROM activities a
          INNER JOIN groups g ON g.id = a.group_id
          INNER JOIN students st ON st.group_id = g.id
@@ -135,10 +137,10 @@ export class ReportCardsService {
 
       const byStudent = new Map<
         string,
-        { groupId: string; subjects: Map<string, { name: string; avgPct: number | null; activities: number; graded: number }> }
+        { groupId: string; subjects: Map<string, { name: string; avg: number | null; activities: number; graded: number }> }
       >();
       for (const row of studentsRaw) {
-        const avgPct = row.avg_pct !== null ? Number(row.avg_pct) : null;
+        const avg = row.avg_score !== null ? Number(row.avg_score) : null;
         const stEntry =
           byStudent.get(row.student_id) ?? {
             groupId: row.group_id,
@@ -146,7 +148,7 @@ export class ReportCardsService {
           };
         stEntry.subjects.set(row.subject_id, {
           name: row.subject_name,
-          avgPct,
+          avg,
           activities: Number(row.activity_count) || 0,
           graded: Number(row.graded_count) || 0
         });
@@ -155,7 +157,6 @@ export class ReportCardsService {
 
       const rcRepo = em.getRepository(ReportCardEntity);
       const rcsRepo = em.getRepository(ReportCardSubjectEntity);
-      const scale = Number(school.maxGradeScale) || 100;
       const now = new Date();
 
       let generated = 0;
@@ -188,19 +189,18 @@ export class ReportCardsService {
         let failedCount = 0;
         const subjectRows: ReportCardSubjectEntity[] = [];
         for (const [subjectId, s] of data.subjects) {
-          const scaled =
-            s.avgPct !== null ? Math.round(((s.avgPct / 100) * scale) * 100) / 100 : 0;
-          const isPassing = s.avgPct !== null && scaled >= passingGrade - 1e-9;
+          const avg = s.avg !== null ? Math.round(s.avg * 100) / 100 : 0;
+          const isPassing = s.avg !== null && avg >= passingGrade - 1e-9;
           if (!isPassing) failedCount += 1;
-          if (s.avgPct !== null) {
-            sumAvg += scaled;
+          if (s.avg !== null) {
+            sumAvg += avg;
             countAvg += 1;
           }
           subjectRows.push(
             rcsRepo.create({
               subjectId,
               subjectName: s.name,
-              average: scaled.toFixed(2),
+              average: avg.toFixed(2),
               activityCount: s.activities,
               gradedCount: s.graded,
               isPassing
@@ -516,6 +516,7 @@ export class ReportCardsService {
       .leftJoin('academic_periods', 'ap', 'ap.id = rc.period_id')
       .leftJoin('students', 'st', 'st.id = rc.student_id')
       .leftJoin('users', 'u', 'u.id = st.user_id')
+      .leftJoin('groups', 'g', 'g.id = st.group_id')
       .select([
         'rc.id AS rc_id',
         'rc.student_id AS student_id',
@@ -526,6 +527,8 @@ export class ReportCardsService {
         'rc.type AS type',
         'rc.period_id AS period_id',
         'ap.name AS period_name',
+        'st.group_id AS group_id',
+        'g.name AS group_name',
         'rc.overall_average::text AS overall_average',
         'rc.failed_subjects_count AS failed_subjects_count',
         'rc.promotion_status AS promotion_status',
@@ -545,6 +548,8 @@ export class ReportCardsService {
     type: r.type,
     periodId: r.period_id,
     periodName: r.period_name,
+    groupId: r.group_id ?? null,
+    groupName: r.group_name ?? null,
     overallAverage: String(r.overall_average ?? '0.00'),
     failedSubjectsCount: Number(r.failed_subjects_count) || 0,
     promotionStatus: r.promotion_status,
@@ -596,9 +601,13 @@ export class ReportCardsService {
       order: { subjectName: 'ASC' }
     });
 
-    const meta = await this.dataSource.query<{ full_name: string | null; matricula: string | null }[]>(
-      `SELECT u.full_name, st.matricula
-       FROM students st LEFT JOIN users u ON u.id = st.user_id
+    const meta = await this.dataSource.query<
+      { full_name: string | null; matricula: string | null; group_id: string | null; group_name: string | null }[]
+    >(
+      `SELECT u.full_name, st.matricula, st.group_id, g.name AS group_name
+       FROM students st
+       LEFT JOIN users u ON u.id = st.user_id
+       LEFT JOIN groups g ON g.id = st.group_id
        WHERE st.id = $1 LIMIT 1`,
       [card.studentId]
     );
@@ -613,6 +622,8 @@ export class ReportCardsService {
       type: card.type,
       periodId: card.periodId,
       periodName: period?.name ?? null,
+      groupId: meta[0]?.group_id ?? null,
+      groupName: meta[0]?.group_name ?? null,
       overallAverage: card.overallAverage,
       failedSubjectsCount: card.failedSubjectsCount,
       promotionStatus: card.promotionStatus,

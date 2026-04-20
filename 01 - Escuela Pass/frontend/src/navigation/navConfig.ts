@@ -12,7 +12,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { to: '/app/modulos/finanzas', label: 'Finanzas', roles: null },
   { to: '/app/modulos/visitas', label: 'Visitas externas', roles: null },
   { to: '/app/modulos/reuniones', label: 'Reuniones', roles: null },
-  { to: '/app/modulos/academico', label: 'Académico', roles: ['ALUMNO', 'PADRE', 'DOCENTE', 'ADMINISTRATIVO'] },
+  { to: '/app/modulos/academico', label: 'Académico', roles: ['PADRE', 'DOCENTE', 'ADMINISTRATIVO'] },
   { to: '/app/modulos/periodos-academicos', label: 'Periodos académicos', roles: ['ADMIN', 'ADMINISTRATIVO'] },
   { to: '/app/modulos/calificaciones-docente', label: 'Actividades y notas', roles: ['DOCENTE', 'ADMIN', 'ADMINISTRATIVO'] },
   { to: '/app/modulos/mis-calificaciones', label: 'Mis calificaciones', roles: ['ALUMNO', 'PADRE'] },
