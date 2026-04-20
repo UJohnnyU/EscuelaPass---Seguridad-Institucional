@@ -8,6 +8,7 @@ import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { Panel, ValueView } from '@/components/ValueView';
 import {
   AttendanceChildrenView,
+  ParentExcuseForm,
   AttentionNotesList,
   DebtsList,
   MeetingsList,
@@ -139,6 +140,13 @@ export function ComunicacionPage() {
   const { user } = useAuth();
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
   const canManageSchoolWideNotices = hasRole(user, 'ADMIN', 'ADMINISTRATIVO');
+  const isTeacherOnly = user?.role === 'DOCENTE';
+
+  useEffect(() => {
+    if (isTeacherOnly && targetMode === 'ROLE') {
+      setTargetMode('GROUP');
+    }
+  }, [isTeacherOnly, targetMode]);
 
   const loadGroupOptions = useCallback(async (q: string, signal: AbortSignal) => {
     const { data } = await api.get<SchoolGroupRow[]>('/api/v1/school/groups', {
@@ -179,6 +187,40 @@ export function ComunicacionPage() {
     return out;
   }, []);
 
+  const loadTeacherGroupOptions = useCallback(async (q: string, signal: AbortSignal) => {
+    const { data } = await api.get<TeacherGroupRow[]>('/api/v1/notices/teacher/groups', { signal });
+    const rows = Array.isArray(data) ? data : [];
+    const ql = q.trim().toLowerCase();
+    return rows
+      .filter((g) => {
+        if (!ql) return true;
+        const label = `${g.name} ${g.grade ?? ''} ${g.schoolYear}`.toLowerCase();
+        return label.includes(ql);
+      })
+      .map(
+        (g): SmartSelectOption => ({
+          value: g.id,
+          label: `${g.name}${g.grade ? ` (${g.grade})` : ''} · ${g.schoolYear}`
+        })
+      );
+  }, []);
+
+  const loadTeacherNoticeTargets = useCallback(async (q: string, signal: AbortSignal) => {
+    const { data } = await api.get<
+      Array<{ userId: string; fullName: string; email: string; kind: string }>
+    >('/api/v1/notices/teacher/target-users', {
+      params: q.trim() ? { q: q.trim() } : {},
+      signal
+    });
+    const rows = Array.isArray(data) ? data : [];
+    return rows.map(
+      (x): SmartSelectOption => ({
+        value: x.userId,
+        label: `${x.fullName} — ${x.kind === 'PADRE' ? 'Padre/tutor' : 'Alumno'} (${x.email})`
+      })
+    );
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -201,10 +243,23 @@ export function ComunicacionPage() {
 
   async function onCreateNotice(e: FormEvent) {
     e.preventDefault();
-    if (!staff || !canManageSchoolWideNotices) return;
+    if (!staff) return;
+    if (!canManageSchoolWideNotices && targetMode === 'ROLE') return;
     setSaving(true);
     setErr(null);
     setMsg(null);
+    if (isTeacherOnly) {
+      if (targetMode === 'GROUP' && !targetGroupId) {
+        setErr('Seleccione el grupo al que desea enviar el aviso.');
+        setSaving(false);
+        return;
+      }
+      if (targetMode === 'USER' && !targetUserId) {
+        setErr('Seleccione la persona destinataria.');
+        setSaving(false);
+        return;
+      }
+    }
     try {
       const payload: Record<string, unknown> = {
         title: title.trim(),
@@ -256,12 +311,15 @@ export function ComunicacionPage() {
         <>
           <Panel
             title="Publicar un aviso"
-            description="Envíelo a toda la comunidad, a un grupo o a una persona específica."
+            description={
+              canManageSchoolWideNotices
+                ? 'Envíelo a toda la comunidad, a un grupo o a una persona específica.'
+                : 'Envíelo a uno de sus grupos o a una persona específica.'
+            }
           >
-            {canManageSchoolWideNotices ? (
-              <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
+            <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
               <label className="text-sm sm:col-span-2">
-                <span className="text-slate-700">Título</span>
+                <span className="mb-1 block font-medium text-slate-700">Título</span>
                 <input
                   required
                   maxLength={255}
@@ -271,7 +329,7 @@ export function ComunicacionPage() {
                 />
               </label>
               <label className="text-sm sm:col-span-2">
-                <span className="text-slate-700">Contenido</span>
+                <span className="mb-1 block font-medium text-slate-700">Contenido</span>
                 <textarea
                   required
                   rows={4}
@@ -283,7 +341,7 @@ export function ComunicacionPage() {
               {canManageSchoolWideNotices ? (
                 <>
                   <label className="text-sm">
-                    <span className="text-slate-700">Tipo de destino</span>
+                    <span className="mb-1 block font-medium text-slate-700">Tipo de destino</span>
                     <select
                       className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
                       value={targetMode}
@@ -296,7 +354,7 @@ export function ComunicacionPage() {
                   </label>
                   {targetMode === 'ROLE' && (
                     <label className="text-sm">
-                      <span className="text-slate-700">Audiencia</span>
+                      <span className="mb-1 block font-medium text-slate-700">Audiencia</span>
                       <select
                         className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
                         value={audience}
@@ -313,8 +371,8 @@ export function ComunicacionPage() {
                     </label>
                   )}
                   {targetMode === 'GROUP' && (
-                    <label className="text-sm">
-                      <span className="text-slate-700">Grupo</span>
+                    <label className="text-sm sm:col-span-2">
+                      <span className="mb-1 block font-medium text-slate-700">Grupo</span>
                       <div className="mt-1">
                         <SmartSelect
                           loadOptions={loadGroupOptions}
@@ -326,8 +384,8 @@ export function ComunicacionPage() {
                     </label>
                   )}
                   {targetMode === 'USER' && (
-                    <label className="text-sm">
-                      <span className="text-slate-700">Usuario</span>
+                    <label className="text-sm sm:col-span-2">
+                      <span className="mb-1 block font-medium text-slate-700">Usuario</span>
                       <div className="mt-1">
                         <SmartSelect
                           loadOptions={loadNoticeTargetUsers}
@@ -339,12 +397,48 @@ export function ComunicacionPage() {
                     </label>
                   )}
                 </>
-              ) : (
-                <p className="text-sm text-slate-600 sm:col-span-2">
-                  Solo la administración del plantel puede elegir el grupo o la persona destinataria.
-                </p>
-              )}
-              <label className="mt-6 flex items-center gap-2 text-sm">
+              ) : isTeacherOnly ? (
+                <>
+                  <label className="text-sm sm:col-span-2">
+                    <span className="mb-1 block font-medium text-slate-700">Destinatarios</span>
+                    <select
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      value={targetMode}
+                      onChange={(e) => setTargetMode(e.target.value as 'ROLE' | 'GROUP' | 'USER')}
+                    >
+                      <option value="GROUP">Todo un grupo suyo</option>
+                      <option value="USER">Una persona (alumno o padre de sus grupos)</option>
+                    </select>
+                  </label>
+                  {targetMode === 'GROUP' && (
+                    <label className="text-sm sm:col-span-2">
+                      <span className="mb-1 block font-medium text-slate-700">Grupo</span>
+                      <div className="mt-1">
+                        <SmartSelect
+                          loadOptions={loadTeacherGroupOptions}
+                          value={targetGroupId}
+                          onChange={setTargetGroupId}
+                          placeholder="— Elegir grupo —"
+                        />
+                      </div>
+                    </label>
+                  )}
+                  {targetMode === 'USER' && (
+                    <label className="text-sm sm:col-span-2">
+                      <span className="mb-1 block font-medium text-slate-700">Persona</span>
+                      <div className="mt-1">
+                        <SmartSelect
+                          loadOptions={loadTeacherNoticeTargets}
+                          value={targetUserId}
+                          onChange={setTargetUserId}
+                          placeholder="Buscar por nombre o correo…"
+                        />
+                      </div>
+                    </label>
+                  )}
+                </>
+              ) : null}
+              <label className="mt-6 flex items-center gap-2 text-sm sm:col-span-2">
                 <input type="checkbox" checked={important} onChange={(e) => setImportant(e.target.checked)} />
                 Marcar como importante
               </label>
@@ -357,15 +451,17 @@ export function ComunicacionPage() {
                   Enviar aviso
                 </button>
               </div>
-              </form>
-            ) : (
-              <p className="text-sm text-slate-600">
-                Esta función está reservada para la administración del plantel.
-              </p>
-            )}
+            </form>
             {msg && <p className="mt-3 text-sm text-emerald-700">{msg}</p>}
           </Panel>
-          <Panel title="Comunicados publicados" description="Los últimos avisos que ha publicado la escuela.">
+          <Panel
+            title="Comunicados publicados"
+            description={
+              isTeacherOnly
+                ? 'Los últimos avisos que usted ha publicado para sus grupos.'
+                : 'Comunicados y avisos recientes de la institución.'
+            }
+          >
             <NoticesList data={notices} />
           </Panel>
         </>
@@ -501,6 +597,7 @@ export function AcademicoPage() {
   const [docenteCalSaving, setDocenteCalSaving] = useState(false);
   const [docenteCalRemoving, setDocenteCalRemoving] = useState<string | null>(null);
   const [pendingDocenteCalRemoval, setPendingDocenteCalRemoval] = useState<{ id: string; label: string } | null>(null);
+  const [consentByStudent, setConsentByStudent] = useState<Record<string, boolean>>({});
   const { user, ready } = useAuth();
   const padre = user?.role === 'PADRE';
   const alumno = user?.role === 'ALUMNO';
@@ -529,6 +626,30 @@ export function AcademicoPage() {
     }
     return opts;
   }, [teacherAttendance?.students]);
+
+  const parentExcuseStudents = useMemo(() => {
+    if (!att || typeof att !== 'object') return [] as Array<{ studentId: string; studentName?: string; matricula?: string }>;
+    const c = (att as { children?: unknown }).children;
+    if (!Array.isArray(c)) return [];
+    return c.map((ch) => {
+      const row = ch as { studentId: string; studentName?: string; matricula?: string };
+      return {
+        studentId: row.studentId,
+        studentName: row.studentName,
+        matricula: row.matricula
+      };
+    });
+  }, [att]);
+
+  const reloadParentAttendance = useCallback(async () => {
+    if (!padre) return;
+    try {
+      const a = await api.get('/api/v1/attendance/parent/my-children');
+      setAtt(a.data);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    }
+  }, [padre]);
 
   useEffect(() => {
     let cancelled = false;
@@ -629,6 +750,33 @@ export function AcademicoPage() {
     }
     void loadTeacherAttendance(selectedTeacherGroupId);
   }, [verAsistenciaGrupos, selectedTeacherGroupId, loadTeacherAttendance]);
+
+  useEffect(() => {
+    if (!verAsistenciaGrupos || !selectedTeacherGroupId || !teacherAttendance || teacherAttendance.view !== 'day') {
+      setConsentByStudent({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<Array<{ studentId: string; autonomous: boolean }>>(
+          `/api/v1/departure-consent/staff/group/${selectedTeacherGroupId}?date=${encodeURIComponent(teacherAttendance.date)}`
+        );
+        if (!cancelled) {
+          const m: Record<string, boolean> = {};
+          for (const r of data ?? []) {
+            if (r.autonomous) m[r.studentId] = true;
+          }
+          setConsentByStudent(m);
+        }
+      } catch {
+        if (!cancelled) setConsentByStudent({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [verAsistenciaGrupos, selectedTeacherGroupId, teacherAttendance]);
 
   const loadDocenteGroupCal = useCallback(async () => {
     if (!docente || !selectedTeacherGroupId) {
@@ -745,6 +893,12 @@ export function AcademicoPage() {
             description="Resumen de asistencia y los últimos registros publicados por la escuela."
           >
             <AttendanceChildrenView data={att} />
+          </Panel>
+          <Panel
+            title="Excusa de ausencia"
+            description="Registre una ausencia con motivo y, si lo desea, adjunte un comprobante (PDF o imagen). Si ya hay asistencia marcada como presente o retardo ese día, deberá coordinar con secretaría."
+          >
+            <ParentExcuseForm students={parentExcuseStudents} onSuccess={reloadParentAttendance} />
           </Panel>
           <Panel
             title="Calificaciones de sus hijos"
@@ -1018,7 +1172,14 @@ export function AcademicoPage() {
                               savingAttendanceStudentId === student.studentId;
                             return (
                               <tr key={student.studentId} className="border-b border-slate-100">
-                                <td className="px-3 py-2 text-slate-900">{student.fullName}</td>
+                                <td className="px-3 py-2 text-slate-900">
+                                  <span className="align-middle">{student.fullName}</span>
+                                  {consentByStudent[student.studentId] ? (
+                                    <span className="ml-2 inline-flex align-middle rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900">
+                                      Salida autónoma hoy
+                                    </span>
+                                  ) : null}
+                                </td>
                                 <td className="px-3 py-2 text-slate-700">{student.matricula}</td>
                                 <td className="px-3 py-2 text-slate-700">{currentLabel}</td>
                                 <td className="px-3 py-2">

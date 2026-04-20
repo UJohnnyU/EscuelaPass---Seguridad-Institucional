@@ -21,13 +21,14 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
-import { UserRole } from '../../database/entities/user.entity';
+import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateParentCircuitProgressDto } from './dto/update-parent-circuit-progress.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
 import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-signal.dto';
 import { FcmService } from '../fcm/fcm.service';
+import { DepartureConsentService } from '../departure-consent/departure-consent.service';
 import { SettingsService } from '../settings/settings.service';
 
 type DistanceResult = {
@@ -61,7 +62,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(TeacherGroupEntity)
     private readonly teacherGroupsRepository: Repository<TeacherGroupEntity>,
     private readonly fcmService: FcmService,
-    private readonly settingsService: SettingsService
+    private readonly settingsService: SettingsService,
+    private readonly departureConsentService: DepartureConsentService
   ) {}
 
   onModuleInit(): void {
@@ -158,6 +160,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     const student = await this.studentsRepository.findOne({ where: { id: payload.studentId } });
     if (!student) throw new NotFoundException('Estudiante no existe');
+    const today = new Date().toISOString().slice(0, 10);
+    if (await this.departureConsentService.hasAutonomousConsentOnDate(student.id, today)) {
+      throw new BadRequestException(
+        'Hoy tiene activo el permiso de salida autónoma para este alumno. Desactive el consentimiento en Circuito antes de iniciar una recogida con seguimiento.'
+      );
+    }
     const parent = await this.parentsRepository.findOne({
       where: { id: payload.requestedByParentId }
     });
@@ -397,13 +405,29 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
    * - ADMINISTRATIVO: solo la institución vinculada a su usuario.
    * - DOCENTE: solo alumnos de grupos donde tiene asignación.
    */
-  async findToday(userId: string, role: UserRole, schoolIdParam?: string | null) {
+  async findToday(
+    userId: string,
+    role: UserRole,
+    schoolIdParam?: string | null,
+    searchQ?: string | null,
+    limitStr?: string | null
+  ) {
     const today = new Date().toISOString().slice(0, 10);
+    const maxRows = Math.min(300, Math.max(10, Number.parseInt(limitStr ?? '120', 10) || 120));
+
     const qb = this.circuitRepository
       .createQueryBuilder('cr')
       .innerJoin(StudentEntity, 'st', 'st.id = cr.studentId')
       .innerJoin(GroupEntity, 'g', 'g.id = st.groupId')
+      .innerJoin(UserEntity, 'su', 'su.id = st.userId')
       .where('DATE(cr.request_time) = :today', { today });
+
+    const q = searchQ?.trim();
+    if (q) {
+      qb.andWhere('(su.full_name ILIKE :pat OR st.matricula ILIKE :pat)', {
+        pat: `%${q}%`
+      });
+    }
 
     if (role === UserRole.ADMIN) {
       const sid = schoolIdParam?.trim();
@@ -428,7 +452,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    return qb.orderBy('cr.request_time', 'DESC').getMany();
+    return qb.orderBy('cr.request_time', 'DESC').take(maxRows).getMany();
   }
 
   private isUuid(value: string): boolean {

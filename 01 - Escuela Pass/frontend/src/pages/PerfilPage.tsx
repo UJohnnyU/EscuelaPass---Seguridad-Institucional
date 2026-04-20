@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '@/lib/api';
@@ -33,6 +34,12 @@ export function PerfilPage() {
   const [qrValue, setQrValue] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [contactFilters, setContactFilters] = useState<Record<string, string>>({});
+  const [contactExpanded, setContactExpanded] = useState<Record<string, boolean>>({});
+  const CONTACT_PAGE_SIZE = 12;
+  const [policyText, setPolicyText] = useState<string | null>(null);
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const [autonomousToday, setAutonomousToday] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,11 +57,44 @@ export function PerfilPage() {
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
       }
+      try {
+        const pol = await api.get<{ content?: string; version?: string }>('/api/v1/privacy/policy/latest');
+        if (!cancelled) {
+          const content = typeof pol.data?.content === 'string' ? pol.data.content : null;
+          setPolicyText(content);
+        }
+      } catch (e) {
+        if (axios.isAxiosError(e) && e.response?.status === 404) {
+          if (!cancelled) setPolicyText(null);
+        }
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const role = me?.role ?? user?.role;
+    if (role !== 'ALUMNO') {
+      setAutonomousToday(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<{ autonomousToday: boolean }>(
+          '/api/v1/departure-consent/student/me/today'
+        );
+        if (!cancelled) setAutonomousToday(!!data.autonomousToday);
+      } catch {
+        if (!cancelled) setAutonomousToday(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [me?.role, user?.role]);
 
   const initials = useMemo(() => {
     const n = (me?.fullName ?? user?.fullName ?? '?').trim();
@@ -66,7 +106,7 @@ export function PerfilPage() {
   const avatarSrc = publicAssetUrl(me?.avatarUrl ?? user?.avatarUrl ?? null);
 
   return (
-    <div className="max-w-3xl animate-fade-in">
+    <div className="mx-auto max-w-6xl animate-fade-in">
       <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi perfil</h1>
       <p className="mt-1 text-sm text-slate-600">
         Sus datos personales y, si tiene autorizado el acceso, su código QR para entrar al plantel.
@@ -75,6 +115,13 @@ export function PerfilPage() {
       {err && (
         <div className="mt-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
+
+      {(me?.role ?? user?.role) === 'ALUMNO' && autonomousToday === true ? (
+        <div className="mt-6 max-w-xl rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          <strong className="font-semibold">Salida autónoma autorizada hoy.</strong>{' '}
+          Su familia registró que puede retirarse solo hoy; no requiere solicitud de circuito de recogida.
+        </div>
+      ) : null}
 
       <div className="mt-8 flex max-w-xl flex-col items-center rounded-xl border border-slate-200 bg-white p-8 shadow-sm sm:flex-row sm:items-start sm:gap-8">
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-slate-900" aria-hidden>
@@ -101,16 +148,43 @@ export function PerfilPage() {
       </div>
 
       {me?.contactSections?.length
-        ? me.contactSections.map((section) => (
+        ? me.contactSections.map((section) => {
+            const filter = (contactFilters[section.title] ?? '').trim().toLowerCase();
+            const filteredItems = filter
+              ? section.items.filter((it) =>
+                  [it.fullName, it.subtitle, it.phone]
+                    .filter(Boolean)
+                    .some((v) => String(v).toLowerCase().includes(filter))
+                )
+              : section.items;
+            const showSearch = section.items.length > 6;
+            const expanded = !!contactExpanded[section.title];
+            const shouldPaginate = !filter && filteredItems.length > CONTACT_PAGE_SIZE && !expanded;
+            const visibleItems = shouldPaginate ? filteredItems.slice(0, CONTACT_PAGE_SIZE) : filteredItems;
+            return (
             <section key={section.title} className="mt-10">
               <div className="mb-3 flex flex-wrap items-center gap-3">
                 <h2 className="font-serif text-lg font-semibold text-slate-900">{section.title}</h2>
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                   {section.items.length} {section.items.length === 1 ? 'persona' : 'personas'}
                 </span>
+                {showSearch ? (
+                  <input
+                    type="search"
+                    value={contactFilters[section.title] ?? ''}
+                    onChange={(e) =>
+                      setContactFilters((prev) => ({ ...prev, [section.title]: e.target.value }))
+                    }
+                    placeholder="Buscar por nombre, grupo o materia"
+                    className="ml-auto w-full max-w-xs rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  />
+                ) : null}
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {section.items.map((item, idx) => {
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredItems.length === 0 ? (
+                  <p className="col-span-full text-sm text-slate-500">Ningún contacto coincide con esa búsqueda.</p>
+                ) : null}
+                {visibleItems.map((item, idx) => {
                   const initials = (() => {
                     const n = (item.fullName || '?').trim();
                     const parts = n.split(/\s+/).filter(Boolean);
@@ -164,8 +238,35 @@ export function PerfilPage() {
                   );
                 })}
               </div>
+              {shouldPaginate ? (
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setContactExpanded((prev) => ({ ...prev, [section.title]: true }))
+                    }
+                    className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-500 hover:text-slate-900"
+                  >
+                    Ver todos ({filteredItems.length})
+                  </button>
+                </div>
+              ) : null}
+              {expanded && filteredItems.length > CONTACT_PAGE_SIZE ? (
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setContactExpanded((prev) => ({ ...prev, [section.title]: false }))
+                    }
+                    className="text-xs font-medium text-slate-500 hover:text-slate-800"
+                  >
+                    Mostrar menos
+                  </button>
+                </div>
+              ) : null}
             </section>
-          ))
+          );
+          })
         : null}
 
       {qrValue && (
@@ -189,6 +290,22 @@ export function PerfilPage() {
           </div>
         </div>
       )}
+
+      <section className="mt-10 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <details open={policyOpen} onToggle={(e) => setPolicyOpen((e.currentTarget as HTMLDetailsElement).open)}>
+          <summary className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-800">
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-500 shadow-sm">
+              Privacidad
+            </span>
+            Política de privacidad institucional
+          </summary>
+          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+            {policyText
+              ? policyText
+              : 'La institución aún no ha publicado el texto vigente de la política de privacidad. Consulte a secretaría si necesita una copia.'}
+          </div>
+        </details>
+      </section>
 
       {fullscreen && qrValue && (
         <button

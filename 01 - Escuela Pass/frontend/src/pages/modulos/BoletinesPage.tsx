@@ -476,29 +476,55 @@ function BulkDownloadPanel({
     }).length;
   }, [filteredRows, scope, studentId, groupId]);
 
+  const [allPeriods, setAllPeriods] = useState<
+    Array<{ id: string; schoolYear: string; name: string }>
+  >([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<Array<{ id: string; schoolYear: string; name: string }>>(
+          '/api/v1/academic-periods'
+        );
+        if (!cancelled) setAllPeriods(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setAllPeriods([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const yearOptions = useMemo<SmartSelectOption[]>(() => {
     const set = new Set<string>();
     for (const r of rows) if (r.schoolYear) set.add(r.schoolYear);
+    for (const p of allPeriods) if (p.schoolYear) set.add(p.schoolYear);
     return [
       { value: '', label: 'Todos los años' },
       ...[...set].sort().reverse().map((y) => ({ value: y, label: `Ciclo ${y}` }))
     ];
-  }, [rows]);
+  }, [rows, allPeriods]);
 
   const periodOptions = useMemo<SmartSelectOption[]>(() => {
     const map = new Map<string, string>();
+    for (const p of allPeriods) {
+      if (schoolYear && p.schoolYear !== schoolYear) continue;
+      if (!map.has(p.id)) {
+        map.set(p.id, `${p.name}${p.schoolYear ? ` · ${p.schoolYear}` : ''}`);
+      }
+    }
     for (const r of rows) {
-      if (r.periodId && r.periodName) {
-        const key = r.periodId;
-        const label = `${r.periodName}${r.schoolYear ? ` · ${r.schoolYear}` : ''}`;
-        if (!map.has(key)) map.set(key, label);
+      if (schoolYear && r.schoolYear !== schoolYear) continue;
+      if (r.periodId && r.periodName && !map.has(r.periodId)) {
+        map.set(r.periodId, `${r.periodName}${r.schoolYear ? ` · ${r.schoolYear}` : ''}`);
       }
     }
     return [
       { value: '', label: 'Todos los periodos' },
       ...[...map.entries()].map(([value, label]) => ({ value, label }))
     ];
-  }, [rows]);
+  }, [rows, allPeriods, schoolYear]);
 
   const studentOptions = useMemo<SmartSelectOption[]>(() => {
     const map = new Map<string, { name: string; matricula: string }>();

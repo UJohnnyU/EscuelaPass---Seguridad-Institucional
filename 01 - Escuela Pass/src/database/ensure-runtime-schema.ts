@@ -278,6 +278,10 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
 
     await runner.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(500) NULL`);
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500) NULL`);
+
+    await runner.query(
+      `ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS excuse_attachment_path VARCHAR(500) NULL`
+    );
   } finally {
     await runner.release();
   }

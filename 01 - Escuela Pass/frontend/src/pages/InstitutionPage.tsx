@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { SmartSelect } from '@/components/SmartSelect';
+import { InstitutionMap } from '@/components/InstitutionMap';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
@@ -16,6 +17,8 @@ type Profile = {
   motto?: string;
   maxGradeScale?: string;
   logoUrl?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
 };
 
 type SchoolRow = { id: string; name: string; code: string };
@@ -160,13 +163,41 @@ export function InstitutionPage() {
     );
   }
 
+  const logoSrc = profile?.logoUrl ? publicAssetUrl(profile.logoUrl) : null;
+
   return (
-    <div className="max-w-xl animate-slide-up">
-      <h1 className="text-2xl font-bold text-slate-900">Institución</h1>
-      <p className="mt-1 text-slate-600">
-        Datos de su escuela visibles para la comunidad: nombre, contacto, dirección, dirección a cargo y mensaje
-        institucional.
-      </p>
+    <div className="mx-auto max-w-5xl animate-slide-up">
+      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 to-slate-700 p-6 text-white shadow-sm sm:p-8">
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white/10 backdrop-blur">
+            {logoSrc ? (
+              <img src={logoSrc} alt="" className="max-h-full max-w-full object-contain" />
+            ) : (
+              <span className="font-serif text-3xl font-semibold text-white/80">
+                {(profile?.name ?? 'E').slice(0, 1)}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 text-center sm:text-left">
+            <p className="text-xs font-semibold uppercase tracking-widest text-white/70">Institución</p>
+            <h1 className="mt-1 font-serif text-2xl font-semibold tracking-tight sm:text-3xl">
+              {profile?.name ?? 'Sin nombre registrado'}
+            </h1>
+            {profile?.motto ? (
+              <p className="mt-2 text-sm italic text-white/80">"{profile.motto}"</p>
+            ) : (
+              <p className="mt-2 text-sm text-white/70">
+                Datos visibles para la comunidad: nombre, contacto y mensaje institucional.
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px] text-white/80 sm:justify-start">
+              {profile?.city ? <span className="rounded-full bg-white/10 px-3 py-1">{profile.city}</span> : null}
+              {profile?.phone ? <span className="rounded-full bg-white/10 px-3 py-1">Tel. {profile.phone}</span> : null}
+              {profile?.email ? <span className="rounded-full bg-white/10 px-3 py-1">{profile.email}</span> : null}
+            </div>
+          </div>
+        </div>
+      </header>
 
       {platformAdmin && schools.length > 0 && (
         <div className="mt-6">
@@ -191,20 +222,6 @@ export function InstitutionPage() {
         </div>
       )}
 
-      {profile?.logoUrl ? (
-        <div className="mt-6 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
-            <img
-              src={publicAssetUrl(profile.logoUrl) ?? ''}
-              alt=""
-              className="max-h-full max-w-full object-contain"
-            />
-          </div>
-          <p className="max-w-md text-xs text-slate-600">
-            Escudo o logo de la escuela. Para cambiarlo abra <strong>Escuelas</strong> en el menú.
-          </p>
-        </div>
-      ) : null}
 
       {canEdit && profile ? (
         <form className="mt-8 space-y-4" onSubmit={onSave}>
@@ -312,6 +329,34 @@ export function InstitutionPage() {
           )}
         </dl>
       )}
+
+      {(() => {
+        const lat = profile?.latitude != null ? Number(profile.latitude) : NaN;
+        const lng = profile?.longitude != null ? Number(profile.longitude) : NaN;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return null;
+        return (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Ubicación de la institución</h2>
+                <p className="text-xs text-slate-500">
+                  {profile?.address ? profile.address : 'Coordenadas registradas'}
+                  {profile?.city ? `, ${profile.city}` : ''}
+                </p>
+              </div>
+              <a
+                href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-medium text-brand-700 hover:underline"
+              >
+                Ver en OpenStreetMap
+              </a>
+            </div>
+            <InstitutionMap latitude={lat} longitude={lng} name={profile?.name} />
+          </section>
+        );
+      })()}
     </div>
   );
 }

@@ -26,6 +26,10 @@ export class AttendanceRecordEntity {
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
+  /** Comprobante opcional (PDF/imagen) para ausencia justificada cargado por el padre. */
+  @Column({ name: 'excuse_attachment_path', type: 'varchar', length: 500, nullable: true })
+  excuseAttachmentPath!: string | null;
+
   @Column({ name: 'registered_by', type: 'uuid', nullable: true })
   registeredBy!: string | null;
 

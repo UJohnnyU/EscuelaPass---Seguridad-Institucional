@@ -178,6 +178,83 @@ export class NoticesService {
     };
   }
 
+  /**
+   * Grupos en los que el docente tiene asignación (para publicar avisos a un grupo).
+   */
+  async listTeacherGroupsForNotices(teacherUserId: string): Promise<
+    Array<{ id: string; name: string; grade: string | null; schoolYear: string }>
+  > {
+    const teacher = await this.ensureTeacherProfile(teacherUserId);
+    const rows = await this.dataSource.query<
+      { id: string; name: string; grade: string | null; school_year: string }[]
+    >(
+      `SELECT DISTINCT g.id, g.name, g.grade, g.school_year AS school_year
+       FROM teacher_groups tg
+       INNER JOIN groups g ON g.id = tg.group_id
+       WHERE tg.teacher_id = $1
+       ORDER BY g.school_year DESC, g.name ASC`,
+      [teacher.id]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      grade: r.grade,
+      schoolYear: r.school_year
+    }));
+  }
+
+  /**
+   * Alumnos y padres vinculados a los grupos del docente (destinatarios de aviso individual).
+   */
+  async searchNoticeTargetsForTeacher(
+    teacherUserId: string,
+    q?: string
+  ): Promise<Array<{ userId: string; fullName: string; email: string; kind: string }>> {
+    const teacher = await this.ensureTeacherProfile(teacherUserId);
+    const like = q?.trim() ? `%${q.trim().toLowerCase()}%` : null;
+    const rows = await this.dataSource.query<
+      { user_id: string; full_name: string; email: string; kind: string }[]
+    >(
+      `WITH scope AS (
+         SELECT DISTINCT s.user_id AS uid, 'ALUMNO'::text AS kind
+         FROM teacher_groups tg
+         INNER JOIN students s ON s.group_id = tg.group_id
+         WHERE tg.teacher_id = $1
+         UNION
+         SELECT DISTINCT u.id AS uid, 'PADRE'::text AS kind
+         FROM teacher_groups tg
+         INNER JOIN students s ON s.group_id = tg.group_id
+         INNER JOIN student_parents sp ON sp.student_id = s.id
+         INNER JOIN parents p ON p.id = sp.parent_id
+         INNER JOIN users u ON u.id = p.user_id
+         WHERE tg.teacher_id = $1
+       )
+       SELECT u.id AS user_id, u.full_name, u.email, sc.kind
+       FROM scope sc
+       INNER JOIN users u ON u.id = sc.uid
+       WHERE ($2::text IS NULL OR (
+         LOWER(u.full_name) LIKE $2 OR LOWER(COALESCE(u.email, '')) LIKE $2
+       ))
+       ORDER BY u.full_name ASC
+       LIMIT 80`,
+      [teacher.id, like]
+    );
+    return rows.map((r) => ({
+      userId: r.user_id,
+      fullName: r.full_name,
+      email: r.email ?? '',
+      kind: r.kind
+    }));
+  }
+
+  private async ensureTeacherProfile(userId: string): Promise<TeacherEntity> {
+    const existing = await this.teachersRepository.findOne({ where: { userId } });
+    if (existing) return existing;
+    const placeholder = `SE-${userId.slice(0, 8).toUpperCase()}`;
+    const created = this.teachersRepository.create({ userId, employeeNumber: placeholder });
+    return this.teachersRepository.save(created);
+  }
+
   async markAsRead(notificationId: string, userId: string) {
     const notif = await this.notificationsRepository.findOne({
       where: { id: notificationId, userId }
@@ -232,10 +309,7 @@ export class NoticesService {
       if (dto.targetType === NoticeTargetType.ALL) {
         throw new ForbiddenException('Docente no puede enviar avisos a todo el plantel');
       }
-      const teacher = await this.teachersRepository.findOne({ where: { userId } });
-      if (!teacher) {
-        throw new ForbiddenException('Perfil docente no encontrado');
-      }
+      const teacher = await this.ensureTeacherProfile(userId);
       if (dto.targetType === NoticeTargetType.GROUP) {
         const rows = await this.dataSource.query<{ exists: boolean }[]>(
           `SELECT EXISTS (

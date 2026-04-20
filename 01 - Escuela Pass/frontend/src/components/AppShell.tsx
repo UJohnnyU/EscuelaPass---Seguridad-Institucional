@@ -3,6 +3,8 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
 import { publicAssetUrl } from '@/lib/asset-url';
 import { navVisibleForRole, SIDEBAR_NAV } from '@/navigation/navConfig';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { NotificationsBadge } from '@/components/NotificationsBadge';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
@@ -77,13 +79,17 @@ export function AppShell() {
               <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Gestión institucional</p>
             </Link>
           </div>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="rounded bg-brand-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800"
-          >
-            Cerrar sesión
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationsBadge compact />
+            <ThemeToggle compact />
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="rounded bg-brand-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800"
+            >
+              Salir
+            </button>
+          </div>
         </header>
         {mobileMenuOpen && (
           <div className="lg:hidden">
@@ -152,6 +158,8 @@ export function AppShell() {
             <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">
               {ROLE_LABEL[role ?? ''] ?? role}
             </span>
+            <NotificationsBadge />
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => void logout()}

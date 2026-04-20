@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
+import { DetailModal } from '@/components/DetailModal';
 import {
   buildWeekDays,
   WeekScheduleEvent,
@@ -66,6 +67,7 @@ export function StudentSchedulePage() {
   const [notifications, setNotifications] = useState<NotifRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openSlotId, setOpenSlotId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (user?.role !== 'ALUMNO') return;
@@ -224,9 +226,60 @@ export function StudentSchedulePage() {
         <WeekScheduleGrid
           events={weekEvents}
           days={weekDays}
+          onSelect={(id) => setOpenSlotId(id)}
           emptyLabel="No hay franjas cargadas para su grupo."
         />
       ) : null}
+
+      {(() => {
+        const slot = schedule?.slots?.find((s) => s.id === openSlotId) ?? null;
+        const WEEKDAY = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        return (
+          <DetailModal
+            open={slot !== null}
+            title={slot?.subjectName ?? 'Clase'}
+            subtitle={
+              slot
+                ? `${WEEKDAY[slot.weekday] ?? ''} · ${slot.startTime.slice(0, 5)}–${slot.endTime.slice(0, 5)}`
+                : undefined
+            }
+            onClose={() => setOpenSlotId(null)}
+          >
+            {slot ? (
+              <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
+                  <dd className="mt-0.5 text-slate-900">{slot.subjectName ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Día</dt>
+                  <dd className="mt-0.5 capitalize text-slate-900">{WEEKDAY[slot.weekday]}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
+                  <dd className="mt-0.5 text-slate-900">{slot.room ?? 'No especificada'}</dd>
+                </div>
+                {schedule?.group ? (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
+                    <dd className="mt-0.5 text-slate-900">
+                      {schedule.group.name}
+                      {schedule.group.grade ? ` · ${schedule.group.grade}` : ''} · Año{' '}
+                      {schedule.group.schoolYear}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
+          </DetailModal>
+        );
+      })()}
 
       <section>
         <h2 className="font-serif text-lg font-semibold text-slate-900">Días sin clases de esta semana</h2>

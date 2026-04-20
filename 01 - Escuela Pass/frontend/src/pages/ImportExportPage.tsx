@@ -171,6 +171,14 @@ export function ImportExportPage() {
     void loadImportHistory();
   }, [adminOrStaff]);
 
+  /** ADMIN de plataforma: al elegir escuela, las plantillas .xlsx incluyen nombre y logo de esa institución. */
+  const templateExcelSchoolQuery = useMemo(() => {
+    if (platformAdmin && schoolFilter.trim()) {
+      return `?schoolId=${encodeURIComponent(schoolFilter.trim())}`;
+    }
+    return '';
+  }, [platformAdmin, schoolFilter]);
+
   async function downloadTemplate(path: string, filename: string) {
     setLoading(true);
     setErr(null);
@@ -270,7 +278,7 @@ export function ImportExportPage() {
         title="Plantillas para importar (Excel y CSV)"
         description="Use estos archivos como base: complételos con los datos y luego cárguelos al sistema."
       >
-        <div className="mb-4">
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
           <label className="text-sm text-slate-700">
             Formato preferido
             <select
@@ -282,6 +290,21 @@ export function ImportExportPage() {
               <option value="csv">CSV (.csv)</option>
             </select>
           </label>
+          {platformAdmin ? (
+            <div className="min-w-[12rem] max-w-md flex-1">
+              <label className="block text-xs font-medium uppercase text-slate-500">
+                Institución (cabecera y logo en Excel)
+              </label>
+              <div className="mt-1">
+                <SmartSelect
+                  options={schoolFilterOptions}
+                  value={schoolFilter}
+                  onChange={setSchoolFilter}
+                  placeholder="Todas — sin logo de escuela concreta"
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-3">
           <button
@@ -289,7 +312,9 @@ export function ImportExportPage() {
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/students.${templateFormat}`,
+                `/api/v1/school/import/templates/students.${templateFormat}${
+                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
+                }`,
                 `plantilla-alumnos.${templateFormat}`
               )
             }
@@ -302,7 +327,9 @@ export function ImportExportPage() {
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/students-to-groups.${templateFormat}`,
+                `/api/v1/school/import/templates/students-to-groups.${templateFormat}${
+                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
+                }`,
                 `plantilla-asignacion-grupos.${templateFormat}`
               )
             }
@@ -315,7 +342,9 @@ export function ImportExportPage() {
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/groups.${templateFormat}`,
+                `/api/v1/school/import/templates/groups.${templateFormat}${
+                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
+                }`,
                 `plantilla-grupos.${templateFormat}`
               )
             }
@@ -328,7 +357,9 @@ export function ImportExportPage() {
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/teachers.${templateFormat}`,
+                `/api/v1/school/import/templates/teachers.${templateFormat}${
+                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
+                }`,
                 `plantilla-docentes.${templateFormat}`
               )
             }
@@ -341,7 +372,9 @@ export function ImportExportPage() {
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/teacher-assignments.${templateFormat}`,
+                `/api/v1/school/import/templates/teacher-assignments.${templateFormat}${
+                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
+                }`,
                 `plantilla-asignaciones-docentes.${templateFormat}`
               )
             }
@@ -353,6 +386,13 @@ export function ImportExportPage() {
         <p className="mt-4 text-xs text-slate-500">
           Recomendamos primero subir el archivo en modo de validación para detectar errores y luego confirmar la
           carga.
+          {platformAdmin ? (
+            <>
+              {' '}
+              En Excel, la parte superior incluye el nombre institucional y, si subió un logo en la configuración de
+              esa escuela, la imagen en la plantilla.
+            </>
+          ) : null}
         </p>
       </Panel>
 

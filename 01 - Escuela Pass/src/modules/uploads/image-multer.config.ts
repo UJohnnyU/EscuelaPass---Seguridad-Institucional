@@ -1,23 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { existsSync, mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { extname } from 'path';
+import { uploadsSubDir } from '../../lib/uploads-path';
 
 const ALLOWED_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
-function ensureDir(sub: string): string {
-  const dir = join(process.cwd(), 'uploads', sub);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-  return dir;
-}
 
 function imageStorage(subfolder: 'avatars' | 'school-logos') {
   return diskStorage({
     destination: (_req, _file, cb) => {
-      cb(null, ensureDir(subfolder));
+      cb(null, uploadsSubDir(subfolder));
     },
     filename: (_req, file, cb) => {
       const ext = extname(file.originalname).toLowerCase() || '.bin';

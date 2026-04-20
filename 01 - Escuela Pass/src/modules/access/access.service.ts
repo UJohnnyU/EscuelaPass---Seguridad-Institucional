@@ -12,11 +12,13 @@ import {
   AttendanceRecordEntity,
   AttendanceStatus
 } from '../../database/entities/attendance-record.entity';
-import { AccessEventType } from '../../database/entities/access-event.entity';
+import { AccessEventType, AccessMethod } from '../../database/entities/access-event.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { RegisterAccessEventDto } from './dto/register-access-event.dto';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
+import { NotificationEntity } from '../../database/entities/notification.entity';
+import { FcmService } from '../fcm/fcm.service';
 
 @Injectable()
 export class AccessService {
@@ -27,11 +29,14 @@ export class AccessService {
     private readonly eventsRepository: Repository<AccessEventEntity>,
     @InjectRepository(AttendanceRecordEntity)
     private readonly attendanceRepository: Repository<AttendanceRecordEntity>,
+    @InjectRepository(NotificationEntity)
+    private readonly notificationsRepository: Repository<NotificationEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
-    private readonly schoolCalendarService: SchoolCalendarService
+    private readonly schoolCalendarService: SchoolCalendarService,
+    private readonly fcmService: FcmService
   ) {}
 
   /** Credencial QR para mostrar en perfil (acceso campus / asistencia). Crea una si no existe. */
@@ -106,10 +111,24 @@ export class AccessService {
       await this.upsertAttendanceFromAccessScan(user.id, today, payload.method);
     }
 
+    if (user.role === UserRole.ALUMNO) {
+      void this.notifyParentsStudentAccess(user.id, user.fullName ?? 'Su hijo/a', payload).catch(
+        () => undefined
+      );
+    }
+
     let matricula: string | null = null;
+    let groupName: string | null = null;
     if (user.role === UserRole.ALUMNO) {
       const st = await this.studentsRepository.findOne({ where: { userId: user.id } });
       matricula = st?.matricula ?? null;
+      if (st?.groupId) {
+        const g = await this.studentsRepository.manager.query<{ name: string }[]>(
+          `SELECT name FROM groups WHERE id = $1 LIMIT 1`,
+          [st.groupId]
+        );
+        groupName = g[0]?.name ?? null;
+      }
     }
 
     return {
@@ -117,7 +136,13 @@ export class AccessService {
       persona: {
         nombreCompleto: user.fullName,
         rol: user.role,
-        matriculaAlumno: matricula
+        matriculaAlumno: matricula,
+        email: user.email ?? null,
+        avatarUrl: user.avatarPath ?? null,
+        grupo: groupName,
+        acceso: user.canAccessCampus ? 'AUTORIZADO' : 'SIN_AUTORIZAR',
+        eventoTipo: payload.eventType,
+        eventoTiempo: saved.eventTime.toISOString()
       }
     };
   }
@@ -158,5 +183,48 @@ export class AccessService {
       registeredBy: null
     });
     await this.attendanceRepository.save(created);
+  }
+
+  private async notifyParentsStudentAccess(
+    studentUserId: string,
+    studentName: string,
+    payload: { eventType: AccessEventType; method: AccessMethod }
+  ): Promise<void> {
+    const parentRows = await this.usersRepository.manager.query<{ id: string }[]>(
+      `SELECT DISTINCT u.id
+       FROM student_parents sp
+       INNER JOIN students s ON s.id = sp.student_id
+       INNER JOIN parents p ON p.id = sp.parent_id
+       INNER JOIN users u ON u.id = p.user_id
+       WHERE s.user_id = $1`,
+      [studentUserId]
+    );
+    if (!parentRows.length) return;
+
+    const verb =
+      payload.eventType === AccessEventType.ENTRY ? 'entró a' : 'salió de';
+    const title =
+      payload.eventType === AccessEventType.ENTRY ? 'Entrada registrada' : 'Salida registrada';
+    const methodLabel = payload.method === AccessMethod.NFC ? 'NFC' : 'QR';
+    const message = `${studentName} ${verb} la institución (${methodLabel}).`;
+
+    for (const row of parentRows) {
+      const rowEntity = this.notificationsRepository.create({
+        userId: row.id,
+        noticeId: null,
+        title,
+        message,
+        deliveryStatus: 'SENT'
+      });
+      const saved = await this.notificationsRepository.save(rowEntity);
+      void this.fcmService
+        .sendPushToUser(row.id, title, message, {
+          type: 'student_access',
+          notificationId: saved.id,
+          eventType: payload.eventType,
+          deepLink: '/app/modulos/comunicacion'
+        })
+        .catch(() => undefined);
+    }
   }
 }

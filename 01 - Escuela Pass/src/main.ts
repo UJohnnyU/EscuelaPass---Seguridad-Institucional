@@ -1,22 +1,20 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { existsSync, mkdirSync } from 'fs';
 import helmet from 'helmet';
-import { join } from 'path';
 import * as express from 'express';
 import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
 import { ensureRuntimeSchema } from './database/ensure-runtime-schema';
+import { migrateUploadsToVolume } from './database/migrate-uploads';
+import { uploadsRootDir, uploadsSubDir } from './lib/uploads-path';
 
 async function bootstrap() {
-  const uploadsRoot = join(process.cwd(), 'uploads');
-  for (const sub of ['comprobantes', 'avatars', 'school-logos']) {
-    const dir = join(uploadsRoot, sub);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+  const uploadsRoot = uploadsRootDir();
+  for (const sub of ['comprobantes', 'avatars', 'school-logos', 'excuses']) {
+    uploadsSubDir(sub);
   }
+  await migrateUploadsToVolume(uploadsRoot);
 
   const app = await NestFactory.create(AppModule);
 

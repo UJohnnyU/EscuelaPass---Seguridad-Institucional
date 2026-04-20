@@ -11,14 +11,14 @@ const ALLOWED_MIME = new Set([
   'image/webp'
 ]);
 
-export function voucherUploadDir(): string {
-  return uploadsSubDir('comprobantes');
+export function excuseUploadDir(): string {
+  return uploadsSubDir('excuses');
 }
 
-export const voucherMulterOptions = {
+export const excuseMulterOptions = {
   storage: diskStorage({
     destination: (_req, _file, cb) => {
-      cb(null, voucherUploadDir());
+      cb(null, excuseUploadDir());
     },
     filename: (_req, file, cb) => {
       const ext = extname(file.originalname).toLowerCase() || '.bin';
@@ -27,7 +27,7 @@ export const voucherMulterOptions = {
     }
   }),
   limits: {
-    fileSize: Number(process.env.VOUCHER_MAX_BYTES ?? 5 * 1024 * 1024)
+    fileSize: Number(process.env.EXCUSE_MAX_BYTES ?? 5 * 1024 * 1024)
   },
   fileFilter: (_req: unknown, file: { mimetype: string }, cb: (e: Error | null, ok: boolean) => void) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {

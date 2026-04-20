@@ -12,8 +12,10 @@ import { DebtEntity, PaymentStatus } from '../../database/entities/debt.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { PaymentConceptEntity } from '../../database/entities/payment-concept.entity';
 import { PaymentRecordEntity } from '../../database/entities/payment-record.entity';
+import { NotificationEntity } from '../../database/entities/notification.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { FcmService } from '../fcm/fcm.service';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { UpdateConceptDto } from './dto/update-concept.dto';
@@ -33,7 +35,10 @@ export class PaymentsService {
     @InjectRepository(ParentEntity)
     private readonly parentsRepository: Repository<ParentEntity>,
     @InjectRepository(AdministrativeStaffEntity)
-    private readonly staffRepository: Repository<AdministrativeStaffEntity>
+    private readonly staffRepository: Repository<AdministrativeStaffEntity>,
+    @InjectRepository(NotificationEntity)
+    private readonly notificationsRepository: Repository<NotificationEntity>,
+    private readonly fcmService: FcmService
   ) {}
 
   async listConcepts(includeInactive = false) {
@@ -42,6 +47,53 @@ export class PaymentsService {
       qb.andWhere('c.is_active = :active', { active: true });
     }
     return qb.getMany();
+  }
+
+  /**
+   * Crea conceptos plantilla (`is_base`) solo si la lista está vacía (inscripciones, mensualidades).
+   */
+  async ensureBaseConceptTemplates(): Promise<{ created: number; skipped: boolean }> {
+    const existing = await this.conceptsRepository.count({ where: { isBase: true } });
+    if (existing > 0) return { created: 0, skipped: true };
+    const templates = [
+      {
+        name: 'Inscripción / reinscripción',
+        description: 'Concepto plantilla; ajuste montos según su reglamento.',
+        defaultAmount: '0',
+        isRecurring: false,
+        recurrencePeriod: null as string | null
+      },
+      {
+        name: 'Colegiatura mensual',
+        description: 'Plantilla para mensualidades del ciclo escolar.',
+        defaultAmount: '0',
+        isRecurring: true,
+        recurrencePeriod: 'MONTHLY'
+      },
+      {
+        name: 'Material y otros',
+        description: 'Uniformes, materiales u otros cargos puntuales.',
+        defaultAmount: '0',
+        isRecurring: false,
+        recurrencePeriod: null as string | null
+      }
+    ];
+    let created = 0;
+    for (const t of templates) {
+      await this.conceptsRepository.save(
+        this.conceptsRepository.create({
+          name: t.name,
+          description: t.description,
+          defaultAmount: t.defaultAmount,
+          isRecurring: t.isRecurring,
+          recurrencePeriod: t.recurrencePeriod,
+          isBase: true,
+          isActive: true
+        })
+      );
+      created += 1;
+    }
+    return { created, skipped: false };
   }
 
   async createConcept(dto: CreateConceptDto) {
@@ -246,7 +298,45 @@ export class PaymentsService {
     debt.voucherPath = dto.voucherPath;
     debt.uploadedByParentId = parent.id;
     debt.uploadedAt = new Date();
-    return this.debtsRepository.save(debt);
+    const saved = await this.debtsRepository.save(debt);
+    void this.notifyStaffVoucherUploaded(saved.id, debt.studentId).catch(() => undefined);
+    return saved;
+  }
+
+  private async notifyStaffVoucherUploaded(debtId: string, studentId: string): Promise<void> {
+    const schoolRows = await this.studentsRepository.manager.query<{ school_id: string | null }[]>(
+      `SELECT su.school_id FROM students s INNER JOIN users su ON su.id = s.user_id WHERE s.id = $1`,
+      [studentId]
+    );
+    const schoolId = schoolRows[0]?.school_id;
+    if (!schoolId) return;
+
+    const staffUsers = await this.studentsRepository.manager.query<{ id: string }[]>(
+      `SELECT id FROM users
+       WHERE (role = 'ADMINISTRATIVO' AND school_id = $1)
+          OR role = 'ADMIN'`,
+      [schoolId]
+    );
+    const title = 'Nuevo comprobante de pago';
+    const message = `Un padre/tutor cargó un comprobante (deuda ${debtId.slice(0, 8)}…). Revise Finanzas para verificar.`;
+    for (const u of staffUsers) {
+      const n = this.notificationsRepository.create({
+        userId: u.id,
+        noticeId: null,
+        title,
+        message,
+        deliveryStatus: 'SENT'
+      });
+      const savedN = await this.notificationsRepository.save(n);
+      void this.fcmService
+        .sendPushToUser(u.id, title, message, {
+          type: 'payment_voucher',
+          notificationId: savedN.id,
+          debtId,
+          deepLink: '/app/modulos/finanzas'
+        })
+        .catch(() => undefined);
+    }
   }
 
   async verifyDebt(debtId: string, userId: string, role: UserRole) {

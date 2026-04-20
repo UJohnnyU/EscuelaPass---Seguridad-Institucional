@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SmartSelect } from '@/components/SmartSelect';
+import { DetailModal } from '@/components/DetailModal';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
@@ -38,6 +39,11 @@ export function MisCalificacionesPage() {
   const [err, setErr] = useState<string | null>(null);
   const [filterChild, setFilterChild] = useState('');
   const [filterPeriod, setFilterPeriod] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [openRow, setOpenRow] = useState<ActivityRow | null>(null);
+  const [allPeriods, setAllPeriods] = useState<
+    Array<{ id: string; schoolYear: string; name: string }>
+  >([]);
 
   const endpoint = isParent ? '/api/v1/activities/parent/my-children' : '/api/v1/activities/student/me';
 
@@ -62,6 +68,23 @@ export function MisCalificacionesPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<Array<{ id: string; schoolYear: string; name: string }>>(
+          '/api/v1/academic-periods'
+        );
+        if (!cancelled) setAllPeriods(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setAllPeriods([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const children: ChildOption[] = useMemo(() => {
     if (!isParent) return [];
     const map = new Map<string, string>();
@@ -72,18 +95,33 @@ export function MisCalificacionesPage() {
     return [...map.entries()].map(([studentId]) => ({ studentId, name: studentId.slice(0, 8) }));
   }, [isParent, rows]);
 
-  const periodsList = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const r of rows) {
-      if (r.periodId && r.periodName) map.set(r.periodId, `${r.schoolYear ?? ''} · ${r.periodName}`.trim());
-    }
-    return [...map.entries()].map(([value, label]) => ({ value, label }));
-  }, [rows]);
+  const yearOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) if (r.schoolYear) set.add(r.schoolYear);
+    for (const p of allPeriods) if (p.schoolYear) set.add(p.schoolYear);
+    return [
+      { value: '', label: 'Todos los años' },
+      ...[...set].sort().reverse().map((y) => ({ value: y, label: `Ciclo ${y}` }))
+    ];
+  }, [rows, allPeriods]);
 
-  const periodOptions = useMemo(
-    () => [{ value: '', label: 'Todos los periodos' }, ...periodsList],
-    [periodsList]
-  );
+  const periodOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of allPeriods) {
+      if (filterYear && p.schoolYear !== filterYear) continue;
+      if (!map.has(p.id)) map.set(p.id, `${p.schoolYear ? `${p.schoolYear} · ` : ''}${p.name}`);
+    }
+    for (const r of rows) {
+      if (filterYear && r.schoolYear !== filterYear) continue;
+      if (r.periodId && r.periodName && !map.has(r.periodId)) {
+        map.set(r.periodId, `${r.schoolYear ?? ''} · ${r.periodName}`.trim());
+      }
+    }
+    return [
+      { value: '', label: 'Todos los periodos' },
+      ...[...map.entries()].map(([value, label]) => ({ value, label }))
+    ];
+  }, [rows, allPeriods, filterYear]);
 
   const visibleRows = rows.filter((r) => (filterChild ? r.studentId === filterChild : true));
 
@@ -114,25 +152,32 @@ export function MisCalificacionesPage() {
       {err && <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>}
 
       <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {isParent && children.length > 1 && (
             <label className="block text-sm">
-              <span className="text-slate-700">Hijo/a</span>
-              <div className="mt-1">
-                <SmartSelect
-                  options={[{ value: '', label: 'Todos' }, ...children.map((c) => ({ value: c.studentId, label: c.name }))]}
-                  value={filterChild}
-                  onChange={setFilterChild}
-                  placeholder="Todos"
-                />
-              </div>
+              <span className="mb-1 block font-medium text-slate-700">Hijo/a</span>
+              <SmartSelect
+                options={[{ value: '', label: 'Todos' }, ...children.map((c) => ({ value: c.studentId, label: c.name }))]}
+                value={filterChild}
+                onChange={setFilterChild}
+                placeholder="Todos"
+              />
             </label>
           )}
           <label className="block text-sm">
-            <span className="text-slate-700">Periodo</span>
-            <div className="mt-1">
-              <SmartSelect options={periodOptions} value={filterPeriod} onChange={setFilterPeriod} />
-            </div>
+            <span className="mb-1 block font-medium text-slate-700">Año escolar</span>
+            <SmartSelect
+              options={yearOptions}
+              value={filterYear}
+              onChange={(v) => {
+                setFilterYear(v);
+                setFilterPeriod('');
+              }}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-700">Periodo</span>
+            <SmartSelect options={periodOptions} value={filterPeriod} onChange={setFilterPeriod} />
           </label>
           <div className="flex items-end">
             <button
@@ -188,38 +233,41 @@ export function MisCalificacionesPage() {
                 </div>
                 <ul className="divide-y divide-slate-100">
                   {g.items.map((r) => (
-                    <li
-                      key={r.id + (r.studentId ?? '')}
-                      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-medium text-slate-900">{r.title}</p>
-                          {r.underReview && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
-                              En revisión
-                            </span>
-                          )}
-                          {r.status === 'OPEN' && !r.underReview && (
-                            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-900">
-                              Vista previa
-                            </span>
-                          )}
+                    <li key={r.id + (r.studentId ?? '')}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenRow(r)}
+                        className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-medium text-slate-900">{r.title}</p>
+                            {r.underReview && (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                                En revisión
+                              </span>
+                            )}
+                            {r.status === 'OPEN' && !r.underReview && (
+                              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-900">
+                                Vista previa
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {r.periodName ?? r.period}
+                            {r.closedAt ? ` · Publicada ${new Date(r.closedAt).toLocaleDateString('es')}` : ''}
+                          </p>
+                          {r.myNotes && <p className="mt-0.5 text-xs text-slate-500">“{r.myNotes}”</p>}
                         </div>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {r.periodName ?? r.period}
-                          {r.closedAt ? ` · Publicada ${new Date(r.closedAt).toLocaleDateString('es')}` : ''}
-                        </p>
-                        {r.myNotes && <p className="mt-0.5 text-xs text-slate-500">“{r.myNotes}”</p>}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-semibold text-slate-900">
-                          {r.myScore != null ? parseFloat(r.myScore) : '—'}
-                          <span className="ml-1 text-xs font-normal text-slate-500">
-                            / {parseFloat(r.maxScore)}
-                          </span>
-                        </p>
-                      </div>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold text-slate-900">
+                            {r.myScore != null ? parseFloat(r.myScore) : '—'}
+                            <span className="ml-1 text-xs font-normal text-slate-500">
+                              / {parseFloat(r.maxScore)}
+                            </span>
+                          </p>
+                        </div>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -228,6 +276,88 @@ export function MisCalificacionesPage() {
           })
         )}
       </section>
+      <DetailModal
+        open={openRow !== null}
+        title={openRow?.title ?? ''}
+        subtitle={openRow ? `${openRow.subjectName}` : undefined}
+        badge={
+          openRow ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                openRow.underReview
+                  ? 'bg-amber-100 text-amber-900'
+                  : openRow.status === 'CLOSED'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-sky-100 text-sky-900'
+              }`}
+            >
+              {openRow.underReview ? 'En revisión' : openRow.status === 'CLOSED' ? 'Publicada' : 'Vista previa'}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenRow(null)}
+      >
+        {openRow ? (
+          <div className="space-y-4">
+            <div className="flex items-end justify-between gap-4 rounded-xl bg-slate-50 p-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Tu calificación</p>
+                <p className="mt-1 text-3xl font-semibold text-slate-900">
+                  {openRow.myScore != null ? parseFloat(openRow.myScore) : '—'}
+                  <span className="ml-1 text-base font-normal text-slate-500">
+                    / {parseFloat(openRow.maxScore)}
+                  </span>
+                </p>
+              </div>
+              {openRow.myScore != null && Number(openRow.maxScore) > 0 ? (
+                <div className="text-right">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Porcentaje</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">
+                    {Math.round((Number(openRow.myScore) / Number(openRow.maxScore)) * 100)}%
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            {openRow.myNotes ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Observaciones del docente</p>
+                <p className="mt-1 whitespace-pre-line text-slate-800">{openRow.myNotes}</p>
+              </div>
+            ) : null}
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
+                <dd className="mt-0.5 text-slate-900">{openRow.subjectName}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Periodo</dt>
+                <dd className="mt-0.5 text-slate-900">
+                  {openRow.periodName ?? openRow.period}
+                  {openRow.schoolYear ? ` · ${openRow.schoolYear}` : ''}
+                </dd>
+              </div>
+              {openRow.groupName ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
+                  <dd className="mt-0.5 text-slate-900">{openRow.groupName}</dd>
+                </div>
+              ) : null}
+              {openRow.dueDate ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Fecha límite</dt>
+                  <dd className="mt-0.5 text-slate-900">{new Date(openRow.dueDate).toLocaleDateString('es')}</dd>
+                </div>
+              ) : null}
+              {openRow.closedAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Publicada</dt>
+                  <dd className="mt-0.5 text-slate-900">{new Date(openRow.closedAt).toLocaleString('es')}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
+      </DetailModal>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
 import { FcmModule } from '../fcm/fcm.module';
+import { DepartureConsentModule } from '../departure-consent/departure-consent.module';
 import { SettingsModule } from '../settings/settings.module';
 import { CircuitController } from './circuit.controller';
 import { CircuitService } from './circuit.service';
@@ -16,6 +17,7 @@ import { CircuitService } from './circuit.service';
   imports: [
     FcmModule,
     SettingsModule,
+    DepartureConsentModule,
     TypeOrmModule.forFeature([
       CircuitRequestEntity,
       StudentEntity,

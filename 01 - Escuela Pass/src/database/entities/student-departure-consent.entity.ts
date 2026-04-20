@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum ConsentType {
   SALIDA_SOLO = 'SALIDA_SOLO',
@@ -6,6 +6,7 @@ export enum ConsentType {
 }
 
 @Entity({ name: 'student_departure_consents' })
+@Index('ix_student_departure_consents_student_dates', ['studentId', 'validFrom', 'validUntil'])
 export class StudentDepartureConsentEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -24,4 +25,7 @@ export class StudentDepartureConsentEntity {
 
   @Column({ name: 'valid_until', type: 'date' })
   validUntil!: string;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt!: Date;
 }

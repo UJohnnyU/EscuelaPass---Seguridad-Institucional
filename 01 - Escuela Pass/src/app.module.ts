@@ -35,6 +35,8 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
 import { AttentionNotesModule } from './modules/attention-notes/attention-notes.module';
 import { SchoolsModule } from './modules/schools/schools.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { DepartureConsentModule } from './modules/departure-consent/departure-consent.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -54,6 +56,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     ]),
     ScheduleModule.forRoot(),
     HealthModule,
+    MailModule,
     AuthModule,
     AccessModule,
     CircuitModule,
@@ -81,7 +84,8 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     PrivacyModule,
     AttentionNotesModule,
     SchoolsModule,
-    UploadsModule
+    UploadsModule,
+    DepartureConsentModule
   ],
   providers: [
     {

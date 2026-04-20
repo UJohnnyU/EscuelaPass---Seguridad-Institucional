@@ -21,8 +21,7 @@ import {
   AcademicoPage,
   AdministracionPage,
   ComunicacionPage,
-  FinanzasPage,
-  HerramientasPage
+  FinanzasPage
 } from '@/pages/modulos/Operativos';
 import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
 import { BoletinesPage } from '@/pages/modulos/BoletinesPage';
@@ -57,7 +56,7 @@ export default function App() {
           <Route
             path="horario"
             element={
-              <RoleGate allow={['ALUMNO', 'ADMIN', 'ADMINISTRATIVO']}>
+              <RoleGate allow={['ALUMNO', 'DOCENTE', 'ADMIN', 'ADMINISTRATIVO']}>
                 <ScheduleHubPage />
               </RoleGate>
             }
@@ -94,7 +93,7 @@ export default function App() {
           <Route
             path="modulos/mis-calificaciones"
             element={
-              <RoleGate allow={['ALUMNO', 'PADRE']}>
+              <RoleGate allow={['ALUMNO', 'PADRE', 'ADMIN', 'ADMINISTRATIVO']}>
                 <MisCalificacionesPage />
               </RoleGate>
             }
@@ -118,7 +117,7 @@ export default function App() {
           <Route
             path="modulos/anotaciones-docente"
             element={
-              <RoleGate allow={['DOCENTE']}>
+              <RoleGate allow={['DOCENTE', 'ADMIN', 'ADMINISTRATIVO']}>
                 <AnotacionesDocentePage />
               </RoleGate>
             }
@@ -126,7 +125,7 @@ export default function App() {
           <Route path="modulos/visitas" element={<VisitasPage />} />
           <Route path="modulos/reuniones" element={<ReunionesPage />} />
           <Route path="modulos/administracion" element={<AdministracionPage />} />
-          <Route path="modulos/herramientas" element={<HerramientasPage />} />
+          <Route path="modulos/herramientas" element={<Navigate to="/app/perfil" replace />} />
           <Route
             path="importaciones"
             element={

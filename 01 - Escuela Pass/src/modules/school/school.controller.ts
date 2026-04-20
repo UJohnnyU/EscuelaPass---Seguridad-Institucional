@@ -47,6 +47,15 @@ export class SchoolController {
     return user.role === UserRole.ADMIN ? undefined : user.schoolId ?? undefined;
   }
 
+  /** Plantillas Excel: escuela del usuario o `schoolId` en query (solo ADMIN de plataforma). */
+  private resolveSchoolIdForTemplate(user: JwtUser, querySchoolId?: string): string | null {
+    if (user.role === UserRole.ADMIN) {
+      const q = querySchoolId?.trim();
+      return q || null;
+    }
+    return user.schoolId ?? null;
+  }
+
   /** Límite opcional para búsquedas (1–100). */
   private parseSearchLimit(limitRaw: string | undefined): number | undefined {
     if (!limitRaw?.trim()) return undefined;
@@ -429,8 +438,11 @@ export class SchoolController {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   )
   @Header('Content-Disposition', 'attachment; filename="plantilla-grupos.xlsx"')
-  async templateGroupsXlsx() {
-    return this.schoolService.buildTemplateGroupsXlsx();
+  async templateGroupsXlsx(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.schoolService.buildTemplateGroupsXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
   }
 
   @Get('import/templates/students.xlsx')
@@ -440,8 +452,11 @@ export class SchoolController {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   )
   @Header('Content-Disposition', 'attachment; filename="plantilla-alumnos.xlsx"')
-  async templateStudentsXlsx() {
-    return this.schoolService.buildTemplateStudentsXlsx();
+  async templateStudentsXlsx(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.schoolService.buildTemplateStudentsXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
   }
 
   @Get('import/templates/teachers.xlsx')
@@ -451,8 +466,11 @@ export class SchoolController {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   )
   @Header('Content-Disposition', 'attachment; filename="plantilla-docentes.xlsx"')
-  async templateTeachersXlsx() {
-    return this.schoolService.buildTemplateTeachersXlsx();
+  async templateTeachersXlsx(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.schoolService.buildTemplateTeachersXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
   }
 
   @Get('import/templates/teacher-assignments.xlsx')
@@ -462,8 +480,13 @@ export class SchoolController {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   )
   @Header('Content-Disposition', 'attachment; filename="plantilla-asignaciones-docentes.xlsx"')
-  async templateTeacherAssignmentsXlsx() {
-    return this.schoolService.buildTemplateTeacherAssignmentsXlsx();
+  async templateTeacherAssignmentsXlsx(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.schoolService.buildTemplateTeacherAssignmentsXlsx(
+      this.resolveSchoolIdForTemplate(req.user, schoolId)
+    );
   }
 
   @Get('import/templates/students-to-groups.xlsx')
@@ -473,8 +496,11 @@ export class SchoolController {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   )
   @Header('Content-Disposition', 'attachment; filename="plantilla-asignacion-grupos.xlsx"')
-  templateStudentsToGroupsXlsx() {
-    return this.schoolService.buildStudentsToGroupsTemplateXlsx();
+  templateStudentsToGroupsXlsx(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.schoolService.buildStudentsToGroupsTemplateXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
   }
 
   @Get('import/templates/groups.csv')

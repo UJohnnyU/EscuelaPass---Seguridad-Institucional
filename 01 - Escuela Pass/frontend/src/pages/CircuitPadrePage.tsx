@@ -24,6 +24,8 @@ export function CircuitPadrePage() {
   const [error, setError] = useState<string | null>(null);
   /** Si hay solicitud abierta, ir directo al seguimiento (evita perder el hilo al volver desde el perfil). */
   const [activeCircuitId, setActiveCircuitId] = useState<string | null>(null);
+  const [consentToday, setConsentToday] = useState<Record<string, boolean>>({});
+  const [consentSaving, setConsentSaving] = useState(false);
 
   useEffect(() => {
     if (user?.role !== 'PADRE') return;
@@ -45,13 +47,23 @@ export function CircuitPadrePage() {
         } catch {
           /* Sin redirección: mostrar formulario si el endpoint no existe o falla */
         }
-        const [{ data: ps }, { data: vh }] = await Promise.all([
+        const [{ data: ps }, { data: vh }, consentRes] = await Promise.all([
           api.get<ParentStudents>('/api/v1/attendance/parent/my-students'),
-          api.get<Vehicle[]>('/api/v1/parents/vehicles')
+          api.get<Vehicle[]>('/api/v1/parents/vehicles'),
+          api
+            .get<Array<{ studentId: string; autonomousToday: boolean }>>(
+              '/api/v1/departure-consent/parent/today'
+            )
+            .catch(() => ({ data: [] as Array<{ studentId: string; autonomousToday: boolean }> }))
         ]);
         if (cancelled) return;
         setData(ps);
         setVehicles(vh);
+        const map: Record<string, boolean> = {};
+        for (const c of consentRes.data ?? []) {
+          map[c.studentId] = c.autonomousToday;
+        }
+        setConsentToday(map);
         if (ps.students.length) setStudentId((prev) => prev || ps.students[0].id);
       } catch (e) {
         if (!cancelled) setError(getUserFacingMessage(e, 'No se pudieron cargar los datos.'));
@@ -64,10 +76,31 @@ export function CircuitPadrePage() {
     };
   }, [user?.role]);
 
+  async function toggleAutonomousConsent(next: boolean) {
+    if (!studentId) return;
+    setConsentSaving(true);
+    setError(null);
+    try {
+      await api.post('/api/v1/departure-consent/parent/set', {
+        studentId,
+        active: next
+      });
+      setConsentToday((prev) => ({ ...prev, [studentId]: next }));
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo actualizar el permiso de salida.'));
+    } finally {
+      setConsentSaving(false);
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!data?.parentId || !studentId) {
       setError('Selecciona un estudiante.');
+      return;
+    }
+    if (consentToday[studentId]) {
+      setError('Desactive primero “Puede irse solo hoy” para usar el circuito de recogida con seguimiento.');
       return;
     }
     setSubmitting(true);
@@ -134,6 +167,38 @@ export function CircuitPadrePage() {
         Indique cómo va a recoger a su hijo o hija. Después podrá avisar que va en camino y marcar su llegada desde
         la misma solicitud.
       </p>
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+        <p className="text-sm font-medium text-slate-800">Salida autónoma (solo hoy)</p>
+        <p className="mt-1 text-xs text-slate-600">
+          Si su hijo o hija puede retirarse solo sin recogida coordinada, active esta opción. Se desactivará el circuito
+          de seguimiento para hoy hasta que la desmarque.
+        </p>
+        <label className="mt-3 flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-300"
+            checked={!!consentToday[studentId]}
+            disabled={consentSaving || !studentId}
+            onChange={(e) => void toggleAutonomousConsent(e.target.checked)}
+          />
+          <span className="text-sm text-slate-800">
+            {consentToday[studentId]
+              ? 'Hoy puede irse solo (sin circuito de recogida)'
+              : 'Activar permiso de salida autónoma para hoy'}
+          </span>
+        </label>
+      </div>
+
+      {consentToday[studentId] ? (
+        <div
+          className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="status"
+        >
+          Tiene activo el permiso de salida autónoma para el alumno seleccionado. Para iniciar una recogida con
+          seguimiento (en camino, llegada, etc.), desactive la casilla arriba.
+        </div>
+      ) : null}
 
       <form className="mt-8 space-y-4" onSubmit={onSubmit}>
         <div>
@@ -207,7 +272,7 @@ export function CircuitPadrePage() {
         )}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !!consentToday[studentId]}
           className="w-full rounded-xl bg-brand-600 py-3 font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
         >
           {submitting ? 'Enviando…' : 'Crear solicitud'}

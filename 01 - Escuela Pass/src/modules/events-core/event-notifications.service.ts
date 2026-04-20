@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { FcmService } from '../fcm/fcm.service';
+import { MailService } from '../mail/mail.service';
 
 export type EventNotificationType =
   | 'visit_created'
@@ -28,7 +29,8 @@ export class EventNotificationsService {
   constructor(
     @InjectRepository(NotificationEntity)
     private readonly notificationsRepository: Repository<NotificationEntity>,
-    private readonly fcmService: FcmService
+    private readonly fcmService: FcmService,
+    private readonly mailService: MailService
   ) {}
 
   async notifyUsers(
@@ -55,6 +57,17 @@ export class EventNotificationsService {
     } catch (err) {
       this.logger.warn(`FCM push para ${data.type} falló: ${String(err)}`);
     }
+
+    const base = (process.env.FRONTEND_URL ?? '').replace(/\/$/, '') || 'http://localhost:5173';
+    const deep = `${base}/app/modulos/comunicacion`;
+    void this.mailService
+      .sendHtmlToUserIds(
+        uniques,
+        title,
+        this.mailService.wrapNotice(title, message, deep),
+        data.type
+      )
+      .catch((err: unknown) => this.logger.warn(`Correo no enviado: ${String(err)}`));
   }
 
   /**

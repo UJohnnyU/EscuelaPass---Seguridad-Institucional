@@ -851,8 +851,7 @@ export class ActivitiesService {
       );
     }
 
-    const teacher = await this.teachersRepository.findOne({ where: { userId } });
-    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    const teacher = await this.ensureTeacherProfile(userId);
 
     return this.studentsRepository.manager.query<TeacherAssignmentRow[]>(
       `SELECT
@@ -873,6 +872,21 @@ export class ActivitiesService {
        ORDER BY sch.name ASC NULLS LAST, g.name ASC NULLS LAST, s.name ASC`,
       [teacher.id]
     );
+  }
+
+  /**
+   * Devuelve el perfil docente del usuario; si por alguna razón aún no existe
+   * (por ejemplo, usuarios creados fuera del flujo estándar), crea uno vacío
+   * para que el usuario pueda seguir operando sin errores 403.
+   */
+  private async ensureTeacherProfile(userId: string) {
+    const existing = await this.teachersRepository.findOne({ where: { userId } });
+    if (existing) return existing;
+    // Empleados no registrados: creamos un perfil mínimo con un número
+    // marcador único para que el usuario pueda seguir operando.
+    const placeholder = `SE-${userId.slice(0, 8).toUpperCase()}`;
+    const created = this.teachersRepository.create({ userId, employeeNumber: placeholder });
+    return this.teachersRepository.save(created);
   }
 
   private async fetchActivitiesForStudent(

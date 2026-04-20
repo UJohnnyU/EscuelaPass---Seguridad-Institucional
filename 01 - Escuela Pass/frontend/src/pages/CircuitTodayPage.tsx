@@ -41,6 +41,8 @@ export function CircuitTodayPage() {
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [schoolsLoadError, setSchoolsLoadError] = useState<string | null>(null);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchApplied, setSearchApplied] = useState('');
 
   const allowed =
     user?.role === 'DOCENTE' || user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
@@ -90,10 +92,12 @@ export function CircuitTodayPage() {
       else setLoading(true);
       setError(null);
       try {
-        const params: Record<string, string> = { _t: String(Date.now()) };
+        const params: Record<string, string> = { _t: String(Date.now()), limit: '200' };
         if (isAdmin && selectedSchoolId) {
           params.schoolId = selectedSchoolId;
         }
+        const q = searchApplied.trim();
+        if (q) params.q = q;
         const { data } = await api.get<CircuitRow[]>('/api/v1/circuit-requests/today', { params });
         setRows(data);
         setLastUpdatedAt(Date.now());
@@ -104,7 +108,7 @@ export function CircuitTodayPage() {
         else setLoading(false);
       }
     },
-    [allowed, isAdmin, selectedSchoolId]
+    [allowed, isAdmin, selectedSchoolId, searchApplied]
   );
 
   useEffect(() => {
@@ -230,6 +234,35 @@ export function CircuitTodayPage() {
           {schoolsLoadError}
         </div>
       )}
+      <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <label className="min-w-[12rem] flex-1 text-sm text-slate-700">
+          Buscar (nombre o matrícula)
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setSearchApplied(searchInput.trim());
+                void loadToday({ silent: true });
+              }
+            }}
+            placeholder="Ej. García o matrícula"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            setSearchApplied(searchInput.trim());
+            void loadToday({ silent: true });
+          }}
+          className="rounded border border-slate-300 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+        >
+          Filtrar
+        </button>
+      </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         <button
           type="button"

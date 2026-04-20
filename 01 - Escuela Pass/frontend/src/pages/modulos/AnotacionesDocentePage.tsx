@@ -289,7 +289,7 @@ export function AnotacionesDocentePage() {
               </label>
             </div>
             <label className="block text-sm">
-              <span className="text-slate-700">Gravedad</span>
+              <span className="mb-1 block font-medium text-slate-700">Gravedad</span>
               <select
                 className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-xs"
                 value={severity}
@@ -301,7 +301,7 @@ export function AnotacionesDocentePage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="text-slate-700">Título breve</span>
+              <span className="mb-1 block font-medium text-slate-700">Título breve</span>
               <input
                 className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={title}
@@ -311,7 +311,7 @@ export function AnotacionesDocentePage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="text-slate-700">Descripción</span>
+              <span className="mb-1 block font-medium text-slate-700">Descripción</span>
               <textarea
                 className="mt-1 min-h-[100px] w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={description}
@@ -321,7 +321,7 @@ export function AnotacionesDocentePage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="text-slate-700">Fecha del hecho (opcional)</span>
+              <span className="mb-1 block font-medium text-slate-700">Fecha del hecho (opcional)</span>
               <input
                 type="datetime-local"
                 className="mt-1 w-full max-w-sm rounded border border-slate-300 px-3 py-2 text-sm"

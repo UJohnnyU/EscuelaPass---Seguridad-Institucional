@@ -7,8 +7,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { readFileSync } from 'fs';
 import ExcelJS from 'exceljs';
+import { extname } from 'path';
 import { IsNull, Repository } from 'typeorm';
+import { resolveUploadFile } from '../../lib/uploads-path';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
@@ -30,6 +33,7 @@ import { UpdateGroupDto } from './dto/update-group.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
+import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 
 type CsvImportResult = {
   totalRows: number;
@@ -67,8 +71,145 @@ export class SchoolService {
     @InjectRepository(ParentEntity)
     private readonly parentsRepository: Repository<ParentEntity>,
     @InjectRepository(StudentParentEntity)
-    private readonly studentParentsRepository: Repository<StudentParentEntity>
+    private readonly studentParentsRepository: Repository<StudentParentEntity>,
+    private readonly settingsService: SettingsService
   ) {}
+
+  private getLogoExtensionForExcel(absPath: string): 'png' | 'jpeg' | 'gif' {
+    const ext = extname(absPath).toLowerCase();
+    if (ext === '.png') return 'png';
+    if (ext === '.jpg' || ext === '.jpeg') return 'jpeg';
+    if (ext === '.gif') return 'gif';
+    return 'png';
+  }
+
+  /**
+   * Cabecera institucional (nombre + logo si existe en disco). Devuelve el índice de fila (1-based)
+   * donde deben ir los encabezados de columnas de datos.
+   */
+  /** Nombres de columna típicos en plantillas (sin acentos, minúsculas). */
+  private static readonly XLSX_HEADER_TOKENS = new Set([
+    'email',
+    'password',
+    'fullname',
+    'matricula',
+    'groupid',
+    'canaccesscampus',
+    'canleavealone',
+    'name',
+    'grade',
+    'shift',
+    'schoolyear',
+    'classroom',
+    'capacity',
+    'employeenumber',
+    'teacherid',
+    'subjectid',
+    'ismainteacher',
+    'canauthorizedepartures',
+    'grupo_id',
+    'nombre_grupo',
+    'grado',
+    'turno',
+    'anio_escolar'
+  ]);
+
+  /** Fila donde están los encabezados de datos (compatible con plantillas con cabecera institucional arriba). */
+  private findXlsxDataHeaderRow(ws: ExcelJS.Worksheet): number {
+    const last = ws.lastRow?.number ?? 1;
+    const maxScan = Math.min(last, 60);
+    for (let r = 1; r <= maxScan; r++) {
+      const row = ws.getRow(r);
+      let matches = 0;
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        const raw = String(cell.value ?? '').trim();
+        if (!raw) return;
+        const k = raw
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, '');
+        if (SchoolService.XLSX_HEADER_TOKENS.has(k)) matches += 1;
+      });
+      if (matches >= 2) return r;
+    }
+    return 1;
+  }
+
+  /** Fila de encabezados para asignación alumnos→grupos (columna matricula + al menos otra reconocida). */
+  private findStudentsToGroupsHeaderRow(ws: ExcelJS.Worksheet): number {
+    const last = ws.lastRow?.number ?? 1;
+    for (let r = 1; r <= Math.min(last, 60); r++) {
+      const row = ws.getRow(r);
+      const colByField = new Map<string, number>();
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const raw = String(cell.value ?? '').trim();
+        if (!raw) return;
+        const field = this.mapExcelHeaderToField(raw);
+        if (field) colByField.set(field, colNumber);
+      });
+      if (colByField.has('matricula') && colByField.size >= 2) return r;
+    }
+    return 1;
+  }
+
+  private applyImportTemplateBranding(
+    ws: ExcelJS.Worksheet,
+    wb: ExcelJS.Workbook,
+    institution: InstitutionProfile,
+    columnCount: number,
+    sheetPurpose: string
+  ): number {
+    const c = Math.max(columnCount, 3);
+    const logoAbs = resolveUploadFile(institution.logoUrl ?? null);
+    let imageBuffer: Buffer | null = null;
+    let imgExt: 'png' | 'jpeg' | 'gif' = 'png';
+    if (logoAbs) {
+      const lower = logoAbs.toLowerCase();
+      if (!lower.endsWith('.webp')) {
+        try {
+          imageBuffer = readFileSync(logoAbs);
+          imgExt = this.getLogoExtensionForExcel(logoAbs);
+        } catch {
+          imageBuffer = null;
+        }
+      }
+    }
+
+    if (imageBuffer) {
+      // exceljs + @types/node: conflicto de tipos de Buffer; en runtime es válido.
+      const imageId = wb.addImage({ buffer: imageBuffer, extension: imgExt } as unknown as ExcelJS.Image);
+      ws.addImage(imageId, {
+        tl: { col: 0, row: 0 },
+        ext: { width: 120, height: 72 }
+      });
+      ws.mergeCells(1, 3, 1, c);
+      const t1 = ws.getCell(1, 3);
+      t1.value = institution.name;
+      t1.font = { bold: true, size: 14 };
+      t1.alignment = { vertical: 'middle' };
+      ws.getRow(1).height = 56;
+    } else {
+      ws.mergeCells(1, 1, 1, c);
+      const t1 = ws.getCell(1, 1);
+      t1.value = institution.name;
+      t1.font = { bold: true, size: 14 };
+      t1.alignment = { horizontal: 'center', vertical: 'middle' };
+    }
+
+    ws.mergeCells(2, 1, 2, c);
+    ws.getCell(2, 1).value = sheetPurpose;
+    ws.getCell(2, 1).font = { bold: true, size: 12 };
+    ws.getCell(2, 1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(3, 1, 3, c);
+    ws.getCell(3, 1).value =
+      'No elimine ni renombre la fila de encabezados (nombres de columnas en la primera fila de datos).';
+    ws.getCell(3, 1).font = { size: 10, color: { argb: 'FF444444' } };
+    ws.getCell(3, 1).alignment = { horizontal: 'center', wrapText: true };
+
+    return 4;
+  }
 
   /** Escuela para altas: token de escuela o `schoolId` en el cuerpo (ADMIN de plataforma). */
   private effectiveSchoolIdForWrite(scopeSchoolId?: string | null, bodySchoolId?: string | null): string {
@@ -872,7 +1013,8 @@ export class SchoolService {
     const ws = workbook.worksheets[0];
     if (!ws) throw new BadRequestException('El archivo no tiene hojas');
 
-    const headerRow = ws.getRow(1);
+    const headerRowIndex = this.findStudentsToGroupsHeaderRow(ws);
+    const headerRow = ws.getRow(headerRowIndex);
     const colByField = new Map<string, number>();
     headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const raw = String(cell.value ?? '').trim();
@@ -882,7 +1024,7 @@ export class SchoolService {
     });
 
     if (!colByField.has('matricula')) {
-      throw new BadRequestException('La primera fila debe incluir la columna "matricula"');
+      throw new BadRequestException('El archivo debe incluir una fila de encabezados con la columna "matricula"');
     }
 
     const result: XlsxAssignResult = {
@@ -893,7 +1035,7 @@ export class SchoolService {
     };
 
     const lastRow = ws.lastRow?.number ?? 1;
-    for (let r = 2; r <= lastRow; r++) {
+    for (let r = headerRowIndex + 1; r <= lastRow; r++) {
       const row = ws.getRow(r);
       const fields: Record<string, string> = {};
       for (const [field, col] of colByField) {
@@ -922,19 +1064,25 @@ export class SchoolService {
     return result;
   }
 
-  async buildStudentsToGroupsTemplateXlsx(): Promise<Buffer> {
+  async buildStudentsToGroupsTemplateXlsx(schoolId: string | null): Promise<Buffer> {
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Asignacion');
-    ws.addRow([
-      'matricula',
-      'grupo_id',
-      'nombre_grupo',
-      'grado',
-      'turno',
-      'anio_escolar'
-    ]);
+    const headers = ['matricula', 'grupo_id', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'];
+    const headerRow = this.applyImportTemplateBranding(
+      ws,
+      wb,
+      institution,
+      headers.length,
+      'Plantilla de asignación de alumnos a grupos'
+    );
+    const hr = ws.getRow(headerRow);
+    headers.forEach((h, i) => {
+      hr.getCell(i + 1).value = h;
+    });
+    hr.font = { bold: true };
     ws.addRow(['MAT-0001', '', '1A', '1', 'MATUTINO', '2026-2027']);
-    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
@@ -965,20 +1113,34 @@ export class SchoolService {
     }));
   }
 
-  async buildTemplateGroupsXlsx(): Promise<Buffer> {
+  async buildTemplateGroupsXlsx(schoolId: string | null): Promise<Buffer> {
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Grupos');
-    ws.addRow(['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity']);
+    const headers = ['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity'];
+    const headerRow = this.applyImportTemplateBranding(
+      ws,
+      wb,
+      institution,
+      headers.length,
+      'Plantilla de importación de grupos'
+    );
+    const hr = ws.getRow(headerRow);
+    headers.forEach((h, i) => {
+      hr.getCell(i + 1).value = h;
+    });
+    hr.font = { bold: true };
     ws.addRow(['1A', '1', 'MATUTINO', '2026-2027', 'A-101', '30']);
-    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  async buildTemplateStudentsXlsx(): Promise<Buffer> {
+  async buildTemplateStudentsXlsx(schoolId: string | null): Promise<Buffer> {
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Alumnos');
-    ws.addRow([
+    const headers = [
       'email',
       'password',
       'fullName',
@@ -986,7 +1148,19 @@ export class SchoolService {
       'groupId',
       'canAccessCampus',
       'canLeaveAlone'
-    ]);
+    ];
+    const headerRow = this.applyImportTemplateBranding(
+      ws,
+      wb,
+      institution,
+      headers.length,
+      'Plantilla de importación de alumnos'
+    );
+    const hr = ws.getRow(headerRow);
+    headers.forEach((h, i) => {
+      hr.getCell(i + 1).value = h;
+    });
+    hr.font = { bold: true };
     ws.addRow([
       'alumno.nuevo@escuelapass.local',
       'Alumno123*',
@@ -996,31 +1170,57 @@ export class SchoolService {
       'false',
       'false'
     ]);
-    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  async buildTemplateTeachersXlsx(): Promise<Buffer> {
+  async buildTemplateTeachersXlsx(schoolId: string | null): Promise<Buffer> {
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Docentes');
-    ws.addRow(['email', 'password', 'fullName', 'employeeNumber', 'canAccessCampus']);
+    const headers = ['email', 'password', 'fullName', 'employeeNumber', 'canAccessCampus'];
+    const headerRow = this.applyImportTemplateBranding(
+      ws,
+      wb,
+      institution,
+      headers.length,
+      'Plantilla de importación de docentes'
+    );
+    const hr = ws.getRow(headerRow);
+    headers.forEach((h, i) => {
+      hr.getCell(i + 1).value = h;
+    });
+    hr.font = { bold: true };
     ws.addRow(['docente.nuevo@escuelapass.local', 'Docente123*', 'Docente Nuevo', 'EMP-1001', 'true']);
-    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  async buildTemplateTeacherAssignmentsXlsx(): Promise<Buffer> {
+  async buildTemplateTeacherAssignmentsXlsx(schoolId: string | null): Promise<Buffer> {
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Asignaciones');
-    ws.addRow([
+    const headers = [
       'teacherId',
       'groupId',
       'subjectId',
       'isMainTeacher',
       'canAuthorizeDepartures'
-    ]);
+    ];
+    const headerRow = this.applyImportTemplateBranding(
+      ws,
+      wb,
+      institution,
+      headers.length,
+      'Plantilla de asignaciones docente–grupo–materia'
+    );
+    const hr = ws.getRow(headerRow);
+    headers.forEach((h, i) => {
+      hr.getCell(i + 1).value = h;
+    });
+    hr.font = { bold: true };
     ws.addRow([
       '11111111-1111-4111-8111-111111111111',
       '22222222-2222-4222-8222-222222222222',
@@ -1028,7 +1228,7 @@ export class SchoolService {
       'true',
       'false'
     ]);
-    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
@@ -1147,19 +1347,20 @@ export class SchoolService {
     const ws = workbook.worksheets[0];
     if (!ws) throw new BadRequestException('El archivo no tiene hojas');
 
-    const headerRow = ws.getRow(1);
+    const headerRowIndex = this.findXlsxDataHeaderRow(ws);
+    const headerRow = ws.getRow(headerRowIndex);
     const colByName = new Map<string, number>();
     headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const raw = String(cell.value ?? '').trim();
       if (raw) colByName.set(raw, colNumber);
     });
     if (colByName.size === 0) {
-      throw new BadRequestException('La primera fila debe contener encabezados de columnas');
+      throw new BadRequestException('Debe existir una fila con encabezados de columnas (nombre de cada columna)');
     }
 
     const rows: Array<Record<string, string>> = [];
     const lastRow = ws.lastRow?.number ?? 1;
-    for (let r = 2; r <= lastRow; r++) {
+    for (let r = headerRowIndex + 1; r <= lastRow; r++) {
       const line = ws.getRow(r);
       const obj: Record<string, string> = {};
       for (const [header, col] of colByName) {

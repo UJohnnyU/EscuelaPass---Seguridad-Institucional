@@ -1,11 +1,27 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AttendanceService } from './attendance.service';
+import { ParentExcuseDto } from './dto/parent-excuse.dto';
 import { RegisterAttendanceDto } from './dto/register-attendance.dto';
+import { excuseMulterOptions } from './multer-excuse.config';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
 
@@ -48,5 +64,30 @@ export class AttendanceController {
   @Roles(UserRole.PADRE)
   listMyStudents(@Req() req: Request & { user: JwtUser }) {
     return this.attendanceService.listMyStudentsForParent(req.user.userId);
+  }
+
+  @Post('parent/excuse')
+  @Roles(UserRole.PADRE)
+  @UseInterceptors(FileInterceptor('file', excuseMulterOptions))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['studentId', 'date', 'reason'],
+      properties: {
+        studentId: { type: 'string', format: 'uuid' },
+        date: { type: 'string', example: '2026-04-20' },
+        reason: { type: 'string' },
+        file: { type: 'string', format: 'binary' }
+      }
+    }
+  })
+  submitParentExcuse(
+    @Req() req: Request & { user: JwtUser },
+    @Body() dto: ParentExcuseDto,
+    @UploadedFile() file?: Express.Multer.File
+  ) {
+    const path = file ? `/uploads/excuses/${file.filename}` : null;
+    return this.attendanceService.submitParentExcuse(req.user.userId, dto, path);
   }
 }

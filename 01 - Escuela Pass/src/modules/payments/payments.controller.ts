@@ -44,6 +44,12 @@ export class PaymentsController {
     return this.paymentsService.createConcept(dto);
   }
 
+  @Post('concepts/ensure-base')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  ensureBaseConcepts() {
+    return this.paymentsService.ensureBaseConceptTemplates();
+  }
+
   @Patch('concepts/:id')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   updateConcept(

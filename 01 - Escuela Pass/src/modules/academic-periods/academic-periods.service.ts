@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -33,6 +35,8 @@ export type AcademicPeriodListItem = {
 
 @Injectable()
 export class AcademicPeriodsService {
+  private readonly logger = new Logger(AcademicPeriodsService.name);
+
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
@@ -270,15 +274,43 @@ export class AcademicPeriodsService {
       return this.rowToDto(row);
     }
 
-    const saved = await this.dataSource.transaction(async (mgr) => {
-      await this.activitiesService.closeManyByPeriod(mgr, row.id, userId);
-      row.status = AcademicPeriodStatus.CLOSED;
-      row.closedAt = new Date();
-      row.closedBy = userId;
-      const persisted = await mgr.getRepository(AcademicPeriodEntity).save(row);
-      await this.reportCardsService.generateForPeriod(row.id, true, mgr);
-      return persisted;
-    });
+    let saved: AcademicPeriodEntity;
+    try {
+      saved = await this.dataSource.transaction(async (mgr) => {
+        try {
+          await this.activitiesService.closeManyByPeriod(mgr, row.id, userId);
+        } catch (err) {
+          this.logger.error(
+            `close(${id}): fallo al cerrar actividades — ${(err as Error).message}`
+          );
+          throw err;
+        }
+        row.status = AcademicPeriodStatus.CLOSED;
+        row.closedAt = new Date();
+        row.closedBy = userId;
+        const persisted = await mgr.getRepository(AcademicPeriodEntity).save(row);
+        try {
+          await this.reportCardsService.generateForPeriod(row.id, true, mgr);
+        } catch (err) {
+          this.logger.error(
+            `close(${id}): fallo al generar boletines — ${(err as Error).message}`
+          );
+          throw err;
+        }
+        return persisted;
+      });
+    } catch (err) {
+      this.logger.error(
+        `close(${id}) aborted: ${(err as Error).message}`,
+        (err as Error).stack
+      );
+      if (err instanceof BadRequestException || err instanceof ForbiddenException || err instanceof NotFoundException) {
+        throw err;
+      }
+      throw new InternalServerErrorException(
+        `No se pudo cerrar el periodo. Detalle: ${(err as Error).message}`
+      );
+    }
 
     try {
       await this.notifications.notifyReportCardsPublished(

@@ -410,6 +410,66 @@ export class AttendanceService {
     };
   }
 
+  /**
+   * Padre/tutor registra ausencia con excusa (y opcionalmente adjunta comprobante).
+   * No sustituye el criterio docente; deja constancia para el grupo.
+   */
+  async submitParentExcuse(
+    parentUserId: string,
+    dto: { studentId: string; date: string; reason: string },
+    excuseAttachmentPath: string | null
+  ) {
+    const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
+    if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+    const link = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (SELECT 1 FROM student_parents WHERE parent_id = $1 AND student_id = $2) AS ok`,
+      [parent.id, dto.studentId]
+    );
+    if (!link[0]?.ok) throw new ForbiddenException('No está vinculado a este estudiante');
+    const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
+    if (!student) throw new NotFoundException('Estudiante no encontrado');
+    const dateStr = dto.date.slice(0, 10);
+    const notes = `Excusa (padre/tutor): ${dto.reason.trim()}`;
+
+    const existing = await this.attendanceRepository.findOne({
+      where: { studentId: student.id, attendanceDate: dateStr }
+    });
+    if (
+      existing &&
+      (existing.status === AttendanceStatus.PRESENTE || existing.status === AttendanceStatus.RETARDO)
+    ) {
+      throw new BadRequestException(
+        'Ya existe registro de asistencia para ese día. Si necesita corrección, contacte a secretaría.'
+      );
+    }
+
+    if (existing) {
+      existing.status = AttendanceStatus.AUSENTE;
+      existing.notes = notes;
+      existing.registeredBy = parentUserId;
+      existing.groupId = student.groupId ?? null;
+      if (excuseAttachmentPath) {
+        existing.excuseAttachmentPath = excuseAttachmentPath;
+      }
+      const saved = await this.attendanceRepository.save(existing);
+      await this.setJustificationForRecord(saved.id, 'AUSENTE', true);
+      return { message: 'Excusa registrada', id: saved.id };
+    }
+
+    const row = this.attendanceRepository.create({
+      studentId: student.id,
+      groupId: student.groupId ?? null,
+      attendanceDate: dateStr,
+      status: AttendanceStatus.AUSENTE,
+      notes,
+      registeredBy: parentUserId,
+      excuseAttachmentPath: excuseAttachmentPath ?? null
+    });
+    const saved = await this.attendanceRepository.save(row);
+    await this.setJustificationForRecord(saved.id, 'AUSENTE', true);
+    return { message: 'Excusa registrada', id: saved.id };
+  }
+
   /** Lista hijos vinculados al padre (para circuito, visitas, etc.). */
   async listMyStudentsForParent(parentUserId: string) {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });

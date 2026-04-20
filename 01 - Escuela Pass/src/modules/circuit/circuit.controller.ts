@@ -40,9 +40,11 @@ export class CircuitController {
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   findToday(
     @Req() req: Request & { user: JwtUser },
-    @Query('schoolId') schoolId?: string
+    @Query('schoolId') schoolId?: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string
   ) {
-    return this.circuitService.findToday(req.user.userId, req.user.role, schoolId);
+    return this.circuitService.findToday(req.user.userId, req.user.role, schoolId, q, limit);
   }
 
   /** Solicitud en curso del padre (si existe); para redirigir al detalle sin pasar por el formulario nuevo. */

@@ -34,6 +34,8 @@ export type InstitutionProfile = {
   maxGradeScale?: string;
   /** Ruta pública `/uploads/school-logos/…` */
   logoUrl?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
 };
 
 type JwtLike = { role: UserRole; schoolId?: string | null };
@@ -101,7 +103,9 @@ export class SettingsService {
       directorName: pick(school.directorName, global.directorName),
       motto: pick(school.motto, global.motto),
       maxGradeScale: school.maxGradeScale,
-      logoUrl: school.logoPath ?? null
+      logoUrl: school.logoPath ?? null,
+      latitude: school.latitude ?? null,
+      longitude: school.longitude ?? null
     };
   }
 

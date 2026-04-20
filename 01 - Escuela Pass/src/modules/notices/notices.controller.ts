@@ -20,6 +20,18 @@ export class NoticesController {
     return this.noticesService.create(dto, req.user.userId, req.user.role);
   }
 
+  @Get('teacher/groups')
+  @Roles(UserRole.DOCENTE)
+  teacherGroups(@Req() req: Request & { user: JwtUser }) {
+    return this.noticesService.listTeacherGroupsForNotices(req.user.userId);
+  }
+
+  @Get('teacher/target-users')
+  @Roles(UserRole.DOCENTE)
+  teacherTargetUsers(@Req() req: Request & { user: JwtUser }, @Query('q') q?: string) {
+    return this.noticesService.searchNoticeTargetsForTeacher(req.user.userId, q);
+  }
+
   @Get()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   list(

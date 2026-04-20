@@ -10,12 +10,14 @@ import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { SettingsModule } from '../settings/settings.module';
 import { SchoolController } from './school.controller';
 import { SchoolService } from './school.service';
 
 @Module({
   imports: [
     AuthModule,
+    SettingsModule,
     TypeOrmModule.forFeature([
       GroupEntity,
       SubjectEntity,

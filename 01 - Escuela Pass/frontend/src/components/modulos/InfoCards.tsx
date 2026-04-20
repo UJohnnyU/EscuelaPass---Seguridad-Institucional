@@ -1,6 +1,17 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
+import { DetailModal } from '@/components/DetailModal';
+
+function todayISODateLocal(): string {
+  const n = new Date();
+  const y = n.getFullYear();
+  const m = String(n.getMonth() + 1).padStart(2, '0');
+  const d = String(n.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export type Notification = {
   id: string;
@@ -149,12 +160,29 @@ export function NotificationsList({
   const items = useMemo(() => unwrapList<Notification>(data), [data]);
   const [readMap, setReadMap] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
 
   useEffect(() => {
     setReadMap({});
   }, [items]);
 
-  if (items.length === 0) return <EmptyState title={emptyTitle} hint={emptyHint} />;
+  const deepId = searchParams.get('notification');
+  useEffect(() => {
+    if (!deepId || items.length === 0) return;
+    const target = items.find((n) => n.id === deepId);
+    if (!target) return;
+    const el = itemRefs.current[deepId];
+    if (el) {
+      setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-brand-400');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-brand-400'), 2500);
+      }, 120);
+    }
+    setOpenId(deepId);
+  }, [deepId, items]);
 
   const handleMarkRead = async (id: string) => {
     if (busyId) return;
@@ -169,54 +197,118 @@ export function NotificationsList({
     }
   };
 
+  if (items.length === 0) return <EmptyState title={emptyTitle} hint={emptyHint} />;
+
+  const openItem = items.find((n) => n.id === openId) ?? null;
+
   return (
-    <ul className="space-y-3">
-      {items.map((n) => {
-        const isUnread = !n.readAt && !readMap[n.id];
-        return (
-          <li
-            key={n.id}
-            className={`relative rounded-lg border p-4 transition ${
-              isUnread ? 'border-brand-200 bg-brand-50/40' : 'border-slate-200 bg-white'
-            }`}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  {isUnread && (
-                    <span
-                      className="inline-flex h-2 w-2 rounded-full bg-brand-700"
-                      aria-label="No leído"
-                    />
-                  )}
-                  <h3 className="font-medium text-slate-900">{n.title}</h3>
-                  {n.studentName && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                      Para {n.studentName}
-                    </span>
-                  )}
+    <>
+      <ul className="space-y-3">
+        {items.map((n) => {
+          const isUnread = !n.readAt && !readMap[n.id];
+          return (
+            <li
+              key={n.id}
+              ref={(el) => {
+                itemRefs.current[n.id] = el;
+              }}
+              className={`relative rounded-lg border p-4 transition focus-within:ring-2 focus-within:ring-brand-300 ${
+                isUnread ? 'border-brand-200 bg-brand-50/40' : 'border-slate-200 bg-white'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenId(n.id);
+                  if (allowMarkRead && isUnread) void handleMarkRead(n.id);
+                }}
+                className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isUnread && (
+                      <span
+                        className="inline-flex h-2 w-2 rounded-full bg-brand-700"
+                        aria-label="No leído"
+                      />
+                    )}
+                    <h3 className="font-medium text-slate-900">{n.title}</h3>
+                    {n.studentName && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                        Para {n.studentName}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-slate-700">{n.message}</p>
                 </div>
-                <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{n.message}</p>
-                {allowMarkRead && isUnread && (
-                  <button
-                    type="button"
-                    onClick={() => void handleMarkRead(n.id)}
-                    disabled={busyId === n.id}
-                    className="mt-2 inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    {busyId === n.id ? 'Marcando…' : 'Marcar como leído'}
-                  </button>
-                )}
+                <div className="text-right text-[11px] text-slate-500">
+                  <p>{fmtDateTime(n.sentAt)}</p>
+                  <p className="text-slate-400">{fmtRelative(n.sentAt)}</p>
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <DetailModal
+        open={openItem !== null}
+        title={openItem?.title ?? ''}
+        subtitle={openItem ? fmtDateTime(openItem.sentAt) : undefined}
+        badge={
+          openItem?.studentName ? (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+              Para {openItem.studentName}
+            </span>
+          ) : null
+        }
+        onClose={() => {
+          setOpenId(null);
+          if (deepId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('notification');
+            setSearchParams(next, { replace: true });
+          }
+        }}
+        footer={
+          openItem && allowMarkRead && !openItem.readAt && !readMap[openItem.id] ? (
+            <button
+              type="button"
+              onClick={() => void handleMarkRead(openItem.id)}
+              disabled={busyId === openItem.id}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {busyId === openItem.id ? 'Marcando…' : 'Marcar como leído'}
+            </button>
+          ) : null
+        }
+      >
+        {openItem ? (
+          <div className="space-y-3">
+            <p className="whitespace-pre-line text-slate-800">{openItem.message}</p>
+            <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Enviado</dt>
+                <dd className="mt-0.5 text-slate-900">{fmtDateTime(openItem.sentAt)}</dd>
               </div>
-              <div className="text-right text-[11px] text-slate-500">
-                <p>{fmtDateTime(n.sentAt)}</p>
-                <p className="text-slate-400">{fmtRelative(n.sentAt)}</p>
-              </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+              {openItem.readAt || readMap[openItem.id] ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Leído</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {fmtDateTime(openItem.readAt ?? readMap[openItem.id])}
+                  </dd>
+                </div>
+              ) : null}
+              {openItem.deliveryStatus ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Entrega</dt>
+                  <dd className="mt-0.5 text-slate-900">{openItem.deliveryStatus}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
+      </DetailModal>
+    </>
   );
 }
 
@@ -224,6 +316,25 @@ export function NotificationsList({
 
 export function NoticesList({ data }: { data: unknown }) {
   const items = useMemo(() => unwrapList<Notice>(data), [data]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepId = searchParams.get('notice');
+  useEffect(() => {
+    if (!deepId || items.length === 0) return;
+    const target = items.find((n) => n.id === deepId);
+    if (!target) return;
+    const el = itemRefs.current[deepId];
+    if (el) {
+      setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-brand-400');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-brand-400'), 2500);
+      }, 120);
+    }
+    setOpenId(deepId);
+  }, [deepId, items]);
+
   if (items.length === 0) {
     return (
       <EmptyState
@@ -237,36 +348,91 @@ export function NoticesList({ data }: { data: unknown }) {
     if (t === 'USER') return 'Personal';
     return 'Comunidad';
   };
+  const open = items.find((n) => n.id === openId) ?? null;
   return (
-    <ul className="space-y-3">
-      {items.map((n) => (
-        <li key={n.id} className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-medium text-slate-900">{n.title}</h3>
-                {n.isImportant && (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900">
-                    Importante
+    <>
+      <ul className="space-y-3">
+        {items.map((n) => (
+          <li
+            key={n.id}
+            ref={(el) => {
+              itemRefs.current[n.id] = el;
+            }}
+            className="rounded-lg border border-slate-200 bg-white p-4 transition"
+          >
+            <button
+              type="button"
+              onClick={() => setOpenId(n.id)}
+              className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-medium text-slate-900">{n.title}</h3>
+                  {n.isImportant && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900">
+                      Importante
+                    </span>
+                  )}
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                    {labelTarget(n.targetType)}
                   </span>
+                </div>
+                <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-slate-700">{n.content}</p>
+                {n.expiresAt && (
+                  <p className="mt-2 text-xs text-slate-500">Vigente hasta {fmtDate(n.expiresAt)}</p>
                 )}
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                  {labelTarget(n.targetType)}
-                </span>
               </div>
-              <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{n.content}</p>
-              {n.expiresAt && (
-                <p className="mt-2 text-xs text-slate-500">Vigente hasta {fmtDate(n.expiresAt)}</p>
-              )}
-            </div>
-            <div className="text-right text-[11px] text-slate-500">
-              <p>{fmtDateTime(n.createdAt)}</p>
-              <p className="text-slate-400">{fmtRelative(n.createdAt)}</p>
-            </div>
+              <div className="text-right text-[11px] text-slate-500">
+                <p>{fmtDateTime(n.createdAt)}</p>
+                <p className="text-slate-400">{fmtRelative(n.createdAt)}</p>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <DetailModal
+        open={open !== null}
+        title={open?.title ?? ''}
+        subtitle={open ? fmtDateTime(open.createdAt) : undefined}
+        badge={
+          open?.isImportant ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900">
+              Importante
+            </span>
+          ) : null
+        }
+        onClose={() => {
+          setOpenId(null);
+          if (deepId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('notice');
+            setSearchParams(next, { replace: true });
+          }
+        }}
+      >
+        {open ? (
+          <div className="space-y-3">
+            <p className="whitespace-pre-line text-slate-800">{open.content}</p>
+            <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Publicado</dt>
+                <dd className="mt-0.5 text-slate-900">{fmtDateTime(open.createdAt)}</dd>
+              </div>
+              {open.expiresAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Vigente hasta</dt>
+                  <dd className="mt-0.5 text-slate-900">{fmtDate(open.expiresAt)}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Destino</dt>
+                <dd className="mt-0.5 text-slate-900">{labelTarget(open.targetType)}</dd>
+              </div>
+            </dl>
           </div>
-        </li>
-      ))}
-    </ul>
+        ) : null}
+      </DetailModal>
+    </>
   );
 }
 
@@ -274,6 +440,7 @@ export function NoticesList({ data }: { data: unknown }) {
 
 export function PaymentConceptsList({ data }: { data: unknown }) {
   const items = useMemo(() => unwrapList<PaymentConcept>(data), [data]);
+  const [openId, setOpenId] = useState<string | null>(null);
   if (items.length === 0) {
     return (
       <EmptyState
@@ -282,33 +449,81 @@ export function PaymentConceptsList({ data }: { data: unknown }) {
       />
     );
   }
+  const open = items.find((c) => c.id === openId) ?? null;
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
-      {items.map((c) => (
-        <li
-          key={c.id}
-          className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="font-medium text-slate-900">{c.name}</h3>
-            <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-xs font-semibold text-white">
-              {fmtCurrency(c.defaultAmount)}
+    <>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {items.map((c) => (
+          <li
+            key={c.id}
+            className="rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-slate-300"
+          >
+            <button
+              type="button"
+              onClick={() => setOpenId(c.id)}
+              className="flex w-full flex-col p-4 text-left"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-medium text-slate-900">{c.name}</h3>
+                <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-xs font-semibold text-white">
+                  {fmtCurrency(c.defaultAmount)}
+                </span>
+              </div>
+              {c.description && <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">{c.description}</p>}
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                {c.isRecurring && (
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-800">
+                    Recurrente {c.recurrencePeriod ? `· ${c.recurrencePeriod}` : ''}
+                  </span>
+                )}
+                {c.isActive === false && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">Inactivo</span>
+                )}
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <DetailModal
+        open={open !== null}
+        title={open?.name ?? ''}
+        subtitle={open ? fmtCurrency(open.defaultAmount) : undefined}
+        badge={
+          open?.isRecurring ? (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-800">
+              Recurrente {open.recurrencePeriod ? `· ${open.recurrencePeriod}` : ''}
             </span>
-          </div>
-          {c.description && <p className="mt-1.5 text-sm text-slate-600">{c.description}</p>}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-            {c.isRecurring && (
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-800">
-                Recurrente {c.recurrencePeriod ? `· ${c.recurrencePeriod}` : ''}
-              </span>
+          ) : null
+        }
+        onClose={() => setOpenId(null)}
+      >
+        {open ? (
+          <div className="space-y-4">
+            {open.description ? (
+              <p className="whitespace-pre-line text-slate-800">{open.description}</p>
+            ) : (
+              <p className="text-slate-500">No hay descripción registrada para este concepto.</p>
             )}
-            {c.isActive === false && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">Inactivo</span>
-            )}
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Importe por defecto</dt>
+                <dd className="mt-0.5 text-base font-semibold text-slate-900">{fmtCurrency(open.defaultAmount)}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Estado</dt>
+                <dd className="mt-0.5 text-slate-900">{open.isActive === false ? 'Inactivo' : 'Activo'}</dd>
+              </div>
+              {open.isRecurring ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Periodicidad</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.recurrencePeriod ?? 'Recurrente'}</dd>
+                </div>
+              ) : null}
+            </dl>
           </div>
-        </li>
-      ))}
-    </ul>
+        ) : null}
+      </DetailModal>
+    </>
   );
 }
 
@@ -579,6 +794,135 @@ export type AttendanceChild = {
   };
 };
 
+export function ParentExcuseForm({
+  students,
+  onSuccess
+}: {
+  students: Array<{ studentId: string; studentName?: string; matricula?: string }>;
+  onSuccess?: () => void | Promise<void>;
+}) {
+  const [studentId, setStudentId] = useState('');
+  const [date, setDate] = useState(() => todayISODateLocal());
+  const [reason, setReason] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!students.length) return;
+    if (!studentId || !students.some((s) => s.studentId === studentId)) {
+      setStudentId(students[0].studentId);
+    }
+  }, [students, studentId]);
+
+  if (students.length === 0) {
+    return (
+      <p className="text-sm text-slate-600">
+        Cuando tenga hijos vinculados a su cuenta, podrá enviar excusas de ausencia aquí.
+      </p>
+    );
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setOk(null);
+    const r = reason.trim();
+    if (r.length < 3) {
+      setErr('Indique un motivo de al menos 3 caracteres.');
+      return;
+    }
+    if (!studentId) {
+      setErr('Elija un estudiante.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append('studentId', studentId);
+      fd.append('date', date.slice(0, 10));
+      fd.append('reason', r);
+      if (file) fd.append('file', file);
+      await api.post('/api/v1/attendance/parent/excuse', fd);
+      setOk('Excusa registrada. La escuela verá el registro en asistencia.');
+      setReason('');
+      setFile(null);
+      await onSuccess?.();
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo registrar la excusa.'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={(ev) => void onSubmit(ev)} className="space-y-4">
+      {err ? (
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{err}</div>
+      ) : null}
+      {ok ? (
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{ok}</div>
+      ) : null}
+      <label className="flex flex-col gap-1 text-sm text-slate-700">
+        Estudiante
+        <select
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+          value={studentId}
+          onChange={(e) => setStudentId(e.target.value)}
+          required
+        >
+          {students.map((s) => (
+            <option key={s.studentId} value={s.studentId}>
+              {s.studentName ?? 'Alumno'}
+              {s.matricula ? ` · ${s.matricula}` : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1 text-sm text-slate-700">
+        Fecha del ausentismo
+        <input
+          type="date"
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm text-slate-700">
+        Motivo (visible para la escuela)
+        <textarea
+          className="min-h-[88px] rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Ej.: cita médica, enfermedad…"
+          required
+          minLength={3}
+          maxLength={2000}
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm text-slate-700">
+        Comprobante (opcional)
+        <input
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+          className="text-sm file:mr-3 file:rounded file:border file:border-slate-300 file:bg-white file:px-3 file:py-1.5 file:text-sm"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+        <span className="text-xs text-slate-500">PDF, JPG, PNG o WEBP. Máx. aprox. 5 MB.</span>
+      </label>
+      <button
+        type="submit"
+        disabled={submitting}
+        className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+      >
+        {submitting ? 'Enviando…' : 'Registrar excusa'}
+      </button>
+    </form>
+  );
+}
+
 export function AttendanceChildrenView({ data }: { data: unknown }) {
   const children = useMemo(() => {
     if (!data) return [] as AttendanceChild[];
@@ -676,6 +1020,7 @@ export type AttentionNote = {
 
 export function AttentionNotesList({ data }: { data: unknown }) {
   const items = useMemo(() => unwrapList<AttentionNote>(data), [data]);
+  const [openId, setOpenId] = useState<string | null>(null);
   if (items.length === 0) {
     return (
       <EmptyState
@@ -689,36 +1034,92 @@ export function AttentionNotesList({ data }: { data: unknown }) {
     if (s === 'MEDIA') return 'bg-amber-100 text-amber-900';
     return 'bg-slate-100 text-slate-700';
   };
+  const open = items.find((n) => n.id === openId) ?? null;
   return (
-    <ul className="space-y-3">
-      {items.map((n) => (
-        <li key={n.id} className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-medium text-slate-900">{n.title || n.category || 'Anotación'}</h3>
-                {n.severity && (
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${sevStyle(n.severity)}`}>
-                    {n.severity}
-                  </span>
+    <>
+      <ul className="space-y-3">
+        {items.map((n) => (
+          <li key={n.id} className="rounded-lg border border-slate-200 bg-white transition">
+            <button
+              type="button"
+              onClick={() => setOpenId(n.id)}
+              className="flex w-full flex-wrap items-start justify-between gap-3 p-4 text-left"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-medium text-slate-900">{n.title || n.category || 'Anotación'}</h3>
+                  {n.severity && (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${sevStyle(n.severity)}`}>
+                      {n.severity}
+                    </span>
+                  )}
+                </div>
+                {n.studentName && (
+                  <p className="mt-0.5 text-xs text-slate-500">Alumno: {n.studentName}</p>
+                )}
+                {(n.notes || n.description) && (
+                  <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-slate-700">
+                    {n.notes ?? n.description}
+                  </p>
                 )}
               </div>
-              {n.studentName && (
-                <p className="mt-0.5 text-xs text-slate-500">Alumno: {n.studentName}</p>
-              )}
-              {(n.notes || n.description) && (
-                <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
-                  {n.notes ?? n.description}
-                </p>
-              )}
-            </div>
-            <div className="text-right text-[11px] text-slate-500">
-              <p>{fmtDateTime(n.occurredAt ?? n.createdAt)}</p>
-            </div>
+              <div className="text-right text-[11px] text-slate-500">
+                <p>{fmtDateTime(n.occurredAt ?? n.createdAt)}</p>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <DetailModal
+        open={open !== null}
+        title={open?.title || open?.category || 'Anotación'}
+        subtitle={open ? fmtDateTime(open.occurredAt ?? open.createdAt) : undefined}
+        badge={
+          open?.severity ? (
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${sevStyle(open.severity)}`}>
+              {open.severity}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenId(null)}
+      >
+        {open ? (
+          <div className="space-y-3">
+            {open.notes || open.description ? (
+              <p className="whitespace-pre-line text-slate-800">{open.notes ?? open.description}</p>
+            ) : (
+              <p className="text-slate-500">Sin descripción adicional.</p>
+            )}
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              {open.studentName ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Alumno</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.studentName}</dd>
+                </div>
+              ) : null}
+              {open.category ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Categoría</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.category}</dd>
+                </div>
+              ) : null}
+              {open.occurredAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Ocurrido</dt>
+                  <dd className="mt-0.5 text-slate-900">{fmtDateTime(open.occurredAt)}</dd>
+                </div>
+              ) : null}
+              {open.createdAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Registrado</dt>
+                  <dd className="mt-0.5 text-slate-900">{fmtDateTime(open.createdAt)}</dd>
+                </div>
+              ) : null}
+            </dl>
           </div>
-        </li>
-      ))}
-    </ul>
+        ) : null}
+      </DetailModal>
+    </>
   );
 }
 
@@ -753,6 +1154,7 @@ function statusMeetingStyle(s?: string | null) {
 
 export function MeetingsList({ data }: { data: unknown }) {
   const items = useMemo(() => unwrapList<Meeting>(data), [data]);
+  const [openId, setOpenId] = useState<string | null>(null);
   if (items.length === 0) {
     return (
       <EmptyState
@@ -766,60 +1168,128 @@ export function MeetingsList({ data }: { data: unknown }) {
     const bw = b.startAt ?? b.startsAt ?? b.scheduledAt ?? '';
     return bw.localeCompare(aw);
   });
+  const open = sorted.find((m) => m.id === openId) ?? null;
+  const whenOf = (m: Meeting) => m.startAt ?? m.startsAt ?? m.scheduledAt;
   return (
-    <ul className="space-y-3">
-      {sorted.map((m) => {
-        const when = m.startAt ?? m.startsAt ?? m.scheduledAt;
-        const st = statusMeetingStyle(m.status);
-        const isVirtual = m.modality === 'VIRTUAL' || !!m.meetingLink;
-        return (
-          <li key={m.id} className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-medium text-slate-900">{m.title || m.topic || 'Reunión'}</h3>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>
-                    {st.label}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                    {isVirtual ? 'Virtual' : 'Presencial'}
-                  </span>
+    <>
+      <ul className="space-y-3">
+        {sorted.map((m) => {
+          const when = whenOf(m);
+          const st = statusMeetingStyle(m.status);
+          const isVirtual = m.modality === 'VIRTUAL' || !!m.meetingLink;
+          return (
+            <li key={m.id} className="rounded-lg border border-slate-200 bg-white transition">
+              <button
+                type="button"
+                onClick={() => setOpenId(m.id)}
+                className="flex w-full flex-wrap items-start justify-between gap-3 p-4 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-medium text-slate-900">{m.title || m.topic || 'Reunión'}</h3>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>
+                      {st.label}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                      {isVirtual ? 'Virtual' : 'Presencial'}
+                    </span>
+                  </div>
+                  {(m.purpose || m.notes) && (
+                    <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-slate-700">
+                      {m.purpose ?? m.notes}
+                    </p>
+                  )}
                 </div>
-                {(m.purpose || m.notes) && (
-                  <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
-                    {m.purpose ?? m.notes}
-                  </p>
-                )}
-                {m.organizerName && (
-                  <p className="mt-1 text-xs text-slate-500">Organiza: {m.organizerName}</p>
-                )}
-                {m.studentName && (
-                  <p className="text-xs text-slate-500">Sobre: {m.studentName}</p>
-                )}
-                {!isVirtual && m.location && (
-                  <p className="mt-1 text-sm text-slate-700">📍 {m.location}</p>
-                )}
-                {isVirtual && m.meetingLink && (
-                  <a
-                    href={m.meetingLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-900 hover:bg-brand-100"
-                  >
-                    Unirse a la reunión
-                  </a>
-                )}
+                <div className="text-right text-xs text-slate-500">
+                  <p className="font-medium text-slate-700">{fmtDateTime(when)}</p>
+                  {m.durationMinutes ? <p>{m.durationMinutes} min</p> : null}
+                  <p className="text-slate-400">{fmtRelative(when)}</p>
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <DetailModal
+        open={open !== null}
+        title={open?.title || open?.topic || 'Reunión'}
+        subtitle={open ? fmtDateTime(whenOf(open)) : undefined}
+        badge={
+          open?.status ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusMeetingStyle(open.status).cls}`}
+            >
+              {statusMeetingStyle(open.status).label}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenId(null)}
+        footer={
+          open?.meetingLink ? (
+            <a
+              href={open.meetingLink}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-900 hover:bg-brand-100"
+            >
+              Unirse a la reunión
+            </a>
+          ) : null
+        }
+      >
+        {open ? (
+          <div className="space-y-3">
+            {open.purpose || open.notes ? (
+              <p className="whitespace-pre-line text-slate-800">{open.purpose ?? open.notes}</p>
+            ) : (
+              <p className="text-slate-500">Sin descripción adicional.</p>
+            )}
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Inicio</dt>
+                <dd className="mt-0.5 text-slate-900">{fmtDateTime(whenOf(open))}</dd>
               </div>
-              <div className="text-right text-xs text-slate-500">
-                <p className="font-medium text-slate-700">{fmtDateTime(when)}</p>
-                {m.durationMinutes ? <p>{m.durationMinutes} min</p> : null}
-                <p className="text-slate-400">{fmtRelative(when)}</p>
+              {open.durationMinutes ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Duración</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.durationMinutes} min</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Modalidad</dt>
+                <dd className="mt-0.5 text-slate-900">
+                  {open.modality === 'VIRTUAL' || open.meetingLink ? 'Virtual' : 'Presencial'}
+                </dd>
               </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+              {open.location ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Lugar</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.location}</dd>
+                </div>
+              ) : null}
+              {open.organizerName ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Organiza</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.organizerName}</dd>
+                </div>
+              ) : null}
+              {open.withTeacherName ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Con docente</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.withTeacherName}</dd>
+                </div>
+              ) : null}
+              {open.studentName ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Sobre</dt>
+                  <dd className="mt-0.5 text-slate-900">{open.studentName}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
+      </DetailModal>
+    </>
   );
 }
 

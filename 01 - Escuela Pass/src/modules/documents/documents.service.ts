@@ -6,6 +6,7 @@ import { GroupEntity } from '../../database/entities/group.entity';
 import { ReportCardStatus, ReportCardType } from '../../database/entities/report-card.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { resolveUploadFile } from '../../lib/uploads-path';
 import { ReportCardsService } from '../report-cards/report-cards.service';
 import { SchedulesService } from '../schedules/schedules.service';
 import { SettingsService } from '../settings/settings.service';
@@ -133,16 +134,40 @@ export class DocumentsService {
     const left = doc.page.margins.left;
     const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-    doc.fontSize(18).font('Helvetica-Bold').text(institution.name, { align: 'center', width: contentW });
+    const logoAbs = resolveUploadFile(institution.logoUrl ?? null);
+    const headerTop = doc.y;
+    if (logoAbs) {
+      try {
+        doc.image(logoAbs, left, headerTop, { fit: [60, 60] });
+      } catch {
+        /* Ignoramos imágenes corruptas o formatos no soportados. */
+      }
+    }
+
+    const textLeft = logoAbs ? left + 72 : left;
+    const textWidth = contentW - (logoAbs ? 72 : 0);
+    doc
+      .fontSize(18)
+      .font('Helvetica-Bold')
+      .text(institution.name, textLeft, headerTop, { width: textWidth, align: 'center' });
     doc.font('Helvetica');
     if (institution.motto) {
-      doc.fontSize(9).fillColor('#444444').text(institution.motto, { align: 'center', width: contentW });
+      doc.fontSize(9).fillColor('#444444').text(institution.motto, textLeft, doc.y, {
+        width: textWidth,
+        align: 'center'
+      });
       doc.fillColor('#000000');
     }
     const addrLine = [institution.address, institution.city].filter(Boolean).join(' · ');
-    if (addrLine) doc.fontSize(9).text(addrLine, { align: 'center', width: contentW });
+    if (addrLine)
+      doc.fontSize(9).text(addrLine, textLeft, doc.y, { width: textWidth, align: 'center' });
     const contact = [institution.phone, institution.email].filter(Boolean).join(' · ');
-    if (contact) doc.fontSize(9).text(contact, { align: 'center', width: contentW });
+    if (contact)
+      doc.fontSize(9).text(contact, textLeft, doc.y, { width: textWidth, align: 'center' });
+    // Asegura que el siguiente bloque no quede solapado con el logo
+    const afterHeader = Math.max(doc.y, headerTop + (logoAbs ? 66 : 0));
+    doc.y = afterHeader;
+    doc.x = left;
 
     doc.moveDown(1.2);
     doc.fontSize(14).font('Helvetica-Bold').text(title, { align: 'center' });
@@ -213,9 +238,7 @@ export class DocumentsService {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(group.schoolId);
 
     return this.pdfBuffer((doc) => {
-      const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      doc.fontSize(14).font('Helvetica-Bold').text(institution.name, { align: 'center', width: contentW });
-      doc.font('Helvetica');
+      this.drawInstitutionHeader(doc, institution);
       doc.moveDown(0.5);
       doc.fontSize(16).text('Horario del grupo', { align: 'center' });
       doc.moveDown();
@@ -263,9 +286,8 @@ export class DocumentsService {
     }
 
     return this.pdfBuffer((doc) => {
-      const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      doc.fontSize(14).font('Helvetica-Bold').text(institution.name, { align: 'center', width: contentW });
-      doc.font('Helvetica').moveDown(0.5);
+      this.drawInstitutionHeader(doc, institution);
+      doc.moveDown(0.5);
       doc.fontSize(16).text('Resumen de grupos', { align: 'center' });
       doc.moveDown();
       doc.fontSize(10);
@@ -278,6 +300,40 @@ export class DocumentsService {
         doc.moveDown(0.25);
       }
     });
+  }
+
+  private drawInstitutionHeader(
+    doc: InstanceType<typeof PDFDocument>,
+    institution: { name: string; motto?: string | null; logoUrl?: string | null }
+  ): void {
+    const left = doc.page.margins.left;
+    const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const logoAbs = resolveUploadFile(institution.logoUrl ?? null);
+    const headerTop = doc.y;
+    if (logoAbs) {
+      try {
+        doc.image(logoAbs, left, headerTop, { fit: [50, 50] });
+      } catch {
+        /* ignore */
+      }
+    }
+    const textLeft = logoAbs ? left + 60 : left;
+    const textWidth = contentW - (logoAbs ? 60 : 0);
+    doc
+      .fontSize(14)
+      .font('Helvetica-Bold')
+      .text(institution.name, textLeft, headerTop, { width: textWidth, align: 'center' });
+    doc.font('Helvetica');
+    if (institution.motto) {
+      doc
+        .fontSize(9)
+        .fillColor('#444444')
+        .text(institution.motto, textLeft, doc.y, { width: textWidth, align: 'center' })
+        .fillColor('#000000');
+    }
+    const afterHeader = Math.max(doc.y, headerTop + (logoAbs ? 54 : 0));
+    doc.y = afterHeader;
+    doc.x = left;
   }
 
   private pdfBuffer(

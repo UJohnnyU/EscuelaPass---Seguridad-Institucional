@@ -1,6 +1,11 @@
 # Despliegue del backend Nest en Railway (Opción A: API en Railway, frontend en Vercel).
 # En el dashboard: New Project → Deploy from GitHub → Root Directory = esta carpeta ("01 - Escuela Pass").
 # Añade Postgres al proyecto y enlaza DATABASE_URL al servicio web.
+#
+# Persistencia de archivos subidos (avatares, logos de institución, comprobantes
+# de pago, justificantes de ausencia): crea un "Volume" en Railway y móntalo en
+# /data, luego define la variable UPLOADS_DIR=/data en el servicio. Con eso los
+# archivos sobreviven a redeploys.
 
 [build]
 builder = "NIXPACKS"
@@ -8,3 +13,6 @@ builder = "NIXPACKS"
 [deploy]
 startCommand = "npm run start:prod"
 restartPolicyType = "ON_FAILURE"
+# Recomendación: configura manualmente un Volume de 1GB montado en /data y
+# UPLOADS_DIR=/data en las variables del servicio. El código migra los archivos
+# antiguos de ./uploads al volumen en el primer arranque.
