@@ -250,7 +250,7 @@ export function ComunicacionPage() {
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
       <Panel title="Mis notificaciones" description="Avisos que la escuela le ha enviado.">
-        <NotificationsList data={notifications} />
+        <NotificationsList data={notifications} allowMarkRead />
       </Panel>
       {staff && (
         <>
@@ -438,7 +438,7 @@ export function FinanzasPage() {
           title="Mis pagos pendientes"
           description="Vea aquí lo que debe pagar y cuándo vence cada cobro."
         >
-          <DebtsList data={debts} />
+          <DebtsList data={debts} canUpload />
         </Panel>
       )}
     </div>
@@ -838,7 +838,7 @@ export function AcademicoPage() {
             <AttentionNotesList data={attentionNotes} />
           </Panel>
           <Panel title="Sus avisos personales" description="Notificaciones dirigidas a usted.">
-            <NotificationsList data={myNotifications} />
+            <NotificationsList data={myNotifications} allowMarkRead />
           </Panel>
           <Panel title="Reuniones con docentes" description="Citas confirmadas o solicitudes de reunión.">
             <MeetingsList data={meetings} />

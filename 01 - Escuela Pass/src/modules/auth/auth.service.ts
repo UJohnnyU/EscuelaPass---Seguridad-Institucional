@@ -66,7 +66,7 @@ export class AuthService {
 
   private async buildProfileContactSections(user: UserEntity): Promise<ProfileContactSection[]> {
     if (user.role === UserRole.ALUMNO) {
-      const rows = await this.dataSource.query<
+      const parents = await this.dataSource.query<
         { fullName: string; phone: string | null; relationship: string }[]
       >(
         `SELECT u.full_name AS "fullName", u.phone, sp.relationship
@@ -78,17 +78,53 @@ export class AuthService {
          ORDER BY sp.is_primary DESC, u.full_name`,
         [user.id]
       );
-      if (!rows.length) return [];
-      return [
+      const teachers = await this.dataSource.query<
         {
-          title: 'Padres o tutores',
-          items: rows.map((r) => ({
+          fullName: string;
+          phone: string | null;
+          subjectName: string | null;
+          groupName: string | null;
+        }[]
+      >(
+        `SELECT DISTINCT u.full_name AS "fullName",
+                u.phone,
+                subj.name AS "subjectName",
+                g.name AS "groupName"
+         FROM students st
+         JOIN teacher_groups tg ON tg.group_id = st.group_id
+         JOIN teachers t ON t.id = tg.teacher_id
+         JOIN users u ON u.id = t.user_id
+         LEFT JOIN subjects subj ON subj.id = tg.subject_id
+         LEFT JOIN groups g ON g.id = st.group_id
+         WHERE st.user_id = $1 AND st.group_id IS NOT NULL
+         ORDER BY u.full_name, subj.name NULLS LAST`,
+        [user.id]
+      );
+      const sections: ProfileContactSection[] = [];
+      if (parents.length) {
+        sections.push({
+          title: 'Padres',
+          items: parents.map((r) => ({
             fullName: r.fullName,
             phone: r.phone,
             subtitle: r.relationship
           }))
-        }
-      ];
+        });
+      }
+      if (teachers.length) {
+        sections.push({
+          title: 'Docentes',
+          items: teachers.map((r) => {
+            const parts = [r.subjectName, r.groupName].filter(Boolean);
+            return {
+              fullName: r.fullName,
+              phone: r.phone,
+              subtitle: parts.length ? parts.join(' · ') : 'Docente'
+            };
+          })
+        });
+      }
+      return sections;
     }
     if (user.role === UserRole.DOCENTE) {
       const rows = await this.dataSource.query<

@@ -34,6 +34,7 @@ type ParticipantRow = MeetingParticipantEntity & {
 };
 
 type MeetingRow = MeetingEntity & {
+  organizerName: string | null;
   participants: ParticipantRow[];
   counts: { pending: number; accepted: number; declined: number };
 };
@@ -65,7 +66,7 @@ export class MeetingsService {
     const organizer = await this.usersRepository.findOne({ where: { id: userId } });
     if (!organizer) throw new ForbiddenException('Organizador no encontrado');
     if (!organizer.schoolId) {
-      throw new BadRequestException('Organizador sin institución asignada');
+      throw new BadRequestException('Organizador sin instituci?n asignada');
     }
 
     const schoolId = organizer.schoolId;
@@ -97,7 +98,7 @@ export class MeetingsService {
     allUserIds.delete(userId);
 
     if (allUserIds.size === 0) {
-      throw new BadRequestException('La reunión debe tener al menos un invitado');
+      throw new BadRequestException('La reuni?n debe tener al menos un invitado');
     }
 
     const participants = await this.resolveParticipantsMeta(
@@ -137,7 +138,7 @@ export class MeetingsService {
 
     await this.notifier.notifyUsers(
       participants.map((p) => p.id),
-      `Nueva reunión: ${meeting.title}`,
+      `Nueva reuni?n: ${meeting.title}`,
       this.buildNotificationBody(meeting),
       { type: 'meeting_invitation', meetingId: meeting.id }
     );
@@ -163,7 +164,7 @@ export class MeetingsService {
       return this.hydrate(rows);
     }
     const userRow = await this.usersRepository.findOne({ where: { id: user.userId } });
-    if (!userRow?.schoolId) throw new ForbiddenException('Usuario sin institución');
+    if (!userRow?.schoolId) throw new ForbiddenException('Usuario sin instituci?n');
     const rows = await this.meetingsRepository.find({
       where: { schoolId: userRow.schoolId },
       order: { startAt: 'DESC' }
@@ -173,7 +174,7 @@ export class MeetingsService {
 
   async getDetail(id: string, userId: string, role: UserRole): Promise<MeetingRow> {
     const meeting = await this.meetingsRepository.findOne({ where: { id } });
-    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    if (!meeting) throw new NotFoundException('Reuni?n no encontrada');
     await this.assertCanView(meeting, userId, role);
     const [row] = await this.hydrate([meeting]);
     return row;
@@ -187,7 +188,7 @@ export class MeetingsService {
   ): Promise<MeetingRow> {
     const meeting = await this.assertOrganizer(id, userId, role);
     if (meeting.status === MeetingStatus.REALIZADA || meeting.status === MeetingStatus.CANCELADA) {
-      throw new BadRequestException('No se puede editar una reunión finalizada o cancelada');
+      throw new BadRequestException('No se puede editar una reuni?n finalizada o cancelada');
     }
     if (dto.title !== undefined) meeting.title = dto.title.trim();
     if (dto.purpose !== undefined) meeting.purpose = dto.purpose.trim();
@@ -200,7 +201,7 @@ export class MeetingsService {
     const participantIds = await this.loadParticipantUserIds(meeting.id);
     await this.notifier.notifyUsers(
       participantIds,
-      `Reunión actualizada: ${meeting.title}`,
+      `Reuni?n actualizada: ${meeting.title}`,
       this.buildNotificationBody(meeting),
       { type: 'meeting_updated', meetingId: meeting.id }
     );
@@ -215,7 +216,7 @@ export class MeetingsService {
   ): Promise<MeetingRow> {
     const meeting = await this.assertOrganizer(id, userId, role);
     if (meeting.status === MeetingStatus.REALIZADA || meeting.status === MeetingStatus.CANCELADA) {
-      throw new BadRequestException('No se puede reprogramar una reunión finalizada o cancelada');
+      throw new BadRequestException('No se puede reprogramar una reuni?n finalizada o cancelada');
     }
     meeting.previousStartAt = meeting.startAt;
     meeting.startAt = new Date(dto.startAt);
@@ -238,7 +239,7 @@ export class MeetingsService {
     const participantIds = await this.loadParticipantUserIds(meeting.id);
     await this.notifier.notifyUsers(
       participantIds,
-      `Reunión reprogramada: ${meeting.title}`,
+      `Reuni?n reprogramada: ${meeting.title}`,
       this.buildNotificationBody(meeting),
       { type: 'meeting_rescheduled', meetingId: meeting.id }
     );
@@ -253,7 +254,7 @@ export class MeetingsService {
   ): Promise<MeetingRow> {
     const meeting = await this.assertOrganizer(id, userId, role);
     if (meeting.status === MeetingStatus.REALIZADA) {
-      throw new BadRequestException('No se puede cancelar una reunión ya realizada');
+      throw new BadRequestException('No se puede cancelar una reuni?n ya realizada');
     }
     meeting.status = MeetingStatus.CANCELADA;
     meeting.cancellationReason = dto.reason?.trim() ?? null;
@@ -262,8 +263,8 @@ export class MeetingsService {
     const participantIds = await this.loadParticipantUserIds(meeting.id);
     await this.notifier.notifyUsers(
       participantIds,
-      `Reunión cancelada: ${meeting.title}`,
-      dto.reason?.trim() ? `Motivo: ${dto.reason.trim()}` : 'La reunión ha sido cancelada.',
+      `Reuni?n cancelada: ${meeting.title}`,
+      dto.reason?.trim() ? `Motivo: ${dto.reason.trim()}` : 'La reuni?n ha sido cancelada.',
       { type: 'meeting_cancelled', meetingId: meeting.id }
     );
     return this.getDetail(meeting.id, userId, role);
@@ -277,7 +278,7 @@ export class MeetingsService {
   ): Promise<MeetingRow> {
     const meeting = await this.assertOrganizer(id, userId, role);
     if (meeting.status === MeetingStatus.CANCELADA) {
-      throw new BadRequestException('La reunión está cancelada');
+      throw new BadRequestException('La reuni?n est? cancelada');
     }
     if (dto.action === 'IN_PROGRESS') {
       meeting.status = MeetingStatus.EN_CURSO;
@@ -295,16 +296,16 @@ export class MeetingsService {
     role: UserRole
   ): Promise<MeetingRow> {
     const meeting = await this.meetingsRepository.findOne({ where: { id } });
-    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    if (!meeting) throw new NotFoundException('Reuni?n no encontrada');
     const participant = await this.participantsRepository.findOne({
       where: { meetingId: meeting.id, userId }
     });
-    if (!participant) throw new ForbiddenException('No eres participante de esta reunión');
+    if (!participant) throw new ForbiddenException('No eres participante de esta reuni?n');
     if (
       meeting.status === MeetingStatus.REALIZADA ||
       meeting.status === MeetingStatus.CANCELADA
     ) {
-      throw new BadRequestException('La reunión ya no admite cambios de confirmación');
+      throw new BadRequestException('La reuni?n ya no admite cambios de confirmaci?n');
     }
     participant.rsvp = dto.rsvp;
     participant.respondedAt = new Date();
@@ -326,7 +327,7 @@ export class MeetingsService {
     if (meeting.modality === MeetingModality.VIRTUAL && meeting.meetingLink) {
       parts.push(`Enlace: ${meeting.meetingLink}`);
     }
-    return parts.join(' · ');
+    return parts.join(' ? ');
   }
 
   private async resolveParticipantsMeta(
@@ -337,14 +338,14 @@ export class MeetingsService {
     if (userIds.length === 0) return [];
     const users = await this.usersRepository.find({ where: { id: In(userIds) } });
     if (users.length !== userIds.length) {
-      throw new BadRequestException('Algún usuario invitado no existe');
+      throw new BadRequestException('Alg?n usuario invitado no existe');
     }
     for (const u of users) {
       if (!u.status) {
         throw new BadRequestException(`Usuario ${u.email} inactivo no puede ser invitado`);
       }
       if (u.schoolId && u.schoolId !== schoolId) {
-        throw new BadRequestException(`Usuario ${u.email} pertenece a otra institución`);
+        throw new BadRequestException(`Usuario ${u.email} pertenece a otra instituci?n`);
       }
       if (organizerRole === UserRole.DOCENTE) {
         const allowed: UserRole[] = [UserRole.PADRE, UserRole.ALUMNO, UserRole.DOCENTE];
@@ -367,7 +368,7 @@ export class MeetingsService {
       [teacher.id, groupIds]
     );
     if (Number(rows[0]?.cnt ?? 0) !== groupIds.length) {
-      throw new ForbiddenException('El docente no tiene asignación en alguno de los grupos');
+      throw new ForbiddenException('El docente no tiene asignaci?n en alguno de los grupos');
     }
   }
 
@@ -377,14 +378,14 @@ export class MeetingsService {
     role: UserRole
   ): Promise<MeetingEntity> {
     const meeting = await this.meetingsRepository.findOne({ where: { id } });
-    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    if (!meeting) throw new NotFoundException('Reuni?n no encontrada');
     if (role === UserRole.ADMIN) return meeting;
     if (meeting.organizerUserId === userId) return meeting;
     if (role === UserRole.ADMINISTRATIVO) {
       const user = await this.usersRepository.findOne({ where: { id: userId } });
       if (user?.schoolId === meeting.schoolId) return meeting;
     }
-    throw new ForbiddenException('Solo el organizador puede modificar esta reunión');
+    throw new ForbiddenException('Solo el organizador puede modificar esta reuni?n');
   }
 
   private async assertCanView(
@@ -402,7 +403,7 @@ export class MeetingsService {
       const user = await this.usersRepository.findOne({ where: { id: userId } });
       if (user?.schoolId === meeting.schoolId) return;
     }
-    throw new ForbiddenException('No tienes acceso a esta reunión');
+    throw new ForbiddenException('No tienes acceso a esta reuni?n');
   }
 
   private async loadParticipantUserIds(meetingId: string): Promise<string[]> {
@@ -416,7 +417,8 @@ export class MeetingsService {
     const participants = await this.participantsRepository.find({
       where: { meetingId: In(ids) }
     });
-    const userIds = [...new Set(participants.map((p) => p.userId))];
+    const organizerIds = [...new Set(meetings.map((m) => m.organizerUserId))];
+    const userIds = [...new Set([...participants.map((p) => p.userId), ...organizerIds])];
     const users = userIds.length
       ? await this.usersRepository.find({ where: { id: In(userIds) } })
       : [];
@@ -442,7 +444,8 @@ export class MeetingsService {
         accepted: list.filter((x) => x.rsvp === MeetingParticipantRsvp.ACEPTADA).length,
         declined: list.filter((x) => x.rsvp === MeetingParticipantRsvp.DECLINADA).length
       };
-      return { ...m, participants: list, counts };
+      const organizerName = userMap.get(m.organizerUserId)?.fullName ?? null;
+      return { ...m, organizerName, participants: list, counts };
     });
   }
 }

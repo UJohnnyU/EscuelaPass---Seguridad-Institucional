@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
+import { AttendanceRecordEntity, AttendanceStatus } from '../../database/entities/attendance-record.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
@@ -343,6 +343,12 @@ export class AttendanceService {
       .innerJoin('student_parents', 'sp', 'sp.student_id = s.id AND sp.parent_id = :pid', {
         pid: parent.id
       })
+      .leftJoinAndMapOne(
+        's.user',
+        'users',
+        'su',
+        'su.id = s.user_id'
+      )
       .getMany();
 
     const flags = await Promise.all(
@@ -354,21 +360,53 @@ export class AttendanceService {
       children.length > 0 && flags.length > 0 && flags.every((f) => f.nonInstructional);
     const reasonsMerged = [...new Set(flags.flatMap((f) => f.reasons))];
 
-    const records = await this.attendanceRepository
-      .createQueryBuilder('a')
-      .innerJoin('students', 's', 's.id = a.student_id')
-      .innerJoin('student_parents', 'sp', 'sp.student_id = s.id AND sp.parent_id = :pid', {
-        pid: parent.id
+    const studentIds = children.map((c) => c.id);
+    const today = date;
+    const since = new Date(today);
+    since.setDate(since.getDate() - 30);
+    const sinceISO = since.toISOString().slice(0, 10);
+
+    const recentRows = studentIds.length
+      ? await this.attendanceRepository
+          .createQueryBuilder('a')
+          .where('a.student_id IN (:...ids)', { ids: studentIds })
+          .andWhere('a.attendance_date >= :s', { s: sinceISO })
+          .orderBy('a.attendance_date', 'DESC')
+          .getMany()
+      : [];
+
+    const childrenPayload = await Promise.all(
+      children.map(async (s) => {
+        const su = await this.studentsRepository.manager.query<{ full_name: string; matricula: string }[]>(
+          `SELECT u.full_name, st.matricula FROM students st LEFT JOIN users u ON u.id = st.user_id WHERE st.id = $1 LIMIT 1`,
+          [s.id]
+        );
+        const recs = recentRows.filter((r) => r.studentId === s.id);
+        const summary = {
+          presente: recs.filter((r) => r.status === AttendanceStatus.PRESENTE).length,
+          ausente: recs.filter((r) => r.status === AttendanceStatus.AUSENTE).length,
+          retardo: recs.filter((r) => r.status === AttendanceStatus.RETARDO).length,
+          total: recs.length
+        };
+        return {
+          studentId: s.id,
+          studentName: su[0]?.full_name ?? '',
+          matricula: su[0]?.matricula ?? '',
+          records: recs.map((r) => ({
+            attendanceDate: r.attendanceDate,
+            status: r.status,
+            notes: r.notes
+          })),
+          summary
+        };
       })
-      .where('a.attendance_date = :d', { d: date })
-      .orderBy('s.matricula', 'ASC')
-      .getMany();
+    );
 
     return {
       date,
       nonInstructionalDay,
       reasons: reasonsMerged.length ? reasonsMerged : undefined,
-      records
+      children: childrenPayload
     };
   }
 
