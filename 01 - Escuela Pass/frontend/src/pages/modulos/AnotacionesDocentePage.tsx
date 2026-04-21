@@ -250,9 +250,9 @@ export function AnotacionesDocentePage() {
           <form className="mt-4 space-y-4" onSubmit={(e) => void submit(e)}>
             <div className="grid gap-4 sm:grid-cols-2">
               {platformAdmin && (
-                <label className="block text-sm sm:col-span-2">
+                <label className="block space-y-1.5 text-sm sm:col-span-2">
                   <span className="text-slate-700">Institución (filtro)</span>
-                  <div className="mt-1 max-w-md">
+                  <div className="max-w-md">
                     <SmartSelect
                       options={schoolFilterOptions}
                       value={schoolFilter}
@@ -262,9 +262,9 @@ export function AnotacionesDocentePage() {
                   </div>
                 </label>
               )}
-              <label className="block text-sm">
+              <label className="block space-y-1.5 text-sm">
                 <span className="text-slate-700">Grupo</span>
-                <div className="mt-1">
+                <div>
                   <SmartSelect
                     loadOptions={loadGroupOptions}
                     value={groupId}
@@ -274,9 +274,9 @@ export function AnotacionesDocentePage() {
                   />
                 </div>
               </label>
-              <label className="block text-sm">
+              <label className="block space-y-1.5 text-sm">
                 <span className="text-slate-700">Estudiante</span>
-                <div className="mt-1">
+                <div>
                   <SmartSelect
                     options={studentSelectOptions}
                     value={studentId}
@@ -288,10 +288,10 @@ export function AnotacionesDocentePage() {
                 </div>
               </label>
             </div>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Gravedad</span>
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium text-slate-700">Gravedad</span>
               <select
-                className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-xs"
+                className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-xs"
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value as 'LEVE' | 'MODERADA' | 'GRAVE')}
               >
@@ -300,31 +300,31 @@ export function AnotacionesDocentePage() {
                 <option value="GRAVE">{SEVERITY_LABEL.GRAVE}</option>
               </select>
             </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Título breve</span>
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium text-slate-700">Título breve</span>
               <input
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Ej. Comportamiento en clase, entrega de tarea…"
                 maxLength={200}
               />
             </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Descripción</span>
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium text-slate-700">Descripción</span>
               <textarea
-                className="mt-1 min-h-[100px] w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                className="min-h-[100px] w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Detalle objetivo de la situación y, si aplica, acuerdos con el estudiante."
                 maxLength={3000}
               />
             </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Fecha del hecho (opcional)</span>
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium text-slate-700">Fecha del hecho (opcional)</span>
               <input
                 type="datetime-local"
-                className="mt-1 w-full max-w-sm rounded border border-slate-300 px-3 py-2 text-sm"
+                className="w-full max-w-sm rounded border border-slate-300 px-3 py-2 text-sm"
                 value={occurredAt}
                 onChange={(e) => setOccurredAt(e.target.value)}
               />

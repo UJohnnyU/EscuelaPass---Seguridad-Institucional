@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import {
@@ -32,8 +32,16 @@ export class AcademicCloseScheduler {
     private readonly notifications: AcademicNotificationsService
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  /** 03:00 hora del servidor — evita solaparse con otros jobs nocturnos. */
+  @Cron('0 3 * * *')
   async runDailyCycle(): Promise<void> {
+    const lock = await this.dataSource.query<{ acquired: boolean }[]>(
+      `SELECT pg_try_advisory_lock(847291103, 129384756) AS acquired`
+    );
+    if (!lock[0]?.acquired) {
+      this.logger.warn('Ciclo académico: bloqueo activo en otra instancia; omisión segura.');
+      return;
+    }
     this.logger.log('Ciclo académico diario: iniciando');
     try {
       await this.activatePlannedPeriods();
@@ -42,6 +50,8 @@ export class AcademicCloseScheduler {
       this.logger.log('Ciclo académico diario: finalizado');
     } catch (err) {
       this.logger.error('Error en el ciclo académico diario', err as Error);
+    } finally {
+      await this.dataSource.query(`SELECT pg_advisory_unlock(847291103, 129384756)`);
     }
   }
 

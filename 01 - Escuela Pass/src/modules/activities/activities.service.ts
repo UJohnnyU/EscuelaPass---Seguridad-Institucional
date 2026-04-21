@@ -161,9 +161,8 @@ export class ActivitiesService {
   }
 
   private async getTeacherIdByUser(userId: string): Promise<string> {
-    const teacher = await this.teachersRepository.findOne({ where: { userId } });
-    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
-    return teacher.id;
+    const t = await this.ensureTeacherProfile(userId);
+    return t.id;
   }
 
   private async assertTeacherTeachesSubjectInGroup(
@@ -882,11 +881,20 @@ export class ActivitiesService {
   private async ensureTeacherProfile(userId: string) {
     const existing = await this.teachersRepository.findOne({ where: { userId } });
     if (existing) return existing;
-    // Empleados no registrados: creamos un perfil mínimo con un número
-    // marcador único para que el usuario pueda seguir operando.
-    const placeholder = `SE-${userId.slice(0, 8).toUpperCase()}`;
-    const created = this.teachersRepository.create({ userId, employeeNumber: placeholder });
-    return this.teachersRepository.save(created);
+    const compact = userId.replace(/-/g, '');
+    for (let i = 0; i < 20; i++) {
+      const suffix = i === 0 ? '' : `-${i}`;
+      const placeholder = `SE-${(compact + suffix).slice(0, 44)}`.slice(0, 50);
+      const clash = await this.teachersRepository.findOne({ where: { employeeNumber: placeholder } });
+      if (clash) continue;
+      const created = this.teachersRepository.create({ userId, employeeNumber: placeholder });
+      try {
+        return await this.teachersRepository.save(created);
+      } catch {
+        /* colisión concurrente: reintentar */
+      }
+    }
+    throw new BadRequestException('No se pudo crear el perfil docente automáticamente. Contacte a secretaría.');
   }
 
   private async fetchActivitiesForStudent(

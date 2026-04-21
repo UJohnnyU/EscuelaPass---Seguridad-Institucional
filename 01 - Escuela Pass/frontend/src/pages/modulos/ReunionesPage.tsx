@@ -262,7 +262,7 @@ export function ReunionesPage() {
             Próximas ({invitations.length + organizedByMe.length})
           </TabButton>
           <TabButton active={tab === 'organized'} onClick={() => setTab('organized')}>
-            {staff ? `Organizadas (${organized.length})` : `Que organizo (${organizedByMe.length})`}
+            {staff ? `Organizadas (${organized.length})` : `Organizadas por mí (${organizedByMe.length})`}
           </TabButton>
           <TabButton active={tab === 'past'} onClick={() => setTab('past')}>
             Pasadas ({past.length})

@@ -171,6 +171,19 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     });
     if (!parent) throw new NotFoundException('Padre no existe');
 
+    const pickupOk = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1 FROM student_parents sp
+        WHERE sp.student_id = $1 AND sp.parent_id = $2 AND sp.can_pickup = true
+      ) AS ok`,
+      [student.id, parent.id]
+    );
+    if (!pickupOk[0]?.ok) {
+      throw new ForbiddenException(
+        'Este perfil no está autorizado para recoger a este estudiante (can_pickup en la vinculación).'
+      );
+    }
+
     let vehicleId: string | null = null;
     if (payload.pickupMethod === PickupMethod.VEHICULO_REGISTRADO) {
       if (!payload.vehicleId) {

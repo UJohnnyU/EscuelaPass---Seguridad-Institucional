@@ -16,3 +16,5 @@ restartPolicyType = "ON_FAILURE"
 # Recomendación: configura manualmente un Volume de 1GB montado en /data y
 # UPLOADS_DIR=/data en las variables del servicio. El código migra los archivos
 # antiguos de ./uploads al volumen en el primer arranque.
+# Opcional: define un health check HTTP en el panel de Railway apuntando a GET /api/v1/health
+# (o /api según tu prefijo global) para reinicios automáticos si el proceso queda colgado.

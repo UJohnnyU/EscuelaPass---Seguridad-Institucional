@@ -22,6 +22,9 @@ import {
   PickupRequestEntity,
   PickupRequestStatus
 } from '../../database/entities/pickup-request.entity';
+import { ActivitiesService } from '../activities/activities.service';
+import { MeetingsService } from '../meetings/meetings.service';
+import { NoticesService } from '../notices/notices.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
 function addCalendarDays(isoDate: string, deltaDays: number): string {
@@ -51,8 +54,69 @@ export class DashboardService {
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(PickupRequestEntity)
     private readonly visitRequestsRepository: Repository<PickupRequestEntity>,
-    private readonly schoolCalendarService: SchoolCalendarService
+    private readonly schoolCalendarService: SchoolCalendarService,
+    private readonly activitiesService: ActivitiesService,
+    private readonly meetingsService: MeetingsService,
+    private readonly noticesService: NoticesService
   ) {}
+
+  /**
+   * Snapshot para `GET /dashboards/home/:role` — mismo criterio que el home en frontend, centralizado.
+   */
+  async getHomeForRole(userId: string, role: UserRole): Promise<Record<string, unknown>> {
+    const asOf = new Date().toISOString();
+    const base = { asOf, role, schemaVersion: 1 as const };
+
+    switch (role) {
+      case UserRole.DOCENTE: {
+        const [teacherAssignments, meetings, notifications] = await Promise.all([
+          this.activitiesService.listTeacherAssignments(userId, role, undefined),
+          this.meetingsService.listMine(userId),
+          this.noticesService.listMyNotifications(userId, 1, 8)
+        ]);
+        return {
+          ...base,
+          blocks: { teacherAssignments, meetings, notifications }
+        };
+      }
+      case UserRole.ALUMNO: {
+        const [grades, meetings, notifications] = await Promise.all([
+          this.activitiesService.listForStudentUser(userId, {}),
+          this.meetingsService.listMine(userId),
+          this.noticesService.listMyNotifications(userId, 1, 8)
+        ]);
+        return {
+          ...base,
+          blocks: { grades, meetings, notifications }
+        };
+      }
+      case UserRole.PADRE: {
+        const [meetings, notifications, childrenGrades] = await Promise.all([
+          this.meetingsService.listMine(userId),
+          this.noticesService.listMyNotifications(userId, 1, 8),
+          this.activitiesService.listForParent(userId, {})
+        ]);
+        return {
+          ...base,
+          blocks: { meetings, notifications, childrenGrades }
+        };
+      }
+      case UserRole.ADMIN:
+      case UserRole.ADMINISTRATIVO: {
+        const [operationalSummary, panel, meetings] = await Promise.all([
+          this.summary(),
+          this.adminPanel(),
+          this.meetingsService.listForStaff({ userId, role })
+        ]);
+        return {
+          ...base,
+          blocks: { operationalSummary, panel, meetings }
+        };
+      }
+      default:
+        return { ...base, blocks: {} };
+    }
+  }
 
   async summary(dateStr?: string) {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);

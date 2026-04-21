@@ -2,9 +2,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
   Logger,
-  NotFoundException
+  NotFoundException,
+  UnprocessableEntityException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -307,8 +307,8 @@ export class AcademicPeriodsService {
       if (err instanceof BadRequestException || err instanceof ForbiddenException || err instanceof NotFoundException) {
         throw err;
       }
-      throw new InternalServerErrorException(
-        `No se pudo cerrar el periodo. Detalle: ${(err as Error).message}`
+      throw new UnprocessableEntityException(
+        `No se pudo cerrar el periodo (datos o dependencias incompletas). Detalle: ${(err as Error).message}`
       );
     }
 

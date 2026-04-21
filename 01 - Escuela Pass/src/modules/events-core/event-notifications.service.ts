@@ -59,14 +59,16 @@ export class EventNotificationsService {
     }
 
     const base = (process.env.FRONTEND_URL ?? '').replace(/\/$/, '') || 'http://localhost:5173';
-    const deep = `${base}/app/modulos/comunicacion`;
-    void this.mailService
-      .sendHtmlToUserIds(
-        uniques,
+    const mailItems = saved.map((n) => ({
+      userId: n.userId,
+      html: this.mailService.wrapNotice(
         title,
-        this.mailService.wrapNotice(title, message, deep),
-        data.type
+        message,
+        `${base}/app/modulos/comunicacion?notification=${encodeURIComponent(n.id)}`
       )
+    }));
+    void this.mailService
+      .sendHtmlPerUser(mailItems, title, data.type)
       .catch((err: unknown) => this.logger.warn(`Correo no enviado: ${String(err)}`));
   }
 

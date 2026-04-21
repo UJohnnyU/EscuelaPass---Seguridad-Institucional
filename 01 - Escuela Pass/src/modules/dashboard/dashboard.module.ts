@@ -9,14 +9,21 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { PickupRequestEntity } from '../../database/entities/pickup-request.entity';
+import { ActivitiesModule } from '../activities/activities.module';
 import { AuthModule } from '../auth/auth.module';
+import { MeetingsModule } from '../meetings/meetings.module';
+import { NoticesModule } from '../notices/notices.module';
 import { SchoolCalendarModule } from '../school-calendar/school-calendar.module';
 import { DashboardController } from './dashboard.controller';
+import { DashboardsController } from './dashboards.controller';
 import { DashboardService } from './dashboard.service';
 
 @Module({
   imports: [
     AuthModule,
+    ActivitiesModule,
+    MeetingsModule,
+    NoticesModule,
     SchoolCalendarModule,
     TypeOrmModule.forFeature([
       AttendanceRecordEntity,
@@ -30,7 +37,7 @@ import { DashboardService } from './dashboard.service';
       PickupRequestEntity
     ])
   ],
-  controllers: [DashboardController],
+  controllers: [DashboardController, DashboardsController],
   providers: [DashboardService]
 })
 export class DashboardModule {}

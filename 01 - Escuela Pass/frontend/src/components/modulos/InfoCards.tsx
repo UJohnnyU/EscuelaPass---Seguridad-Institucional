@@ -168,7 +168,7 @@ export function NotificationsList({
     setReadMap({});
   }, [items]);
 
-  const deepId = searchParams.get('notification');
+  const deepId = searchParams.get('notification') ?? searchParams.get('notif');
   useEffect(() => {
     if (!deepId || items.length === 0) return;
     const target = items.find((n) => n.id === deepId);

@@ -76,6 +76,44 @@ export class MailService {
     }
   }
 
+  /**
+   * Un correo por destinatario (CTA con deep-link distinto, p. ej. ?notification=uuid).
+   * Respeta el mismo cooldown por usuario/tipo que sendHtmlToUserIds.
+   */
+  async sendHtmlPerUser(
+    items: Array<{ userId: string; html: string }>,
+    subject: string,
+    throttleKey: string
+  ): Promise<void> {
+    const tp = this.transporter();
+    if (!tp || items.length === 0) return;
+    const from = process.env.SMTP_FROM?.trim() || process.env.SMTP_USER?.trim();
+    if (!from) {
+      this.logger.warn('SMTP_FROM / SMTP_USER no definido; correo omitido');
+      return;
+    }
+    const now = Date.now();
+    const ids = [...new Set(items.map((i) => i.userId))];
+    const users = await this.usersRepository.find({
+      where: { id: In(ids) },
+      select: { id: true, email: true }
+    });
+    const emailById = new Map(users.map((u) => [u.id, u.email?.trim() ?? '']));
+    for (const it of items) {
+      const to = emailById.get(it.userId);
+      if (!to) continue;
+      const ck = `${it.userId}:${throttleKey}`;
+      const last = emailCooldownMs.get(ck) ?? 0;
+      if (now - last < COOLDOWN_MS) continue;
+      emailCooldownMs.set(ck, now);
+      try {
+        await tp.sendMail({ from, to, subject, html: it.html });
+      } catch (err) {
+        this.logger.warn(`Envío SMTP fallido (${to}): ${String(err)}`);
+      }
+    }
+  }
+
   /** Plantilla mínima institucional para notificaciones de eventos. */
   wrapNotice(title: string, body: string, deepLink?: string): string {
     const link = deepLink

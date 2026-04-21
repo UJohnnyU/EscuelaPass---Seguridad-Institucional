@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FixedSizeList, type ListChildComponentProps } from 'react-window';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -13,6 +14,74 @@ const ROLE_LABEL: Record<string, string> = {
   PADRE: 'Familia / acudiente',
   ALUMNO: 'Estudiante'
 };
+
+type ContactItem = { fullName: string; phone: string | null; subtitle?: string };
+
+const CONTACT_VIRTUAL_THRESHOLD = 20;
+const CONTACT_ROW_HEIGHT = 128;
+
+function ContactArticleCard({ item }: { item: ContactItem }) {
+  const initials = (() => {
+    const n = (item.fullName || '?').trim();
+    const parts = n.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return n.slice(0, 2).toUpperCase();
+  })();
+  const cleanPhone = item.phone?.replace(/\s/g, '');
+  return (
+    <article className="flex gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow">
+      <div
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white"
+        aria-hidden
+      >
+        {initials}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold text-slate-900">{item.fullName}</p>
+        {item.subtitle ? <p className="mt-0.5 truncate text-xs text-slate-500">{item.subtitle}</p> : null}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          {cleanPhone ? (
+            <a
+              href={`tel:${cleanPhone}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-800 transition hover:border-slate-300 hover:bg-white"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-3.5 w-3.5"
+                aria-hidden
+              >
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+              </svg>
+              {item.phone}
+            </a>
+          ) : (
+            <span className="text-xs text-slate-400">Sin celular registrado</span>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function VirtualContactRow({
+  index,
+  style,
+  data
+}: ListChildComponentProps<{ items: ContactItem[] }>) {
+  const item = data.items[index];
+  if (!item) return null;
+  return (
+    <div style={style} className="box-border px-0 pr-1">
+      <ContactArticleCard item={item} />
+    </div>
+  );
+}
 
 export function PerfilPage() {
   const { user } = useAuth();
@@ -40,6 +109,17 @@ export function PerfilPage() {
   const [policyText, setPolicyText] = useState<string | null>(null);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [autonomousToday, setAutonomousToday] = useState<boolean | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState(800);
+
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setContentWidth(el.clientWidth));
+    ro.observe(el);
+    setContentWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +186,7 @@ export function PerfilPage() {
   const avatarSrc = publicAssetUrl(me?.avatarUrl ?? user?.avatarUrl ?? null);
 
   return (
-    <div className="mx-auto max-w-6xl animate-fade-in">
+    <div ref={rootRef} className="mx-auto max-w-6xl animate-fade-in">
       <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi perfil</h1>
       <p className="mt-1 text-sm text-slate-600">
         Sus datos personales y, si tiene autorizado el acceso, su código QR para entrar al plantel.
@@ -161,6 +241,8 @@ export function PerfilPage() {
             const expanded = !!contactExpanded[section.title];
             const shouldPaginate = !filter && filteredItems.length > CONTACT_PAGE_SIZE && !expanded;
             const visibleItems = shouldPaginate ? filteredItems.slice(0, CONTACT_PAGE_SIZE) : filteredItems;
+            const useVirtualList = visibleItems.length > CONTACT_VIRTUAL_THRESHOLD;
+            const listHeight = Math.min(560, visibleItems.length * CONTACT_ROW_HEIGHT);
             return (
             <section key={section.title} className="mt-10">
               <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -180,64 +262,26 @@ export function PerfilPage() {
                   />
                 ) : null}
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredItems.length === 0 ? (
-                  <p className="col-span-full text-sm text-slate-500">Ningún contacto coincide con esa búsqueda.</p>
-                ) : null}
-                {visibleItems.map((item, idx) => {
-                  const initials = (() => {
-                    const n = (item.fullName || '?').trim();
-                    const parts = n.split(/\s+/).filter(Boolean);
-                    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                    return n.slice(0, 2).toUpperCase();
-                  })();
-                  const cleanPhone = item.phone?.replace(/\s/g, '');
-                  return (
-                    <article
-                      key={`${item.fullName}-${idx}`}
-                      className="flex gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow"
-                    >
-                      <div
-                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white"
-                        aria-hidden
-                      >
-                        {initials}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-slate-900">{item.fullName}</p>
-                        {item.subtitle ? (
-                          <p className="mt-0.5 truncate text-xs text-slate-500">{item.subtitle}</p>
-                        ) : null}
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                          {cleanPhone ? (
-                            <a
-                              href={`tel:${cleanPhone}`}
-                              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-800 transition hover:border-slate-300 hover:bg-white"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="h-3.5 w-3.5"
-                                aria-hidden
-                              >
-                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
-                              </svg>
-                              {item.phone}
-                            </a>
-                          ) : (
-                            <span className="text-xs text-slate-400">Sin celular registrado</span>
-                          )}
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+              {filteredItems.length === 0 ? (
+                <p className="text-sm text-slate-500">Ningún contacto coincide con esa búsqueda.</p>
+              ) : useVirtualList ? (
+                <FixedSizeList
+                  height={listHeight}
+                  width={Math.max(320, contentWidth)}
+                  itemCount={visibleItems.length}
+                  itemSize={CONTACT_ROW_HEIGHT}
+                  itemData={{ items: visibleItems }}
+                  overscanCount={4}
+                >
+                  {VirtualContactRow}
+                </FixedSizeList>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {visibleItems.map((item, idx) => (
+                    <ContactArticleCard key={`${item.fullName}-${idx}`} item={item} />
+                  ))}
+                </div>
+              )}
               {shouldPaginate ? (
                 <div className="mt-3 flex justify-center">
                   <button
