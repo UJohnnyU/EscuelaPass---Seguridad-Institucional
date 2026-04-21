@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { DetailModal } from '@/components/DetailModal';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isStaff } from '@/lib/roles';
@@ -145,6 +146,18 @@ export function VisitasPage() {
   }, [mine]);
 
   const list = tab === 'upcoming' ? upcoming : tab === 'past' ? past : organized;
+  const allVisits = useMemo(() => {
+    const byId = new Map<string, VisitRow>();
+    [...mine, ...organized].forEach((v) => byId.set(v.id, v));
+    return Array.from(byId.values());
+  }, [mine, organized]);
+  const selectedVisit = selectedId ? allVisits.find((v) => v.id === selectedId) ?? null : null;
+  const currentDetail = selectedVisit
+    ? detail && detail.id === selectedVisit.id
+      ? detail
+      : selectedVisit
+    : null;
+  const canModifyCurrent = !!currentDetail && staff && (currentDetail.createdByUserId === user?.id || user?.role === 'ADMIN');
 
   const reloadAll = async () => {
     await loadLists();
@@ -242,7 +255,7 @@ export function VisitasPage() {
                 >
                   <button
                     type="button"
-                    onClick={() => setSelectedId((id) => (id === v.id ? null : v.id))}
+                    onClick={() => setSelectedId(v.id)}
                     className="flex w-full flex-col gap-1 text-left"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -260,22 +273,38 @@ export function VisitasPage() {
                       {v.location ? ` · ${v.location}` : ''}
                     </span>
                   </button>
-                  {selectedId === v.id && (
-                    <VisitDetailView
-                      detail={detail && detail.id === v.id ? detail : v}
-                      detailErr={detailErr}
-                      canModify={staff && (v.createdByUserId === user?.id || user?.role === 'ADMIN')}
-                      onCancel={() => actionCancel(v.id)}
-                      onReschedule={() => actionReschedule(v.id)}
-                      onRealized={() => actionRealized(v.id)}
-                    />
-                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+      <DetailModal
+        open={!!currentDetail}
+        title={currentDetail?.title ?? 'Detalle de visita'}
+        subtitle={currentDetail ? formatDateLong(currentDetail.visitDatetime) : ''}
+        badge={
+          currentDetail ? (
+            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(currentDetail.status)}`}>
+              {currentDetail.status}
+            </span>
+          ) : null
+        }
+        onClose={() => setSelectedId(null)}
+        footer={
+          currentDetail ? (
+            <VisitActions
+              detail={currentDetail}
+              canModify={canModifyCurrent}
+              onCancel={() => actionCancel(currentDetail.id)}
+              onReschedule={() => actionReschedule(currentDetail.id)}
+              onRealized={() => actionRealized(currentDetail.id)}
+            />
+          ) : null
+        }
+      >
+        {currentDetail ? <VisitDetailView detail={currentDetail} detailErr={detailErr} /> : null}
+      </DetailModal>
     </div>
   );
 }
@@ -306,22 +335,13 @@ function TabButton({
 
 function VisitDetailView({
   detail,
-  detailErr,
-  canModify,
-  onCancel,
-  onReschedule,
-  onRealized
+  detailErr
 }: {
   detail: VisitRow;
   detailErr: string | null;
-  canModify: boolean;
-  onCancel: () => void;
-  onReschedule: () => void;
-  onRealized: () => void;
 }) {
-  const canAct = detail.status !== 'CANCELADA' && detail.status !== 'REALIZADA';
   return (
-    <div className="mt-3 space-y-3 rounded border border-slate-200 bg-white p-3 text-sm">
+    <div className="space-y-3 text-sm">
       {detailErr && (
         <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-red-900">{detailErr}</div>
       )}
@@ -336,38 +356,42 @@ function VisitDetailView({
       <p className="text-slate-700">
         <span className="font-medium text-slate-900">Duración:</span> {detail.durationMinutes} min
       </p>
+      {detail.previousDatetime ? (
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Fecha anterior:</span> {formatDateLong(detail.previousDatetime)}
+        </p>
+      ) : null}
       {detail.cancellationReason && (
         <p className="text-slate-700">
           <span className="font-medium text-slate-900">Motivo de cancelación:</span>{' '}
           {detail.cancellationReason}
         </p>
       )}
-      {canModify && canAct && (
-        <div className="flex flex-wrap gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onReschedule}
-            className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
-          >
-            Reprogramar
-          </button>
-          <button
-            type="button"
-            onClick={onRealized}
-            className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
-          >
-            Marcar realizada
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-900 hover:bg-rose-100"
-          >
-            Cancelar visita
-          </button>
-        </div>
-      )}
     </div>
+  );
+}
+
+function VisitActions({
+  detail,
+  canModify,
+  onCancel,
+  onReschedule,
+  onRealized
+}: {
+  detail: VisitRow;
+  canModify: boolean;
+  onCancel: () => void;
+  onReschedule: () => void;
+  onRealized: () => void;
+}) {
+  const canAct = detail.status !== 'CANCELADA' && detail.status !== 'REALIZADA';
+  if (!canModify || !canAct) return null;
+  return (
+    <>
+      <button type="button" onClick={onReschedule} className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100">Reprogramar</button>
+      <button type="button" onClick={onRealized} className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100">Marcar realizada</button>
+      <button type="button" onClick={onCancel} className="rounded border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-900 hover:bg-rose-100">Cancelar visita</button>
+    </>
   );
 }
 

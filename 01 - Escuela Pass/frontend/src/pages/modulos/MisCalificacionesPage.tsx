@@ -29,6 +29,16 @@ type ActivityRow = {
 };
 
 type ChildOption = { studentId: string; name: string };
+type PeriodOption = { id: string; schoolYear: string; name: string; schoolName?: string | null };
+
+function scoreMood(score: number, maxScore: number): { emoji: string; label: string; tone: string } {
+  const ratio = maxScore > 0 ? score / maxScore : 0;
+  if (ratio >= 0.98) return { emoji: '🤩', label: '¡Excelente!', tone: 'text-emerald-700' };
+  if (ratio >= 0.9) return { emoji: '😄', label: '¡Muy buen trabajo!', tone: 'text-emerald-700' };
+  if (ratio >= 0.75) return { emoji: '🙂', label: 'Vas por buen camino', tone: 'text-sky-700' };
+  if (ratio >= 0.6) return { emoji: '😐', label: 'Puedes mejorar con práctica', tone: 'text-amber-700' };
+  return { emoji: '💪', label: 'No te rindas, sigue intentando', tone: 'text-rose-700' };
+}
 
 export function MisCalificacionesPage() {
   const { user } = useAuth();
@@ -41,9 +51,7 @@ export function MisCalificacionesPage() {
   const [filterPeriod, setFilterPeriod] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [openRow, setOpenRow] = useState<ActivityRow | null>(null);
-  const [allPeriods, setAllPeriods] = useState<
-    Array<{ id: string; schoolYear: string; name: string }>
-  >([]);
+  const [allPeriods, setAllPeriods] = useState<PeriodOption[]>([]);
 
   const endpoint = isParent ? '/api/v1/activities/parent/my-children' : '/api/v1/activities/student/me';
 
@@ -72,7 +80,7 @@ export function MisCalificacionesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await api.get<Array<{ id: string; schoolYear: string; name: string }>>(
+        const { data } = await api.get<PeriodOption[]>(
           '/api/v1/academic-periods'
         );
         if (!cancelled) setAllPeriods(Array.isArray(data) ? data : []);
@@ -107,15 +115,20 @@ export function MisCalificacionesPage() {
 
   const periodOptions = useMemo(() => {
     const map = new Map<string, string>();
+    for (const r of rows) {
+      if (!r.periodId) continue;
+      if (filterYear && r.schoolYear !== filterYear) continue;
+      const periodLabel = r.periodName?.trim() || r.period?.trim() || 'Periodo';
+      const yearLabel = r.schoolYear ? ` · ${r.schoolYear}` : '';
+      if (!map.has(r.periodId)) map.set(r.periodId, `${periodLabel}${yearLabel}`);
+    }
     for (const p of allPeriods) {
       if (filterYear && p.schoolYear !== filterYear) continue;
-      if (!map.has(p.id)) map.set(p.id, `${p.schoolYear ? `${p.schoolYear} · ` : ''}${p.name}`);
-    }
-    for (const r of rows) {
-      if (filterYear && r.schoolYear !== filterYear) continue;
-      if (r.periodId && r.periodName && !map.has(r.periodId)) {
-        map.set(r.periodId, `${r.schoolYear ?? ''} · ${r.periodName}`.trim());
-      }
+      if (map.has(p.id)) continue;
+      const base = p.name?.trim() || 'Periodo';
+      const yearLabel = p.schoolYear ? ` · ${p.schoolYear}` : '';
+      const schoolLabel = p.schoolName ? ` · ${p.schoolName}` : '';
+      map.set(p.id, `${base}${yearLabel}${schoolLabel}`);
     }
     return [
       { value: '', label: 'Todos los periodos' },
@@ -222,13 +235,21 @@ export function MisCalificacionesPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
                   <h3 className="text-sm font-semibold text-slate-800">{g.subjectName}</h3>
                   {avg !== null && (
-                    <p className="text-xs text-slate-600">
-                      Promedio:{' '}
-                      <span className="font-semibold text-slate-900">{avg.toFixed(2)}</span>
-                      {maxScale > 0 ? (
-                        <span className="text-slate-500"> / {maxScale.toFixed(2)}</span>
-                      ) : null}
-                    </p>
+                    (() => {
+                      const mood = scoreMood(avg, maxScale > 0 ? maxScale : 10);
+                      return (
+                        <div className="text-right">
+                          <p className={`text-xs font-semibold ${mood.tone}`}>{mood.label}</p>
+                          <p className="text-xs text-slate-600">
+                            <span className="font-semibold text-slate-900">{avg.toFixed(2)}</span>
+                            {maxScale > 0 ? <span className="text-slate-500"> / {maxScale.toFixed(2)}</span> : null}
+                          </p>
+                          <p className="mt-0.5 text-lg leading-none" aria-hidden>
+                            {mood.emoji}
+                          </p>
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
                 <ul className="divide-y divide-slate-100">
@@ -309,14 +330,17 @@ export function MisCalificacionesPage() {
                   </span>
                 </p>
               </div>
-              {openRow.myScore != null && Number(openRow.maxScore) > 0 ? (
-                <div className="text-right">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Porcentaje</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">
-                    {Math.round((Number(openRow.myScore) / Number(openRow.maxScore)) * 100)}%
-                  </p>
-                </div>
-              ) : null}
+              {openRow.myScore != null && Number(openRow.maxScore) > 0 ? (() => {
+                const mood = scoreMood(Number(openRow.myScore), Number(openRow.maxScore));
+                return (
+                  <div className="text-right">
+                    <p className={`text-xs font-semibold uppercase tracking-widest ${mood.tone}`}>{mood.label}</p>
+                    <p className="mt-1 text-4xl leading-none" aria-hidden>
+                      {mood.emoji}
+                    </p>
+                  </div>
+                );
+              })() : null}
             </div>
             {openRow.myNotes ? (
               <div>

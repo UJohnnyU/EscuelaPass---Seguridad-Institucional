@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { DetailModal } from '@/components/DetailModal';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isStaff } from '@/lib/roles';
@@ -178,6 +179,21 @@ export function ReunionesPage() {
           ? organized
           : organizedByMe
         : past;
+  const allMeetings = useMemo(() => {
+    const byId = new Map<string, Meeting>();
+    [...mine, ...organized].forEach((m) => byId.set(m.id, m));
+    return Array.from(byId.values());
+  }, [mine, organized]);
+  const selectedMeeting = selectedId
+    ? allMeetings.find((m) => m.id === selectedId) ?? null
+    : null;
+  const currentDetail = selectedMeeting
+    ? detail && detail.id === selectedMeeting.id
+      ? detail
+      : selectedMeeting
+    : null;
+  const currentMyPart = currentDetail?.participants.find((p) => p.userId === user?.id);
+  const currentIsOrganizer = !!currentDetail && (currentDetail.organizerUserId === user?.id || user?.role === 'ADMIN');
 
   const reloadAll = async () => {
     await loadLists();
@@ -256,7 +272,7 @@ export function ReunionesPage() {
 
       {canCreate && <CreateMeetingPanel onCreated={reloadAll} role={user?.role ?? ''} />}
 
-      <div className="rounded border border-slate-200 bg-white">
+      <div className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 pt-3">
           <TabButton active={tab === 'mine'} onClick={() => setTab('mine')}>
             Próximas ({invitations.length + organizedByMe.length})
@@ -279,11 +295,11 @@ export function ReunionesPage() {
                 return (
                   <li
                     key={m.id}
-                    className="rounded border border-slate-200 bg-slate-50 p-3 transition hover:bg-white"
+                    className="rounded border border-slate-200 bg-slate-50 p-3 transition hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-900"
                   >
                     <button
                       type="button"
-                      onClick={() => setSelectedId((id) => (id === m.id ? null : m.id))}
+                      onClick={() => setSelectedId(m.id)}
                       className="flex w-full flex-col gap-1 text-left"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -312,19 +328,6 @@ export function ReunionesPage() {
                         {m.counts.declined} declinadas
                       </span>
                     </button>
-                    {selectedId === m.id && (
-                      <MeetingDetailView
-                        detail={detail && detail.id === m.id ? detail : m}
-                        detailErr={detailErr}
-                        isOrganizer={isOrganizer || user?.role === 'ADMIN'}
-                        isParticipant={Boolean(myPart)}
-                        onCancel={() => actionCancel(m.id)}
-                        onReschedule={() => actionReschedule(m.id)}
-                        onInProgress={() => actionStatus(m.id, 'IN_PROGRESS')}
-                        onRealized={() => actionStatus(m.id, 'REALIZED')}
-                        onRsvp={(r) => actionRsvp(m.id, r)}
-                      />
-                    )}
                   </li>
                 );
               })}
@@ -332,6 +335,35 @@ export function ReunionesPage() {
           )}
         </div>
       </div>
+      <DetailModal
+        open={!!currentDetail}
+        title={currentDetail?.title ?? 'Detalle de reunión'}
+        subtitle={currentDetail ? formatDateLong(currentDetail.startAt) : ''}
+        badge={
+          currentDetail ? (
+            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(currentDetail.status)}`}>
+              {currentDetail.status}
+            </span>
+          ) : null
+        }
+        onClose={() => setSelectedId(null)}
+        footer={
+          currentDetail ? (
+            <MeetingActions
+              detail={currentDetail}
+              isOrganizer={currentIsOrganizer}
+              isParticipant={Boolean(currentMyPart)}
+              onCancel={() => actionCancel(currentDetail.id)}
+              onReschedule={() => actionReschedule(currentDetail.id)}
+              onInProgress={() => actionStatus(currentDetail.id, 'IN_PROGRESS')}
+              onRealized={() => actionStatus(currentDetail.id, 'REALIZED')}
+              onRsvp={(r) => actionRsvp(currentDetail.id, r)}
+            />
+          ) : null
+        }
+      >
+        {currentDetail ? <MeetingDetailView detail={currentDetail} detailErr={detailErr} /> : null}
+      </DetailModal>
     </div>
   );
 }
@@ -351,8 +383,8 @@ function TabButton({
       onClick={onClick}
       className={`rounded-t border-b-2 px-3 py-2 text-sm font-medium ${
         active
-          ? 'border-brand-800 text-brand-900'
-          : 'border-transparent text-slate-600 hover:text-slate-900'
+          ? 'border-brand-800 text-brand-900 dark:border-brand-300 dark:text-brand-200'
+          : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'
       }`}
     >
       {children}
@@ -362,28 +394,13 @@ function TabButton({
 
 function MeetingDetailView({
   detail,
-  detailErr,
-  isOrganizer,
-  isParticipant,
-  onCancel,
-  onReschedule,
-  onInProgress,
-  onRealized,
-  onRsvp
+  detailErr
 }: {
   detail: Meeting;
   detailErr: string | null;
-  isOrganizer: boolean;
-  isParticipant: boolean;
-  onCancel: () => void;
-  onReschedule: () => void;
-  onInProgress: () => void;
-  onRealized: () => void;
-  onRsvp: (rsvp: Rsvp) => void;
 }) {
-  const canAct = detail.status !== 'CANCELADA' && detail.status !== 'REALIZADA';
   return (
-    <div className="mt-3 space-y-3 rounded border border-slate-200 bg-white p-3 text-sm">
+    <div className="space-y-3 text-sm">
       {detailErr && (
         <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-red-900">{detailErr}</div>
       )}
@@ -400,7 +417,7 @@ function MeetingDetailView({
       )}
       <div>
         <span className="font-medium text-slate-900">Participantes ({detail.participants.length})</span>
-        <ul className="mt-1 divide-y divide-slate-100 rounded border border-slate-200 bg-slate-50">
+        <ul className="mt-1 divide-y divide-slate-100 rounded border border-slate-200 bg-slate-50 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
           {detail.participants.map((p) => (
             <li key={p.id} className="flex items-center justify-between px-3 py-2">
               <span className="text-slate-800">
@@ -421,66 +438,51 @@ function MeetingDetailView({
           {detail.cancellationReason}
         </p>
       )}
-      {isParticipant && !isOrganizer && canAct && (
-        <div className="flex flex-wrap gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => onRsvp('ACEPTADA')}
-            className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
-          >
-            Confirmar asistencia
-          </button>
-          <button
-            type="button"
-            onClick={() => onRsvp('DECLINADA')}
-            className="rounded border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-900 hover:bg-rose-100"
-          >
-            Declinar
-          </button>
-          <button
-            type="button"
-            onClick={() => onRsvp('PENDIENTE')}
-            className="rounded border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-800 hover:bg-slate-100"
-          >
-            Dejar pendiente
-          </button>
-        </div>
-      )}
-      {isOrganizer && canAct && (
-        <div className="flex flex-wrap gap-2 pt-2">
-          {detail.status !== 'EN_CURSO' && (
-            <button
-              type="button"
-              onClick={onInProgress}
-              className="rounded border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-900 hover:bg-indigo-100"
-            >
-              Iniciar (en curso)
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onReschedule}
-            className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
-          >
-            Reprogramar
-          </button>
-          <button
-            type="button"
-            onClick={onRealized}
-            className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
-          >
-            Marcar realizada
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-900 hover:bg-rose-100"
-          >
-            Cancelar reunión
-          </button>
-        </div>
-      )}
     </div>
+  );
+}
+
+function MeetingActions({
+  detail,
+  isOrganizer,
+  isParticipant,
+  onCancel,
+  onReschedule,
+  onInProgress,
+  onRealized,
+  onRsvp
+}: {
+  detail: Meeting;
+  isOrganizer: boolean;
+  isParticipant: boolean;
+  onCancel: () => void;
+  onReschedule: () => void;
+  onInProgress: () => void;
+  onRealized: () => void;
+  onRsvp: (rsvp: Rsvp) => void;
+}) {
+  const canAct = detail.status !== 'CANCELADA' && detail.status !== 'REALIZADA';
+  if (!canAct) return null;
+  return (
+    <>
+      {isParticipant && !isOrganizer ? (
+        <>
+          <button type="button" onClick={() => onRsvp('ACEPTADA')} className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100">Confirmar asistencia</button>
+          <button type="button" onClick={() => onRsvp('DECLINADA')} className="rounded border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-900 hover:bg-rose-100">Declinar</button>
+          <button type="button" onClick={() => onRsvp('PENDIENTE')} className="rounded border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-800 hover:bg-slate-100">Dejar pendiente</button>
+        </>
+      ) : null}
+      {isOrganizer ? (
+        <>
+          {detail.status !== 'EN_CURSO' ? (
+            <button type="button" onClick={onInProgress} className="rounded border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-900 hover:bg-indigo-100">Iniciar (en curso)</button>
+          ) : null}
+          <button type="button" onClick={onReschedule} className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100">Reprogramar</button>
+          <button type="button" onClick={onRealized} className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100">Marcar realizada</button>
+          <button type="button" onClick={onCancel} className="rounded border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-900 hover:bg-rose-100">Cancelar reunión</button>
+        </>
+      ) : null}
+    </>
   );
 }
 

@@ -49,11 +49,11 @@ function Card({
   accent?: 'slate' | 'emerald' | 'amber' | 'indigo' | 'rose';
 }) {
   const accents: Record<string, string> = {
-    slate: 'border-slate-200 bg-white',
-    emerald: 'border-emerald-200 bg-emerald-50/30',
-    amber: 'border-amber-200 bg-amber-50/30',
-    indigo: 'border-indigo-200 bg-indigo-50/30',
-    rose: 'border-rose-200 bg-rose-50/30'
+    slate: 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900',
+    emerald: 'border-emerald-200 bg-emerald-50/30 dark:border-emerald-400/40 dark:bg-emerald-900/30',
+    amber: 'border-amber-200 bg-amber-50/30 dark:border-amber-400/40 dark:bg-amber-900/30',
+    indigo: 'border-indigo-200 bg-indigo-50/30 dark:border-indigo-400/40 dark:bg-indigo-900/30',
+    rose: 'border-rose-200 bg-rose-50/30 dark:border-rose-400/40 dark:bg-rose-900/30'
   };
   return (
     <section className={`flex flex-col rounded-2xl border p-5 shadow-sm ${accents[accent ?? 'slate']}`}>
@@ -78,7 +78,7 @@ function Card({
 
 function MiniStat({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white p-4 text-center ${tone ?? ''}`}>
+    <div className={`rounded-xl border border-slate-200 bg-white p-4 text-center dark:border-slate-700 dark:bg-slate-900 ${tone ?? ''}`}>
       <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
     </div>
