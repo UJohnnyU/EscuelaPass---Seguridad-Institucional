@@ -87,6 +87,8 @@ export function VisitasPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<VisitRow | null>(null);
   const [detailErr, setDetailErr] = useState<string | null>(null);
+  const [groupNameMap, setGroupNameMap] = useState<Record<string, string>>({});
+  const [studentNameMap, setStudentNameMap] = useState<Record<string, string>>({});
 
   const loadLists = useCallback(async () => {
     setErr(null);
@@ -158,6 +160,58 @@ export function VisitasPage() {
       : selectedVisit
     : null;
   const canModifyCurrent = !!currentDetail && staff && (currentDetail.createdByUserId === user?.id || user?.role === 'ADMIN');
+  const currentGroupNames = useMemo(() => {
+    if (!currentDetail?.groupIds?.length) return [];
+    return currentDetail.groupIds.map((id) => groupNameMap[id] ?? id);
+  }, [currentDetail?.groupIds, groupNameMap]);
+  const currentStudentNames = useMemo(() => {
+    if (!currentDetail?.studentIds?.length) return [];
+    return currentDetail.studentIds.map((id) => studentNameMap[id] ?? id);
+  }, [currentDetail?.studentIds, studentNameMap]);
+
+  useEffect(() => {
+    if (!currentDetail) return;
+    const needGroups = currentDetail.groupIds.some((id) => !groupNameMap[id]);
+    const needStudents = currentDetail.studentIds.some((id) => !studentNameMap[id]);
+    if (!needGroups && !needStudents) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const calls: Promise<unknown>[] = [];
+        if (needGroups) calls.push(api.get<GroupRow[]>('/api/v1/school/groups', { params: { limit: 300 } }));
+        if (needStudents) calls.push(api.get<StudentRow[]>('/api/v1/school/students', { params: { limit: 300 } }));
+        const results = await Promise.all(calls);
+        if (cancelled) return;
+        for (const res of results) {
+          const data = (res as { data: unknown }).data;
+          if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] && 'matricula' in (data[0] as object)) {
+            const rows = data as StudentRow[];
+            setStudentNameMap((prev) => {
+              const next = { ...prev };
+              rows.forEach((s) => {
+                next[s.id] = `${s.fullName} (${s.matricula})`;
+              });
+              return next;
+            });
+          } else if (Array.isArray(data)) {
+            const rows = data as GroupRow[];
+            setGroupNameMap((prev) => {
+              const next = { ...prev };
+              rows.forEach((g) => {
+                next[g.id] = `${g.name}${g.grade ? ` · ${g.grade}` : ''} · ${g.schoolYear}`;
+              });
+              return next;
+            });
+          }
+        }
+      } catch {
+        // si falla, dejamos fallback con IDs
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDetail, groupNameMap, studentNameMap]);
 
   const reloadAll = async () => {
     await loadLists();
@@ -303,7 +357,14 @@ export function VisitasPage() {
           ) : null
         }
       >
-        {currentDetail ? <VisitDetailView detail={currentDetail} detailErr={detailErr} /> : null}
+        {currentDetail ? (
+          <VisitDetailView
+            detail={currentDetail}
+            detailErr={detailErr}
+            groupNames={currentGroupNames}
+            studentNames={currentStudentNames}
+          />
+        ) : null}
       </DetailModal>
     </div>
   );
@@ -335,10 +396,14 @@ function TabButton({
 
 function VisitDetailView({
   detail,
-  detailErr
+  detailErr,
+  groupNames,
+  studentNames
 }: {
   detail: VisitRow;
   detailErr: string | null;
+  groupNames?: string[];
+  studentNames?: string[];
 }) {
   return (
     <div className="space-y-3 text-sm">
@@ -348,14 +413,41 @@ function VisitDetailView({
       <p className="text-slate-700">
         <span className="font-medium text-slate-900">Propósito:</span> {detail.purpose}
       </p>
+      <div className="grid grid-cols-1 gap-3 rounded border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2">
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Fecha y hora:</span> {formatDateLong(detail.visitDatetime)}
+        </p>
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Duración:</span> {detail.durationMinutes} min
+        </p>
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Visitante:</span> {detail.visitorName}
+        </p>
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Organización:</span> {detail.visitorOrganization ?? 'No especificada'}
+        </p>
+        <p className="text-slate-700 sm:col-span-2">
+          <span className="font-medium text-slate-900">Lugar:</span> {detail.location ?? 'No especificado'}
+        </p>
+        <p className="text-slate-700 sm:col-span-2">
+          <span className="font-medium text-slate-900">Registrada:</span> {formatDateLong(detail.createdAt)}
+        </p>
+      </div>
       <p className="text-slate-700">
         <span className="font-medium text-slate-900">Alcance:</span> {detail.audienceScope}
         {detail.audienceScope === 'GROUPS' ? ` · ${detail.groupIds.length} grupo(s)` : ''}
         {detail.audienceScope === 'STUDENTS' ? ` · ${detail.studentIds.length} estudiante(s)` : ''}
       </p>
-      <p className="text-slate-700">
-        <span className="font-medium text-slate-900">Duración:</span> {detail.durationMinutes} min
-      </p>
+      {detail.audienceScope === 'GROUPS' && detail.groupIds.length > 0 ? (
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Grupos:</span> {(groupNames && groupNames.length > 0 ? groupNames : detail.groupIds).join(', ')}
+        </p>
+      ) : null}
+      {detail.audienceScope === 'STUDENTS' && detail.studentIds.length > 0 ? (
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Estudiantes:</span> {(studentNames && studentNames.length > 0 ? studentNames : detail.studentIds).join(', ')}
+        </p>
+      ) : null}
       {detail.previousDatetime ? (
         <p className="text-slate-700">
           <span className="font-medium text-slate-900">Fecha anterior:</span> {formatDateLong(detail.previousDatetime)}

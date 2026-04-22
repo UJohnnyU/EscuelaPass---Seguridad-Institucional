@@ -21,7 +21,7 @@ export class AttentionNotesController {
   }
 
   @Get('teacher/groups/:groupId')
-  @Roles(UserRole.DOCENTE)
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   listByGroupForTeacher(
     @Param('groupId', new ParseUUIDPipe({ version: '4' })) groupId: string,
     @Req() req: Request & { user: JwtUser }

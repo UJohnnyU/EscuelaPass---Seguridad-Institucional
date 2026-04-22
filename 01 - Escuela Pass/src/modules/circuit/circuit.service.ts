@@ -430,9 +430,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     const qb = this.circuitRepository
       .createQueryBuilder('cr')
-      .innerJoin(StudentEntity, 'st', 'st.id = cr.studentId')
-      .innerJoin(GroupEntity, 'g', 'g.id = st.groupId')
-      .innerJoin(UserEntity, 'su', 'su.id = st.userId')
+      .innerJoin(StudentEntity, 'st', 'st.id = cr.student_id')
+      .innerJoin(GroupEntity, 'g', 'g.id = st.group_id')
+      .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
       .where('DATE(cr.request_time) = :today', { today });
 
     const q = searchQ?.trim();
@@ -447,13 +447,13 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       if (!sid || !this.isUuid(sid)) {
         return [];
       }
-      qb.andWhere('g.schoolId = :schoolId', { schoolId: sid });
+      qb.andWhere('g.school_id = :schoolId', { schoolId: sid });
     } else if (role === UserRole.ADMINISTRATIVO) {
       const schoolId = await this.userSchoolId(userId);
       if (!schoolId) {
         return [];
       }
-      qb.andWhere('g.schoolId = :schoolId', { schoolId });
+      qb.andWhere('g.school_id = :schoolId', { schoolId });
     } else if (role === UserRole.DOCENTE) {
       qb.andWhere(
         `EXISTS (

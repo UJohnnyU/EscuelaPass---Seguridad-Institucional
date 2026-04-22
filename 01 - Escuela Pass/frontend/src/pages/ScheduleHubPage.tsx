@@ -4,7 +4,7 @@ import { StudentSchedulePage } from '@/pages/StudentSchedulePage';
 
 export function ScheduleHubPage() {
   const { user } = useAuth();
-  if (user?.role === 'ALUMNO') {
+  if (user?.role === 'ALUMNO' || user?.role === 'DOCENTE') {
     return <StudentSchedulePage />;
   }
   if (user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO') {

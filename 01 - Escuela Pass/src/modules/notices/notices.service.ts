@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { AdminReportCommentEntity } from '../../database/entities/admin-report-comment.entity';
+import { AdminReportEntity, AdminReportStatus, AdminReportType } from '../../database/entities/admin-report.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { NoticeEntity, NoticeTargetType } from '../../database/entities/notice.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
@@ -14,6 +16,7 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { CreateNoticeDto } from './dto/create-notice.dto';
+import { CreateAdminReportDto } from './dto/create-admin-report.dto';
 import { FcmService } from '../fcm/fcm.service';
 
 @Injectable()
@@ -25,6 +28,10 @@ export class NoticesService {
     private readonly noticesRepository: Repository<NoticeEntity>,
     @InjectRepository(NotificationEntity)
     private readonly notificationsRepository: Repository<NotificationEntity>,
+    @InjectRepository(AdminReportEntity)
+    private readonly adminReportsRepository: Repository<AdminReportEntity>,
+    @InjectRepository(AdminReportCommentEntity)
+    private readonly adminReportCommentsRepository: Repository<AdminReportCommentEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(StudentEntity)
@@ -265,6 +272,261 @@ export class NoticesService {
     notif.readAt = new Date();
     await this.notificationsRepository.save(notif);
     return { message: 'Marcada como leída', id: notif.id };
+  }
+
+  async createAdminReport(dto: CreateAdminReportDto, senderUserId: string, role: UserRole) {
+    if (role !== UserRole.ADMINISTRATIVO) {
+      throw new ForbiddenException('Solo personal administrativo puede enviar reportes al equipo administrador');
+    }
+    const sender = await this.usersRepository.findOne({
+      where: { id: senderUserId },
+      select: ['id', 'fullName', 'email', 'schoolId', 'role']
+    });
+    if (!sender?.schoolId) {
+      throw new ForbiddenException('Tu usuario administrativo no tiene escuela asignada');
+    }
+
+    const adminsInSchool = await this.usersRepository.find({
+      where: { role: UserRole.ADMIN, status: true, schoolId: sender.schoolId },
+      select: ['id']
+    });
+    let recipientIds = adminsInSchool.map((u) => u.id);
+    if (recipientIds.length === 0) {
+      const fallbackAdmins = await this.usersRepository.find({
+        where: { role: UserRole.ADMIN, status: true },
+        select: ['id']
+      });
+      recipientIds = fallbackAdmins.map((u) => u.id);
+    }
+    recipientIds = [...new Set(recipientIds)].filter((id) => id !== senderUserId);
+    if (recipientIds.length === 0) {
+      throw new NotFoundException('No hay cuentas ADMIN disponibles para recibir el reporte');
+    }
+
+    const cleanSubject = dto.subject.trim();
+    const cleanMessage = dto.message.trim();
+    const typeLabelByEnum: Record<AdminReportType, string> = {
+      ERROR: 'Error',
+      SUGERENCIA: 'Sugerencia',
+      PETICION: 'Petición',
+      OTRO: 'Otro'
+    };
+    const typeLabel = typeLabelByEnum[dto.type] ?? dto.type;
+    const title = `[Reporte administrativo · ${typeLabel}] ${cleanSubject}`;
+    const schoolRow = await this.usersRepository.manager.query<{ name: string | null }[]>(
+      `SELECT name FROM schools WHERE id = $1 LIMIT 1`,
+      [sender.schoolId]
+    );
+    const schoolName = schoolRow[0]?.name?.trim() || 'Institución';
+    const senderName = sender.fullName?.trim() || sender.email || 'Usuario administrativo';
+    const message = [
+      `Escuela: ${schoolName}`,
+      `Remitente: ${senderName}`,
+      `Tipo: ${typeLabel}`,
+      '',
+      cleanMessage
+    ].join('\n');
+
+    const report = this.adminReportsRepository.create({
+      schoolId: sender.schoolId,
+      createdByUserId: senderUserId,
+      assignedAdminUserId: recipientIds[0] ?? null,
+      type: dto.type as unknown as AdminReportType,
+      subject: cleanSubject,
+      message: cleanMessage,
+      status: AdminReportStatus.PENDIENTE
+    });
+    const savedReport = await this.adminReportsRepository.save(report);
+
+    const rows = recipientIds.map((userId) =>
+      this.notificationsRepository.create({
+        userId,
+        noticeId: null,
+        title,
+        message: `${message}\n\nReporte ID: ${savedReport.id}`,
+        deliveryStatus: 'SENT'
+      })
+    );
+    const savedRows = await this.notificationsRepository.save(rows);
+    void this.fcmService.sendPushForNotifications(savedRows).catch((err: unknown) => {
+      this.logger.warn(`Push FCM de reporte administrativo no enviado: ${String(err)}`);
+    });
+    return {
+      message: 'Reporte enviado al equipo administrador',
+      reportId: savedReport.id,
+      recipientsCount: recipientIds.length
+    };
+  }
+
+  async listAdminReports(
+    adminUserId: string,
+    opts: {
+      page: number;
+      limit: number;
+      type?: string;
+      q?: string;
+      unreadOnly?: boolean;
+      status?: string;
+    }
+  ) {
+    const admin = await this.usersRepository.findOne({
+      where: { id: adminUserId },
+      select: ['id', 'schoolId', 'role']
+    });
+    if (!admin || admin.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo el equipo administrador puede consultar reportes internos');
+    }
+    const take = Math.min(Math.max(opts.limit, 1), 100);
+    const skip = (Math.max(opts.page, 1) - 1) * take;
+    const qb = this.adminReportsRepository.createQueryBuilder('r').orderBy('r.created_at', 'DESC');
+    if (admin.schoolId) qb.where('r.school_id = :sid', { sid: admin.schoolId });
+
+    if (opts.type) {
+      qb.andWhere('r.type = :type', { type: opts.type });
+    }
+    if (opts.status) {
+      qb.andWhere('r.status = :status', { status: opts.status });
+    }
+    if (opts.q) {
+      qb.andWhere('(r.subject ILIKE :q OR r.message ILIKE :q)', {
+        q: `%${opts.q}%`
+      });
+    }
+    if (opts.unreadOnly) {
+      qb.andWhere(
+        `(SELECT COUNT(*) FROM notifications n
+           WHERE n.user_id = :uidUnread
+             AND n.message LIKE CONCAT('%Reporte ID: ', r.id::text)
+             AND n.read_at IS NULL
+         ) > 0`,
+        { uidUnread: adminUserId }
+      );
+    }
+
+    const [items, total] = await qb.skip(skip).take(take).getManyAndCount();
+    const userIds = [...new Set(items.map((r) => r.createdByUserId).concat(items.map((r) => r.assignedAdminUserId ?? '').filter(Boolean)))];
+    const users = userIds.length
+      ? await this.usersRepository.find({ where: userIds.map((id) => ({ id })), select: ['id', 'fullName', 'email'] })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    const data = items.map((r) => ({
+      ...r,
+      createdByName: userMap.get(r.createdByUserId)?.fullName ?? userMap.get(r.createdByUserId)?.email ?? 'Usuario',
+      assignedAdminName:
+        (r.assignedAdminUserId && (userMap.get(r.assignedAdminUserId)?.fullName ?? userMap.get(r.assignedAdminUserId)?.email)) || null
+    }));
+    return {
+      data,
+      meta: { total, page: Math.max(opts.page, 1), limit: take, pages: Math.ceil(total / take) }
+    };
+  }
+
+  async listMyAdminReports(userId: string, page = 1, limit = 20) {
+    const user = await this.usersRepository.findOne({ where: { id: userId }, select: ['id', 'role', 'schoolId'] });
+    if (!user || user.role !== UserRole.ADMINISTRATIVO) {
+      throw new ForbiddenException('Solo personal administrativo puede consultar sus reportes');
+    }
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const [data, total] = await this.adminReportsRepository.findAndCount({
+      where: { createdByUserId: userId },
+      order: { createdAt: 'DESC' },
+      skip,
+      take
+    });
+    return {
+      data,
+      meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
+    };
+  }
+
+  async updateAdminReportStatus(id: string, adminUserId: string, status: AdminReportStatus, role: UserRole) {
+    if (role !== UserRole.ADMIN) throw new ForbiddenException('Solo ADMIN puede actualizar el estado');
+    const report = await this.adminReportsRepository.findOne({ where: { id } });
+    if (!report) throw new NotFoundException('Reporte no encontrado');
+    const adminUser = await this.usersRepository.findOne({ where: { id: adminUserId }, select: ['schoolId'] });
+    if (adminUser?.schoolId && report.schoolId !== adminUser.schoolId) {
+      throw new ForbiddenException('Reporte fuera de su institución');
+    }
+    report.status = status;
+    report.assignedAdminUserId = adminUserId;
+    if (status === AdminReportStatus.RESUELTO) {
+      report.resolvedAt = new Date();
+      report.resolvedByUserId = adminUserId;
+    } else {
+      report.resolvedAt = null;
+      report.resolvedByUserId = null;
+    }
+    const saved = await this.adminReportsRepository.save(report);
+    await this.notificationsRepository.save(
+      this.notificationsRepository.create({
+        userId: report.createdByUserId,
+        noticeId: null,
+        title: `[Reporte ${report.subject}] actualizado`,
+        message: `El reporte fue actualizado a estado: ${status}`,
+        deliveryStatus: 'SENT'
+      })
+    );
+    return saved;
+  }
+
+  async listAdminReportComments(reportId: string, userId: string, role: UserRole) {
+    await this.assertCanAccessAdminReport(reportId, userId, role);
+    const comments = await this.adminReportCommentsRepository.find({
+      where: { reportId },
+      order: { createdAt: 'ASC' }
+    });
+    const users = comments.length
+      ? await this.usersRepository.find({
+          where: [...new Set(comments.map((c) => c.userId))].map((id) => ({ id })),
+          select: ['id', 'fullName', 'email', 'role']
+        })
+      : [];
+    const byId = new Map(users.map((u) => [u.id, u]));
+    return comments.map((c) => ({
+      ...c,
+      authorName: byId.get(c.userId)?.fullName ?? byId.get(c.userId)?.email ?? 'Usuario',
+      authorRole: byId.get(c.userId)?.role ?? null
+    }));
+  }
+
+  async addAdminReportComment(reportId: string, userId: string, role: UserRole, message: string) {
+    const report = await this.assertCanAccessAdminReport(reportId, userId, role);
+    const row = this.adminReportCommentsRepository.create({
+      reportId,
+      userId,
+      message: message.trim()
+    });
+    const saved = await this.adminReportCommentsRepository.save(row);
+    const notifyTo = role === UserRole.ADMIN ? report.createdByUserId : report.assignedAdminUserId;
+    if (notifyTo) {
+      await this.notificationsRepository.save(
+        this.notificationsRepository.create({
+          userId: notifyTo,
+          noticeId: null,
+          title: `[Comentario] ${report.subject}`,
+          message: message.trim(),
+          deliveryStatus: 'SENT'
+        })
+      );
+    }
+    return saved;
+  }
+
+  private async assertCanAccessAdminReport(reportId: string, userId: string, role: UserRole): Promise<AdminReportEntity> {
+    const report = await this.adminReportsRepository.findOne({ where: { id: reportId } });
+    if (!report) throw new NotFoundException('Reporte no encontrado');
+    if (role === UserRole.ADMIN) {
+      const admin = await this.usersRepository.findOne({ where: { id: userId }, select: ['schoolId'] });
+      if (admin?.schoolId && admin.schoolId !== report.schoolId) {
+        throw new ForbiddenException('Reporte fuera de su institución');
+      }
+      return report;
+    }
+    if (role === UserRole.ADMINISTRATIVO && report.createdByUserId === userId) {
+      return report;
+    }
+    throw new ForbiddenException('No autorizado para ver este reporte');
   }
 
   private validateTargets(dto: CreateNoticeDto) {

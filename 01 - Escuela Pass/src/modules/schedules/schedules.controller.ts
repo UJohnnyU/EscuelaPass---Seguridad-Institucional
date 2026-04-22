@@ -36,8 +36,11 @@ export class SchedulesController {
 
   @Get('me/teacher')
   @Roles(UserRole.DOCENTE)
-  listMySlotsAsTeacher(@Req() req: Request & { user: JwtUser }) {
-    return this.schedulesService.listMySlotsAsTeacher(req.user.userId);
+  listMySlotsAsTeacher(
+    @Req() req: Request & { user: JwtUser },
+    @Query('refDate') refDate: string | undefined
+  ) {
+    return this.schedulesService.listMySlotsAsTeacher(req.user.userId, refDate);
   }
 
   @Get('me/teacher/groups')
@@ -53,8 +56,11 @@ export class SchedulesController {
 
   @Get('me/student')
   @Roles(UserRole.ALUMNO)
-  listMySlotsAsStudent(@Req() req: Request & { user: JwtUser }) {
-    return this.schedulesService.listMySlotsAsStudent(req.user.userId);
+  listMySlotsAsStudent(
+    @Req() req: Request & { user: JwtUser },
+    @Query('refDate') refDate: string | undefined
+  ) {
+    return this.schedulesService.listMySlotsAsStudent(req.user.userId, refDate);
   }
 
   @Get('parent/my-children')

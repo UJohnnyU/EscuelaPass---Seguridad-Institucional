@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -119,6 +120,7 @@ const emptyCreateForm = (): CreateForm => ({
 export function CalificacionesDocentePage() {
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
+  const [searchParams] = useSearchParams();
 
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [schoolFilter, setSchoolFilter] = useState('');
@@ -147,6 +149,8 @@ export function CalificacionesDocentePage() {
 
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const preselectedAssignment = searchParams.get('assignment')?.trim() ?? '';
+  const preselectedStatus = searchParams.get('status')?.trim() ?? '';
 
   const schoolFilterOptions = useMemo(
     () => [
@@ -218,6 +222,20 @@ export function CalificacionesDocentePage() {
       cancelled = true;
     };
   }, [platformAdmin, schoolFilter]);
+
+  useEffect(() => {
+    if (!preselectedAssignment || assignments.length === 0) return;
+    const exists = assignments.some(
+      (a) => `${a.groupId}::${a.subjectId}` === preselectedAssignment
+    );
+    if (exists) setFilterAssignment(preselectedAssignment);
+  }, [assignments, preselectedAssignment]);
+
+  useEffect(() => {
+    if (preselectedStatus === 'OPEN' || preselectedStatus === 'CLOSED') {
+      setFilterStatus(preselectedStatus);
+    }
+  }, [preselectedStatus]);
 
   useEffect(() => {
     let cancelled = false;

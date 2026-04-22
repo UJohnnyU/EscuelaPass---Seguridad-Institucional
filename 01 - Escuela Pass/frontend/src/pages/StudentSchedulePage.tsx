@@ -25,11 +25,33 @@ type SchedulePayload = {
   slots: SlotRow[];
 };
 
+type TeacherSelfSlot = {
+  id: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  subjectId: string | null;
+  subjectName: string | null;
+  groupId: string | null;
+  groupName: string | null;
+  room: string | null;
+};
+
 type CalendarDay = {
   id: string;
   exceptionDate: string;
   groupId: string | null;
   reason: string | null;
+};
+
+type MeetingRow = {
+  id: string;
+  title?: string;
+  topic?: string;
+  startAt?: string;
+  startsAt?: string;
+  scheduledAt?: string;
+  status?: string | null;
 };
 
 type NotifRow = {
@@ -59,40 +81,77 @@ function weekRangeISO(offsetWeeks: number): { from: string; to: string; label: s
 
 export function StudentSchedulePage() {
   const { user } = useAuth();
+  const alumno = user?.role === 'ALUMNO';
+  const docente = user?.role === 'DOCENTE';
   const [weekOffset, setWeekOffset] = useState(0);
   const { from, to, label } = useMemo(() => weekRangeISO(weekOffset), [weekOffset]);
 
   const [schedule, setSchedule] = useState<SchedulePayload | null>(null);
+  const [teacherSlots, setTeacherSlots] = useState<TeacherSelfSlot[] | null>(null);
   const [calendar, setCalendar] = useState<{ groupId: string | null; days: CalendarDay[] } | null>(null);
   const [notifications, setNotifications] = useState<NotifRow[] | null>(null);
+  const [meetings, setMeetings] = useState<MeetingRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [openSlotId, setOpenSlotId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (user?.role !== 'ALUMNO') return;
+    if (!alumno && !docente) return;
     setErr(null);
     setLoading(true);
     try {
-      const [sRes, cRes, nRes] = await Promise.all([
-        api.get<SchedulePayload>('/api/v1/schedules/me/student'),
-        api.get<{ groupId: string | null; days: CalendarDay[] }>(
-          `/api/v1/calendar/me/student?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-        ),
-        api.get<{ data: NotifRow[] }>('/api/v1/notifications/me?limit=25')
-      ]);
-      setSchedule(sRes.data);
-      setCalendar(cRes.data);
-      setNotifications(nRes.data.data ?? []);
+      if (alumno) {
+        const [sRes, cRes, nRes] = await Promise.all([
+          api.get<SchedulePayload>(`/api/v1/schedules/me/student?refDate=${encodeURIComponent(to)}`),
+          api.get<{ groupId: string | null; days: CalendarDay[] }>(
+            `/api/v1/calendar/me/student?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+          ),
+          api.get<{ data: NotifRow[] }>('/api/v1/notifications/me?limit=25')
+        ]);
+        setSchedule(sRes.data);
+        setTeacherSlots(null);
+        setCalendar(cRes.data);
+        setNotifications(nRes.data.data ?? []);
+        setMeetings(null);
+      } else {
+        const [sRes, nRes, mRes] = await Promise.all([
+          api.get<TeacherSelfSlot[]>(`/api/v1/schedules/me/teacher?refDate=${encodeURIComponent(to)}`),
+          api.get<{ data: NotifRow[] }>('/api/v1/notifications/me?limit=25'),
+          api.get<MeetingRow[]>('/api/v1/meetings/me').catch(() => ({ data: [] as MeetingRow[] }))
+        ]);
+        const slots = Array.isArray(sRes.data) ? sRes.data : [];
+        const groupIds = Array.from(new Set(slots.map((s) => s.groupId).filter((x): x is string => Boolean(x))));
+        const dayChunks = await Promise.all(
+          groupIds.map(async (gid) => {
+            const res = await api
+              .get<CalendarDay[]>(
+                `/api/v1/calendar/non-instructional-days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupId=${encodeURIComponent(gid)}`
+              )
+              .catch(() => ({ data: [] as CalendarDay[] }));
+            return Array.isArray(res.data) ? res.data : [];
+          })
+        );
+        const dayMap = new Map<string, CalendarDay>();
+        for (const chunk of dayChunks) {
+          for (const d of chunk) dayMap.set(d.id, d);
+        }
+        setSchedule(null);
+        setTeacherSlots(slots);
+        setCalendar({ groupId: null, days: Array.from(dayMap.values()) });
+        setNotifications(nRes.data.data ?? []);
+        setMeetings(Array.isArray(mRes.data) ? mRes.data : []);
+      }
     } catch (e) {
       setErr(getUserFacingMessage(e, 'No se pudo cargar el horario.'));
       setSchedule(null);
+      setTeacherSlots(null);
       setCalendar(null);
       setNotifications(null);
+      setMeetings(null);
     } finally {
       setLoading(false);
     }
-  }, [user?.role, from, to]);
+  }, [alumno, docente, from, to]);
 
   useEffect(() => {
     void load();
@@ -117,17 +176,29 @@ export function StudentSchedulePage() {
   const weekDays = useMemo(() => buildWeekDays(from, dayOffByISO), [from, dayOffByISO]);
 
   const weekEvents = useMemo<WeekScheduleEvent[]>(() => {
-    return (schedule?.slots ?? []).map((s) => ({
+    if (alumno) {
+      return (schedule?.slots ?? []).map((s) => ({
+        id: s.id,
+        weekday: s.weekday,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        title: s.subjectName ?? 'Clase',
+        subtitle: null,
+        room: s.room,
+        colorKey: s.subjectName ?? s.subjectId ?? s.id
+      }));
+    }
+    return (teacherSlots ?? []).map((s) => ({
       id: s.id,
       weekday: s.weekday,
       startTime: s.startTime,
       endTime: s.endTime,
       title: s.subjectName ?? 'Clase',
-      subtitle: null,
+      subtitle: s.groupName ?? null,
       room: s.room,
       colorKey: s.subjectName ?? s.subjectId ?? s.id
     }));
-  }, [schedule?.slots]);
+  }, [alumno, schedule?.slots, teacherSlots]);
 
   async function downloadPdf() {
     if (!schedule?.groupId) return;
@@ -146,13 +217,13 @@ export function StudentSchedulePage() {
     }
   }
 
-  if (user?.role !== 'ALUMNO') {
+  if (!alumno && !docente) {
     return (
       <p className="text-sm text-slate-600">Esta sección es solo para cuentas de estudiante.</p>
     );
   }
 
-  if (loading && !schedule) {
+  if (loading && !schedule && !teacherSlots) {
     return <p className="text-slate-600">Cargando horario…</p>;
   }
 
@@ -161,7 +232,9 @@ export function StudentSchedulePage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi horario semanal</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Las clases de su grupo, los días sin clases de la semana y los avisos que le ha enviado la escuela.
+          {alumno
+            ? 'Las clases de su grupo, los días sin clases de la semana y los avisos que le ha enviado la escuela.'
+            : 'Sus clases programadas, reuniones, días sin clases y avisos recientes.'}
         </p>
       </div>
 
@@ -198,7 +271,7 @@ export function StudentSchedulePage() {
             </button>
           )}
         </div>
-        {schedule?.groupId && (
+        {alumno && schedule?.groupId && (
           <button
             type="button"
             onClick={() => void downloadPdf()}
@@ -209,20 +282,20 @@ export function StudentSchedulePage() {
         )}
       </div>
 
-      {schedule?.group && (
+      {alumno && schedule?.group && (
         <p className="text-sm text-slate-700">
           <span className="font-medium text-slate-900">{schedule.group.name}</span>
           {schedule.group.grade ? ` · ${schedule.group.grade}` : ''} · Año {schedule.group.schoolYear}
         </p>
       )}
 
-      {!schedule?.groupId && (
+      {alumno && !schedule?.groupId && (
         <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Aún no tiene un grupo asignado. En cuanto la secretaría lo asigne, su horario aparecerá aquí.
         </p>
       )}
 
-      {schedule?.groupId ? (
+      {(alumno ? Boolean(schedule?.groupId) : Boolean(teacherSlots)) ? (
         <WeekScheduleGrid
           events={weekEvents}
           days={weekDays}
@@ -232,7 +305,9 @@ export function StudentSchedulePage() {
       ) : null}
 
       {(() => {
-        const slot = schedule?.slots?.find((s) => s.id === openSlotId) ?? null;
+        const slot = alumno
+          ? schedule?.slots?.find((s) => s.id === openSlotId) ?? null
+          : teacherSlots?.find((s) => s.id === openSlotId) ?? null;
         const WEEKDAY = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
         return (
           <DetailModal
@@ -265,7 +340,7 @@ export function StudentSchedulePage() {
                   <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
                   <dd className="mt-0.5 text-slate-900">{slot.room ?? 'No especificada'}</dd>
                 </div>
-                {schedule?.group ? (
+                {alumno && schedule?.group ? (
                   <div className="sm:col-span-2">
                     <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
                     <dd className="mt-0.5 text-slate-900">
@@ -275,11 +350,52 @@ export function StudentSchedulePage() {
                     </dd>
                   </div>
                 ) : null}
+                {!alumno && slot && 'groupName' in slot ? (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
+                    <dd className="mt-0.5 text-slate-900">{(slot as TeacherSelfSlot).groupName ?? '—'}</dd>
+                  </div>
+                ) : null}
               </dl>
             ) : null}
           </DetailModal>
         );
       })()}
+
+      {!alumno && (
+        <section>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Reuniones próximas</h2>
+          {!meetings || meetings.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">No hay reuniones registradas.</p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {meetings
+                .filter((m) => m.status !== 'CANCELADA')
+                .sort((a, b) => (a.startAt ?? a.startsAt ?? a.scheduledAt ?? '').localeCompare(b.startAt ?? b.startsAt ?? b.scheduledAt ?? ''))
+                .slice(0, 8)
+                .map((m) => {
+                  const when = m.startAt ?? m.startsAt ?? m.scheduledAt;
+                  return (
+                    <li key={m.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+                      <p className="font-medium text-slate-900">{m.title ?? m.topic ?? 'Reunión'}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {when
+                          ? new Date(when).toLocaleString('es', {
+                              weekday: 'short',
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : 'Sin fecha'}
+                      </p>
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section>
         <h2 className="font-serif text-lg font-semibold text-slate-900">Días sin clases de esta semana</h2>

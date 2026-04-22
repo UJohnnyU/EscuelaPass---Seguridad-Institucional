@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DetailModal } from '@/components/DetailModal';
 import { SmartSelect } from '@/components/SmartSelect';
 import {
   buildWeekDays,
@@ -69,6 +70,7 @@ export function StaffScheduleBrowsePage() {
   const [instSaving, setInstSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ id: string; label: string } | null>(null);
+  const [openSlotId, setOpenSlotId] = useState<string | null>(null);
 
   const schoolFilterOptions = useMemo(
     () => [
@@ -408,6 +410,7 @@ export function StaffScheduleBrowsePage() {
         <WeekScheduleGrid
           events={weekEvents}
           days={weekDays}
+          onSelect={(id) => setOpenSlotId(id)}
           emptyLabel={
             loadingSchedule
               ? 'Cargando horario…'
@@ -415,6 +418,55 @@ export function StaffScheduleBrowsePage() {
           }
         />
       )}
+      {(() => {
+        const slot = slots.find((s) => s.id === openSlotId) ?? null;
+        const WEEKDAY = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        const subjectName = slot?.subjectId ? nameMap[slot.subjectId] ?? null : null;
+        return (
+          <DetailModal
+            open={slot !== null}
+            title={subjectName ?? 'Clase'}
+            subtitle={
+              slot
+                ? `${WEEKDAY[slot.weekday] ?? ''} · ${slot.startTime.slice(0, 5)}–${slot.endTime.slice(0, 5)}`
+                : undefined
+            }
+            onClose={() => setOpenSlotId(null)}
+          >
+            {slot ? (
+              <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
+                  <dd className="mt-0.5 text-slate-900">{subjectName ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Día</dt>
+                  <dd className="mt-0.5 capitalize text-slate-900">{WEEKDAY[slot.weekday]}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
+                  <dd className="mt-0.5 text-slate-900">{slot.room ?? 'No especificada'}</dd>
+                </div>
+                {groupDetail ? (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
+                    <dd className="mt-0.5 text-slate-900">
+                      {groupDetail.name}
+                      {groupDetail.grade ? ` · ${groupDetail.grade}` : ''} · Año {groupDetail.schoolYear}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
+          </DetailModal>
+        );
+      })()}
 
       {canMarkInstitutionWide ? (
         <section className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">

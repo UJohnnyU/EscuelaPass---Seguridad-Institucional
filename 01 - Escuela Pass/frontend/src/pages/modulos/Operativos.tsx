@@ -5,6 +5,7 @@ import { getUserFacingMessage } from '@/lib/api-errors';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
+import { DetailModal } from '@/components/DetailModal';
 import { Panel, ValueView } from '@/components/ValueView';
 import {
   AttendanceChildrenView,
@@ -598,11 +599,15 @@ export function AcademicoPage() {
   const [docenteCalRemoving, setDocenteCalRemoving] = useState<string | null>(null);
   const [pendingDocenteCalRemoval, setPendingDocenteCalRemoval] = useState<{ id: string; label: string } | null>(null);
   const [consentByStudent, setConsentByStudent] = useState<Record<string, boolean>>({});
+  const [openParentSlot, setOpenParentSlot] = useState<{ child: ParentScheduleChild; slot: ParentScheduleSlot } | null>(
+    null
+  );
   const { user, ready } = useAuth();
   const padre = user?.role === 'PADRE';
   const alumno = user?.role === 'ALUMNO';
   const docente = user?.role === 'DOCENTE';
-  const verAsistenciaGrupos = docente || user?.role === 'ADMINISTRATIVO';
+  const administrativo = user?.role === 'ADMINISTRATIVO';
+  const verAsistenciaGrupos = docente || administrativo;
   const { from, to } = useMemo(() => weekRangeISO(), []);
   const teacherGroupSelectOptions = useMemo(
     () =>
@@ -960,6 +965,11 @@ export function AcademicoPage() {
                         <WeekScheduleGrid
                           events={events}
                           days={buildWeekDays(from, dayOff)}
+                          onSelect={(slotId) => {
+                            const slot = (child.slots ?? []).find((s) => s.id === slotId);
+                            if (!slot) return;
+                            setOpenParentSlot({ child, slot });
+                          }}
                           emptyLabel="No hay franjas horarias registradas."
                         />
                       </div>
@@ -968,6 +978,49 @@ export function AcademicoPage() {
                 })}
               </div>
             )}
+            <DetailModal
+              open={openParentSlot !== null}
+              title={openParentSlot?.slot.subjectName ?? 'Clase'}
+              subtitle={
+                openParentSlot
+                  ? `${['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][openParentSlot.slot.weekday] ?? ''} · ${openParentSlot.slot.startTime.slice(0, 5)}–${openParentSlot.slot.endTime.slice(0, 5)}`
+                  : undefined
+              }
+              onClose={() => setOpenParentSlot(null)}
+            >
+              {openParentSlot ? (
+                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Estudiante</dt>
+                    <dd className="mt-0.5 text-slate-900">{openParentSlot.child.studentName}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
+                    <dd className="mt-0.5 text-slate-900">{openParentSlot.slot.subjectName ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
+                    <dd className="mt-0.5 text-slate-900">
+                      {openParentSlot.slot.startTime.slice(0, 5)} – {openParentSlot.slot.endTime.slice(0, 5)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
+                    <dd className="mt-0.5 text-slate-900">{openParentSlot.slot.room ?? 'No especificada'}</dd>
+                  </div>
+                  {openParentSlot.child.group ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
+                      <dd className="mt-0.5 text-slate-900">
+                        {openParentSlot.child.group.name ?? '—'}
+                        {openParentSlot.child.group.grade ? ` · ${openParentSlot.child.group.grade}` : ''} · Año{' '}
+                        {openParentSlot.child.group.schoolYear ?? '—'}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+            </DetailModal>
           </Panel>
           <Panel
             title="Eventos y días sin clases (de la semana)"
@@ -1224,16 +1277,10 @@ export function AcademicoPage() {
                         </tbody>
                       </table>
                     </div>
-                    {docente ? (
-                      <p className="text-xs text-slate-500">
-                        Solo puede registrar o corregir la asistencia del día actual.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-slate-500">
-                        Use Día para tomar o corregir asistencia. Las vistas Semana y Mes son solo para revisar el
-                        historial.
-                      </p>
-                    )}
+                    <p className="text-xs text-slate-500">
+                      Solo puede registrar o corregir la asistencia del día actual (no días anteriores ni posteriores).
+                      Las vistas Semana y Mes son solo para consultar el historial.
+                    </p>
                   </div>
                 )}
               </div>
@@ -1347,12 +1394,51 @@ export function AcademicoPage() {
 }
 
 export function AdministracionPage() {
+  type AdminReportItem = {
+    id: string;
+    type: 'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO';
+    subject: string;
+    message: string;
+    status: 'PENDIENTE' | 'EN_PROCESO' | 'RESUELTO';
+    createdAt: string;
+    createdByUserId: string;
+    createdByName?: string | null;
+    assignedAdminUserId?: string | null;
+    assignedAdminName?: string | null;
+  };
+  type AdminReportComment = {
+    id: string;
+    reportId: string;
+    userId: string;
+    message: string;
+    createdAt: string;
+    authorName?: string;
+    authorRole?: string | null;
+  };
   const [summary, setSummary] = useState<unknown>(null);
   const [audit, setAudit] = useState<unknown>(null);
   const [calendar, setCalendar] = useState<unknown>(null);
   const [repAtt, setRepAtt] = useState<unknown>(null);
   const [circuit, setCircuit] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [reportType, setReportType] = useState<'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO'>('ERROR');
+  const [reportSubject, setReportSubject] = useState('');
+  const [reportMessage, setReportMessage] = useState('');
+  const [sendingReport, setSendingReport] = useState(false);
+  const [reportOk, setReportOk] = useState<string | null>(null);
+  const [adminReports, setAdminReports] = useState<AdminReportItem[]>([]);
+  const [adminReportsLoading, setAdminReportsLoading] = useState(false);
+  const [adminReportTypeFilter, setAdminReportTypeFilter] = useState<string>('');
+  const [adminReportQuery, setAdminReportQuery] = useState('');
+  const [adminReportUnreadOnly, setAdminReportUnreadOnly] = useState(false);
+  const [adminReportStatusFilter, setAdminReportStatusFilter] = useState<string>('');
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [activeComments, setActiveComments] = useState<AdminReportComment[]>([]);
+  const [activeCommentsLoading, setActiveCommentsLoading] = useState(false);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
+  const [myAdminReports, setMyAdminReports] = useState<AdminReportItem[]>([]);
+  const [myAdminReportsLoading, setMyAdminReportsLoading] = useState(false);
   const { user } = useAuth();
   const admin = isAdmin(user);
   const docente = user?.role === 'DOCENTE';
@@ -1393,6 +1479,108 @@ export function AdministracionPage() {
     };
   }, [admin, docente, administrativo]);
 
+  useEffect(() => {
+    if (!admin) return;
+    let cancelled = false;
+    (async () => {
+      setAdminReportsLoading(true);
+      try {
+        const { data } = await api.get<{ data: AdminReportItem[] }>('/api/v1/notifications/admin-reports', {
+          params: {
+            type: adminReportTypeFilter || undefined,
+            status: adminReportStatusFilter || undefined,
+            q: adminReportQuery.trim() || undefined,
+            unreadOnly: adminReportUnreadOnly ? 'true' : undefined,
+            limit: 40
+          }
+        });
+        if (!cancelled) setAdminReports(Array.isArray(data?.data) ? data.data : []);
+      } catch (e) {
+        if (!cancelled) {
+          setAdminReports([]);
+          setErr(getUserFacingMessage(e));
+        }
+      } finally {
+        if (!cancelled) setAdminReportsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [admin, adminReportTypeFilter, adminReportStatusFilter, adminReportQuery, adminReportUnreadOnly]);
+
+  useEffect(() => {
+    if (!administrativo) return;
+    let cancelled = false;
+    (async () => {
+      setMyAdminReportsLoading(true);
+      try {
+        const { data } = await api.get<{ data: AdminReportItem[] }>('/api/v1/notifications/admin-reports/mine', {
+          params: { limit: 30 }
+        });
+        if (!cancelled) setMyAdminReports(Array.isArray(data?.data) ? data.data : []);
+      } catch (e) {
+        if (!cancelled) {
+          setMyAdminReports([]);
+          setErr(getUserFacingMessage(e));
+        }
+      } finally {
+        if (!cancelled) setMyAdminReportsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [administrativo]);
+
+  const markAdminReportRead = async (id: string) => {
+    try {
+      await api.patch(`/api/v1/notifications/${id}/read`);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    }
+  };
+
+  const loadActiveComments = async (reportId: string) => {
+    setActiveCommentsLoading(true);
+    try {
+      const { data } = await api.get<AdminReportComment[]>(
+        `/api/v1/notifications/admin-reports/${reportId}/comments`
+      );
+      setActiveComments(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setActiveComments([]);
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setActiveCommentsLoading(false);
+    }
+  };
+
+  const updateReportStatus = async (reportId: string, status: 'PENDIENTE' | 'EN_PROCESO' | 'RESUELTO') => {
+    try {
+      await api.patch(`/api/v1/notifications/admin-reports/${reportId}/status`, { status });
+      setAdminReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, status } : r)));
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    }
+  };
+
+  const sendReportComment = async (reportId: string) => {
+    if (!commentDraft.trim()) return;
+    setSendingComment(true);
+    try {
+      await api.post(`/api/v1/notifications/admin-reports/${reportId}/comments`, {
+        message: commentDraft.trim()
+      });
+      setCommentDraft('');
+      await loadActiveComments(reportId);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setSendingComment(false);
+    }
+  };
+
   if (!admin && !docente && !administrativo) {
     return (
       <p className="text-sm text-slate-600">
@@ -1426,15 +1614,315 @@ export function AdministracionPage() {
           <Panel title="Pagos pendientes">
             <ValueView data={repAtt} />
           </Panel>
+          <Panel
+            title="Reportes internos de administrativos"
+            description="Errores, sugerencias y peticiones enviadas por el personal administrativo."
+          >
+            <div className="mb-3 grid gap-3 sm:grid-cols-4">
+              <label className="text-sm text-slate-700">
+                Tipo
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  value={adminReportTypeFilter}
+                  onChange={(e) => setAdminReportTypeFilter(e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  <option value="ERROR">Error</option>
+                  <option value="SUGERENCIA">Sugerencia</option>
+                  <option value="PETICION">Petición</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </label>
+              <label className="sm:col-span-2 text-sm text-slate-700">
+                Buscar
+                <input
+                  type="text"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  value={adminReportQuery}
+                  onChange={(e) => setAdminReportQuery(e.target.value)}
+                  placeholder="Asunto, escuela, remitente o detalle"
+                />
+              </label>
+              <label className="text-sm text-slate-700">
+                Estado
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  value={adminReportStatusFilter}
+                  onChange={(e) => setAdminReportStatusFilter(e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  <option value="PENDIENTE">Pendiente</option>
+                  <option value="EN_PROCESO">En proceso</option>
+                  <option value="RESUELTO">Resuelto</option>
+                </select>
+              </label>
+              <label className="mt-6 inline-flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={adminReportUnreadOnly}
+                  onChange={(e) => setAdminReportUnreadOnly(e.target.checked)}
+                />
+                Solo no leídos
+              </label>
+            </div>
+            {adminReportsLoading ? (
+              <p className="text-sm text-slate-600">Cargando reportes…</p>
+            ) : adminReports.length === 0 ? (
+              <p className="text-sm text-slate-600">No hay reportes con los filtros actuales.</p>
+            ) : (
+              <ul className="space-y-3">
+                {adminReports.map((r) => (
+                  <li
+                    key={r.id}
+                    className={`rounded-lg border px-4 py-3 text-sm shadow-sm ${
+                      activeReportId === r.id ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          [{r.type}] {r.subject}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {new Date(r.createdAt).toLocaleString('es')}
+                          {r.createdByName ? ` · ${r.createdByName}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                          value={r.status}
+                          onChange={(e) =>
+                            void updateReportStatus(
+                              r.id,
+                              e.target.value as 'PENDIENTE' | 'EN_PROCESO' | 'RESUELTO'
+                            )
+                          }
+                        >
+                          <option value="PENDIENTE">Pendiente</option>
+                          <option value="EN_PROCESO">En proceso</option>
+                          <option value="RESUELTO">Resuelto</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-brand-800 underline"
+                          onClick={() => {
+                            setActiveReportId(r.id);
+                            void loadActiveComments(r.id);
+                            void markAdminReportRead(r.id);
+                          }}
+                        >
+                          Ver hilo
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-slate-700">{r.message}</p>
+                    {activeReportId === r.id ? (
+                      <div className="mt-3 rounded border border-slate-200 bg-white p-3">
+                        {activeCommentsLoading ? (
+                          <p className="text-xs text-slate-500">Cargando comentarios…</p>
+                        ) : activeComments.length === 0 ? (
+                          <p className="text-xs text-slate-500">Sin comentarios.</p>
+                        ) : (
+                          <ul className="space-y-2">
+                            {activeComments.map((c) => (
+                              <li key={c.id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+                                <p className="text-[11px] font-medium text-slate-700">
+                                  {c.authorName ?? 'Usuario'}
+                                  {c.authorRole ? ` · ${c.authorRole}` : ''} ·{' '}
+                                  {new Date(c.createdAt).toLocaleString('es')}
+                                </p>
+                                <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{c.message}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="mt-2 flex gap-2">
+                          <input
+                            type="text"
+                            className="flex-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                            value={commentDraft}
+                            onChange={(e) => setCommentDraft(e.target.value)}
+                            placeholder="Agregar comentario al seguimiento"
+                          />
+                          <button
+                            type="button"
+                            className="rounded bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                            onClick={() => void sendReportComment(r.id)}
+                            disabled={sendingComment}
+                          >
+                            {sendingComment ? '…' : 'Comentar'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
         </>
       )}
       {administrativo && !admin ? (
-        <Panel title="Días sin clases de su escuela">
-          <NonInstructionalDaysList data={calendar} />
-          <p className="mt-3 text-sm text-slate-600">
-            Para marcar o quitar días sin clases abra <strong>Horarios</strong> en el menú.
-          </p>
-        </Panel>
+        <>
+          <Panel title="Días sin clases de su escuela">
+            <NonInstructionalDaysList data={calendar} />
+            <p className="mt-3 text-sm text-slate-600">
+              Para marcar o quitar días sin clases abra <strong>Horarios</strong> en el menú.
+            </p>
+          </Panel>
+          <Panel
+            title="Reportar a administración"
+            description="Canal interno para enviar errores, sugerencias o peticiones al equipo administrador."
+          >
+            <form
+              className="space-y-3"
+              onSubmit={(e: FormEvent) => {
+                e.preventDefault();
+                if (!reportSubject.trim() || !reportMessage.trim()) {
+                  setErr('Complete asunto y detalle para enviar el reporte.');
+                  return;
+                }
+                void (async () => {
+                  setSendingReport(true);
+                  setErr(null);
+                  setReportOk(null);
+                  try {
+                    await api.post('/api/v1/notifications/admin-reports', {
+                      type: reportType,
+                      subject: reportSubject.trim(),
+                      message: reportMessage.trim()
+                    });
+                    setReportOk('Reporte enviado al equipo administrador.');
+                    setReportSubject('');
+                    setReportMessage('');
+                    setReportType('ERROR');
+                  } catch (eSubmit) {
+                    setErr(getUserFacingMessage(eSubmit));
+                  } finally {
+                    setSendingReport(false);
+                  }
+                })();
+              }}
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm text-slate-700">
+                  Tipo de reporte
+                  <select
+                    className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    value={reportType}
+                    onChange={(e) => setReportType(e.target.value as 'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO')}
+                    disabled={sendingReport}
+                  >
+                    <option value="ERROR">Error del sistema</option>
+                    <option value="SUGERENCIA">Sugerencia de mejora</option>
+                    <option value="PETICION">Petición operativa</option>
+                    <option value="OTRO">Otro</option>
+                  </select>
+                </label>
+                <label className="text-sm text-slate-700">
+                  Asunto
+                  <input
+                    type="text"
+                    className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    value={reportSubject}
+                    onChange={(e) => setReportSubject(e.target.value)}
+                    maxLength={160}
+                    placeholder="Ej. Error al cerrar periodo académico"
+                    disabled={sendingReport}
+                  />
+                </label>
+              </div>
+              <label className="block text-sm text-slate-700">
+                Detalle
+                <textarea
+                  className="mt-1 min-h-[120px] w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  value={reportMessage}
+                  onChange={(e) => setReportMessage(e.target.value)}
+                  maxLength={4000}
+                  placeholder="Describa qué ocurre, en qué pantalla y cómo reproducirlo."
+                  disabled={sendingReport}
+                />
+              </label>
+              {reportOk ? <p className="text-sm text-emerald-800">{reportOk}</p> : null}
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+                  disabled={sendingReport}
+                >
+                  {sendingReport ? 'Enviando…' : 'Enviar reporte'}
+                </button>
+              </div>
+            </form>
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <p className="text-sm font-semibold text-slate-800">Mis reportes recientes</p>
+              {myAdminReportsLoading ? (
+                <p className="mt-2 text-sm text-slate-600">Cargando…</p>
+              ) : myAdminReports.length === 0 ? (
+                <p className="mt-2 text-sm text-slate-600">Aún no has enviado reportes.</p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {myAdminReports.map((r) => (
+                    <li key={r.id} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <p className="font-medium text-slate-900">
+                        [{r.type}] {r.subject}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {new Date(r.createdAt).toLocaleString('es')} · Estado: {r.status}
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{r.message}</p>
+                      <button
+                        type="button"
+                        className="mt-2 text-xs font-medium text-brand-800 underline"
+                        onClick={() => {
+                          setActiveReportId(r.id);
+                          void loadActiveComments(r.id);
+                        }}
+                      >
+                        Ver comentarios
+                      </button>
+                      {activeReportId === r.id ? (
+                        <div className="mt-2 rounded border border-slate-100 bg-slate-50 p-2">
+                          {activeCommentsLoading ? (
+                            <p className="text-xs text-slate-500">Cargando comentarios…</p>
+                          ) : activeComments.length === 0 ? (
+                            <p className="text-xs text-slate-500">Sin comentarios.</p>
+                          ) : (
+                            <ul className="space-y-1">
+                              {activeComments.map((c) => (
+                                <li key={c.id} className="text-xs text-slate-700">
+                                  <span className="font-medium">{c.authorName ?? 'Usuario'}</span>: {c.message}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <div className="mt-2 flex gap-2">
+                            <input
+                              type="text"
+                              className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                              value={commentDraft}
+                              onChange={(e) => setCommentDraft(e.target.value)}
+                              placeholder="Responder al equipo administrador"
+                            />
+                            <button
+                              type="button"
+                              className="rounded bg-brand-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
+                              onClick={() => void sendReportComment(r.id)}
+                              disabled={sendingComment}
+                            >
+                              {sendingComment ? '…' : 'Enviar'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Panel>
+        </>
       ) : null}
       <Panel title="Recogidas del día (informe)">
         <ValueView data={circuit} />
@@ -1464,17 +1952,24 @@ function teacherTodayWeekRange(): string {
   return start.toISOString().slice(0, 10);
 }
 
+function teacherWeekRangeBounds(): { from: string; to: string } {
+  const from = teacherTodayWeekRange();
+  return { from, to: shiftISODateLocal(from, 6) };
+}
+
 export function HerramientasPage() {
   const [privacy, setPrivacy] = useState<unknown>(null);
   const [policy, setPolicy] = useState<unknown>(null);
   const [policyHint, setPolicyHint] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<unknown>(null);
   const [schedule, setSchedule] = useState<TeacherSelfSlot[] | null>(null);
+  const [scheduleCalendarDays, setScheduleCalendarDays] = useState<DocenteCalRow[]>([]);
   const [scheduleHint, setScheduleHint] = useState<string | null>(null);
   const [errAcceptances, setErrAcceptances] = useState<string | null>(null);
   const [errPolicy, setErrPolicy] = useState<string | null>(null);
   const [errVehicles, setErrVehicles] = useState<string | null>(null);
   const [errSchedule, setErrSchedule] = useState<string | null>(null);
+  const [openTeacherSlotId, setOpenTeacherSlotId] = useState<string | null>(null);
   const { user } = useAuth();
   const padre = user?.role === 'PADRE';
   const docente = user?.role === 'DOCENTE';
@@ -1518,12 +2013,33 @@ export function HerramientasPage() {
       try {
         if (docente) {
           const s = await api.get<TeacherSelfSlot[]>('/api/v1/schedules/me/teacher');
-          if (!cancelled) setSchedule(Array.isArray(s.data) ? s.data : []);
+          const slots = Array.isArray(s.data) ? s.data : [];
+          if (!cancelled) setSchedule(slots);
+          const { from, to } = teacherWeekRangeBounds();
+          const groupIds = Array.from(
+            new Set(slots.map((x) => x.groupId).filter((x): x is string => Boolean(x)))
+          );
+          const dayChunks = await Promise.all(
+            groupIds.map(async (gid) => {
+              const res = await api
+                .get<DocenteCalRow[]>(
+                  `/api/v1/calendar/non-instructional-days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupId=${encodeURIComponent(gid)}`
+                )
+                .catch(() => ({ data: [] as DocenteCalRow[] }));
+              return Array.isArray(res.data) ? res.data : [];
+            })
+          );
+          const dayMap = new Map<string, DocenteCalRow>();
+          for (const chunk of dayChunks) {
+            for (const d of chunk) dayMap.set(d.id, d);
+          }
+          if (!cancelled) setScheduleCalendarDays(Array.from(dayMap.values()));
         }
       } catch (e) {
         if (axios.isAxiosError(e) && e.response?.status === 403) {
           if (!cancelled) {
             setSchedule(null);
+            setScheduleCalendarDays([]);
             setScheduleHint('No hay perfil docente asociado a esta cuenta. Contacte a secretaría.');
           }
         } else if (!cancelled) {
@@ -1535,6 +2051,16 @@ export function HerramientasPage() {
       cancelled = true;
     };
   }, [padre, docente]);
+
+  const teacherScheduleDayOffByISO = useMemo(() => {
+    const map = new Map<string, string | null>();
+    const { from, to } = teacherWeekRangeBounds();
+    for (const d of scheduleCalendarDays) {
+      const iso = String(d.exceptionDate).slice(0, 10);
+      if (iso >= from && iso <= to) map.set(iso, d.reason ?? null);
+    }
+    return map;
+  }, [scheduleCalendarDays]);
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -1585,9 +2111,70 @@ export function HerramientasPage() {
               room: s.room,
               colorKey: s.subjectName ?? s.subjectId ?? s.id
             }))}
-            days={buildWeekDays(teacherTodayWeekRange())}
+            days={buildWeekDays(teacherTodayWeekRange(), teacherScheduleDayOffByISO)}
+            onSelect={(id) => setOpenTeacherSlotId(id)}
             emptyLabel="Aún no tiene franjas horarias asignadas."
           />
+          {scheduleCalendarDays.length > 0 ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-amber-900">Días sin clases (semana actual)</p>
+              <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                {scheduleCalendarDays.map((d) => (
+                  <li key={d.id}>
+                    {new Date(`${String(d.exceptionDate).slice(0, 10)}T12:00:00`).toLocaleDateString('es', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long'
+                    })}
+                    {d.reason ? ` · ${d.reason}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {(() => {
+            const slot = (schedule ?? []).find((s) => s.id === openTeacherSlotId) ?? null;
+            const WEEKDAY = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+            return (
+              <DetailModal
+                open={slot !== null}
+                title={slot?.subjectName ?? 'Clase'}
+                subtitle={
+                  slot
+                    ? `${WEEKDAY[slot.weekday] ?? ''} · ${slot.startTime.slice(0, 5)}–${slot.endTime.slice(0, 5)}`
+                    : undefined
+                }
+                onClose={() => setOpenTeacherSlotId(null)}
+              >
+                {slot ? (
+                  <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
+                      <dd className="mt-0.5 text-slate-900">{slot.subjectName ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Día</dt>
+                      <dd className="mt-0.5 capitalize text-slate-900">{WEEKDAY[slot.weekday]}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
+                      <dd className="mt-0.5 text-slate-900">
+                        {slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
+                      <dd className="mt-0.5 text-slate-900">{slot.room ?? 'No especificada'}</dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
+                      <dd className="mt-0.5 text-slate-900">{slot.groupName ?? '—'}</dd>
+                    </div>
+                  </dl>
+                ) : null}
+              </DetailModal>
+            );
+          })()}
         </Panel>
       )}
       <Panel title="Acceso al plantel">

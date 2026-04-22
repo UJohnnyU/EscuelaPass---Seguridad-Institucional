@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminDashboardPanel } from '@/components/admin/AdminDashboardPanel';
+import { DetailModal } from '@/components/DetailModal';
 import { useAuth } from '@/context/useAuth';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -40,13 +41,15 @@ function Card({
   subtitle,
   to,
   children,
-  accent
+  accent,
+  ctaLabel
 }: {
   title: string;
   subtitle?: string;
   to?: string;
   children: React.ReactNode;
   accent?: 'slate' | 'emerald' | 'amber' | 'indigo' | 'rose';
+  ctaLabel?: string;
 }) {
   const accents: Record<string, string> = {
     slate: 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900',
@@ -67,7 +70,7 @@ function Card({
             to={to}
             className="shrink-0 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:border-slate-400"
           >
-            Abrir
+            {ctaLabel ?? 'Abrir'}
           </Link>
         ) : null}
       </header>
@@ -267,9 +270,18 @@ type ChildAttendanceSummary = {
 type Debt = {
   id: string;
   concept?: string;
+  conceptName?: string;
+  conceptDescription?: string | null;
+  description?: string | null;
+  studentName?: string | null;
   amount?: string | number;
   dueDate?: string;
   status?: string;
+  voucherPath?: string | null;
+  uploadedAt?: string | null;
+  verifiedAt?: string | null;
+  /** Motivo cuando la institución no acepta el comprobante */
+  notes?: string | null;
 };
 
 type Meeting = {
@@ -280,22 +292,47 @@ type Meeting = {
   purpose?: string | null;
 };
 
+type ParentActivity = {
+  id: string;
+  title: string;
+  subjectName?: string;
+  studentId?: string;
+  studentName?: string;
+  myScore?: string | number | null;
+  maxScore?: string | number | null;
+  closedAt?: string | null;
+  periodName?: string | null;
+};
+
+type ParentAttentionNote = {
+  id: string;
+  studentName?: string;
+  title: string;
+  severity?: 'LEVE' | 'MODERADA' | 'GRAVE' | string;
+  createdAt?: string;
+};
+
 function HomePadre() {
   const [children, setChildren] = useState<ChildAttendanceSummary[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [grades, setGrades] = useState<ParentActivity[]>([]);
+  const [attentionNotes, setAttentionNotes] = useState<ParentAttentionNote[]>([]);
+  const [openDebt, setOpenDebt] = useState<Debt | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [att, deb, mts, notif] = await Promise.all([
+        const [att, deb, mts, notif, gr, notes] = await Promise.all([
           api.get('/api/v1/attendance/parent/my-children').catch(() => ({ data: { children: [] } })),
           api.get('/api/v1/payments/debts/mine').catch(() => ({ data: [] })),
           api.get('/api/v1/meetings/me').catch(() => ({ data: [] })),
-          api.get('/api/v1/notifications/me?limit=6').catch(() => ({ data: [] }))
+          api.get('/api/v1/notifications/me?limit=6').catch(() => ({ data: [] })),
+          api.get('/api/v1/activities/parent/my-children').catch(() => ({ data: [] })),
+          api.get('/api/v1/attention-notes/parent/my-children').catch(() => ({ data: [] }))
         ]);
         if (cancelled) return;
         const kids = (att.data as UnknownObj)?.children;
@@ -303,6 +340,8 @@ function HomePadre() {
         setDebts(extractArray<Debt>(deb.data));
         setMeetings(extractArray<Meeting>(mts.data));
         setNotifications(extractArray<Notification>(notif.data));
+        setGrades(extractArray<ParentActivity>(gr.data));
+        setAttentionNotes(extractArray<ParentAttentionNote>(notes.data));
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
       }
@@ -313,6 +352,23 @@ function HomePadre() {
   }, []);
 
   const pendingDebts = useMemo(() => debts.filter((d) => (d.status ?? 'PENDIENTE') !== 'PAGADO'), [debts]);
+  const debtStatusInfo = (d: Debt) => {
+    const st = (d.status ?? '').toUpperCase();
+    const due = d.dueDate ? new Date(d.dueDate) : null;
+    const isOverdue =
+      st === 'VENCIDO' ||
+      (!!due && !Number.isNaN(due.getTime()) && due.getTime() < Date.now() && st !== 'COMPROBANTE_RECHAZADO');
+    if (st === 'PAGADO') {
+      return { label: 'Pagado', cls: 'bg-emerald-100 text-emerald-800', overdue: false };
+    }
+    if (st === 'COMPROBANTE_RECHAZADO') {
+      return { label: 'Comprobante no aceptado', cls: 'bg-rose-100 text-rose-900', overdue: false };
+    }
+    if (isOverdue) {
+      return { label: 'Vencido', cls: 'bg-red-100 text-red-800', overdue: true };
+    }
+    return { label: 'Pendiente', cls: 'bg-amber-100 text-amber-900', overdue: false };
+  };
   const upcomingMeetings = useMemo(() => {
     const now = new Date().toISOString();
     return meetings
@@ -320,6 +376,22 @@ function HomePadre() {
       .sort((a, b) => a.startAt.localeCompare(b.startAt))
       .slice(0, 3);
   }, [meetings]);
+  const recentGrades = useMemo(
+    () =>
+      grades
+        .filter((g) => g.myScore !== null && g.myScore !== undefined && g.myScore !== '')
+        .sort((a, b) => (b.closedAt ?? '').localeCompare(a.closedAt ?? ''))
+        .slice(0, 5),
+    [grades]
+  );
+  const recentNotes = useMemo(
+    () =>
+      attentionNotes
+        .slice()
+        .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+        .slice(0, 5),
+    [attentionNotes]
+  );
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -362,19 +434,96 @@ function HomePadre() {
         ) : (
           <ul className="space-y-2">
             {pendingDebts.slice(0, 4).map((d) => (
-              <li key={d.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-900">{d.concept ?? 'Concepto'}</p>
-                  <p className="text-xs text-slate-500">
-                    Vence {formatISO(d.dueDate, { day: '2-digit', month: 'short' })}
-                  </p>
-                </div>
-                <span className="shrink-0 font-semibold text-amber-700">${Number(d.amount ?? 0).toFixed(2)}</span>
+              <li key={d.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenDebt(d)}
+                  className="flex w-full items-center justify-between rounded-lg bg-white px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium text-slate-900">{d.conceptName ?? d.concept ?? 'Concepto'}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${debtStatusInfo(d).cls}`}>
+                        {debtStatusInfo(d).label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Vence {formatISO(d.dueDate, { day: '2-digit', month: 'short' })}
+                    </p>
+                    {debtStatusInfo(d).overdue ? (
+                      <p className="mt-1 text-xs text-amber-800">
+                        Este pago está vencido. Si requiere generarlo nuevamente, comuníquese con la institución.
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 font-semibold text-amber-700">${Number(d.amount ?? 0).toFixed(2)}</span>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </Card>
+      <DetailModal
+        open={openDebt !== null}
+        title={openDebt?.conceptName ?? openDebt?.concept ?? 'Detalle de cobro'}
+        subtitle={openDebt?.studentName ? `Alumno: ${openDebt.studentName}` : undefined}
+        badge={
+          openDebt ? (
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${debtStatusInfo(openDebt).cls}`}>
+              {debtStatusInfo(openDebt).label}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenDebt(null)}
+      >
+        {openDebt ? (
+          <div className="space-y-4">
+            <p className="whitespace-pre-line text-slate-800">
+              {openDebt.description ?? openDebt.conceptDescription ?? 'Sin descripción adicional.'}
+            </p>
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Importe</dt>
+                <dd className="mt-0.5 text-base font-semibold text-slate-900">${Number(openDebt.amount ?? 0).toFixed(2)}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Vencimiento</dt>
+                <dd className="mt-0.5 text-slate-900">{formatISO(openDebt.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}</dd>
+              </div>
+              {openDebt.uploadedAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Comprobante subido</dt>
+                  <dd className="mt-0.5 text-slate-900">{formatISO(openDebt.uploadedAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd>
+                </div>
+              ) : null}
+              {openDebt.verifiedAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Comprobante verificado</dt>
+                  <dd className="mt-0.5 text-slate-900">{formatISO(openDebt.verifiedAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd>
+                </div>
+              ) : null}
+            </dl>
+            {(openDebt.status ?? '').toUpperCase() === 'COMPROBANTE_RECHAZADO' && openDebt.notes ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+                <p className="font-semibold">Indicación de la institución</p>
+                <p className="mt-1 whitespace-pre-line">{openDebt.notes}</p>
+              </div>
+            ) : null}
+            {openDebt.voucherPath
+              ? (() => {
+                  const href = publicAssetUrl(openDebt.voucherPath);
+                  return href ? (
+                    <p className="text-xs">
+                      <a href={href} target="_blank" rel="noreferrer" className="font-medium text-brand-800 underline">
+                        Ver comprobante cargado
+                      </a>
+                    </p>
+                  ) : null;
+                })()
+              : null}
+          </div>
+        ) : null}
+      </DetailModal>
 
       <Card title="Próximas reuniones" to="/app/modulos/reuniones" accent="indigo">
         {upcomingMeetings.length === 0 ? (
@@ -386,6 +535,55 @@ function HomePadre() {
                 <p className="truncate font-medium text-slate-900">{m.title}</p>
                 <p className="text-xs text-slate-500">{formatISO(m.startAt, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                 {m.purpose ? <p className="mt-0.5 truncate text-xs text-slate-500">{m.purpose}</p> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card title="Resumen de calificaciones" to="/app/modulos/mis-calificaciones" accent="emerald">
+        {recentGrades.length === 0 ? (
+          <p className="text-slate-500">Aún no hay calificaciones publicadas para sus hijos.</p>
+        ) : (
+          <ul className="space-y-2">
+            {recentGrades.map((g) => (
+              <li key={g.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-slate-900">{g.title}</p>
+                  <p className="truncate text-xs text-slate-500">
+                    {g.studentName ?? 'Alumno'} · {g.subjectName ?? 'Materia'}
+                    {g.periodName ? ` · ${g.periodName}` : ''}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                  {g.myScore}
+                  {g.maxScore ? `/${g.maxScore}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card title="Anotaciones recientes" to="/app/modulos/comunicacion" accent="rose">
+        {recentNotes.length === 0 ? (
+          <p className="text-slate-500">No hay anotaciones recientes para sus hijos.</p>
+        ) : (
+          <ul className="space-y-2">
+            {recentNotes.map((n) => (
+              <li key={n.id} className="rounded-lg bg-white px-3 py-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate font-medium text-slate-900">{n.title}</p>
+                  {n.severity ? (
+                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800">
+                      {n.severity}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="truncate text-xs text-slate-500">
+                  {n.studentName ?? 'Alumno'}
+                  {n.createdAt ? ` · ${formatISO(n.createdAt, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+                </p>
               </li>
             ))}
           </ul>
@@ -420,10 +618,26 @@ type TeacherAssignment = {
   groupName: string;
   subjectId: string;
   subjectName: string;
+  grade?: string | null;
+  schoolYear?: string | null;
+  jornada?: string | null;
+  shiftName?: string | null;
+  journey?: string | null;
+};
+
+type TeacherActivity = {
+  id: string;
+  groupId: string;
+  subjectId: string;
+  dueDate?: string | null;
+  status?: 'OPEN' | 'CLOSED' | string;
+  gradedCount?: number;
+  rosterCount?: number;
 };
 
 function HomeDocente() {
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+  const [activities, setActivities] = useState<TeacherActivity[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -432,13 +646,15 @@ function HomeDocente() {
     let cancelled = false;
     (async () => {
       try {
-        const [asg, mts, notif] = await Promise.all([
+        const [asg, act, mts, notif] = await Promise.all([
           api.get('/api/v1/activities/teacher/my-assignments').catch(() => ({ data: [] })),
+          api.get('/api/v1/activities').catch(() => ({ data: [] })),
           api.get('/api/v1/meetings/me').catch(() => ({ data: [] })),
           api.get('/api/v1/notifications/me?limit=6').catch(() => ({ data: [] }))
         ]);
         if (cancelled) return;
         setAssignments(extractArray<TeacherAssignment>(asg.data));
+        setActivities(extractArray<TeacherActivity>(act.data));
         setMeetings(extractArray<Meeting>(mts.data));
         setNotifications(extractArray<Notification>(notif.data));
       } catch (e) {
@@ -462,11 +678,65 @@ function HomeDocente() {
       .sort((a, b) => a.startAt.localeCompare(b.startAt));
   }, [meetings]);
 
-  const uniqueGroups = useMemo(() => {
-    const seen = new Map<string, TeacherAssignment>();
-    for (const a of assignments) if (!seen.has(a.groupId)) seen.set(a.groupId, a);
-    return Array.from(seen.values()).slice(0, 6);
-  }, [assignments]);
+  const groupsWithDetails = useMemo(() => {
+    const groupsMap = new Map<
+      string,
+      {
+        groupId: string;
+        groupName: string;
+        grade?: string | null;
+        schoolYear?: string | null;
+        jornada?: string | null;
+        subjects: string[];
+        assignmentKeys: string[];
+      }
+    >();
+
+    for (const a of assignments) {
+      const current = groupsMap.get(a.groupId);
+      const jornada = a.jornada ?? a.shiftName ?? a.journey ?? null;
+      if (!current) {
+        groupsMap.set(a.groupId, {
+          groupId: a.groupId,
+          groupName: a.groupName,
+          grade: a.grade ?? null,
+          schoolYear: a.schoolYear ?? null,
+          jornada,
+          subjects: [a.subjectName],
+          assignmentKeys: [`${a.groupId}::${a.subjectId}`]
+        });
+        continue;
+      }
+      if (!current.subjects.includes(a.subjectName)) current.subjects.push(a.subjectName);
+      const assignmentKey = `${a.groupId}::${a.subjectId}`;
+      if (!current.assignmentKeys.includes(assignmentKey)) current.assignmentKeys.push(assignmentKey);
+      if (!current.jornada && jornada) current.jornada = jornada;
+      if (!current.grade && a.grade) current.grade = a.grade;
+      if (!current.schoolYear && a.schoolYear) current.schoolYear = a.schoolYear;
+    }
+
+    return Array.from(groupsMap.values())
+      .map((g) => {
+        const pending = activities.filter((act) => {
+          if (act.groupId !== g.groupId) return false;
+          if (act.status && act.status !== 'OPEN') return false;
+          const roster = Number(act.rosterCount ?? 0);
+          const graded = Number(act.gradedCount ?? 0);
+          return Number.isFinite(roster) && Number.isFinite(graded) && roster > graded;
+        });
+        const nextDue = pending
+          .map((p) => p.dueDate)
+          .filter((d): d is string => Boolean(d))
+          .sort((a, b) => a.localeCompare(b))[0];
+        return {
+          ...g,
+          pendingToGrade: pending.length,
+          nextDueDate: nextDue ?? null,
+          primaryAssignmentKey: g.assignmentKeys[0] ?? ''
+        };
+      })
+      .slice(0, 6);
+  }, [assignments, activities]);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -491,15 +761,40 @@ function HomeDocente() {
         )}
       </Card>
 
-      <Card title="Mis grupos y materias" to="/app/modulos/calificaciones-docente" accent="emerald">
-        {uniqueGroups.length === 0 ? (
+      <Card
+        title="Mis grupos y actividades"
+        to="/app/modulos/calificaciones-docente"
+        accent="emerald"
+        ctaLabel="Ver actividades"
+      >
+        {groupsWithDetails.length === 0 ? (
           <p className="text-slate-500">Aún no tiene grupos asignados.</p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
-            {uniqueGroups.map((g) => (
-              <li key={`${g.groupId}-${g.subjectId}`} className="rounded-lg bg-white px-3 py-2 text-sm">
+            {groupsWithDetails.map((g) => (
+              <li key={g.groupId} className="rounded-lg bg-white px-3 py-2 text-sm">
                 <p className="truncate font-medium text-slate-900">{g.groupName}</p>
-                <p className="truncate text-xs text-slate-500">{g.subjectName}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {g.grade ? `${g.grade} · ` : ''}
+                  {g.schoolYear ? `${g.schoolYear} · ` : ''}
+                  {g.jornada ? `Jornada ${g.jornada}` : 'Jornada por definir'}
+                </p>
+                <p className="mt-1 truncate text-xs text-slate-600">
+                  Materias: {g.subjects.slice(0, 2).join(', ')}
+                  {g.subjects.length > 2 ? ` +${g.subjects.length - 2}` : ''}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Actividades por calificar: <span className="font-semibold text-slate-900">{g.pendingToGrade}</span>
+                  {g.nextDueDate ? ` · Próxima fecha: ${formatISO(g.nextDueDate, { day: '2-digit', month: 'short' })}` : ''}
+                </p>
+                {g.primaryAssignmentKey ? (
+                  <Link
+                    to={`/app/modulos/calificaciones-docente?assignment=${encodeURIComponent(g.primaryAssignmentKey)}&status=OPEN`}
+                    className="mt-2 inline-flex rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-slate-400"
+                  >
+                    Abrir grupo/materia
+                  </Link>
+                ) : null}
               </li>
             ))}
           </ul>

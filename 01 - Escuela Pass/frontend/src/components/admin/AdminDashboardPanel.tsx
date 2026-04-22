@@ -229,16 +229,22 @@ export function AdminDashboardPanel() {
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="font-medium text-slate-900">Recogidas por día</h3>
               <p className="mt-1 text-xs text-slate-500">Solicitudes registradas durante los últimos 7 días</p>
-              <div className="mt-6 flex h-44 items-end justify-between gap-1 border-b border-slate-200 pb-1">
+              <div className="mt-6 flex justify-between gap-1 border-b border-slate-200 pb-1">
                 {(data?.circuits.byDay ?? []).map((d) => {
                   const h = Math.round((d.total / maxDay) * 100);
                   return (
-                    <div key={d.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                      <div className="flex w-full flex-1 items-end justify-center">
+                    <div key={d.date} className="flex min-w-0 flex-1 flex-col items-stretch gap-1">
+                      <div className="text-center text-[11px] font-semibold leading-none tabular-nums text-slate-800">
+                        {d.total}
+                      </div>
+                      <div
+                        className="flex h-32 w-full items-end justify-center"
+                        title={`${d.total} solicitudes`}
+                        aria-label={`${formatDayShort(d.date)}: ${d.total} solicitudes`}
+                      >
                         <div
                           className="w-[85%] max-w-[2.75rem] rounded-t-md bg-brand-600 transition-all"
                           style={{ height: `${h}%`, minHeight: d.total > 0 ? '4px' : '0' }}
-                          title={`${d.total} solicitudes`}
                         />
                       </div>
                       <span className="max-w-full truncate text-center text-[10px] font-medium uppercase leading-tight text-slate-500">

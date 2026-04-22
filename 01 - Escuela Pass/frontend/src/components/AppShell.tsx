@@ -85,7 +85,7 @@ export function AppShell() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded bg-brand-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800"
+              className="rounded bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-800"
             >
               Salir
             </button>
@@ -163,7 +163,7 @@ export function AppShell() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
+              className="rounded border border-red-700 bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-800"
             >
               Cerrar sesión
             </button>

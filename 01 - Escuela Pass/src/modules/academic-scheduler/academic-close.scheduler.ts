@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, In, LessThan } from 'typeorm';
+import { todayLocalISODate } from '../../common/local-date';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -59,8 +60,7 @@ export class AcademicCloseScheduler {
     const periods = await this.dataSource.getRepository(AcademicPeriodEntity).find({
       where: { status: AcademicPeriodStatus.PLANNED }
     });
-    const today = new Date();
-    const todayISO = today.toISOString().slice(0, 10);
+    const todayISO = todayLocalISODate();
     for (const p of periods) {
       if (p.startDate <= todayISO && p.endDate >= todayISO) {
         p.status = AcademicPeriodStatus.ACTIVE;
@@ -70,14 +70,19 @@ export class AcademicCloseScheduler {
     }
   }
 
+  /**
+   * Cierra periodos cuya fecha de fin ya pasó: ACTIVE o PLANNED que quedaron sin activar
+   * a tiempo (p. ej. sin clases en el rango del cron anterior).
+   */
   private async closeExpiredPeriods(): Promise<void> {
+    const todayISO = todayLocalISODate();
     const periods = await this.dataSource.getRepository(AcademicPeriodEntity).find({
-      where: { status: AcademicPeriodStatus.ACTIVE }
+      where: {
+        status: In([AcademicPeriodStatus.ACTIVE, AcademicPeriodStatus.PLANNED]),
+        endDate: LessThan(todayISO)
+      }
     });
-    const todayISO = new Date().toISOString().slice(0, 10);
     for (const p of periods) {
-      if (p.endDate >= todayISO) continue;
-
       await this.dataSource.transaction(async (mgr) => {
         const res = await this.activitiesService.closeManyByPeriod(mgr, p.id, null);
         this.logger.log(
@@ -85,6 +90,7 @@ export class AcademicCloseScheduler {
         );
         p.status = AcademicPeriodStatus.CLOSED;
         p.closedAt = new Date();
+        p.closedBy = null;
         await mgr.getRepository(AcademicPeriodEntity).save(p);
         await this.reportCardsService.generateForPeriod(p.id, true, mgr);
       });

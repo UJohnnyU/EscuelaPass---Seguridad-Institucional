@@ -113,7 +113,7 @@ export class ReportCardsService {
            st.id AS student_id,
            st.group_id,
            a.subject_id,
-           a.subject_name,
+           COALESCE(NULLIF(TRIM(a.subject_name), ''), 'Materia') AS subject_name,
            COUNT(DISTINCT a.id)::text AS activity_count,
            COUNT(DISTINCT CASE WHEN ag.id IS NOT NULL THEN a.id END)::text AS graded_count,
            CASE

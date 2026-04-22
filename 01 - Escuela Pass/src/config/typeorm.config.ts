@@ -2,6 +2,8 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AcademicPeriodEntity } from '../database/entities/academic-period.entity';
 import { ActivityEntity } from '../database/entities/activity.entity';
 import { ActivityGradeEntity } from '../database/entities/activity-grade.entity';
+import { AdminReportCommentEntity } from '../database/entities/admin-report-comment.entity';
+import { AdminReportEntity } from '../database/entities/admin-report.entity';
 import { AttendanceRecordEntity } from '../database/entities/attendance-record.entity';
 import { AccessCredentialEntity } from '../database/entities/access-credential.entity';
 import { AccessEventEntity } from '../database/entities/access-event.entity';
@@ -77,6 +79,8 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       AcademicPeriodEntity,
       ActivityEntity,
       ActivityGradeEntity,
+      AdminReportEntity,
+      AdminReportCommentEntity,
       ReportCardEntity,
       ReportCardSubjectEntity,
       SubjectEntity,

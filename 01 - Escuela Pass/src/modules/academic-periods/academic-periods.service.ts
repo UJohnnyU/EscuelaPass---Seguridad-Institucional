@@ -7,7 +7,7 @@ import {
   UnprocessableEntityException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -306,6 +306,11 @@ export class AcademicPeriodsService {
       );
       if (err instanceof BadRequestException || err instanceof ForbiddenException || err instanceof NotFoundException) {
         throw err;
+      }
+      if (err instanceof QueryFailedError) {
+        throw new UnprocessableEntityException(
+          `No se pudo cerrar el periodo por un error en base de datos. Si persiste, revise restricciones o datos vinculados. Detalle: ${err.message}`
+        );
       }
       throw new UnprocessableEntityException(
         `No se pudo cerrar el periodo (datos o dependencias incompletas). Detalle: ${(err as Error).message}`

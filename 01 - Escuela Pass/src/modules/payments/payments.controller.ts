@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -22,6 +23,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
+import { RejectVoucherDto } from './dto/reject-voucher.dto';
 import { UpdateConceptDto } from './dto/update-concept.dto';
 import { UploadVoucherDto } from './dto/upload-voucher.dto';
 import { voucherMulterOptions } from './multer-voucher.config';
@@ -59,6 +61,12 @@ export class PaymentsController {
     return this.paymentsService.updateConcept(id, dto);
   }
 
+  @Delete('concepts/:id')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  deleteConcept(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.paymentsService.deleteConcept(id);
+  }
+
   @Post('debts')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   createDebt(@Body() dto: CreateDebtDto, @Req() req: { user: { userId: string; role: UserRole } }) {
@@ -92,7 +100,10 @@ export class PaymentsController {
     @Req() req: { user: { userId: string; role: UserRole } }
   ) {
     const st: PaymentStatus | undefined =
-      status === 'PENDIENTE' || status === 'PAGADO' || status === 'VENCIDO'
+      status === 'PENDIENTE' ||
+      status === 'PAGADO' ||
+      status === 'VENCIDO' ||
+      status === 'COMPROBANTE_RECHAZADO'
         ? (status as PaymentStatus)
         : undefined;
     const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
@@ -148,5 +159,15 @@ export class PaymentsController {
     @Req() req: { user: { userId: string; role: UserRole } }
   ) {
     return this.paymentsService.verifyDebt(debtId, req.user.userId, req.user.role);
+  }
+
+  @Post('debts/:debtId/reject-voucher')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  rejectVoucher(
+    @Param('debtId', new ParseUUIDPipe({ version: '4' })) debtId: string,
+    @Body() dto: RejectVoucherDto,
+    @Req() req: { user: { userId: string; role: UserRole } }
+  ) {
+    return this.paymentsService.rejectVoucher(debtId, req.user.userId, req.user.role, dto);
   }
 }

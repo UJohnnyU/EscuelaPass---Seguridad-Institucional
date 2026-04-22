@@ -13,14 +13,7 @@ import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { RegisterAttendanceDto } from './dto/register-attendance.dto';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
-
-function todayLocalISODate(): string {
-  const n = new Date();
-  const y = n.getFullYear();
-  const m = String(n.getMonth() + 1).padStart(2, '0');
-  const d = String(n.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+import { todayLocalISODate } from '../../common/local-date';
 
 const MAX_ATTENDANCE_RANGE_DAYS = 100;
 
@@ -101,8 +94,13 @@ export class AttendanceService {
 
     const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayLocalISODate();
     const today = todayLocalISODate();
-    if (role === UserRole.DOCENTE && dateStr !== today) {
-      throw new ForbiddenException('El docente solo puede modificar asistencias del día actual');
+    if (
+      (role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO) &&
+      dateStr !== today
+    ) {
+      throw new ForbiddenException(
+        'Solo puede modificar asistencias del día actual (no días anteriores ni posteriores).'
+      );
     }
 
     await this.assertCanRegisterForStudent(registeredByUserId, role, student);
@@ -234,10 +232,13 @@ export class AttendanceService {
       studentIdFilter ? [groupId, studentIdFilter] : [groupId]
     );
 
+    const today = todayLocalISODate();
+    const staffDayOnly =
+      role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO;
     return {
       view: 'day' as const,
       date,
-      canEdit: role !== UserRole.DOCENTE || date === todayLocalISODate(),
+      canEdit: !staffDayOnly || date === today,
       nonInstructionalDay: cal.nonInstructional,
       reasons: cal.reasons.length ? cal.reasons : undefined,
       records,

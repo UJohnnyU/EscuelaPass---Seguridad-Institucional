@@ -18,8 +18,26 @@ import { UserRole } from '../../database/entities/user.entity';
 import { FcmService } from '../fcm/fcm.service';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
+import { RejectVoucherDto } from './dto/reject-voucher.dto';
 import { UpdateConceptDto } from './dto/update-concept.dto';
 import { UploadVoucherDto } from './dto/upload-voucher.dto';
+
+export type DebtAdminListItem = {
+  id: string;
+  studentId: string;
+  conceptId: string;
+  amount: string;
+  dueDate: string;
+  status: PaymentStatus;
+  description: string | null;
+  voucherPath: string | null;
+  uploadedAt: string | null;
+  verifiedAt: string | null;
+  notes: string | null;
+  studentName: string;
+  matricula: string;
+  conceptName: string;
+};
 
 @Injectable()
 export class PaymentsService {
@@ -131,6 +149,20 @@ export class PaymentsService {
     return this.conceptsRepository.save(c);
   }
 
+  async deleteConcept(id: string): Promise<{ ok: true }> {
+    const c = await this.conceptsRepository.findOne({ where: { id } });
+    if (!c) throw new NotFoundException('Concepto no encontrado');
+    const linked = await this.debtsRepository.count({ where: { conceptId: id } });
+    if (linked > 0) {
+      throw new ConflictException(
+        `No se puede eliminar: hay ${linked} obligación(es) de pago vinculadas a este concepto. ` +
+          'Desactívelo o gestione primero esas deudas.'
+      );
+    }
+    await this.conceptsRepository.delete(id);
+    return { ok: true };
+  }
+
   async createDebt(dto: CreateDebtDto, userId: string, role: UserRole) {
     const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
@@ -214,28 +246,79 @@ export class PaymentsService {
     limit = 30,
     userId?: string,
     role?: UserRole
-  ) {
-    const take = Math.min(Math.max(limit, 1), 100);
+  ): Promise<{
+    data: DebtAdminListItem[];
+    meta: { total: number; page: number; limit: number; pages: number };
+  }> {
+    const take = Math.min(Math.max(limit, 1), 200);
     const skip = (Math.max(page, 1) - 1) * take;
-    const where = status ? { status } : {};
+
+    const qb = this.debtsRepository
+      .createQueryBuilder('d')
+      .innerJoin('students', 's', 's.id = d.student_id')
+      .innerJoin('users', 'su', 'su.id = s.user_id')
+      .innerJoin('payment_concepts', 'pc', 'pc.id = d.concept_id');
+
     if (role === UserRole.ADMINISTRATIVO && userId) {
-      const qb = this.debtsRepository
-        .createQueryBuilder('d')
-        .innerJoin('students', 's', 's.id = d.student_id')
-        .innerJoin('users', 'su', 'su.id = s.user_id')
-        .innerJoin('users', 'au', 'au.id = :uid', { uid: userId })
-        .where('au.school_id = su.school_id')
-        .orderBy('d.createdAt', 'DESC')
-        .skip(skip)
-        .take(take);
-      if (status) qb.andWhere('d.status = :st', { st: status });
-      const [data, total] = await qb.getManyAndCount();
-      return {
-        data,
-        meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
-      };
+      qb.innerJoin('users', 'au', 'au.id = :uid', { uid: userId }).where('au.school_id = su.school_id');
     }
-    const [data, total] = await this.debtsRepository.findAndCount({ where, order: { createdAt: 'DESC' }, skip, take });
+
+    if (status) {
+      qb.andWhere('d.status = :st', { st: status });
+    }
+
+    const countQb = qb.clone();
+    const total = await countQb.getCount();
+
+    qb
+      .select([
+        'd.id AS id',
+        'd.student_id AS "studentId"',
+        'd.concept_id AS "conceptId"',
+        'd.amount::text AS amount',
+        'd.due_date AS "dueDate"',
+        'd.status AS status',
+        'd.description AS description',
+        'd.voucher_path AS "voucherPath"',
+        'd.uploaded_at AS "uploadedAt"',
+        'd.verified_at AS "verifiedAt"',
+        'd.notes AS notes',
+        'su.full_name AS "studentName"',
+        's.matricula AS matricula',
+        'pc.name AS "conceptName"'
+      ])
+      .orderBy('d.created_at', 'DESC')
+      .skip(skip)
+      .take(take);
+
+    const raw = await qb.getRawMany<
+      DebtAdminListItem & {
+        uploadedAt: Date | null;
+        verifiedAt: Date | null;
+        dueDate: string | Date;
+      }
+    >();
+
+    const data: DebtAdminListItem[] = raw.map((r) => ({
+      id: r.id,
+      studentId: r.studentId,
+      conceptId: r.conceptId,
+      amount: r.amount,
+      dueDate:
+        typeof r.dueDate === 'string'
+          ? r.dueDate.slice(0, 10)
+          : new Date(r.dueDate as unknown as Date).toISOString().slice(0, 10),
+      status: r.status as PaymentStatus,
+      description: r.description,
+      voucherPath: r.voucherPath,
+      uploadedAt: r.uploadedAt ? new Date(r.uploadedAt).toISOString() : null,
+      verifiedAt: r.verifiedAt ? new Date(r.verifiedAt).toISOString() : null,
+      notes: r.notes,
+      studentName: r.studentName,
+      matricula: r.matricula,
+      conceptName: r.conceptName
+    }));
+
     return {
       data,
       meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
@@ -255,24 +338,29 @@ export class PaymentsService {
         .innerJoin('users', 'au', 'au.id = :uid', { uid: userId })
         .where('au.school_id = su.school_id')
         .andWhere('d.status = :st', { st: PaymentStatus.PENDIENTE })
+        .andWhere('d.voucher_path IS NOT NULL')
+        .andWhere('d.verified_at IS NULL')
         .orderBy('d.uploadedAt', 'DESC')
         .addOrderBy('d.dueDate', 'ASC')
         .skip(skip)
         .take(take);
       [data, total] = await qb.getManyAndCount();
     } else {
-      [data, total] = await this.debtsRepository.findAndCount({
-        where: { status: PaymentStatus.PENDIENTE },
-        order: { uploadedAt: 'DESC', dueDate: 'ASC' },
-        skip,
-        take
-      });
+      const qb = this.debtsRepository
+        .createQueryBuilder('d')
+        .where('d.status = :st', { st: PaymentStatus.PENDIENTE })
+        .andWhere('d.voucher_path IS NOT NULL')
+        .andWhere('d.verified_at IS NULL')
+        .orderBy('d.uploadedAt', 'DESC')
+        .addOrderBy('d.dueDate', 'ASC')
+        .skip(skip)
+        .take(take);
+      [data, total] = await qb.getManyAndCount();
     }
-    const withVoucher = data.filter((d) => d.voucherPath != null);
     return {
-      data: withVoucher.length ? withVoucher : data,
+      data,
       meta: { total, page: Math.max(page, 1), limit: take },
-      note: 'Prioriza filas con comprobante (voucher_path); si no hay, muestra pendientes sin comprobante.'
+      note: 'Solo obligaciones con comprobante cargado y aún no verificadas por administración.'
     };
   }
 
@@ -281,6 +369,10 @@ export class PaymentsService {
     if (!parent) throw new ForbiddenException('Solo padres pueden cargar comprobantes');
     const debt = await this.debtsRepository.findOne({ where: { id: debtId } });
     if (!debt) throw new NotFoundException('Deuda no encontrada');
+    if (debt.status === PaymentStatus.COMPROBANTE_RECHAZADO) {
+      debt.status = PaymentStatus.PENDIENTE;
+      debt.notes = null;
+    }
     if (debt.status !== PaymentStatus.PENDIENTE) {
       throw new BadRequestException('La deuda no admite comprobante en este estado');
     }
@@ -358,6 +450,7 @@ export class PaymentsService {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     debt.status = PaymentStatus.PAGADO;
+    debt.notes = null;
     debt.verifiedAt = now;
     debt.verifiedByAdminId = staff?.id ?? null;
     const payment = this.paymentsRepository.create({
@@ -372,11 +465,98 @@ export class PaymentsService {
     });
     await this.debtsRepository.save(debt);
     const savedPayment = await this.paymentsRepository.save(payment);
+    const studentName = await this.studentDisplayNameForPayment(debt.studentId);
+    void this.notifyParentUsersAboutDebt(
+      debt.studentId,
+      'Pago verificado',
+      `Se verificó su comprobante: la obligación de ${studentName} quedó registrada como pagada.`,
+      {
+        type: 'payment_verified',
+        debtId: debt.id,
+        deepLink: '/app/modulos/finanzas'
+      }
+    ).catch(() => undefined);
     return {
       message: 'Pago verificado y registrado',
       debtId: debt.id,
       paymentId: savedPayment.id
     };
+  }
+
+  async rejectVoucher(debtId: string, userId: string, role: UserRole, dto: RejectVoucherDto) {
+    if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO) {
+      throw new ForbiddenException('Solo personal autorizado puede revisar comprobantes');
+    }
+    const debt = await this.debtsRepository.findOne({ where: { id: debtId } });
+    if (!debt) throw new NotFoundException('Deuda no encontrada');
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessStudent(userId, debt.studentId);
+    }
+    if (debt.status !== PaymentStatus.PENDIENTE) {
+      throw new BadRequestException('Solo se puede rechazar el comprobante en obligaciones pendientes de verificación.');
+    }
+    if (!debt.voucherPath) {
+      throw new BadRequestException('No hay comprobante cargado para revisar.');
+    }
+    if (debt.verifiedAt) {
+      throw new BadRequestException('Este comprobante ya fue verificado.');
+    }
+    const reason = dto.reason.trim();
+    debt.status = PaymentStatus.COMPROBANTE_RECHAZADO;
+    debt.notes = reason;
+    await this.debtsRepository.save(debt);
+    void this.notifyParentUsersAboutDebt(
+      debt.studentId,
+      'Comprobante no aceptado',
+      `La institución revisó su comprobante y requiere corrección o un nuevo archivo: ${reason}`,
+      {
+        type: 'payment_voucher_rejected',
+        debtId: debt.id,
+        deepLink: '/app/modulos/finanzas'
+      }
+    ).catch(() => undefined);
+    return { message: 'Comprobante rechazado; se notificó a la familia.', debtId: debt.id };
+  }
+
+  private async studentDisplayNameForPayment(studentId: string): Promise<string> {
+    const row = await this.studentsRepository.manager.query<{ full_name: string | null }[]>(
+      `SELECT u.full_name FROM students s INNER JOIN users u ON u.id = s.user_id WHERE s.id = $1 LIMIT 1`,
+      [studentId]
+    );
+    const n = row[0]?.full_name?.trim();
+    return n || 'el estudiante';
+  }
+
+  private async notifyParentUsersAboutDebt(
+    studentId: string,
+    title: string,
+    message: string,
+    fcmPayload: Record<string, string>
+  ): Promise<void> {
+    const rows = await this.studentsRepository.manager.query<{ user_id: string }[]>(
+      `SELECT DISTINCT u.id AS user_id
+       FROM student_parents sp
+       INNER JOIN parents p ON p.id = sp.parent_id
+       INNER JOIN users u ON u.id = p.user_id
+       WHERE sp.student_id = $1`,
+      [studentId]
+    );
+    for (const row of rows) {
+      const n = this.notificationsRepository.create({
+        userId: row.user_id,
+        noticeId: null,
+        title,
+        message,
+        deliveryStatus: 'SENT'
+      });
+      const savedN = await this.notificationsRepository.save(n);
+      void this.fcmService
+        .sendPushToUser(row.user_id, title, message, {
+          ...fcmPayload,
+          notificationId: savedN.id
+        })
+        .catch(() => undefined);
+    }
   }
 
   private async assertAdministrativeCanAccessStudent(userId: string, studentId: string): Promise<void> {

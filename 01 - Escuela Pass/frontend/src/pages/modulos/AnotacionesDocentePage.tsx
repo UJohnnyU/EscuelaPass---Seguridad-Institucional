@@ -250,7 +250,7 @@ export function AnotacionesDocentePage() {
           <form className="mt-4 space-y-4" onSubmit={(e) => void submit(e)}>
             <div className="grid gap-4 sm:grid-cols-2">
               {platformAdmin && (
-                <label className="block space-y-1.5 text-sm sm:col-span-2">
+                <label className="flex flex-col gap-2 text-sm sm:col-span-2">
                   <span className="text-slate-700">Institución (filtro)</span>
                   <div className="max-w-md">
                     <SmartSelect
@@ -262,7 +262,7 @@ export function AnotacionesDocentePage() {
                   </div>
                 </label>
               )}
-              <label className="block space-y-1.5 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span className="text-slate-700">Grupo</span>
                 <div>
                   <SmartSelect
@@ -274,7 +274,7 @@ export function AnotacionesDocentePage() {
                   />
                 </div>
               </label>
-              <label className="block space-y-1.5 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span className="text-slate-700">Estudiante</span>
                 <div>
                   <SmartSelect
@@ -288,7 +288,7 @@ export function AnotacionesDocentePage() {
                 </div>
               </label>
             </div>
-            <label className="block space-y-1.5 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span className="font-medium text-slate-700">Gravedad</span>
               <select
                 className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-xs"
@@ -300,7 +300,7 @@ export function AnotacionesDocentePage() {
                 <option value="GRAVE">{SEVERITY_LABEL.GRAVE}</option>
               </select>
             </label>
-            <label className="block space-y-1.5 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span className="font-medium text-slate-700">Título breve</span>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -310,7 +310,7 @@ export function AnotacionesDocentePage() {
                 maxLength={200}
               />
             </label>
-            <label className="block space-y-1.5 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span className="font-medium text-slate-700">Descripción</span>
               <textarea
                 className="min-h-[100px] w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -320,7 +320,7 @@ export function AnotacionesDocentePage() {
                 maxLength={3000}
               />
             </label>
-            <label className="block space-y-1.5 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span className="font-medium text-slate-700">Fecha del hecho (opcional)</span>
               <input
                 type="datetime-local"

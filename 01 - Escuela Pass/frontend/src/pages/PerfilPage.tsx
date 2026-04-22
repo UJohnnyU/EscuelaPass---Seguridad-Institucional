@@ -198,8 +198,9 @@ export function PerfilPage() {
 
       {(me?.role ?? user?.role) === 'ALUMNO' && autonomousToday === true ? (
         <div className="mt-6 max-w-xl rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-          <strong className="font-semibold">Salida autónoma autorizada hoy.</strong>{' '}
-          Su familia registró que puede retirarse solo hoy; no requiere solicitud de circuito de recogida.
+          <strong className="font-semibold">Salida autónoma autorizada.</strong>{' '}
+          Su familia registró salida autónoma activa; no requiere solicitud de circuito de recogida hasta que la
+          desactiven.
         </div>
       ) : null}
 

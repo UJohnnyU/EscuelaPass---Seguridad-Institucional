@@ -5,7 +5,7 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, SelectQueryBuilder } from 'typeorm';
+import { In, LessThanOrEqual, Repository, SelectQueryBuilder } from 'typeorm';
 import { ClassScheduleSlotEntity } from '../../database/entities/class-schedule-slot.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { SubjectEntity } from '../../database/entities/subject.entity';
@@ -67,7 +67,8 @@ export class SchedulesService {
 
   /** Todas las franjas horarias donde figura el docente (cualquier grupo). */
   /** Horario del grupo del estudiante (franjas semanales). */
-  async listMySlotsAsStudent(userId: string) {
+  async listMySlotsAsStudent(userId: string, refDateRaw?: string) {
+    const refDate = this.parseRefDate(refDateRaw);
     const student = await this.studentsRepository.findOne({ where: { userId } });
     if (!student) throw new ForbiddenException('Perfil de estudiante no encontrado');
     if (!student.groupId) {
@@ -81,7 +82,10 @@ export class SchedulesService {
     }
     const group = await this.groupsRepository.findOne({ where: { id: student.groupId } });
     const slots = await this.slotsRepository.find({
-      where: { groupId: student.groupId },
+      where: {
+        groupId: student.groupId,
+        createdAt: refDate ? LessThanOrEqual(this.endOfDay(refDate)) : undefined
+      },
       order: { weekday: 'ASC', startTime: 'ASC' }
     });
     const sids = [...new Set(slots.map((s) => s.subjectId).filter((x): x is string => !!x))];
@@ -131,7 +135,10 @@ export class SchedulesService {
     const allSlots =
       groupIds.length > 0
         ? await this.slotsRepository.find({
-            where: { groupId: In(groupIds) },
+            where: {
+              groupId: In(groupIds),
+              createdAt: LessThanOrEqual(this.endOfDay(new Date()))
+            },
             order: { weekday: 'ASC', startTime: 'ASC' }
           })
         : [];
@@ -167,11 +174,15 @@ export class SchedulesService {
     };
   }
 
-  async listMySlotsAsTeacher(userId: string) {
+  async listMySlotsAsTeacher(userId: string, refDateRaw?: string) {
+    const refDate = this.parseRefDate(refDateRaw);
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
     const slots = await this.slotsRepository.find({
-      where: { teacherId: teacher.id },
+      where: {
+        teacherId: teacher.id,
+        createdAt: LessThanOrEqual(refDate ? this.endOfDay(refDate) : this.endOfDay(new Date()))
+      },
       order: { weekday: 'ASC', startTime: 'ASC' }
     });
     if (slots.length === 0) return slots.map((s) => ({ ...s, subjectName: null, groupName: null }));
@@ -277,6 +288,23 @@ export class SchedulesService {
     if (toSec(b) <= toSec(a)) {
       throw new BadRequestException('La hora de fin debe ser posterior al inicio');
     }
+  }
+
+  private parseRefDate(raw?: string): Date | null {
+    const trimmed = raw?.trim();
+    if (!trimmed) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      throw new BadRequestException('refDate inválida, use formato YYYY-MM-DD');
+    }
+    const d = new Date(`${trimmed}T12:00:00`);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException('refDate inválida');
+    }
+    return d;
+  }
+
+  private endOfDay(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
   }
 
   private async assertCanViewGroupSchedule(userId: string, role: UserRole, groupId: string) {

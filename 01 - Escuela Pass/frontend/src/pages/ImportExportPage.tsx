@@ -252,7 +252,7 @@ export function ImportExportPage() {
     }
   }
 
-  if (!admin && !docente) {
+  if (!admin && !administrativo && !docente) {
     return (
       <p className="text-sm text-slate-600">
         Esta sección es para el personal del plantel. Si necesita un archivo, solicítelo en secretaría.

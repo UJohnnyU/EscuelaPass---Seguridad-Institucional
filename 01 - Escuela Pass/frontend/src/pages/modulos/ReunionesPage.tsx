@@ -399,6 +399,10 @@ function MeetingDetailView({
   detail: Meeting;
   detailErr: string | null;
 }) {
+  const participantsForDisplay =
+    detail.status === 'REALIZADA'
+      ? detail.participants.filter((p) => p.rsvp === 'ACEPTADA')
+      : detail.participants;
   return (
     <div className="space-y-3 text-sm">
       {detailErr && (
@@ -407,6 +411,30 @@ function MeetingDetailView({
       <p className="text-slate-700">
         <span className="font-medium text-slate-900">Propósito:</span> {detail.purpose}
       </p>
+      <div className="grid grid-cols-1 gap-3 rounded border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2 dark:border-slate-700 dark:bg-slate-800">
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Fecha y hora:</span> {formatDateLong(detail.startAt)}
+        </p>
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Duración:</span> {detail.durationMinutes} min
+        </p>
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Modalidad:</span> {detail.modality}
+        </p>
+        <p className="text-slate-700">
+          <span className="font-medium text-slate-900">Organiza:</span> {detail.organizerRole}
+        </p>
+        {detail.modality === 'PRESENCIAL' ? (
+          <p className="text-slate-700 sm:col-span-2">
+            <span className="font-medium text-slate-900">Lugar:</span> {detail.location ?? 'No especificado'}
+          </p>
+        ) : null}
+        {detail.previousStartAt ? (
+          <p className="text-slate-700 sm:col-span-2">
+            <span className="font-medium text-slate-900">Fecha anterior:</span> {formatDateLong(detail.previousStartAt)}
+          </p>
+        ) : null}
+      </div>
       {detail.modality === 'VIRTUAL' && detail.meetingLink && (
         <p className="text-slate-700">
           <span className="font-medium text-slate-900">Enlace:</span>{' '}
@@ -416,9 +444,20 @@ function MeetingDetailView({
         </p>
       )}
       <div>
-        <span className="font-medium text-slate-900">Participantes ({detail.participants.length})</span>
+        <div className="mb-1 flex flex-wrap items-center gap-3">
+          <span className="font-medium text-slate-900">
+            Participantes ({participantsForDisplay.length})
+          </span>
+          {detail.status !== 'REALIZADA' ? (
+            <span className="text-xs text-slate-600">
+              Aceptadas: {detail.counts.accepted} · Pendientes: {detail.counts.pending} · Declinadas: {detail.counts.declined}
+            </span>
+          ) : (
+            <span className="text-xs text-slate-600">Solo se muestran asistentes confirmados (ACEPTADA).</span>
+          )}
+        </div>
         <ul className="mt-1 divide-y divide-slate-100 rounded border border-slate-200 bg-slate-50 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
-          {detail.participants.map((p) => (
+          {participantsForDisplay.map((p) => (
             <li key={p.id} className="flex items-center justify-between px-3 py-2">
               <span className="text-slate-800">
                 {p.fullName} <span className="text-xs text-slate-500">· {p.role}</span>

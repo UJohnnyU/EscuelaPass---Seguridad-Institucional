@@ -136,16 +136,21 @@ export class DocumentsService {
 
     const logoAbs = resolveUploadFile(institution.logoUrl ?? null);
     const headerTop = doc.y;
+    const logoSize = 60;
+    const rightLogoX = left + contentW - logoSize;
+    let logoDrawn = false;
     if (logoAbs) {
       try {
-        doc.image(logoAbs, left, headerTop, { fit: [60, 60] });
+        doc.image(logoAbs, left, headerTop, { fit: [logoSize, logoSize] });
+        doc.image(logoAbs, rightLogoX, headerTop, { fit: [logoSize, logoSize] });
+        logoDrawn = true;
       } catch {
         /* Ignoramos imágenes corruptas o formatos no soportados. */
       }
     }
 
-    const textLeft = logoAbs ? left + 72 : left;
-    const textWidth = contentW - (logoAbs ? 72 : 0);
+    const textLeft = logoDrawn ? left + logoSize + 12 : left;
+    const textWidth = logoDrawn ? contentW - (logoSize + 12) * 2 : contentW;
     doc
       .fontSize(18)
       .font('Helvetica-Bold')
@@ -165,7 +170,7 @@ export class DocumentsService {
     if (contact)
       doc.fontSize(9).text(contact, textLeft, doc.y, { width: textWidth, align: 'center' });
     // Asegura que el siguiente bloque no quede solapado con el logo
-    const afterHeader = Math.max(doc.y, headerTop + (logoAbs ? 66 : 0));
+    const afterHeader = Math.max(doc.y, headerTop + (logoDrawn ? logoSize + 6 : 0));
     doc.y = afterHeader;
     doc.x = left;
 
@@ -310,15 +315,20 @@ export class DocumentsService {
     const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const logoAbs = resolveUploadFile(institution.logoUrl ?? null);
     const headerTop = doc.y;
+    const logoSize = 50;
+    const rightLogoX = left + contentW - logoSize;
+    let logoDrawn = false;
     if (logoAbs) {
       try {
-        doc.image(logoAbs, left, headerTop, { fit: [50, 50] });
+        doc.image(logoAbs, left, headerTop, { fit: [logoSize, logoSize] });
+        doc.image(logoAbs, rightLogoX, headerTop, { fit: [logoSize, logoSize] });
+        logoDrawn = true;
       } catch {
         /* ignore */
       }
     }
-    const textLeft = logoAbs ? left + 60 : left;
-    const textWidth = contentW - (logoAbs ? 60 : 0);
+    const textLeft = logoDrawn ? left + logoSize + 10 : left;
+    const textWidth = logoDrawn ? contentW - (logoSize + 10) * 2 : contentW;
     doc
       .fontSize(14)
       .font('Helvetica-Bold')
@@ -331,7 +341,7 @@ export class DocumentsService {
         .text(institution.motto, textLeft, doc.y, { width: textWidth, align: 'center' })
         .fillColor('#000000');
     }
-    const afterHeader = Math.max(doc.y, headerTop + (logoAbs ? 54 : 0));
+    const afterHeader = Math.max(doc.y, headerTop + (logoDrawn ? logoSize + 4 : 0));
     doc.y = afterHeader;
     doc.x = left;
   }

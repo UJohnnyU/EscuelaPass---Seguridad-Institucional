@@ -234,7 +234,7 @@ export function WeekScheduleGrid({
                   <div className="mt-0.5 text-sm font-medium capitalize">{WEEKDAY_LONG[d.weekday]}</div>
                 )}
                 {d.isOff ? (
-                  <div className="mx-auto mt-1 inline-block max-w-full truncate rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                  <div className="mx-auto mt-1 inline-block max-w-full rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-900/70 dark:text-amber-100">
                     Sin clases{d.offReason ? ` · ${d.offReason}` : ''}
                   </div>
                 ) : null}
@@ -269,7 +269,7 @@ export function WeekScheduleGrid({
               <div
                 key={d.weekday}
                 className={`relative border-l border-slate-200 ${
-                  d.isOff ? 'bg-amber-50/40' : isTodayCol ? 'bg-brand-50/30' : 'bg-white'
+                  d.isOff ? 'bg-amber-50/40 dark:bg-amber-950/25' : isTodayCol ? 'bg-brand-50/30 dark:bg-brand-900/20' : 'bg-white'
                 }`}
               >
                 {hours.map((h, i) => (

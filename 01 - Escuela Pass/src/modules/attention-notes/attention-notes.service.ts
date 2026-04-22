@@ -50,7 +50,11 @@ export class AttentionNotesService {
   }
 
   async listByGroupForTeacher(userId: string, role: UserRole, groupId: string) {
-    if (role !== UserRole.ADMIN) {
+    if (role === UserRole.ADMIN) {
+      // sin restricción adicional
+    } else if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, groupId);
+    } else if (role === UserRole.DOCENTE) {
       const teacher = await this.teachersRepository.findOne({ where: { userId } });
       if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
 
@@ -63,6 +67,8 @@ export class AttentionNotesService {
       if (!ok[0]?.ok) {
         throw new ForbiddenException('No tienes asignación en este grupo');
       }
+    } else {
+      throw new ForbiddenException('No autorizado a listar anotaciones de este grupo');
     }
 
     return this.dataSource.query<
@@ -148,23 +154,29 @@ export class AttentionNotesService {
     );
   }
 
+  private async assertAdministrativeCanAccessGroup(userId: string, groupId: string): Promise<void> {
+    const rows = await this.dataSource.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM users admin_user
+         JOIN groups g ON g.id = $2
+         WHERE admin_user.id = $1
+           AND admin_user.role = 'ADMINISTRATIVO'
+           AND admin_user.school_id IS NOT NULL
+           AND admin_user.school_id = g.school_id
+      ) AS ok`,
+      [userId, groupId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No tienes permisos sobre este grupo');
+    }
+  }
+
   private async assertCanCreateForStudent(userId: string, role: UserRole, student: StudentEntity) {
     if (role === UserRole.ADMIN) return;
     if (role === UserRole.ADMINISTRATIVO) {
       if (!student.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
-      const rows = await this.dataSource.query<{ ok: boolean }[]>(
-        `SELECT EXISTS (
-           SELECT 1
-           FROM users admin_user
-           JOIN groups g ON g.id = $2
-           WHERE admin_user.id = $1
-             AND admin_user.role = 'ADMINISTRATIVO'
-             AND admin_user.school_id IS NOT NULL
-             AND admin_user.school_id = g.school_id
-        ) AS ok`,
-        [userId, student.groupId]
-      );
-      if (!rows[0]?.ok) throw new ForbiddenException('No autorizado para este estudiante');
+      await this.assertAdministrativeCanAccessGroup(userId, student.groupId);
       return;
     }
 

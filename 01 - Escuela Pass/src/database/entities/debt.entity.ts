@@ -3,7 +3,9 @@ import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateCol
 export enum PaymentStatus {
   PENDIENTE = 'PENDIENTE',
   PAGADO = 'PAGADO',
-  VENCIDO = 'VENCIDO'
+  VENCIDO = 'VENCIDO',
+  /** Comprobante revisado y no aceptado; el padre puede subir uno nuevo. */
+  COMPROBANTE_RECHAZADO = 'COMPROBANTE_RECHAZADO'
 }
 
 @Entity({ name: 'debts' })

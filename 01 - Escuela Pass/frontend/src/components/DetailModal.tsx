@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export function DetailModal({
   open,
@@ -32,7 +33,7 @@ export function DetailModal({
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  const modal = (
     <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center">
       <div
         className="relative w-full max-w-2xl animate-slide-up rounded-2xl bg-white shadow-2xl ring-1 ring-black/5"
@@ -80,4 +81,5 @@ export function DetailModal({
       </div>
     </div>
   );
+  return typeof document !== 'undefined' ? createPortal(modal, document.body) : modal;
 }

@@ -52,11 +52,13 @@ export type Debt = {
   conceptDescription?: string | null;
   amount: string;
   dueDate: string;
-  status: 'PENDIENTE' | 'PAGADO' | 'VENCIDO';
+  status: 'PENDIENTE' | 'PAGADO' | 'VENCIDO' | 'COMPROBANTE_RECHAZADO';
   description?: string | null;
   voucherPath?: string | null;
   uploadedAt?: string | null;
   verifiedAt?: string | null;
+  /** Motivo cuando el administrativo rechaza el comprobante */
+  notes?: string | null;
 };
 
 const fmtDate = (d: string | Date | null | undefined) => {
@@ -533,6 +535,9 @@ function statusStyle(status: Debt['status'], isOverdue: boolean) {
   if (status === 'PAGADO') {
     return { label: 'Pagado', cls: 'bg-emerald-100 text-emerald-800' };
   }
+  if (status === 'COMPROBANTE_RECHAZADO') {
+    return { label: 'Comprobante no aceptado', cls: 'bg-rose-100 text-rose-900' };
+  }
   if (status === 'VENCIDO' || isOverdue) {
     return { label: 'Vencido', cls: 'bg-red-100 text-red-800' };
   }
@@ -543,7 +548,11 @@ function DebtItem({ d, canUpload, onUpdated }: { d: Debt; canUpload: boolean; on
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(d.dueDate);
-  const isOverdue = !Number.isNaN(due.getTime()) && due < today && d.status !== 'PAGADO';
+  const isOverdue =
+    !Number.isNaN(due.getTime()) &&
+    due < today &&
+    d.status !== 'PAGADO' &&
+    d.status !== 'COMPROBANTE_RECHAZADO';
   const st = statusStyle(d.status, isOverdue);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -556,13 +565,24 @@ function DebtItem({ d, canUpload, onUpdated }: { d: Debt; canUpload: boolean; on
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await api.post<{ uploadedAt?: string; voucherPath?: string }>(
-        `/api/v1/payments/debts/${d.id}/voucher/file`,
-        fd
-      );
+      const res = await api.post<{
+        uploadedAt?: string;
+        voucherPath?: string | null;
+        status?: Debt['status'];
+        notes?: string | null;
+      }>(`/api/v1/payments/debts/${d.id}/voucher/file`, fd);
+      const body = res.data ?? {};
+      const uploadedAt =
+        typeof body.uploadedAt === 'string'
+          ? body.uploadedAt
+          : body.uploadedAt != null
+            ? new Date(body.uploadedAt as unknown as Date).toISOString()
+            : new Date().toISOString();
       onUpdated({
-        voucherPath: res.data?.voucherPath ?? d.voucherPath ?? `/uploads/comprobantes/${file.name}`,
-        uploadedAt: res.data?.uploadedAt ?? new Date().toISOString()
+        voucherPath: body.voucherPath ?? d.voucherPath ?? `/uploads/comprobantes/${file.name}`,
+        uploadedAt,
+        ...(body.status != null ? { status: body.status } : {}),
+        ...(body.notes !== undefined ? { notes: body.notes } : {})
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'No se pudo subir el comprobante.';
@@ -590,10 +610,20 @@ function DebtItem({ d, canUpload, onUpdated }: { d: Debt; canUpload: boolean; on
           </p>
           {d.voucherPath && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className={d.verifiedAt ? 'text-emerald-700' : 'text-amber-700'}>
-                {d.verifiedAt
-                  ? `Comprobante verificado${d.verifiedAt ? ` · ${fmtDate(d.verifiedAt)}` : ''}`
-                  : `Comprobante en revisión${d.uploadedAt ? ` · ${fmtDate(d.uploadedAt)}` : ''}`}
+              <span
+                className={
+                  d.status === 'COMPROBANTE_RECHAZADO'
+                    ? 'text-rose-800'
+                    : d.verifiedAt
+                      ? 'text-emerald-700'
+                      : 'text-amber-700'
+                }
+              >
+                {d.status === 'COMPROBANTE_RECHAZADO'
+                  ? `Comprobante no aceptado${d.uploadedAt ? ` · ${fmtDate(d.uploadedAt)}` : ''}`
+                  : d.verifiedAt
+                    ? `Comprobante verificado${d.verifiedAt ? ` · ${fmtDate(d.verifiedAt)}` : ''}`
+                    : `Comprobante en revisión${d.uploadedAt ? ` · ${fmtDate(d.uploadedAt)}` : ''}`}
               </span>
               {voucherUrl && (
                 <a
@@ -607,6 +637,12 @@ function DebtItem({ d, canUpload, onUpdated }: { d: Debt; canUpload: boolean; on
               )}
             </div>
           )}
+          {d.status === 'COMPROBANTE_RECHAZADO' && d.notes ? (
+            <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+              <span className="font-semibold">Motivo: </span>
+              {d.notes}
+            </p>
+          ) : null}
           {canUpload && d.status !== 'PAGADO' && (
             <div className="mt-3">
               <input
@@ -947,15 +983,7 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
     <div className="space-y-4">
       {children.map((ch) => {
         const recs = ch.records ?? [];
-        const summary = ch.summary ?? {
-          presente: recs.filter((r) => r.status === 'PRESENTE').length,
-          ausente: recs.filter((r) => r.status === 'AUSENTE').length,
-          retardo: recs.filter((r) => r.status === 'RETARDO').length,
-          total: recs.length
-        };
-        const lastFive = [...recs]
-          .sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate))
-          .slice(0, 5);
+        const recordsForDisplay = [...recs].sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate));
         return (
           <div key={ch.studentId} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -963,21 +991,10 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
                 <p className="font-medium text-slate-900">{ch.studentName ?? ch.fullName ?? 'Alumno'}</p>
                 {ch.matricula && <p className="text-xs text-slate-500">Matrícula: {ch.matricula}</p>}
               </div>
-              <div className="flex flex-wrap gap-2 text-[11px] font-medium">
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">
-                  Presente: {summary.presente ?? 0}
-                </span>
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">
-                  Retardo: {summary.retardo ?? 0}
-                </span>
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-800">
-                  Ausente: {summary.ausente ?? 0}
-                </span>
-              </div>
             </div>
-            {lastFive.length > 0 && (
+            {recordsForDisplay.length > 0 ? (
               <ul className="mt-3 divide-y divide-slate-100">
-                {lastFive.map((r, i) => (
+                {recordsForDisplay.map((r, i) => (
                   <li key={`${r.attendanceDate}-${i}`} className="flex items-center justify-between py-2 text-sm">
                     <span className="text-slate-700">{fmtDate(r.attendanceDate)}</span>
                     <span
@@ -995,6 +1012,8 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
                   </li>
                 ))}
               </ul>
+            ) : (
+              <p className="mt-3 text-sm text-slate-500">Sin asistencias registradas por el docente.</p>
             )}
           </div>
         );

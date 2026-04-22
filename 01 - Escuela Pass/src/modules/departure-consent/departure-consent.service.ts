@@ -15,6 +15,8 @@ import { UserEntity, UserRole } from '../../database/entities/user.entity';
 
 @Injectable()
 export class DepartureConsentService {
+  private static readonly OPEN_ENDED_DATE = '9999-12-31';
+
   constructor(
     @InjectRepository(StudentDepartureConsentEntity)
     private readonly consentRepository: Repository<StudentDepartureConsentEntity>,
@@ -138,26 +140,37 @@ export class DepartureConsentService {
 
     await this.consentRepository.manager.transaction(async (em) => {
       const repo = em.getRepository(StudentDepartureConsentEntity);
-      await repo
-        .createQueryBuilder()
-        .delete()
-        .where('student_id = :sid', { sid: studentId })
-        .andWhere('parent_id = :pid', { pid: parent.id })
-        .andWhere('consent_type = :ct', { ct: ConsentType.SALIDA_SOLO })
-        .andWhere('valid_from = :d AND valid_until = :d', { d })
-        .execute();
 
       if (active) {
+        // Garantiza un único consentimiento vigente "hasta desmarcar".
+        await repo
+          .createQueryBuilder()
+          .delete()
+          .where('student_id = :sid', { sid: studentId })
+          .andWhere('parent_id = :pid', { pid: parent.id })
+          .andWhere('consent_type = :ct', { ct: ConsentType.SALIDA_SOLO })
+          .execute();
+
         await repo.save(
           repo.create({
             studentId,
             parentId: parent.id,
             consentType: ConsentType.SALIDA_SOLO,
             validFrom: d,
-            validUntil: d
+            validUntil: DepartureConsentService.OPEN_ENDED_DATE
           })
         );
         await this.cancelOpenCircuitsForStudentOnDate(em, studentId, d);
+      } else {
+        // Al desmarcar, elimina consentimientos vigentes desde hoy en adelante.
+        await repo
+          .createQueryBuilder()
+          .delete()
+          .where('student_id = :sid', { sid: studentId })
+          .andWhere('parent_id = :pid', { pid: parent.id })
+          .andWhere('consent_type = :ct', { ct: ConsentType.SALIDA_SOLO })
+          .andWhere('valid_until >= :d', { d })
+          .execute();
       }
     });
 

@@ -276,6 +276,44 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
       `CREATE INDEX IF NOT EXISTS ix_meeting_participants_user ON meeting_participants (user_id)`
     );
 
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS admin_reports (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        created_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        assigned_admin_user_id uuid NULL REFERENCES users(id) ON DELETE SET NULL,
+        type varchar(16) NOT NULL DEFAULT 'OTRO',
+        subject varchar(160) NOT NULL,
+        message text NOT NULL,
+        status varchar(16) NOT NULL DEFAULT 'PENDIENTE',
+        resolved_by_user_id uuid NULL REFERENCES users(id) ON DELETE SET NULL,
+        resolved_at timestamptz NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT ck_admin_reports_type CHECK (type IN ('ERROR','SUGERENCIA','PETICION','OTRO')),
+        CONSTRAINT ck_admin_reports_status CHECK (status IN ('PENDIENTE','EN_PROCESO','RESUELTO'))
+      )
+    `);
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_admin_reports_school_status ON admin_reports (school_id, status)`
+    );
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_admin_reports_created_by ON admin_reports (created_by_user_id)`
+    );
+
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS admin_report_comments (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        report_id uuid NOT NULL REFERENCES admin_reports(id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        message text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_admin_report_comments_report ON admin_report_comments (report_id, created_at)`
+    );
+
     await runner.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(500) NULL`);
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500) NULL`);
 

@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as express from 'express';
+import { join } from 'path';
 import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
 import { ensureRuntimeSchema } from './database/ensure-runtime-schema';
@@ -26,7 +27,24 @@ async function bootstrap() {
     logger.error('No se pudo garantizar el esquema en tiempo de arranque', err as Error);
   }
 
-  app.use('/uploads', express.static(uploadsRoot));
+  // Sirve uploads desde el storage principal y, si no existe allí, intenta
+  // en la ruta legacy ./uploads para evitar imágenes rotas tras migraciones.
+  app.use(
+    '/uploads',
+    express.static(uploadsRoot, {
+      fallthrough: true,
+      index: false,
+      maxAge: '7d'
+    })
+  );
+  app.use(
+    '/uploads',
+    express.static(join(process.cwd(), 'uploads'), {
+      fallthrough: true,
+      index: false,
+      maxAge: '7d'
+    })
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({
