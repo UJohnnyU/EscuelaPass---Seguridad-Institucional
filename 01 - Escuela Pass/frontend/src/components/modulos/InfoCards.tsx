@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
 import { DetailModal } from '@/components/DetailModal';
+import { emitNotificationRead } from '@/lib/notifications-sync';
 
 function todayISODateLocal(): string {
   const n = new Date();
@@ -192,6 +193,7 @@ export function NotificationsList({
     try {
       await api.patch(`/api/v1/notifications/${id}/read`, {});
       setReadMap((prev) => ({ ...prev, [id]: new Date().toISOString() }));
+      emitNotificationRead(id);
     } catch {
       /* silenciar; el usuario verá que sigue sin leer */
     } finally {

@@ -24,6 +24,7 @@ import { ReportCardEntity } from '../database/entities/report-card.entity';
 import { ReportCardSubjectEntity } from '../database/entities/report-card-subject.entity';
 import { SubjectEntity } from '../database/entities/subject.entity';
 import { TeacherGroupEntity } from '../database/entities/teacher-group.entity';
+import { TeacherSubjectEntity } from '../database/entities/teacher-subject.entity';
 import { PaymentConceptEntity } from '../database/entities/payment-concept.entity';
 import { PaymentRecordEntity } from '../database/entities/payment-record.entity';
 import { ParentEntity } from '../database/entities/parent.entity';
@@ -85,6 +86,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       ReportCardSubjectEntity,
       SubjectEntity,
       TeacherGroupEntity,
+      TeacherSubjectEntity,
       ImportJobEntity,
       PickupRequestEntity,
       ExternalVisitEntity,

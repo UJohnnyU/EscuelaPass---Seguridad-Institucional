@@ -123,10 +123,15 @@ export function CircuitTodayPage() {
 
   useEffect(() => {
     if (!allowed) return;
+    if (isAdmin && !selectedSchoolId) return;
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await api.get<{ enabled: boolean }>('/api/v1/settings/circuit');
+        const params: Record<string, string> = {};
+        if (isAdmin && selectedSchoolId) {
+          params.schoolId = selectedSchoolId;
+        }
+        const { data } = await api.get<{ enabled: boolean }>('/api/v1/settings/circuit', { params });
         if (!cancelled) setCircuitEnabled(Boolean(data?.enabled));
       } catch {
         if (!cancelled) setCircuitEnabled(true);
@@ -135,7 +140,7 @@ export function CircuitTodayPage() {
     return () => {
       cancelled = true;
     };
-  }, [allowed]);
+  }, [allowed, isAdmin, selectedSchoolId]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -158,10 +163,19 @@ export function CircuitTodayPage() {
 
   async function toggleCircuit(next: boolean) {
     if (!canManageCircuit) return;
+    if (isAdmin && !selectedSchoolId) return;
     setSavingCircuit(true);
     setError(null);
     try {
-      const { data } = await api.patch<{ enabled: boolean }>('/api/v1/settings/circuit', { enabled: next });
+      const params: Record<string, string> = {};
+      if (isAdmin && selectedSchoolId) {
+        params.schoolId = selectedSchoolId;
+      }
+      const { data } = await api.patch<{ enabled: boolean }>(
+        '/api/v1/settings/circuit',
+        { enabled: next },
+        { params }
+      );
       setCircuitEnabled(Boolean(data?.enabled));
     } catch (e) {
       setError(getUserFacingMessage(e, 'No se pudo actualizar el estado del circuito.'));
@@ -182,7 +196,7 @@ export function CircuitTodayPage() {
   }
 
   if (loading && !(isAdmin && !selectedSchoolId)) {
-    return <p className="text-slate-600">Cargando solicitudes del día…</p>;
+    return <p className="text-slate-600 dark:text-slate-300">Cargando solicitudes del día…</p>;
   }
 
   const onAdminSchoolChange = (schoolId: string) => {
@@ -191,8 +205,8 @@ export function CircuitTodayPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="text-2xl font-bold text-slate-900">Recogidas de hoy</h1>
-      <p className="mt-1 text-slate-600">
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Recogidas de hoy</h1>
+      <p className="mt-1 text-slate-600 dark:text-slate-300">
         Solicitudes de recogida del día. Abra una para enviar avisos a la familia y avanzar su estado.
       </p>
       {error && (
@@ -201,8 +215,8 @@ export function CircuitTodayPage() {
         </div>
       )}
       {isAdmin && (
-        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <label className="flex min-w-[14rem] flex-col gap-1 text-sm text-slate-700">
+        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <label className="flex min-w-[14rem] flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
             Institución
             <div className="mt-0.5">
               <SmartSelect
@@ -223,7 +237,7 @@ export function CircuitTodayPage() {
               aria-hidden="true"
             />
           </label>
-          <p className="max-w-md text-xs text-slate-500">
+          <p className="max-w-md text-xs text-slate-500 dark:text-slate-400">
             El listado se filtra por la escuela elegida. Docentes y administrativos de plantel solo ven su
             institución.
           </p>
@@ -234,8 +248,8 @@ export function CircuitTodayPage() {
           {schoolsLoadError}
         </div>
       )}
-      <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-        <label className="min-w-[12rem] flex-1 text-sm text-slate-700">
+      <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+        <label className="min-w-[12rem] flex-1 text-sm text-slate-700 dark:text-slate-200">
           Buscar (nombre o matrícula)
           <input
             type="search"
@@ -249,7 +263,7 @@ export function CircuitTodayPage() {
               }
             }}
             placeholder="Ej. García o matrícula"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
         </label>
         <button
@@ -258,7 +272,7 @@ export function CircuitTodayPage() {
             setSearchApplied(searchInput.trim());
             void loadToday({ silent: true });
           }}
-          className="rounded border border-slate-300 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          className="rounded border border-slate-300 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
         >
           Filtrar
         </button>
@@ -268,15 +282,15 @@ export function CircuitTodayPage() {
           type="button"
           onClick={() => void loadToday({ silent: true })}
           disabled={refreshing}
-          className="rounded border border-slate-300 px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+          className="rounded border border-slate-300 px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
         >
           {refreshing ? 'Actualizando…' : 'Actualizar listado'}
         </button>
-        <span className="text-slate-500">Última actualización: {lastUpdatedLabel}</span>
+        <span className="text-slate-500 dark:text-slate-400">Última actualización: {lastUpdatedLabel}</span>
       </div>
       {canManageCircuit && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <p className="text-sm text-slate-700">
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-sm text-slate-700 dark:text-slate-200">
             Estado del circuito:{' '}
             <span className={circuitEnabled ? 'font-semibold text-emerald-700' : 'font-semibold text-red-700'}>
               {circuitEnabled ? 'ACTIVO' : 'INACTIVO'}
@@ -284,9 +298,9 @@ export function CircuitTodayPage() {
           </p>
           <button
             type="button"
-            disabled={savingCircuit}
+            disabled={savingCircuit || (isAdmin && !selectedSchoolId)}
             onClick={() => void toggleCircuit(!circuitEnabled)}
-            className="rounded bg-brand-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+            className="rounded bg-brand-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 disabled:opacity-60"
           >
             {circuitEnabled ? 'Desactivar circuito' : 'Activar circuito'}
           </button>
@@ -298,7 +312,7 @@ export function CircuitTodayPage() {
           Elija una institución para ver el circuito de hoy.
         </p>
       ) : rows.length === 0 ? (
-        <p className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-600">
+        <p className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
           No hay solicitudes registradas para hoy.
         </p>
       ) : (
@@ -307,13 +321,13 @@ export function CircuitTodayPage() {
             <li key={r.id}>
               <Link
                 to={`/app/circuito/${r.id}`}
-                className="flex flex-col gap-1 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-brand-200 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-1 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-brand-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-500/50 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-slate-900 dark:text-slate-100">
                     {CIRCUIT_STATUS_LABEL[r.status] ?? r.status}
                   </p>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     {PICKUP_METHOD_LABEL[r.pickupMethod] ?? r.pickupMethod} ·{' '}
                     {new Date(r.requestTime).toLocaleString('es')}
                   </p>

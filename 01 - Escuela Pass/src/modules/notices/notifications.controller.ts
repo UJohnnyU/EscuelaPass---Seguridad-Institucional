@@ -42,7 +42,8 @@ export class NotificationsController {
     @Query('type') type: string | undefined,
     @Query('status') status: string | undefined,
     @Query('q') q: string | undefined,
-    @Query('unreadOnly') unreadOnly: string | undefined
+    @Query('unreadOnly') unreadOnly: string | undefined,
+    @Query('schoolId') schoolId: string | undefined
   ) {
     const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
     const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '20', 10) || 20));
@@ -52,7 +53,8 @@ export class NotificationsController {
       type: type?.trim() || undefined,
       status: status?.trim() || undefined,
       q: q?.trim() || undefined,
-      unreadOnly: unreadOnly === 'true'
+      unreadOnly: unreadOnly === 'true',
+      schoolId: schoolId?.trim() || undefined
     });
   }
 

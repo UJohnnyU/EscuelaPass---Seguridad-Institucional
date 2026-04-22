@@ -14,8 +14,9 @@ export class CreateStudentDto {
   fullName!: string;
 
   @IsString()
+  @IsOptional()
   @MaxLength(50)
-  matricula!: string;
+  matricula?: string;
 
   @IsUUID()
   @IsOptional()

@@ -58,7 +58,7 @@ export class MeetingsService {
     private readonly notifier: EventNotificationsService
   ) {}
 
-  async create(dto: CreateMeetingDto, userId: string, role: UserRole): Promise<MeetingRow> {
+  async create(dto: CreateMeetingDto, userId: string, role: UserRole, schoolIdParam?: string): Promise<MeetingRow> {
     if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO && role !== UserRole.DOCENTE) {
       throw new ForbiddenException('Solo staff puede crear reuniones');
     }
@@ -69,7 +69,19 @@ export class MeetingsService {
       throw new BadRequestException('Organizador sin instituci?n asignada');
     }
 
-    const schoolId = organizer.schoolId;
+    let schoolId = organizer.schoolId;
+    if (role === UserRole.ADMIN && schoolIdParam?.trim()) {
+      const sid = schoolIdParam.trim();
+      const schoolRows = await this.dataSource.query<{ id: string }[]>(
+        `SELECT id FROM schools WHERE id = $1 LIMIT 1`,
+        [sid]
+      );
+      if (!schoolRows[0]?.id) {
+        throw new BadRequestException('Institución no encontrada');
+      }
+      schoolId = sid;
+    }
+    if (!schoolId) throw new BadRequestException('Debe indicar una institución válida');
     const invitees = dto.invitees ?? [];
 
     if (role === UserRole.DOCENTE) {
@@ -158,9 +170,10 @@ export class MeetingsService {
     return this.hydrate(meetings);
   }
 
-  async listForStaff(user: { userId: string; role: UserRole }): Promise<MeetingRow[]> {
+  async listForStaff(user: { userId: string; role: UserRole }, schoolIdParam?: string): Promise<MeetingRow[]> {
     if (user.role === UserRole.ADMIN) {
-      const rows = await this.meetingsRepository.find({ order: { startAt: 'DESC' } });
+      const where = schoolIdParam?.trim() ? { schoolId: schoolIdParam.trim() } : undefined;
+      const rows = await this.meetingsRepository.find({ where, order: { startAt: 'DESC' } });
       return this.hydrate(rows);
     }
     const userRow = await this.usersRepository.findOne({ where: { id: user.userId } });

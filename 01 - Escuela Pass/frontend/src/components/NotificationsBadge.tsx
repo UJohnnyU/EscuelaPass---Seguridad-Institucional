@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import {
+  NOTIFICATION_READ_EVENT,
+  NOTIFICATIONS_READ_ALL_EVENT,
+  emitNotificationRead,
+  emitNotificationsReadAll
+} from '@/lib/notifications-sync';
 
 type UnknownObj = Record<string, unknown>;
 type NotifRow = {
@@ -30,6 +36,7 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
   const [items, setItems] = useState<NotifRow[]>([]);
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
   const [muted, setMuted] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(MUTE_KEY) === '1';
@@ -155,10 +162,53 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
       setItems((prev) =>
         prev.map((n) => (n.id === id ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n))
       );
+      emitNotificationRead(id);
     } finally {
       setBusyId(null);
     }
   }
+
+  async function markAllRead() {
+    if (markingAll || unreadItems.length === 0) return;
+    setMarkingAll(true);
+    const nowIso = new Date().toISOString();
+    const ids = unreadItems.map((n) => n.id);
+    setItems((prev) => prev.map((n) => (!n.readAt ? { ...n, readAt: nowIso } : n)));
+    try {
+      await Promise.allSettled(ids.map((id) => api.patch(`/api/v1/notifications/${id}/read`, {})));
+      emitNotificationsReadAll(ids);
+    } finally {
+      setMarkingAll(false);
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onRead = (event: Event) => {
+      const e = event as CustomEvent<{ notificationId?: string }>;
+      const notificationId = e.detail?.notificationId;
+      if (!notificationId) return;
+      setItems((prev) =>
+        prev.map((n) =>
+          n.id === notificationId ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n
+        )
+      );
+    };
+    const onReadAll = (event: Event) => {
+      const e = event as CustomEvent<{ notificationIds?: string[] }>;
+      const ids = e.detail?.notificationIds ?? [];
+      if (ids.length === 0) return;
+      const idSet = new Set(ids);
+      const nowIso = new Date().toISOString();
+      setItems((prev) => prev.map((n) => (idSet.has(n.id) ? { ...n, readAt: n.readAt ?? nowIso } : n)));
+    };
+    window.addEventListener(NOTIFICATION_READ_EVENT, onRead as EventListener);
+    window.addEventListener(NOTIFICATIONS_READ_ALL_EVENT, onReadAll as EventListener);
+    return () => {
+      window.removeEventListener(NOTIFICATION_READ_EVENT, onRead as EventListener);
+      window.removeEventListener(NOTIFICATIONS_READ_ALL_EVENT, onReadAll as EventListener);
+    };
+  }, []);
 
   return (
     <div ref={rootRef} className="relative">
@@ -188,17 +238,29 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
       >
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Notificaciones</p>
-          <button
-            type="button"
-            onClick={() => setMuted((v) => !v)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${
-              muted
-                ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-            }`}
-          >
-            {muted ? 'Activar sonido' : 'Silenciar'}
-          </button>
+          <div className="flex items-center gap-2">
+            {unreadItems.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => void markAllRead()}
+                disabled={markingAll}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:border-slate-400 disabled:opacity-60"
+              >
+                {markingAll ? 'Marcando…' : 'Marcar todas vistas'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setMuted((v) => !v)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                muted
+                  ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+              }`}
+            >
+              {muted ? 'Activar sonido' : 'Silenciar'}
+            </button>
+          </div>
         </div>
         {unreadItems.length === 0 ? (
           <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm text-slate-600">

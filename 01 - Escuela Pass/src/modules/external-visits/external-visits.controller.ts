@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards
 } from '@nestjs/common';
@@ -29,14 +30,18 @@ export class ExternalVisitsController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  create(@Body() dto: CreateExternalVisitDto, @Req() req: Request & { user: JwtUser }) {
-    return this.visitsService.create(dto, req.user.userId, req.user.role);
+  create(
+    @Body() dto: CreateExternalVisitDto,
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.visitsService.create(dto, req.user.userId, req.user.role, schoolId);
   }
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  list(@Req() req: Request & { user: JwtUser }) {
-    return this.visitsService.list({ userId: req.user.userId, role: req.user.role });
+  list(@Req() req: Request & { user: JwtUser }, @Query('schoolId') schoolId?: string) {
+    return this.visitsService.list({ userId: req.user.userId, role: req.user.role }, schoolId);
   }
 
   @Get('me')

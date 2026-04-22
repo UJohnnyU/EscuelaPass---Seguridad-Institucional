@@ -6,6 +6,25 @@ export class CreateSubjectDto {
   name!: string;
 
   @IsString()
+  @MaxLength(30)
+  code!: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  educationLevel?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  gradeScope?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  area?: string;
+
+  @IsString()
   @IsOptional()
   description?: string;
 

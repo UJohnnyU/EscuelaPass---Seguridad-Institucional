@@ -16,8 +16,12 @@ export class NoticesController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  create(@Body() dto: CreateNoticeDto, @Req() req: Request & { user: JwtUser }) {
-    return this.noticesService.create(dto, req.user.userId, req.user.role);
+  create(
+    @Body() dto: CreateNoticeDto,
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.noticesService.create(dto, req.user.userId, req.user.role, schoolId);
   }
 
   @Get('teacher/groups')
@@ -37,10 +41,11 @@ export class NoticesController {
   list(
     @Query('page') page: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('schoolId') schoolId: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
     const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
     const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '20', 10) || 20));
-    return this.noticesService.list(p, l, req.user.userId, req.user.role);
+    return this.noticesService.list(p, l, req.user.userId, req.user.role, schoolId?.trim() || undefined);
   }
 }

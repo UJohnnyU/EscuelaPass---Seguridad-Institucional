@@ -45,13 +45,24 @@ export class SettingsController {
 
   @Get('circuit')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE, UserRole.ALUMNO)
-  getCircuit() {
-    return this.settingsService.getCircuitSetting();
+  getCircuit(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId: string | undefined
+  ) {
+    return this.settingsService.getCircuitSetting({ role: req.user.role, schoolId: req.user.schoolId }, schoolId);
   }
 
   @Patch('circuit')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  updateCircuit(@Body() dto: UpdateCircuitSettingDto) {
-    return this.settingsService.setCircuitEnabled(dto.enabled);
+  updateCircuit(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId: string | undefined,
+    @Body() dto: UpdateCircuitSettingDto
+  ) {
+    return this.settingsService.setCircuitEnabled(
+      { role: req.user.role, schoolId: req.user.schoolId },
+      dto.enabled,
+      schoolId
+    );
   }
 }

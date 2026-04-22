@@ -52,19 +52,28 @@ export class ReportsService {
     };
   }
 
-  async paymentsPending() {
-    const totalPending = await this.debtsRepository.count({ where: { status: PaymentStatus.PENDIENTE } });
-    const pendingWithVoucher = await this.debtsRepository
+  async paymentsPending(schoolId?: string) {
+    const sid = schoolId?.trim();
+    const pendingQb = this.debtsRepository
+      .createQueryBuilder('d')
+      .where('d.status = :st', { st: PaymentStatus.PENDIENTE });
+    if (sid) pendingQb.innerJoin('students', 's', 's.id = d.student_id AND s.school_id = :sid', { sid });
+    const totalPending = await pendingQb.getCount();
+    const voucherQb = this.debtsRepository
       .createQueryBuilder('d')
       .where('d.status = :st', { st: PaymentStatus.PENDIENTE })
-      .andWhere('d.voucher_path IS NOT NULL')
-      .getCount();
+      .andWhere('d.voucher_path IS NOT NULL');
+    if (sid) voucherQb.innerJoin('students', 's', 's.id = d.student_id AND s.school_id = :sid', { sid });
+    const pendingWithVoucher = await voucherQb.getCount();
 
-    const latest = await this.debtsRepository.find({
-      where: { status: PaymentStatus.PENDIENTE },
-      order: { uploadedAt: 'DESC', dueDate: 'ASC' },
-      take: 20
-    });
+    const latestQb = this.debtsRepository
+      .createQueryBuilder('d')
+      .where('d.status = :st', { st: PaymentStatus.PENDIENTE })
+      .orderBy('d.uploaded_at', 'DESC')
+      .addOrderBy('d.due_date', 'ASC')
+      .limit(20);
+    if (sid) latestQb.innerJoin('students', 's', 's.id = d.student_id AND s.school_id = :sid', { sid });
+    const latest = await latestQb.getMany();
 
     return {
       totalPending,
@@ -73,13 +82,15 @@ export class ReportsService {
     };
   }
 
-  async circuitToday(status: CircuitStatus | undefined, dateStr?: string) {
+  async circuitToday(status: CircuitStatus | undefined, dateStr?: string, schoolId?: string) {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const sid = schoolId?.trim();
 
     const qb = this.circuitRepository
       .createQueryBuilder('cr')
       .where('DATE(cr.request_time) = :today', { today: date })
       .orderBy('cr.request_time', 'DESC');
+    if (sid) qb.innerJoin('students', 's', 's.id = cr.student_id AND s.school_id = :sid', { sid });
 
     if (status) qb.andWhere('cr.status = :st', { st: status });
 

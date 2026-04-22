@@ -43,6 +43,8 @@ type ReportCardDetail = ReportCardSummary & {
     isPassing: boolean;
   }[];
 };
+type SchoolOption = { id: string; name: string };
+const STORAGE_BULLETINS_SCHOOL = 'ep:bulletins:schoolId';
 
 async function downloadPdfBlob(url: string, filename: string): Promise<void> {
   const res = await api.get<Blob>(url, { responseType: 'blob' });
@@ -66,6 +68,11 @@ export function BoletinesPage() {
   const isStaff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
 
   const [rows, setRows] = useState<ReportCardSummary[]>([]);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return sessionStorage.getItem(STORAGE_BULLETINS_SCHOOL) ?? '';
+  });
   const [selected, setSelected] = useState<ReportCardDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -87,6 +94,36 @@ export function BoletinesPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!platformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolOption[]>('/api/v1/schools');
+        const rows = Array.isArray(data) ? data : [];
+        if (!cancelled) {
+          setSchools(rows);
+          if (rows.length > 0) {
+            setSelectedSchoolId((prev) =>
+              prev && rows.some((s) => s.id === prev) ? prev : rows[0].id
+            );
+          }
+        }
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin]);
+
+  useEffect(() => {
+    if (!platformAdmin || typeof window === 'undefined') return;
+    if (!selectedSchoolId) return;
+    sessionStorage.setItem(STORAGE_BULLETINS_SCHOOL, selectedSchoolId);
+  }, [platformAdmin, selectedSchoolId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
@@ -94,7 +131,9 @@ export function BoletinesPage() {
       let endpoint = '/api/v1/report-cards';
       if (isStudent) endpoint = '/api/v1/report-cards/student/me';
       else if (isParent) endpoint = '/api/v1/report-cards/parent/my-children';
-      const { data } = await api.get<ReportCardSummary[]>(endpoint);
+      const params: Record<string, string> = {};
+      if (platformAdmin && selectedSchoolId) params.schoolId = selectedSchoolId;
+      const { data } = await api.get<ReportCardSummary[]>(endpoint, { params });
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setErr(getUserFacingMessage(e));
@@ -102,7 +141,7 @@ export function BoletinesPage() {
     } finally {
       setLoading(false);
     }
-  }, [isParent, isStudent]);
+  }, [isParent, isStudent, platformAdmin, selectedSchoolId]);
 
   useEffect(() => {
     void load();
@@ -161,7 +200,26 @@ export function BoletinesPage() {
 
       {err && <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>}
 
-      {isStaff && <BulkDownloadPanel rows={rows} onError={setErr} />}
+      {platformAdmin && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-700">Institución</span>
+            <select
+              className="w-full rounded border border-slate-300 px-3 py-2"
+              value={selectedSchoolId}
+              onChange={(e) => setSelectedSchoolId(e.target.value)}
+            >
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+      )}
+
+      {isStaff && <BulkDownloadPanel rows={rows} onError={setErr} schoolId={platformAdmin ? selectedSchoolId : ''} />}
 
       <div className="flex justify-end">
         <button
@@ -444,10 +502,12 @@ function PromotionBadge({ status }: { status: PromotionStatus }) {
 
 function BulkDownloadPanel({
   rows,
-  onError
+  onError,
+  schoolId
 }: {
   rows: ReportCardSummary[];
   onError: (msg: string | null) => void;
+  schoolId?: string;
 }) {
   const [scope, setScope] = useState<'STUDENT' | 'GROUP' | 'ALL'>('ALL');
   const [schoolYear, setSchoolYear] = useState<string>('');
@@ -561,6 +621,7 @@ function BulkDownloadPanel({
     try {
       const params: Record<string, string> = {};
       if (schoolYear) params.schoolYear = schoolYear;
+      if (schoolId) params.schoolId = schoolId;
       if (periodId) params.periodId = periodId;
       if (type) params.type = type;
       if (scope === 'STUDENT') {

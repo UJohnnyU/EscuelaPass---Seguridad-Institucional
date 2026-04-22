@@ -14,6 +14,10 @@ export class SchoolEntity {
   @Column({ type: 'boolean', default: true })
   status!: boolean;
 
+  /** Estado del circuito por institución (independiente de otras escuelas). */
+  @Column({ name: 'circuit_enabled', type: 'boolean', default: true })
+  circuitEnabled!: boolean;
+
   @Column({ type: 'varchar', length: 500, nullable: true })
   address!: string | null;
 
@@ -34,6 +38,9 @@ export class SchoolEntity {
 
   @Column({ name: 'director_name', type: 'varchar', length: 200, nullable: true })
   directorName!: string | null;
+
+  @Column({ name: 'student_matricula_prefix', type: 'varchar', length: 20, nullable: true })
+  studentMatriculaPrefix!: string | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   motto!: string | null;

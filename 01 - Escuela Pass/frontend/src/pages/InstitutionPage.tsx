@@ -4,6 +4,7 @@ import { InstitutionMap } from '@/components/InstitutionMap';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
+import { uploadSchoolLogo } from '@/lib/uploads-api';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
 
@@ -15,6 +16,7 @@ type Profile = {
   email?: string;
   directorName?: string;
   motto?: string;
+  studentMatriculaPrefix?: string;
   maxGradeScale?: string;
   logoUrl?: string | null;
   latitude?: string | null;
@@ -23,15 +25,37 @@ type Profile = {
 
 type SchoolRow = { id: string; name: string; code: string };
 
+function normalizeProfileForCompare(p: Profile): Record<string, string> {
+  const keys: Array<keyof Profile> = [
+    'name',
+    'address',
+    'city',
+    'phone',
+    'email',
+    'directorName',
+    'motto',
+    'studentMatriculaPrefix',
+    'maxGradeScale',
+    'latitude',
+    'longitude'
+  ];
+  const out: Record<string, string> = {};
+  for (const k of keys) out[k] = String(p[k] ?? '').trim();
+  return out;
+}
+
 export function InstitutionPage() {
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
   const canEdit = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
+  const canEditLocationAndLogo = user?.role === 'ADMIN';
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState('');
   const [schoolsReady, setSchoolsReady] = useState(!platformAdmin);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<Profile>({ name: '' });
+  const [isEditing, setIsEditing] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -85,6 +109,7 @@ export function InstitutionPage() {
         if (!cancelled) {
           setProfile(data);
           setForm(data);
+          setIsEditing(false);
         }
       } catch (e) {
         if (!cancelled) setError(getUserFacingMessage(e, 'No se pudo cargar el perfil institucional.'));
@@ -99,7 +124,7 @@ export function InstitutionPage() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (!canEdit) return;
+    if (!canEdit || !isEditing) return;
     if (platformAdmin && !selectedSchoolId) {
       setError('Seleccione una escuela para guardar.');
       return;
@@ -108,9 +133,15 @@ export function InstitutionPage() {
     setMessage(null);
     setError(null);
     try {
-      const payload: Omit<Profile, 'maxGradeScale'> & { maxGradeScale?: number } = {
+      const payload: Omit<Profile, 'maxGradeScale' | 'latitude' | 'longitude'> & {
+        maxGradeScale?: number;
+        latitude?: number;
+        longitude?: number;
+      } = {
         ...form,
-        maxGradeScale: undefined
+        maxGradeScale: undefined,
+        latitude: undefined,
+        longitude: undefined
       };
       if (form.maxGradeScale !== undefined) {
         const n = Number(String(form.maxGradeScale).replace(',', '.'));
@@ -126,16 +157,54 @@ export function InstitutionPage() {
         }
         payload.maxGradeScale = Math.round(n * 100) / 100;
       }
+      if (canEditLocationAndLogo) {
+        if (form.latitude !== undefined && String(form.latitude).trim() !== '') {
+          const lat = Number(String(form.latitude).replace(',', '.'));
+          if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+            setError('La latitud debe estar entre -90 y 90.');
+            setSaving(false);
+            return;
+          }
+          (payload as Record<string, unknown>).latitude = lat;
+        }
+        if (form.longitude !== undefined && String(form.longitude).trim() !== '') {
+          const lng = Number(String(form.longitude).replace(',', '.'));
+          if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+            setError('La longitud debe estar entre -180 y 180.');
+            setSaving(false);
+            return;
+          }
+          (payload as Record<string, unknown>).longitude = lng;
+        }
+      }
       const params =
         user?.role === 'ADMIN' && selectedSchoolId ? { schoolId: selectedSchoolId } : undefined;
       const { data } = await api.patch<Profile>('/api/v1/settings/institution', payload, { params });
       setProfile(data);
       setForm(data);
+      setIsEditing(false);
       setMessage('Cambios guardados correctamente.');
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudieron guardar los cambios.'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onLogoPick(file: File) {
+    if (!canEditLocationAndLogo || !selectedSchoolId) return;
+    setUploadingLogo(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await uploadSchoolLogo(selectedSchoolId, file);
+      setProfile((p) => (p ? { ...p, logoUrl: res.logoUrl } : p));
+      setForm((f) => ({ ...f, logoUrl: res.logoUrl }));
+      setMessage('Logo actualizado correctamente.');
+    } catch (e) {
+      setError(getUserFacingMessage(e, 'No se pudo actualizar el logo.'));
+    } finally {
+      setUploadingLogo(false);
     }
   }
 
@@ -163,6 +232,9 @@ export function InstitutionPage() {
     );
   }
 
+  const hasUnsavedChanges =
+    !!profile &&
+    JSON.stringify(normalizeProfileForCompare(form)) !== JSON.stringify(normalizeProfileForCompare(profile));
   const logoSrc = profile?.logoUrl ? publicAssetUrl(profile.logoUrl) : null;
 
   return (
@@ -224,7 +296,46 @@ export function InstitutionPage() {
 
 
       {canEdit && profile ? (
-        <form className="mt-8 space-y-4" onSubmit={onSave}>
+        <form className="mt-8 space-y-4 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm" onSubmit={onSave}>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Datos institucionales</h2>
+              <p className="text-xs text-slate-500">
+                {isEditing
+                  ? 'Modo edición activo. Revise los cambios antes de guardar.'
+                  : 'Vista protegida. Presione "Editar datos" para habilitar cambios.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {!isEditing ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm(profile);
+                    setIsEditing(true);
+                    setMessage(null);
+                    setError(null);
+                  }}
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Editar datos
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm(profile);
+                    setIsEditing(false);
+                    setMessage('Edición cancelada. Se conservaron los datos actuales.');
+                    setError(null);
+                  }}
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </div>
           {[
             ['name', 'Nombre de la escuela', 'text'],
             ['address', 'Dirección', 'text'],
@@ -232,7 +343,8 @@ export function InstitutionPage() {
             ['phone', 'Teléfono', 'text'],
             ['email', 'Correo de contacto', 'email'],
             ['directorName', 'Director/a', 'text'],
-            ['motto', 'Lema o mensaje', 'text']
+            ['motto', 'Lema o mensaje', 'text'],
+            ['studentMatriculaPrefix', 'Prefijo de matrícula de alumnos', 'text']
           ].map(([key, label, type]) => (
             <div key={key}>
               <label className="block text-sm font-medium text-slate-700" htmlFor={key}>
@@ -243,8 +355,16 @@ export function InstitutionPage() {
                 type={type}
                 value={(form as Record<string, string | undefined>)[key] ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                disabled={!isEditing}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
               />
+              {key === 'studentMatriculaPrefix' ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Solo letras y números. Se generan matrículas como{' '}
+                  <strong>{(form.studentMatriculaPrefix || 'ABC').toUpperCase()}-0001</strong>. Si se deja vacío, se usa
+                  el código de la escuela.
+                </p>
+              ) : null}
             </div>
           ))}
           <div>
@@ -257,6 +377,7 @@ export function InstitutionPage() {
               inputMode="decimal"
               value={form.maxGradeScale ?? '100.00'}
               onChange={(e) => setForm((f) => ({ ...f, maxGradeScale: e.target.value }))}
+              disabled={!isEditing}
               className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
               placeholder="100.00"
             />
@@ -265,6 +386,65 @@ export function InstitutionPage() {
               califica sobre 100.
             </p>
           </div>
+          {canEditLocationAndLogo && (
+            <>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Ubicación institucional</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Coordenadas utilizadas en mapa y documentos oficiales.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm">
+                    <span className="text-slate-700">Latitud</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={form.latitude ?? ''}
+                      disabled={!isEditing}
+                      onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
+                      placeholder="18.48610000"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="text-slate-700">Longitud</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={form.longitude ?? ''}
+                      disabled={!isEditing}
+                      onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
+                      placeholder="-69.93120000"
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Logo institucional</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Imagen oficial para portada, informes y documentos.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <label className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    {uploadingLogo ? 'Subiendo logo…' : 'Subir nuevo logo'}
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={uploadingLogo || !selectedSchoolId}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (f) void onLogoPick(f);
+                      }}
+                    />
+                  </label>
+                  <span className="text-xs text-slate-500">Formatos: JPG, PNG o WEBP.</span>
+                </div>
+              </div>
+            </>
+          )}
           {error && !profile && (
             <div className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-800" role="alert">
               {error}
@@ -277,7 +457,7 @@ export function InstitutionPage() {
           )}
           <button
             type="submit"
-            disabled={saving || (platformAdmin && !selectedSchoolId)}
+            disabled={saving || !isEditing || !hasUnsavedChanges || (platformAdmin && !selectedSchoolId)}
             className="rounded-xl bg-brand-600 px-6 py-2.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
           >
             {saving ? 'Guardando…' : 'Guardar cambios'}
@@ -327,6 +507,10 @@ export function InstitutionPage() {
               <dd className="text-slate-900">{profile.directorName}</dd>
             </div>
           )}
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Prefijo de matrícula</dt>
+            <dd className="text-slate-900">{(profile?.studentMatriculaPrefix || '').trim() || 'Automático por código escolar'}</dd>
+          </div>
         </dl>
       )}
 

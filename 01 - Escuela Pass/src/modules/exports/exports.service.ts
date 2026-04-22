@@ -1,12 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
+import { readFileSync } from 'fs';
 import { Repository } from 'typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { resolveUploadFile } from '../../lib/uploads-path';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 
@@ -48,6 +50,36 @@ export class ExportsService {
     private readonly schoolCalendarService: SchoolCalendarService,
     private readonly settingsService: SettingsService
   ) {}
+
+  private static readonly EXPORT_HEADER_LABELS: Record<string, string> = {
+    matricula: 'Matrícula',
+    full_name: 'Estudiante',
+    attendance_date: 'Fecha de asistencia',
+    status: 'Estado',
+    notes: 'Observaciones',
+    subject: 'Asignatura',
+    period: 'Período',
+    assessment_name: 'Actividad evaluada',
+    score: 'Calificación',
+    max_score: 'Puntaje máximo',
+    graded_at: 'Fecha'
+  };
+
+  private attendanceStatusLabel(status: string): string {
+    const v = String(status ?? '').trim().toUpperCase();
+    if (v === 'PRESENTE') return 'Presente';
+    if (v === 'AUSENTE') return 'Ausente';
+    if (v === 'TARDE') return 'Tarde';
+    if (v === 'JUSTIFICADO') return 'Justificado';
+    return status;
+  }
+
+  private shiftLabel(shift: string): string {
+    if (shift === 'MATUTINO') return 'Mañana';
+    if (shift === 'VESPERTINO') return 'Tarde';
+    if (shift === 'NOCTURNO') return 'Noche';
+    return shift;
+  }
 
   async exportAttendanceXlsx(groupId: string, userId: string, role: UserRole, dateStr?: string) {
     const { headers, rows, date } = await this.loadAttendanceExport(groupId, userId, role, dateStr);
@@ -107,7 +139,7 @@ export class ExportsService {
       {
         institution,
         reportTitle: 'Boletín consolidado de calificaciones',
-        subtitle: `Grupo: ${group.name} · Año escolar: ${group.schoolYear} · Turno: ${group.shift}${
+        subtitle: `Grupo: ${group.name} · Año escolar: ${group.schoolYear} · Turno: ${this.shiftLabel(group.shift)}${
           group.grade ? ` · Grado: ${group.grade}` : ''
         }`
       }
@@ -157,7 +189,7 @@ export class ExportsService {
       matricula: r.matricula,
       full_name: r.full_name,
       attendance_date: r.attendance_date,
-      status: r.status,
+      status: this.attendanceStatusLabel(r.status),
       notes: r.notes
     }));
     return { date, headers, rows };
@@ -274,9 +306,25 @@ export class ExportsService {
       headerRowIndex = 4;
     }
 
+    const logoAbs = resolveUploadFile(branding?.institution.logoUrl ?? null);
+    if (branding && logoAbs) {
+      try {
+        const ext = logoAbs.toLowerCase().endsWith('.jpg') || logoAbs.toLowerCase().endsWith('.jpeg') ? 'jpeg' : 'png';
+        if (!logoAbs.toLowerCase().endsWith('.webp')) {
+          const imageId = wb.addImage({
+            base64: readFileSync(logoAbs).toString('base64'),
+            extension: ext as 'png' | 'jpeg'
+          });
+          ws.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width: 120, height: 72 } });
+        }
+      } catch {
+        // Si el logo no está disponible en disco, se exporta sin imagen.
+      }
+    }
+
     const hr = ws.getRow(headerRowIndex);
     headers.forEach((h, i) => {
-      hr.getCell(i + 1).value = h;
+      hr.getCell(i + 1).value = ExportsService.EXPORT_HEADER_LABELS[h] ?? h;
     });
     hr.font = { bold: true };
     hr.fill = {

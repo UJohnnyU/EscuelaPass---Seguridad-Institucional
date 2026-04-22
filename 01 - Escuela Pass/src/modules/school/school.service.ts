@@ -10,16 +10,18 @@ import * as bcrypt from 'bcrypt';
 import { readFileSync } from 'fs';
 import ExcelJS from 'exceljs';
 import { extname } from 'path';
-import { IsNull, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { resolveUploadFile } from '../../lib/uploads-path';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
+import { SchoolEntity } from '../../database/entities/school.entity';
 import { ShiftType } from '../../database/entities/shift-type.enum';
 import { StudentParentEntity } from '../../database/entities/student-parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { SubjectEntity } from '../../database/entities/subject.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
+import { TeacherSubjectEntity } from '../../database/entities/teacher-subject.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AssignTeacherGroupDto } from './dto/assign-teacher-group.dto';
@@ -60,10 +62,14 @@ export class SchoolService {
     private readonly subjectsRepository: Repository<SubjectEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentsRepository: Repository<StudentEntity>,
+    @InjectRepository(SchoolEntity)
+    private readonly schoolsRepository: Repository<SchoolEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(TeacherGroupEntity)
     private readonly teacherGroupsRepository: Repository<TeacherGroupEntity>,
+    @InjectRepository(TeacherSubjectEntity)
+    private readonly teacherSubjectsRepository: Repository<TeacherSubjectEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(ImportJobEntity)
@@ -90,23 +96,51 @@ export class SchoolService {
   /** Nombres de columna típicos en plantillas (sin acentos, minúsculas). */
   private static readonly XLSX_HEADER_TOKENS = new Set([
     'email',
+    'correo',
+    'correoelectronico',
     'password',
+    'contrasena',
     'fullname',
+    'nombrecompleto',
+    'nombreyapellido',
     'matricula',
     'groupid',
+    'idgrupo',
+    'grupoid',
     'canaccesscampus',
+    'accesoalcampus',
+    'accesoacampus',
     'canleavealone',
+    'puedesalirsolo',
     'name',
+    'nombre',
     'grade',
+    'grado',
+    'nivel',
     'shift',
+    'turno',
     'schoolyear',
+    'anioescolar',
+    'anoescolar',
+    'cicloescolar',
     'classroom',
+    'aula',
+    'salon',
     'capacity',
+    'cupo',
+    'capacidad',
     'employeenumber',
+    'numeroempleado',
+    'nroempleado',
     'teacherid',
+    'iddocente',
     'subjectid',
+    'idasignatura',
+    'idmateria',
     'ismainteacher',
+    'esdocenteprincipal',
     'canauthorizedepartures',
+    'puedeautorizarsalidas',
     'grupo_id',
     'nombre_grupo',
     'grado',
@@ -128,7 +162,7 @@ export class SchoolService {
           .toLowerCase()
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
-          .replace(/\s+/g, '');
+          .replace(/[\s_]+/g, '');
         if (SchoolService.XLSX_HEADER_TOKENS.has(k)) matches += 1;
       });
       if (matches >= 2) return r;
@@ -203,12 +237,65 @@ export class SchoolService {
     ws.getCell(2, 1).alignment = { horizontal: 'center', vertical: 'middle' };
 
     ws.mergeCells(3, 1, 3, c);
-    ws.getCell(3, 1).value =
-      'No elimine ni renombre la fila de encabezados (nombres de columnas en la primera fila de datos).';
+    const infoLine = [institution.address, institution.city, institution.phone, institution.email]
+      .filter((x) => String(x ?? '').trim().length > 0)
+      .join(' · ');
+    ws.getCell(3, 1).value = infoLine
+      ? `${infoLine}. No elimine ni renombre la fila de encabezados.`
+      : 'No elimine ni renombre la fila de encabezados (nombres de columnas en la primera fila de datos).';
     ws.getCell(3, 1).font = { size: 10, color: { argb: 'FF444444' } };
     ws.getCell(3, 1).alignment = { horizontal: 'center', wrapText: true };
 
     return 4;
+  }
+
+  private normalizeHeaderToken(raw: string): string {
+    return raw
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  private canonicalImportHeader(raw: string): string {
+    const token = this.normalizeHeaderToken(raw);
+    const aliases: Record<string, string> = {
+      nombre: 'name',
+      grado: 'grade',
+      turno: 'shift',
+      anio_escolar: 'schoolYear',
+      ano_escolar: 'schoolYear',
+      ciclo_escolar: 'schoolYear',
+      correo: 'email',
+      correo_electronico: 'email',
+      contrasena: 'password',
+      clave: 'password',
+      nombre_completo: 'fullName',
+      nombres: 'fullName',
+      apellido_y_nombre: 'fullName',
+      numero_empleado: 'employeeNumber',
+      nro_empleado: 'employeeNumber',
+      id_grupo: 'groupId',
+      grupo_id: 'groupId',
+      aula: 'classroom',
+      salon: 'classroom',
+      cupo: 'capacity',
+      capacidad: 'capacity',
+      acceso_al_campus: 'canAccessCampus',
+      acceso_a_campus: 'canAccessCampus',
+      puede_salir_solo: 'canLeaveAlone',
+      id_docente: 'teacherId',
+      docente_id: 'teacherId',
+      id_asignatura: 'subjectId',
+      materia_id: 'subjectId',
+      id_materia: 'subjectId',
+      es_docente_principal: 'isMainTeacher',
+      puede_autorizar_salidas: 'canAuthorizeDepartures',
+      grupo: 'nombre_grupo'
+    };
+    return aliases[token] ?? raw.trim();
   }
 
   /** Escuela para altas: token de escuela o `schoolId` en el cuerpo (ADMIN de plataforma). */
@@ -364,9 +451,9 @@ export class SchoolService {
   // --- Materias ---
   listSubjects(scopeSchoolId?: string | null) {
     if (scopeSchoolId) {
-      return this.subjectsRepository.find({ where: { schoolId: scopeSchoolId }, order: { name: 'ASC' } });
+      return this.subjectsRepository.find({ where: { schoolId: scopeSchoolId }, order: { code: 'ASC', name: 'ASC' } });
     }
-    return this.subjectsRepository.find({ order: { name: 'ASC' } });
+    return this.subjectsRepository.find({ order: { code: 'ASC', name: 'ASC' } });
   }
 
   async getSubject(id: string, scopeSchoolId?: string | null) {
@@ -379,14 +466,24 @@ export class SchoolService {
 
   async createSubject(dto: CreateSubjectDto, scopeSchoolId?: string | null) {
     const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, dto.schoolId);
-    const existing = await this.subjectsRepository
+    const existingByName = await this.subjectsRepository
       .createQueryBuilder('s')
       .where('lower(s.name) = lower(:name)', { name: dto.name })
       .andWhere('s.school_id = :schoolId', { schoolId })
       .getOne();
-    if (existing) throw new ConflictException('Ya existe una materia con ese nombre');
+    if (existingByName) throw new ConflictException('Ya existe una materia con ese nombre');
+    const existingByCode = await this.subjectsRepository
+      .createQueryBuilder('s')
+      .where('lower(s.code) = lower(:code)', { code: dto.code })
+      .andWhere('s.school_id = :schoolId', { schoolId })
+      .getOne();
+    if (existingByCode) throw new ConflictException('Ya existe una materia con ese codigo');
     const row = this.subjectsRepository.create({
       name: dto.name,
+      code: dto.code,
+      educationLevel: dto.educationLevel ?? null,
+      gradeScope: dto.gradeScope ?? null,
+      area: dto.area ?? null,
       description: dto.description ?? null,
       schoolId
     });
@@ -404,6 +501,18 @@ export class SchoolService {
       if (clash) throw new ConflictException('Ya existe una materia con ese nombre');
       s.name = dto.name;
     }
+    if (dto.code !== undefined && dto.code !== s.code) {
+      const clash = await this.subjectsRepository
+        .createQueryBuilder('x')
+        .where('lower(x.code) = lower(:code)', { code: dto.code })
+        .andWhere('x.school_id = :schoolId', { schoolId: s.schoolId })
+        .getOne();
+      if (clash) throw new ConflictException('Ya existe una materia con ese codigo');
+      s.code = dto.code;
+    }
+    if (dto.educationLevel !== undefined) s.educationLevel = dto.educationLevel;
+    if (dto.gradeScope !== undefined) s.gradeScope = dto.gradeScope;
+    if (dto.area !== undefined) s.area = dto.area;
     if (dto.description !== undefined) s.description = dto.description;
     return this.subjectsRepository.save(s);
   }
@@ -472,8 +581,14 @@ export class SchoolService {
     const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, dto.schoolId);
     const emailTaken = await this.usersRepository.findOne({ where: { email: dto.email } });
     if (emailTaken) throw new ConflictException('El correo ya está registrado');
-    const matTaken = await this.studentsRepository.findOne({ where: { matricula: dto.matricula } });
-    if (matTaken) throw new ConflictException('La matrícula ya existe');
+    const requestedMatricula = dto.matricula?.trim();
+    let finalMatricula = requestedMatricula || '';
+    if (requestedMatricula) {
+      const matTaken = await this.studentsRepository.findOne({ where: { matricula: requestedMatricula, schoolId } });
+      if (matTaken) throw new ConflictException('La matrícula ya existe');
+    } else {
+      finalMatricula = await this.generateNextStudentMatricula(schoolId);
+    }
 
     if (dto.groupId) {
       const g = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
@@ -494,12 +609,62 @@ export class SchoolService {
 
     const student = this.studentsRepository.create({
       userId: savedUser.id,
-      matricula: dto.matricula,
+      matricula: finalMatricula,
+      schoolId,
       groupId: dto.groupId ?? null,
       canLeaveAlone: dto.canLeaveAlone ?? false
     });
     const savedStudent = await this.studentsRepository.save(student);
     return this.getStudent(savedStudent.id, schoolId);
+  }
+
+  async previewNextStudentMatricula(scopeSchoolId?: string | null, requestedSchoolId?: string | null) {
+    const schoolId = this.effectiveSchoolIdForWrite(scopeSchoolId, requestedSchoolId);
+    const matricula = await this.generateNextStudentMatricula(schoolId);
+    return { matricula };
+  }
+
+  private async generateNextStudentMatricula(schoolId: string): Promise<string> {
+    const prefix = await this.resolveStudentMatriculaPrefix(schoolId);
+    const rows = await this.studentsRepository
+      .createQueryBuilder('s')
+      .select(['s.matricula AS matricula'])
+      .andWhere('s.school_id = :schoolId', { schoolId })
+      .andWhere('s.matricula LIKE :prefixLike', { prefixLike: `${prefix}-%` })
+      .getRawMany<{ matricula: string }>();
+    let max = 0;
+    for (const row of rows) {
+      const m = row.matricula.match(new RegExp(`^${prefix}-(\\d+)$`));
+      if (!m) continue;
+      const n = Number.parseInt(m[1], 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    let next = max + 1;
+    for (let i = 0; i < 50; i++) {
+      const candidate = `${prefix}-${String(next).padStart(4, '0')}`;
+      const exists = await this.studentsRepository.exist({ where: { matricula: candidate, schoolId } });
+      if (!exists) return candidate;
+      next += 1;
+    }
+    throw new ConflictException('No se pudo generar una matrícula automática, intente nuevamente');
+  }
+
+  private async resolveStudentMatriculaPrefix(schoolId: string): Promise<string> {
+    const school = await this.schoolsRepository.findOne({
+      where: { id: schoolId },
+      select: ['id', 'code', 'studentMatriculaPrefix']
+    });
+    const fromCustom = String(school?.studentMatriculaPrefix ?? '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 20);
+    if (fromCustom.length >= 2) return fromCustom;
+    const fromCode = String(school?.code ?? '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 6);
+    if (fromCode.length >= 2) return fromCode;
+    return 'ALUMNO';
   }
 
   async updateStudent(id: string, dto: UpdateStudentDto, scopeSchoolId?: string | null) {
@@ -512,7 +677,7 @@ export class SchoolService {
     const patch: Partial<StudentEntity> = {};
     if (dto.groupId !== undefined) patch.groupId = dto.groupId;
     if (dto.matricula !== undefined) {
-      const clash = await this.studentsRepository.findOne({ where: { matricula: dto.matricula } });
+      const clash = await this.studentsRepository.findOne({ where: { matricula: dto.matricula, schoolId } });
       if (clash && clash.id !== id) throw new ConflictException('La matrícula ya existe');
       patch.matricula = dto.matricula;
     }
@@ -536,6 +701,7 @@ export class SchoolService {
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
+      .where('u.role = :teacherRole', { teacherRole: UserRole.DOCENTE })
       .orderBy('u.full_name', 'ASC');
     if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
     const q = opts?.q?.trim();
@@ -564,7 +730,8 @@ export class SchoolService {
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
-      .where('t.id = :id', { id });
+      .where('t.id = :id', { id })
+      .andWhere('u.role = :teacherRole', { teacherRole: UserRole.DOCENTE });
     if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
     const row = await qb.getRawOne();
     if (!row) throw new NotFoundException('Docente no encontrado');
@@ -595,6 +762,23 @@ export class SchoolService {
       employeeNumber: dto.employeeNumber
     });
     const saved = await this.teachersRepository.save(teacher);
+    const requestedSubjectIds = Array.from(new Set(dto.subjectIds ?? []));
+    if (requestedSubjectIds.length) {
+      const subjects = await this.subjectsRepository
+        .createQueryBuilder('s')
+        .where('s.school_id = :schoolId', { schoolId })
+        .andWhere('s.id IN (:...ids)', { ids: requestedSubjectIds })
+        .getMany();
+      if (subjects.length !== requestedSubjectIds.length) {
+        throw new BadRequestException('Una o varias materias no existen en la institucion');
+      }
+      await this.teacherSubjectsRepository.insert(
+        requestedSubjectIds.map((subjectId) => ({
+          teacherId: saved.id,
+          subjectId
+        }))
+      );
+    }
     return this.getTeacher(saved.id, schoolId);
   }
 
@@ -619,6 +803,28 @@ export class SchoolService {
     return this.getTeacher(id, schoolId);
   }
 
+  async listTeacherSubjects(teacherId?: string, scopeSchoolId?: string | null) {
+    const qb = this.teacherSubjectsRepository
+      .createQueryBuilder('ts')
+      .innerJoin(TeacherEntity, 't', 't.id = ts.teacher_id')
+      .innerJoin(UserEntity, 'u', 'u.id = t.user_id')
+      .innerJoin(SubjectEntity, 's', 's.id = ts.subject_id')
+      .select([
+        'ts.id AS id',
+        'ts.teacherId AS "teacherId"',
+        'ts.subjectId AS "subjectId"',
+        's.name AS "subjectName"',
+        's.code AS "subjectCode"'
+      ])
+      .where('u.role = :teacherRole', { teacherRole: UserRole.DOCENTE })
+      .orderBy('u.full_name', 'ASC')
+      .addOrderBy('s.code', 'ASC')
+      .addOrderBy('s.name', 'ASC');
+    if (teacherId) qb.andWhere('ts.teacher_id = :teacherId', { teacherId });
+    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    return qb.getRawMany();
+  }
+
   // --- Asignaciones docente–grupo–materia ---
   async listTeacherAssignments(teacherId?: string, groupId?: string, scopeSchoolId?: string | null) {
     const qb = this.teacherGroupsRepository
@@ -637,16 +843,14 @@ export class SchoolService {
     if (!teacher) throw new NotFoundException('Docente no encontrado');
     const group = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
     if (!group) throw new NotFoundException('Grupo no encontrado');
-    if (dto.subjectId) {
-      const sub = await this.subjectsRepository.findOne({ where: { id: dto.subjectId, schoolId } });
-      if (!sub) throw new NotFoundException('Materia no encontrada');
-    }
+    const sub = await this.subjectsRepository.findOne({ where: { id: dto.subjectId, schoolId } });
+    if (!sub) throw new NotFoundException('Materia no encontrada');
 
     const existing = await this.teacherGroupsRepository.findOne({
       where: {
         teacherId: dto.teacherId,
         groupId: dto.groupId,
-        subjectId: dto.subjectId ? dto.subjectId : IsNull()
+        subjectId: dto.subjectId
       }
     });
     if (existing) {
@@ -942,7 +1146,7 @@ export class SchoolService {
         const dto: AssignTeacherGroupDto = {
           teacherId: this.required(row, 'teacherId'),
           groupId: this.required(row, 'groupId'),
-          subjectId: this.optional(row, 'subjectId'),
+          subjectId: this.required(row, 'subjectId'),
           isMainTeacher: this.parseBoolOptional(this.optional(row, 'isMainTeacher')),
           canAuthorizeDepartures: this.parseBoolOptional(this.optional(row, 'canAuthorizeDepartures'))
         };
@@ -1047,7 +1251,9 @@ export class SchoolService {
       result.totalRows += 1;
       try {
         const group = await this.resolveGroupForExcelRow(fields, r, scopeSchoolId);
-        const student = await this.studentsRepository.findOne({ where: { matricula } });
+        const student = await this.studentsRepository.findOne({
+          where: scopeSchoolId ? { matricula, schoolId: scopeSchoolId } : { matricula }
+        });
         if (!student) {
           throw new Error(`No existe alumno con matrícula ${matricula}`);
         }
@@ -1068,7 +1274,7 @@ export class SchoolService {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Asignacion');
-    const headers = ['matricula', 'grupo_id', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'];
+    const headers = ['matricula', 'id_grupo', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'];
     const headerRow = this.applyImportTemplateBranding(
       ws,
       wb,
@@ -1080,8 +1286,8 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    hr.font = { bold: true };
-    ws.addRow(['MAT-0001', '', '1A', '1', 'MATUTINO', '2026-2027']);
+    this.styleTemplateHeaderRow(ws, headerRow, [22, 40, 26, 14, 14, 18]);
+    ws.addRow(['ALUMNO-0001', '', '1A', '1', 'Mañana', '2026-2027']);
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -1117,7 +1323,7 @@ export class SchoolService {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Grupos');
-    const headers = ['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity'];
+    const headers = ['nombre', 'grado', 'turno', 'anio_escolar', 'aula', 'cupo'];
     const headerRow = this.applyImportTemplateBranding(
       ws,
       wb,
@@ -1129,8 +1335,8 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    hr.font = { bold: true };
-    ws.addRow(['1A', '1', 'MATUTINO', '2026-2027', 'A-101', '30']);
+    this.styleTemplateHeaderRow(ws, headerRow, [26, 14, 14, 18, 16, 12]);
+    ws.addRow(['1A', '1', 'Mañana', '2026-2027', 'A-101', '30']);
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -1141,13 +1347,13 @@ export class SchoolService {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Alumnos');
     const headers = [
-      'email',
-      'password',
-      'fullName',
+      'correo',
+      'contrasena',
+      'nombre_completo',
       'matricula',
-      'groupId',
-      'canAccessCampus',
-      'canLeaveAlone'
+      'id_grupo',
+      'acceso_al_campus',
+      'puede_salir_solo'
     ];
     const headerRow = this.applyImportTemplateBranding(
       ws,
@@ -1160,7 +1366,7 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    hr.font = { bold: true };
+    this.styleTemplateHeaderRow(ws, headerRow, [30, 22, 28, 20, 40, 18, 18]);
     ws.addRow([
       'alumno.nuevo@escuelapass.local',
       'Alumno123*',
@@ -1179,7 +1385,7 @@ export class SchoolService {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Docentes');
-    const headers = ['email', 'password', 'fullName', 'employeeNumber', 'canAccessCampus'];
+    const headers = ['correo', 'contrasena', 'nombre_completo', 'numero_empleado', 'acceso_al_campus'];
     const headerRow = this.applyImportTemplateBranding(
       ws,
       wb,
@@ -1191,7 +1397,7 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    hr.font = { bold: true };
+    this.styleTemplateHeaderRow(ws, headerRow, [30, 22, 28, 20, 18]);
     ws.addRow(['docente.nuevo@escuelapass.local', 'Docente123*', 'Docente Nuevo', 'EMP-1001', 'true']);
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
@@ -1203,11 +1409,11 @@ export class SchoolService {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Asignaciones');
     const headers = [
-      'teacherId',
-      'groupId',
-      'subjectId',
-      'isMainTeacher',
-      'canAuthorizeDepartures'
+      'id_docente',
+      'id_grupo',
+      'id_asignatura',
+      'es_docente_principal',
+      'puede_autorizar_salidas'
     ];
     const headerRow = this.applyImportTemplateBranding(
       ws,
@@ -1220,7 +1426,7 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    hr.font = { bold: true };
+    this.styleTemplateHeaderRow(ws, headerRow, [40, 40, 40, 24, 26]);
     ws.addRow([
       '11111111-1111-4111-8111-111111111111',
       '22222222-2222-4222-8222-222222222222',
@@ -1235,55 +1441,54 @@ export class SchoolService {
 
   buildTemplateGroupsCsv(): string {
     return this.toCsv(
-      ['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity'],
-      [['1A', '1', 'MATUTINO', '2026-2027', 'A-101', '30']]
+      ['nombre', 'grado', 'turno', 'anio_escolar', 'aula', 'cupo'],
+      [['1A', '1', 'Mañana', '2026-2027', 'A-101', '30']]
     );
   }
 
   buildTemplateStudentsCsv(): string {
     return this.toCsv(
-      ['email', 'password', 'fullName', 'matricula', 'groupId', 'canAccessCampus', 'canLeaveAlone'],
-      [['alumno.nuevo@escuelapass.local', 'Alumno123*', 'Alumno Nuevo', 'MAT-1001', '', 'false', 'false']]
+      ['correo', 'contrasena', 'nombre_completo', 'matricula', 'id_grupo', 'acceso_al_campus', 'puede_salir_solo'],
+      [['alumno.nuevo@escuelapass.local', 'Alumno123*', 'Alumno Nuevo', 'ALUMNO-1001', '', 'false', 'false']]
     );
   }
 
   buildTemplateTeachersCsv(): string {
     return this.toCsv(
-      ['email', 'password', 'fullName', 'employeeNumber', 'canAccessCampus'],
+      ['correo', 'contrasena', 'nombre_completo', 'numero_empleado', 'acceso_al_campus'],
       [['docente.nuevo@escuelapass.local', 'Docente123*', 'Docente Nuevo', 'EMP-1001', 'true']]
     );
   }
 
   buildTemplateTeacherAssignmentsCsv(): string {
     return this.toCsv(
-      ['teacherId', 'groupId', 'subjectId', 'isMainTeacher', 'canAuthorizeDepartures'],
+      ['id_docente', 'id_grupo', 'id_asignatura', 'es_docente_principal', 'puede_autorizar_salidas'],
       [['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '', 'true', 'false']]
     );
   }
 
   buildStudentsToGroupsTemplateCsv(): string {
     return this.toCsv(
-      ['matricula', 'grupo_id', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'],
-      [['MAT-0001', '', '1A', '1', 'MATUTINO', '2026-2027']]
+      ['matricula', 'id_grupo', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'],
+      [['ALUMNO-0001', '', '1A', '1', 'Mañana', '2026-2027']]
     );
   }
 
   private mapExcelHeaderToField(raw: string): string | null {
-    const k = raw
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, '_');
+    const k = this.normalizeHeaderToken(raw);
     const map: Record<string, string> = {
       matricula: 'matricula',
       grupo_id: 'grupo_id',
       group_id: 'grupo_id',
+      id_grupo: 'grupo_id',
       nombre_grupo: 'nombre_grupo',
       grupo: 'nombre_grupo',
       grado: 'grado',
+      nivel: 'grado',
       turno: 'turno',
       anio_escolar: 'anio_escolar',
+      ano_escolar: 'anio_escolar',
+      ciclo_escolar: 'anio_escolar',
       school_year: 'anio_escolar',
       schoolyear: 'anio_escolar'
     };
@@ -1296,17 +1501,48 @@ export class SchoolService {
     return t.trim();
   }
 
+  private styleTemplateHeaderRow(ws: ExcelJS.Worksheet, headerRowIndex: number, columnWidths?: number[]) {
+    const row = ws.getRow(headerRowIndex);
+    row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    row.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    row.height = 24;
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0F172A' }
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+      };
+    });
+    if (columnWidths?.length) {
+      columnWidths.forEach((w, i) => {
+        ws.getColumn(i + 1).width = w;
+      });
+    }
+    ws.autoFilter = {
+      from: { row: headerRowIndex, column: 1 },
+      to: { row: headerRowIndex, column: Math.max(1, row.cellCount) }
+    };
+  }
+
   private async resolveGroupForExcelRow(
     fields: Record<string, string>,
     line: number,
     scopeSchoolId?: string | null
   ): Promise<GroupEntity> {
     const gid = fields.grupo_id?.trim();
-    if (gid) {
+    const gidAlt = fields.groupId?.trim();
+    const groupId = gid || gidAlt;
+    if (groupId) {
       const g = await this.groupsRepository.findOne({
-        where: scopeSchoolId ? { id: gid, schoolId: scopeSchoolId } : { id: gid }
+        where: scopeSchoolId ? { id: groupId, schoolId: scopeSchoolId } : { id: groupId }
       });
-      if (!g) throw new Error(`grupo_id inválido (${gid})`);
+      if (!g) throw new Error(`id_grupo inválido (${groupId})`);
       return g;
     }
     const anio = fields.anio_escolar?.trim();
@@ -1352,7 +1588,7 @@ export class SchoolService {
     const colByName = new Map<string, number>();
     headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const raw = String(cell.value ?? '').trim();
-      if (raw) colByName.set(raw, colNumber);
+      if (raw) colByName.set(this.canonicalImportHeader(raw), colNumber);
     });
     if (colByName.size === 0) {
       throw new BadRequestException('Debe existir una fila con encabezados de columnas (nombre de cada columna)');
@@ -1397,7 +1633,7 @@ export class SchoolService {
       const values = this.parseCsvLine(lines[i]);
       const row: Record<string, string> = {};
       for (let j = 0; j < headers.length; j++) {
-        row[headers[j]] = (values[j] ?? '').trim();
+        row[this.canonicalImportHeader(headers[j])] = (values[j] ?? '').trim();
       }
       if (Object.values(row).some((v) => v.length > 0)) rows.push(row);
     }
@@ -1462,7 +1698,9 @@ export class SchoolService {
       }
       try {
         const group = await this.resolveGroupForExcelRow(fields, line, scopeSchoolId);
-        const student = await this.studentsRepository.findOne({ where: { matricula } });
+        const student = await this.studentsRepository.findOne({
+          where: scopeSchoolId ? { matricula, schoolId: scopeSchoolId } : { matricula }
+        });
         if (!student) {
           throw new Error(`No existe alumno con matrícula ${matricula}`);
         }
@@ -1491,10 +1729,15 @@ export class SchoolService {
 
   private parseShift(value: string | undefined): ShiftType | undefined {
     if (!value) return undefined;
-    if (value === ShiftType.MATUTINO || value === ShiftType.VESPERTINO || value === ShiftType.NOCTURNO) {
-      return value;
-    }
-    throw new Error('shift inválido (usa MATUTINO|VESPERTINO|NOCTURNO)');
+    const normalized = value
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    if (normalized === ShiftType.MATUTINO || normalized === 'MANANA') return ShiftType.MATUTINO;
+    if (normalized === ShiftType.VESPERTINO || normalized === 'TARDE') return ShiftType.VESPERTINO;
+    if (normalized === ShiftType.NOCTURNO || normalized === 'NOCHE') return ShiftType.NOCTURNO;
+    throw new Error('turno inválido (usa Mañana|Tarde|Noche o MATUTINO|VESPERTINO|NOCTURNO)');
   }
 
   private parseIntOptional(value: string | undefined): number | undefined {

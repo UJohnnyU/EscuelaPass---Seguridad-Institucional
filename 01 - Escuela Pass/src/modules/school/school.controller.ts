@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Header,
   Param,
@@ -119,6 +120,9 @@ export class SchoolController {
 
   @Post('subjects')
   createSubject(@Body() dto: CreateSubjectDto, @Req() req: Request & { user: JwtUser }) {
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo el administrador puede crear materias institucionales');
+    }
     return this.schoolService.createSubject(dto, this.scopeSchool(req.user));
   }
 
@@ -128,6 +132,9 @@ export class SchoolController {
     @Body() dto: UpdateSubjectDto,
     @Req() req: Request & { user: JwtUser }
   ) {
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo el administrador puede editar materias institucionales');
+    }
     return this.schoolService.updateSubject(id, dto, this.scopeSchool(req.user));
   }
 
@@ -136,6 +143,9 @@ export class SchoolController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Req() req: Request & { user: JwtUser }
   ) {
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo el administrador puede eliminar materias institucionales');
+    }
     return this.schoolService.removeSubject(id, this.scopeSchool(req.user));
   }
 
@@ -153,6 +163,19 @@ export class SchoolController {
       return this.schoolService.listStudents(sid, opts);
     }
     return this.schoolService.listStudents(scoped, opts);
+  }
+
+  @Get('students/next-matricula')
+  previewNextStudentMatricula(
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.previewNextStudentMatricula(scoped, sid);
+    }
+    return this.schoolService.previewNextStudentMatricula(scoped);
   }
 
   @Get('students/:id')
@@ -204,6 +227,11 @@ export class SchoolController {
   @Post('teachers')
   createTeacher(@Body() dto: CreateTeacherDto, @Req() req: Request & { user: JwtUser }) {
     return this.schoolService.createTeacher(dto, this.scopeSchool(req.user));
+  }
+
+  @Get('teacher-subjects')
+  listTeacherSubjects(@Query('teacherId') teacherId: string | undefined, @Req() req: Request & { user: JwtUser }) {
+    return this.schoolService.listTeacherSubjects(teacherId, this.scopeSchool(req.user));
   }
 
   @Patch('teachers/:id')

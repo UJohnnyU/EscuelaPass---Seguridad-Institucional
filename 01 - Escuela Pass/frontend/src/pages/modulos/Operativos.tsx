@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { emitNotificationRead } from '@/lib/notifications-sync';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
@@ -119,12 +120,14 @@ function shiftISODateLocal(iso: string, deltaDays: number): string {
 }
 
 type DocenteCalRow = { id: string; exceptionDate: string; reason: string | null; groupId: string | null };
+const STORAGE_COMMUNICATION_SCHOOL = 'ep:communication:schoolId';
 
 export function ComunicacionPage() {
   type SchoolGroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
   type StudentRow = { id: string; userId: string; fullName: string; email: string; matricula: string };
   type TeacherRow = { id: string; userId: string; fullName: string; email: string };
   type ParentRow = { id: string; userId: string; fullName: string; email: string };
+  type SchoolOption = { id: string; name: string };
 
   const [notifications, setNotifications] = useState<unknown>(null);
   const [notices, setNotices] = useState<unknown>(null);
@@ -138,10 +141,16 @@ export function ComunicacionPage() {
   const [targetGroupId, setTargetGroupId] = useState('');
   const [targetUserId, setTargetUserId] = useState('');
   const [important, setImportant] = useState(false);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [targetSchoolId, setTargetSchoolId] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    return sessionStorage.getItem(STORAGE_COMMUNICATION_SCHOOL) ?? 'ALL';
+  });
   const { user } = useAuth();
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
   const canManageSchoolWideNotices = hasRole(user, 'ADMIN', 'ADMINISTRATIVO');
   const isTeacherOnly = user?.role === 'DOCENTE';
+  const isPlatformAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
     if (isTeacherOnly && targetMode === 'ROLE') {
@@ -149,9 +158,42 @@ export function ComunicacionPage() {
     }
   }, [isTeacherOnly, targetMode]);
 
+  useEffect(() => {
+    if (!isPlatformAdmin) return;
+    if (targetSchoolId === 'ALL' && targetMode !== 'ROLE') {
+      setTargetMode('ROLE');
+    }
+  }, [isPlatformAdmin, targetMode, targetSchoolId]);
+
+  useEffect(() => {
+    if (!isPlatformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolOption[]>('/api/v1/schools');
+        if (!cancelled) setSchools(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPlatformAdmin]);
+
+  useEffect(() => {
+    if (!isPlatformAdmin || typeof window === 'undefined') return;
+    sessionStorage.setItem(STORAGE_COMMUNICATION_SCHOOL, targetSchoolId);
+  }, [isPlatformAdmin, targetSchoolId]);
+
   const loadGroupOptions = useCallback(async (q: string, signal: AbortSignal) => {
+    const params: Record<string, string | number | undefined> = {
+      q: q.trim() || undefined,
+      limit: 80
+    };
+    if (isPlatformAdmin && targetSchoolId !== 'ALL') params.schoolId = targetSchoolId;
     const { data } = await api.get<SchoolGroupRow[]>('/api/v1/school/groups', {
-      params: { q: q.trim() || undefined, limit: 80 },
+      params,
       signal
     });
     const rows = Array.isArray(data) ? data : [];
@@ -161,10 +203,11 @@ export function ComunicacionPage() {
         label: `${g.name}${g.grade ? ` (${g.grade})` : ''} - ${g.schoolYear}`
       })
     );
-  }, []);
+  }, [isPlatformAdmin, targetSchoolId]);
 
   const loadNoticeTargetUsers = useCallback(async (q: string, signal: AbortSignal) => {
-    const params = { q: q.trim() || undefined, limit: 50 };
+    const params: Record<string, string | number | undefined> = { q: q.trim() || undefined, limit: 50 };
+    if (isPlatformAdmin && targetSchoolId !== 'ALL') params.schoolId = targetSchoolId;
     const [sRes, tRes, pRes] = await Promise.all([
       api.get<StudentRow[]>('/api/v1/school/students', { params, signal }),
       api.get<TeacherRow[]>('/api/v1/school/teachers', { params, signal }),
@@ -186,7 +229,7 @@ export function ComunicacionPage() {
     );
     out.sort((a, b) => a.label.localeCompare(b.label, 'es'));
     return out;
-  }, []);
+  }, [isPlatformAdmin, targetSchoolId]);
 
   const loadTeacherGroupOptions = useCallback(async (q: string, signal: AbortSignal) => {
     const { data } = await api.get<TeacherGroupRow[]>('/api/v1/notices/teacher/groups', { signal });
@@ -230,7 +273,9 @@ export function ComunicacionPage() {
         const n = await api.get('/api/v1/notifications/me');
         if (!cancelled) setNotifications(n.data);
         if (staff) {
-          const o = await api.get('/api/v1/notices?page=1&limit=10');
+          const params: Record<string, string> = {};
+          if (isPlatformAdmin && targetSchoolId !== 'ALL') params.schoolId = targetSchoolId;
+          const o = await api.get('/api/v1/notices?page=1&limit=10', { params });
           if (!cancelled) setNotices(o.data);
         }
       } catch (e) {
@@ -240,7 +285,7 @@ export function ComunicacionPage() {
     return () => {
       cancelled = true;
     };
-  }, [staff]);
+  }, [staff, isPlatformAdmin, targetSchoolId]);
 
   async function onCreateNotice(e: FormEvent) {
     e.preventDefault();
@@ -277,7 +322,9 @@ export function ComunicacionPage() {
         payload.targetType = 'USER';
         payload.targetUserId = targetUserId;
       }
-      await api.post('/api/v1/notices', payload);
+      const reqParams: Record<string, string> = {};
+      if (isPlatformAdmin && targetSchoolId !== 'ALL') reqParams.schoolId = targetSchoolId;
+      await api.post('/api/v1/notices', payload, { params: reqParams });
       setTitle('');
       setContent('');
       setAudience('ALL');
@@ -285,7 +332,9 @@ export function ComunicacionPage() {
       setTargetUserId('');
       setImportant(false);
       setMsg('Aviso escolar enviado.');
-      const o = await api.get('/api/v1/notices?page=1&limit=10');
+      const listParams: Record<string, string> = {};
+      if (isPlatformAdmin && targetSchoolId !== 'ALL') listParams.schoolId = targetSchoolId;
+      const o = await api.get('/api/v1/notices?page=1&limit=10', { params: listParams });
       setNotices(o.data);
     } catch (e2) {
       setErr(getUserFacingMessage(e2, 'No se pudo enviar el aviso.'));
@@ -319,6 +368,23 @@ export function ComunicacionPage() {
             }
           >
             <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
+              {isPlatformAdmin && (
+                <label className="text-sm sm:col-span-2">
+                  <span className="mb-1 block font-medium text-slate-700">Institución destino</span>
+                  <select
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                    value={targetSchoolId}
+                    onChange={(e) => setTargetSchoolId(e.target.value)}
+                  >
+                    <option value="ALL">Todas las instituciones</option>
+                    {schools.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="text-sm sm:col-span-2">
                 <span className="mb-1 block font-medium text-slate-700">Título</span>
                 <input
@@ -805,7 +871,7 @@ export function AcademicoPage() {
   }, [loadDocenteGroupCal]);
 
   if (!ready) {
-    return <p className="text-slate-600">Cargando…</p>;
+    return <p className="text-slate-600 dark:text-slate-300">Cargando…</p>;
   }
   if (user && alumno) {
     return <Navigate to="/app/modulos/mis-calificaciones" replace />;
@@ -1394,8 +1460,10 @@ export function AcademicoPage() {
 }
 
 export function AdministracionPage() {
+  type SchoolOption = { id: string; name: string; code?: string };
   type AdminReportItem = {
     id: string;
+    schoolId?: string;
     type: 'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO';
     subject: string;
     message: string;
@@ -1415,11 +1483,24 @@ export function AdministracionPage() {
     authorName?: string;
     authorRole?: string | null;
   };
-  const [summary, setSummary] = useState<unknown>(null);
-  const [audit, setAudit] = useState<unknown>(null);
+  type DashboardSummary = {
+    date: string;
+    entities?: { students?: number; teachers?: number; groups?: number; usersActive?: number; usersByRole?: Record<string, number> };
+    attendanceToday?: { total?: number; byStatus?: Record<string, number> };
+    payments?: { pendingDebts?: number; overdueDebts?: number; pendingWithVoucher?: number };
+    circuitToday?: { total?: number; byStatus?: Record<string, number> };
+    accessToday?: { total?: number; byType?: Record<string, number> };
+  };
+  type PaymentsPendingReport = { totalPending?: number; pendingWithVoucher?: number; latest?: Array<{ dueDate?: string; amount?: string | number }> };
+  type CircuitTodayReport = { total?: number; byStatus?: Record<string, number>; data?: Array<{ requestTime?: string; status?: string }> };
+  type AuditLogItem = { action?: string; createdAt?: string; entityType?: string | null };
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [audit, setAudit] = useState<AuditLogItem[]>([]);
   const [calendar, setCalendar] = useState<unknown>(null);
-  const [repAtt, setRepAtt] = useState<unknown>(null);
-  const [circuit, setCircuit] = useState<unknown>(null);
+  const [repAtt, setRepAtt] = useState<PaymentsPendingReport | null>(null);
+  const [circuit, setCircuit] = useState<CircuitTodayReport | null>(null);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>('ALL');
   const [err, setErr] = useState<string | null>(null);
   const [reportType, setReportType] = useState<'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO'>('ERROR');
   const [reportSubject, setReportSubject] = useState('');
@@ -1443,6 +1524,25 @@ export function AdministracionPage() {
   const admin = isAdmin(user);
   const docente = user?.role === 'DOCENTE';
   const administrativo = user?.role === 'ADMINISTRATIVO';
+  const scopedSchoolId = selectedSchoolId !== 'ALL' ? selectedSchoolId : undefined;
+
+  useEffect(() => {
+    if (!admin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolOption[]>('/api/v1/schools');
+        if (cancelled) return;
+        const rows = Array.isArray(data) ? data : [];
+        setSchools(rows);
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [admin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1450,12 +1550,14 @@ export function AdministracionPage() {
       setErr(null);
       try {
         if (admin) {
-          const s = await api.get('/api/v1/dashboard/summary');
+          const s = await api.get<DashboardSummary>('/api/v1/dashboard/summary', {
+            params: { schoolId: scopedSchoolId }
+          });
           const a = await api.get('/api/v1/audit/logs?limit=30');
           const cal = await api.get('/api/v1/calendar/non-instructional-days');
           if (!cancelled) {
             setSummary(s.data);
-            setAudit(a.data);
+            setAudit(Array.isArray(a.data) ? a.data : []);
             setCalendar(cal.data);
           }
         } else if (administrativo) {
@@ -1463,10 +1565,14 @@ export function AdministracionPage() {
           if (!cancelled) setCalendar(cal.data);
         }
         if (admin || docente || administrativo) {
-          const cToday = await api.get('/api/v1/reports/circuit/today');
+          const cToday = await api.get<CircuitTodayReport>('/api/v1/reports/circuit/today', {
+            params: { schoolId: admin ? scopedSchoolId : undefined }
+          });
           if (!cancelled) setCircuit(cToday.data);
           if (admin) {
-            const rPay = await api.get('/api/v1/reports/payments/pending');
+            const rPay = await api.get<PaymentsPendingReport>('/api/v1/reports/payments/pending', {
+              params: { schoolId: scopedSchoolId }
+            });
             if (!cancelled) setRepAtt(rPay.data);
           }
         }
@@ -1477,7 +1583,7 @@ export function AdministracionPage() {
     return () => {
       cancelled = true;
     };
-  }, [admin, docente, administrativo]);
+  }, [admin, docente, administrativo, scopedSchoolId]);
 
   useEffect(() => {
     if (!admin) return;
@@ -1491,6 +1597,7 @@ export function AdministracionPage() {
             status: adminReportStatusFilter || undefined,
             q: adminReportQuery.trim() || undefined,
             unreadOnly: adminReportUnreadOnly ? 'true' : undefined,
+            schoolId: scopedSchoolId,
             limit: 40
           }
         });
@@ -1507,7 +1614,7 @@ export function AdministracionPage() {
     return () => {
       cancelled = true;
     };
-  }, [admin, adminReportTypeFilter, adminReportStatusFilter, adminReportQuery, adminReportUnreadOnly]);
+  }, [admin, adminReportTypeFilter, adminReportStatusFilter, adminReportQuery, adminReportUnreadOnly, scopedSchoolId]);
 
   useEffect(() => {
     if (!administrativo) return;
@@ -1536,6 +1643,7 @@ export function AdministracionPage() {
   const markAdminReportRead = async (id: string) => {
     try {
       await api.patch(`/api/v1/notifications/${id}/read`);
+      emitNotificationRead(id);
     } catch (e) {
       setErr(getUserFacingMessage(e));
     }
@@ -1589,11 +1697,25 @@ export function AdministracionPage() {
     );
   }
 
+  const adminKpis = [
+    { label: 'Usuarios activos', value: summary?.entities?.usersActive ?? 0 },
+    { label: 'Estudiantes', value: summary?.entities?.students ?? 0 },
+    { label: 'Docentes', value: summary?.entities?.teachers ?? 0 },
+    { label: 'Grupos activos', value: summary?.entities?.groups ?? 0 },
+    { label: 'Asistencia registrada hoy', value: summary?.attendanceToday?.total ?? 0 },
+    { label: 'Accesos hoy', value: summary?.accessToday?.total ?? 0 },
+    { label: 'Circuito hoy', value: summary?.circuitToday?.total ?? 0 },
+    { label: 'Pagos pendientes', value: summary?.payments?.pendingDebts ?? repAtt?.totalPending ?? 0 }
+  ];
+  const topActions = audit.slice(0, 8);
+  const latestPayments = (repAtt?.latest ?? []).slice(0, 5);
+  const schoolNameById = new Map(schools.map((s) => [s.id, s.name]));
+
   return (
     <div className="max-w-5xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Administración e informes</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Administración e informes</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Indicadores del día y reportes para llevar el control del plantel.
         </p>
       </div>
@@ -1602,17 +1724,112 @@ export function AdministracionPage() {
       )}
       {admin && (
         <>
-          <Panel title="Resumen del día">
-            <ValueView data={summary} />
+          <Panel
+            title="Tablero ejecutivo"
+            description="Visión profesional para seguimiento diario y toma de decisiones operativas."
+          >
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-sm text-slate-700 dark:text-slate-300 lg:col-span-2">
+                Alcance del tablero
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  value={selectedSchoolId}
+                  onChange={(e) => setSelectedSchoolId(e.target.value)}
+                >
+                  <option value="ALL">General (todas las instituciones)</option>
+                  {schools.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-200 lg:col-span-2">
+                Fecha de corte: {summary?.date ? new Date(`${summary.date}T12:00:00`).toLocaleDateString('es') : 'hoy'}
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {adminKpis.map((kpi) => (
+                <article
+                  key={kpi.label}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70"
+                >
+                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{kpi.label}</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{kpi.value}</p>
+                </article>
+              ))}
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado de pagos</p>
+                <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                  Con comprobante: <strong>{repAtt?.pendingWithVoucher ?? summary?.payments?.pendingWithVoucher ?? 0}</strong>
+                </p>
+                <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+                  Vencidos: <strong>{summary?.payments?.overdueDebts ?? 0}</strong>
+                </p>
+              </article>
+              <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Circuito del día</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                  {Object.entries(circuit?.byStatus ?? summary?.circuitToday?.byStatus ?? {}).map(([st, n]) => (
+                    <li key={st} className="flex items-center justify-between">
+                      <span>{st.replaceAll('_', ' ')}</span>
+                      <strong>{n}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+              <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Asistencia del día</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                  {Object.entries(summary?.attendanceToday?.byStatus ?? {}).map(([st, n]) => (
+                    <li key={st} className="flex items-center justify-between">
+                      <span>{st.replaceAll('_', ' ')}</span>
+                      <strong>{n}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            </div>
           </Panel>
           <Panel title="Actividad reciente del sistema">
-            <ValueView data={audit} />
+            {topActions.length === 0 ? (
+              <p className="text-sm text-slate-600 dark:text-slate-300">Sin actividad reciente para mostrar.</p>
+            ) : (
+              <ul className="space-y-2">
+                {topActions.map((item, idx) => (
+                  <li key={`${item.createdAt ?? 'x'}-${idx}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                    <p className="font-medium text-slate-900 dark:text-slate-100">{item.action ?? 'Acción del sistema'}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {item.entityType ? `${item.entityType} · ` : ''}
+                      {item.createdAt ? new Date(item.createdAt).toLocaleString('es') : 'Reciente'}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+          <Panel title="Pagos pendientes prioritarios">
+            {latestPayments.length === 0 ? (
+              <p className="text-sm text-slate-600 dark:text-slate-300">No hay pagos pendientes recientes.</p>
+            ) : (
+              <ul className="space-y-2">
+                {latestPayments.map((row, idx) => (
+                  <li key={`${row.dueDate ?? 'd'}-${idx}`} className="flex items-center justify-between rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                    <span className="text-slate-700 dark:text-slate-300">
+                      Vence: {row.dueDate ? new Date(`${row.dueDate}T12:00:00`).toLocaleDateString('es') : '—'}
+                    </span>
+                    <strong className="text-slate-900 dark:text-slate-100">
+                      {row.amount !== undefined ? Number(row.amount).toLocaleString('es', { style: 'currency', currency: 'DOP' }) : '—'}
+                    </strong>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Panel>
           <Panel title="Días sin clases del calendario escolar">
-            <ValueView data={calendar} />
-          </Panel>
-          <Panel title="Pagos pendientes">
-            <ValueView data={repAtt} />
+            <NonInstructionalDaysList data={calendar} />
           </Panel>
           <Panel
             title="Reportes internos de administrativos"
@@ -1622,7 +1839,7 @@ export function AdministracionPage() {
               <label className="text-sm text-slate-700">
                 Tipo
                 <select
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={adminReportTypeFilter}
                   onChange={(e) => setAdminReportTypeFilter(e.target.value)}
                 >
@@ -1637,7 +1854,7 @@ export function AdministracionPage() {
                 Buscar
                 <input
                   type="text"
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={adminReportQuery}
                   onChange={(e) => setAdminReportQuery(e.target.value)}
                   placeholder="Asunto, escuela, remitente o detalle"
@@ -1646,7 +1863,7 @@ export function AdministracionPage() {
               <label className="text-sm text-slate-700">
                 Estado
                 <select
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={adminReportStatusFilter}
                   onChange={(e) => setAdminReportStatusFilter(e.target.value)}
                 >
@@ -1666,31 +1883,32 @@ export function AdministracionPage() {
               </label>
             </div>
             {adminReportsLoading ? (
-              <p className="text-sm text-slate-600">Cargando reportes…</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">Cargando reportes…</p>
             ) : adminReports.length === 0 ? (
-              <p className="text-sm text-slate-600">No hay reportes con los filtros actuales.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">No hay reportes con los filtros actuales.</p>
             ) : (
               <ul className="space-y-3">
                 {adminReports.map((r) => (
                   <li
                     key={r.id}
                     className={`rounded-lg border px-4 py-3 text-sm shadow-sm ${
-                      activeReportId === r.id ? 'border-brand-300 bg-brand-50/30' : 'border-slate-200 bg-white'
+                      activeReportId === r.id ? 'border-brand-300 bg-brand-50/30 dark:border-brand-500 dark:bg-brand-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
                     }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-slate-900">
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">
                           [{r.type}] {r.subject}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
                           {new Date(r.createdAt).toLocaleString('es')}
                           {r.createdByName ? ` · ${r.createdByName}` : ''}
+                          {r.schoolId ? ` · ${schoolNameById.get(r.schoolId) ?? 'Institución'}` : ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <select
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                           value={r.status}
                           onChange={(e) =>
                             void updateReportStatus(
@@ -1718,7 +1936,7 @@ export function AdministracionPage() {
                     </div>
                     <p className="mt-2 whitespace-pre-wrap text-slate-700">{r.message}</p>
                     {activeReportId === r.id ? (
-                      <div className="mt-3 rounded border border-slate-200 bg-white p-3">
+                      <div className="mt-3 rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
                         {activeCommentsLoading ? (
                           <p className="text-xs text-slate-500">Cargando comentarios…</p>
                         ) : activeComments.length === 0 ? (
@@ -1726,7 +1944,7 @@ export function AdministracionPage() {
                         ) : (
                           <ul className="space-y-2">
                             {activeComments.map((c) => (
-                              <li key={c.id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+                              <li key={c.id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800">
                                 <p className="text-[11px] font-medium text-slate-700">
                                   {c.authorName ?? 'Usuario'}
                                   {c.authorRole ? ` · ${c.authorRole}` : ''} ·{' '}
@@ -1740,7 +1958,7 @@ export function AdministracionPage() {
                         <div className="mt-2 flex gap-2">
                           <input
                             type="text"
-                            className="flex-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                            className="flex-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             value={commentDraft}
                             onChange={(e) => setCommentDraft(e.target.value)}
                             placeholder="Agregar comentario al seguimiento"
@@ -1767,7 +1985,7 @@ export function AdministracionPage() {
         <>
           <Panel title="Días sin clases de su escuela">
             <NonInstructionalDaysList data={calendar} />
-            <p className="mt-3 text-sm text-slate-600">
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
               Para marcar o quitar días sin clases abra <strong>Horarios</strong> en el menú.
             </p>
           </Panel>
@@ -1809,7 +2027,7 @@ export function AdministracionPage() {
                 <label className="text-sm text-slate-700">
                   Tipo de reporte
                   <select
-                    className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                     value={reportType}
                     onChange={(e) => setReportType(e.target.value as 'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO')}
                     disabled={sendingReport}
@@ -1824,7 +2042,7 @@ export function AdministracionPage() {
                   Asunto
                   <input
                     type="text"
-                    className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                     value={reportSubject}
                     onChange={(e) => setReportSubject(e.target.value)}
                     maxLength={160}
@@ -1836,7 +2054,7 @@ export function AdministracionPage() {
               <label className="block text-sm text-slate-700">
                 Detalle
                 <textarea
-                  className="mt-1 min-h-[120px] w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="mt-1 min-h-[120px] w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={reportMessage}
                   onChange={(e) => setReportMessage(e.target.value)}
                   maxLength={4000}
@@ -1855,17 +2073,17 @@ export function AdministracionPage() {
                 </button>
               </div>
             </form>
-            <div className="mt-4 border-t border-slate-200 pt-4">
+            <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
               <p className="text-sm font-semibold text-slate-800">Mis reportes recientes</p>
               {myAdminReportsLoading ? (
-                <p className="mt-2 text-sm text-slate-600">Cargando…</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Cargando…</p>
               ) : myAdminReports.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-600">Aún no has enviado reportes.</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Aún no has enviado reportes.</p>
               ) : (
                 <ul className="mt-3 space-y-2">
                   {myAdminReports.map((r) => (
-                    <li key={r.id} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
-                      <p className="font-medium text-slate-900">
+                    <li key={r.id} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <p className="font-medium text-slate-900 dark:text-slate-100">
                         [{r.type}] {r.subject}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500">
@@ -1883,7 +2101,7 @@ export function AdministracionPage() {
                         Ver comentarios
                       </button>
                       {activeReportId === r.id ? (
-                        <div className="mt-2 rounded border border-slate-100 bg-slate-50 p-2">
+                        <div className="mt-2 rounded border border-slate-100 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800">
                           {activeCommentsLoading ? (
                             <p className="text-xs text-slate-500">Cargando comentarios…</p>
                           ) : activeComments.length === 0 ? (
@@ -1900,7 +2118,7 @@ export function AdministracionPage() {
                           <div className="mt-2 flex gap-2">
                             <input
                               type="text"
-                              className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                              className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                               value={commentDraft}
                               onChange={(e) => setCommentDraft(e.target.value)}
                               placeholder="Responder al equipo administrador"

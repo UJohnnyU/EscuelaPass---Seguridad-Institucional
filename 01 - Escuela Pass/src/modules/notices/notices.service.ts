@@ -45,9 +45,9 @@ export class NoticesService {
     private readonly fcmService: FcmService
   ) {}
 
-  async create(dto: CreateNoticeDto, createdByUserId: string, role: UserRole) {
+  async create(dto: CreateNoticeDto, createdByUserId: string, role: UserRole, schoolIdParam?: string) {
     this.validateTargets(dto);
-    const scopeSchoolId = await this.ensureRoleScope(role, createdByUserId, dto);
+    const scopeSchoolId = await this.ensureRoleScope(role, createdByUserId, dto, schoolIdParam);
     if (dto.targetType === NoticeTargetType.GROUP && dto.targetGroupId) {
       const exists = await this.groupsRepository.exist({ where: { id: dto.targetGroupId } });
       if (!exists) {
@@ -95,12 +95,26 @@ export class NoticesService {
     };
   }
 
-  async list(page = 1, limit = 20, createdByUserId: string, role: UserRole) {
+  async list(page = 1, limit = 20, createdByUserId: string, role: UserRole, schoolIdParam?: string) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
     const qb = this.noticesRepository.createQueryBuilder('n').orderBy('n.createdAt', 'DESC');
     if (role === UserRole.DOCENTE && createdByUserId) {
       qb.andWhere('n.created_by = :uid', { uid: createdByUserId });
+    }
+    if (role === UserRole.ADMIN && schoolIdParam) {
+      const schoolUsers = await this.usersRepository.find({
+        where: { schoolId: schoolIdParam },
+        select: ['id']
+      });
+      const ids = schoolUsers.map((u) => u.id);
+      if (ids.length === 0) {
+        return {
+          data: [],
+          meta: { total: 0, page: Math.max(page, 1), limit: take, pages: 0 }
+        };
+      }
+      qb.andWhere('n.created_by IN (:...ids)', { ids });
     }
     const [items, total] = await qb.skip(skip).take(take).getManyAndCount();
     return {
@@ -367,6 +381,7 @@ export class NoticesService {
       q?: string;
       unreadOnly?: boolean;
       status?: string;
+      schoolId?: string;
     }
   ) {
     const admin = await this.usersRepository.findOne({
@@ -401,6 +416,9 @@ export class NoticesService {
          ) > 0`,
         { uidUnread: adminUserId }
       );
+    }
+    if (opts.schoolId) {
+      qb.andWhere('r.school_id = :filterSchoolId', { filterSchoolId: opts.schoolId });
     }
 
     const [items, total] = await qb.skip(skip).take(take).getManyAndCount();
@@ -549,7 +567,29 @@ export class NoticesService {
     }
   }
 
-  private async ensureRoleScope(role: UserRole, userId: string, dto: CreateNoticeDto): Promise<string | null> {
+  private async ensureRoleScope(
+    role: UserRole,
+    userId: string,
+    dto: CreateNoticeDto,
+    schoolIdParam?: string
+  ): Promise<string | null> {
+    if (role === UserRole.ADMIN) {
+      const sid = schoolIdParam?.trim();
+      if (!sid) {
+        if (dto.targetType !== NoticeTargetType.ALL) {
+          throw new BadRequestException('Seleccione una institución para avisos por grupo o por usuario.');
+        }
+        return null;
+      }
+      const schoolRows = await this.dataSource.query<{ id: string }[]>(
+        `SELECT id FROM schools WHERE id = $1 LIMIT 1`,
+        [sid]
+      );
+      if (!schoolRows[0]?.id) {
+        throw new BadRequestException('Institución no encontrada');
+      }
+      return sid;
+    }
     if (role === UserRole.ADMINISTRATIVO) {
       const adminUser = await this.usersRepository.findOne({ where: { id: userId }, select: ['schoolId'] });
       if (!adminUser?.schoolId) throw new ForbiddenException('Personal administrativo sin escuela asignada');

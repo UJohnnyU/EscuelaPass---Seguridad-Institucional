@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards
 } from '@nestjs/common';
@@ -31,14 +32,18 @@ export class MeetingsController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  create(@Body() dto: CreateMeetingDto, @Req() req: Request & { user: JwtUser }) {
-    return this.meetingsService.create(dto, req.user.userId, req.user.role);
+  create(
+    @Body() dto: CreateMeetingDto,
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string
+  ) {
+    return this.meetingsService.create(dto, req.user.userId, req.user.role, schoolId);
   }
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  list(@Req() req: Request & { user: JwtUser }) {
-    return this.meetingsService.listForStaff({ userId: req.user.userId, role: req.user.role });
+  list(@Req() req: Request & { user: JwtUser }, @Query('schoolId') schoolId?: string) {
+    return this.meetingsService.listForStaff({ userId: req.user.userId, role: req.user.role }, schoolId);
   }
 
   @Get('me')

@@ -39,6 +39,24 @@ type TeacherRow = {
   avatarUrl?: string | null;
 };
 
+type SubjectRow = {
+  id: string;
+  name: string;
+  code: string;
+  educationLevel: string | null;
+  gradeScope: string | null;
+  area: string | null;
+  description: string | null;
+};
+
+type TeacherSubjectRow = {
+  id: string;
+  teacherId: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+};
+
 type ParentRow = {
   id: string;
   userId: string;
@@ -125,9 +143,17 @@ function defaultSchoolYear(): string {
   return `${start}-${start + 1}`;
 }
 
+function shiftLabel(shift: string): string {
+  if (shift === 'MATUTINO') return 'Mañana';
+  if (shift === 'VESPERTINO') return 'Tarde';
+  if (shift === 'NOCTURNO') return 'Noche';
+  return shift;
+}
+
 export function SchoolRosterPage() {
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
+  const isAdminRole = user?.role === 'ADMIN';
   const canUploadAvatars = isStaff(user);
 
   const [schools, setSchools] = useState<SchoolRow[]>([]);
@@ -137,9 +163,12 @@ export function SchoolRosterPage() {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
+  const [subjects, setSubjects] = useState<SubjectRow[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<TeacherSubjectRow[]>([]);
   const [parents, setParents] = useState<ParentRow[]>([]);
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
+  const [nextMatriculaHint, setNextMatriculaHint] = useState<string>('');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,9 +191,18 @@ export function SchoolRosterPage() {
   const [tPass, setTPass] = useState('');
   const [tName, setTName] = useState('');
   const [tNum, setTNum] = useState('');
+  const [tSubjectIds, setTSubjectIds] = useState<string[]>([]);
 
   const [aTeacher, setATeacher] = useState('');
   const [aGroup, setAGroup] = useState('');
+  const [aSubject, setASubject] = useState('');
+
+  const [subCode, setSubCode] = useState('');
+  const [subName, setSubName] = useState('');
+  const [subLevel, setSubLevel] = useState('');
+  const [subGradeScope, setSubGradeScope] = useState('');
+  const [subArea, setSubArea] = useState('');
+  const [subDescription, setSubDescription] = useState('');
 
   const [pEmail, setPEmail] = useState('');
   const [pPass, setPPass] = useState('');
@@ -191,11 +229,73 @@ export function SchoolRosterPage() {
     () => schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})` })),
     [schools]
   );
+  const groupOccupancyById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const st of students) {
+      if (!st.groupId) continue;
+      map.set(st.groupId, (map.get(st.groupId) ?? 0) + 1);
+    }
+    return map;
+  }, [students]);
+  const groupCapacityRows = useMemo(
+    () =>
+      groups.map((g) => {
+        const occupied = groupOccupancyById.get(g.id) ?? 0;
+        const capacity = g.capacity ?? null;
+        const available = capacity != null ? Math.max(0, capacity - occupied) : null;
+        const ratio = capacity != null && capacity > 0 ? Math.min(100, Math.round((occupied / capacity) * 100)) : null;
+        const isFull = capacity != null ? occupied >= capacity : false;
+        return {
+          ...g,
+          occupied,
+          available,
+          ratio,
+          isFull
+        };
+      }),
+    [groups, groupOccupancyById]
+  );
   const groupOptions = useMemo(
     () => groups.map((g) => ({ value: g.id, label: `${g.name} (${g.schoolYear})` })),
     [groups]
   );
+  const assignableGroupOptionsForNewStudent = useMemo(
+    () =>
+      groupCapacityRows
+        .filter((g) => !g.isFull)
+        .map((g) => ({
+          value: g.id,
+          label: `${g.name} (${g.schoolYear})${g.available != null ? ` · ${g.available} cupos` : ''}`
+        })),
+    [groupCapacityRows]
+  );
   const teacherOptions = useMemo(() => teachers.map((t) => ({ value: t.id, label: t.fullName })), [teachers]);
+  const subjectOptions = useMemo(
+    () =>
+      subjects.map((s) => ({
+        value: s.id,
+        label: `${s.code} · ${s.name}${s.gradeScope ? ` (${s.gradeScope})` : ''}`
+      })),
+    [subjects]
+  );
+  const teacherSubjectByTeacher = useMemo(() => {
+    const map = new Map<string, TeacherSubjectRow[]>();
+    for (const row of teacherSubjects) {
+      const list = map.get(row.teacherId) ?? [];
+      list.push(row);
+      map.set(row.teacherId, list);
+    }
+    return map;
+  }, [teacherSubjects]);
+  const assignmentSubjectOptions = useMemo(() => {
+    if (!aTeacher) return subjectOptions;
+    const rows = teacherSubjectByTeacher.get(aTeacher) ?? [];
+    if (rows.length === 0) return [];
+    return rows.map((r) => ({
+      value: r.subjectId,
+      label: `${r.subjectCode} · ${r.subjectName}`
+    }));
+  }, [aTeacher, subjectOptions, teacherSubjectByTeacher]);
   const loadStudentOptions = useCallback(
     async (q: string, signal: AbortSignal) => {
       if (!canLoad) return [];
@@ -233,17 +333,35 @@ export function SchoolRosterPage() {
     [canLoad, schoolQuery]
   );
 
+  const refreshNextMatriculaHint = useCallback(async () => {
+    if (!canLoad) {
+      setNextMatriculaHint('');
+      return;
+    }
+    try {
+      const { data } = await api.get<{ matricula: string }>('/api/v1/school/students/next-matricula', {
+        params: schoolQuery
+      });
+      setNextMatriculaHint(typeof data?.matricula === 'string' ? data.matricula : '');
+    } catch {
+      setNextMatriculaHint('');
+    }
+  }, [canLoad, schoolQuery]);
+
   const refreshAll = useCallback(async () => {
     if (!canLoad) return;
     setError(null);
     try {
-      const [g, st, te, pa, asg, lk] = await Promise.all([
+      const [g, st, te, pa, asg, lk, sub, tsub, nextMat] = await Promise.all([
         api.get<GroupRow[]>('/api/v1/school/groups', { params: schoolQuery }),
         api.get<StudentRow[]>('/api/v1/school/students', { params: schoolQuery }),
         api.get<TeacherRow[]>('/api/v1/school/teachers', { params: schoolQuery }),
         api.get<ParentRow[]>('/api/v1/school/parents', { params: schoolQuery }),
         api.get<AssignmentRow[]>('/api/v1/school/teacher-assignments', { params: schoolQuery }),
-        api.get<LinkRow[]>('/api/v1/school/student-parent-links', { params: schoolQuery })
+        api.get<LinkRow[]>('/api/v1/school/student-parent-links', { params: schoolQuery }),
+        api.get<SubjectRow[]>('/api/v1/school/subjects', { params: schoolQuery }),
+        api.get<TeacherSubjectRow[]>('/api/v1/school/teacher-subjects', { params: schoolQuery }),
+        api.get<{ matricula: string }>('/api/v1/school/students/next-matricula', { params: schoolQuery })
       ]);
       setGroups(Array.isArray(g.data) ? g.data : []);
       setStudents(Array.isArray(st.data) ? st.data : []);
@@ -251,6 +369,9 @@ export function SchoolRosterPage() {
       setParents(Array.isArray(pa.data) ? pa.data : []);
       setAssignments(Array.isArray(asg.data) ? asg.data : []);
       setLinks(Array.isArray(lk.data) ? lk.data : []);
+      setSubjects(Array.isArray(sub.data) ? sub.data : []);
+      setTeacherSubjects(Array.isArray(tsub.data) ? tsub.data : []);
+      setNextMatriculaHint(typeof nextMat.data?.matricula === 'string' ? nextMat.data.matricula : '');
     } catch (e) {
       setError(getUserFacingMessage(e, 'No se pudieron cargar los datos de la escuela.'));
     }
@@ -303,8 +424,11 @@ export function SchoolRosterPage() {
       setStudents([]);
       setTeachers([]);
       setParents([]);
+      setSubjects([]);
+      setTeacherSubjects([]);
       setLinks([]);
       setAssignments([]);
+      setNextMatriculaHint('');
       return;
     }
     let cancelled = false;
@@ -353,9 +477,9 @@ export function SchoolRosterPage() {
       const body: Record<string, unknown> = {
         email: sEmail.trim(),
         password: sPass,
-        fullName: sName.trim(),
-        matricula: sMat.trim()
+        fullName: sName.trim()
       };
+      if (sMat.trim()) body.matricula = sMat.trim();
       if (sGroup) body.groupId = sGroup;
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/students', body);
@@ -365,6 +489,7 @@ export function SchoolRosterPage() {
       setSMat('');
       setSGroup('');
       setMessage('Alumno registrado.');
+      await refreshNextMatriculaHint();
       await refreshAll();
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo registrar el alumno.'));
@@ -397,7 +522,8 @@ export function SchoolRosterPage() {
         email: tEmail.trim(),
         password: tPass,
         fullName: tName.trim(),
-        employeeNumber: tNum.trim()
+        employeeNumber: tNum.trim(),
+        subjectIds: tSubjectIds
       };
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/teachers', body);
@@ -405,6 +531,7 @@ export function SchoolRosterPage() {
       setTPass('');
       setTName('');
       setTNum('');
+      setTSubjectIds([]);
       setMessage('Docente registrado.');
       await refreshAll();
     } catch (err) {
@@ -412,20 +539,50 @@ export function SchoolRosterPage() {
     }
   }
 
+  async function onCreateSubject(e: FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        code: subCode.trim(),
+        name: subName.trim()
+      };
+      if (subLevel.trim()) body.educationLevel = subLevel.trim();
+      if (subGradeScope.trim()) body.gradeScope = subGradeScope.trim();
+      if (subArea.trim()) body.area = subArea.trim();
+      if (subDescription.trim()) body.description = subDescription.trim();
+      if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
+      await api.post('/api/v1/school/subjects', body);
+      setSubCode('');
+      setSubName('');
+      setSubLevel('');
+      setSubGradeScope('');
+      setSubArea('');
+      setSubDescription('');
+      setMessage('Asignatura institucional creada.');
+      await refreshAll();
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo crear la asignatura.'));
+    }
+  }
+
   async function onAssignTeacher(e: FormEvent) {
     e.preventDefault();
-    if (!aTeacher || !aGroup) return;
+    if (!aTeacher || !aGroup || !aSubject) return;
     setMessage(null);
     setError(null);
     try {
       const body: Record<string, unknown> = {
         teacherId: aTeacher,
-        groupId: aGroup
+        groupId: aGroup,
+        subjectId: aSubject
       };
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/teacher-assignments', body);
       setATeacher('');
       setAGroup('');
+      setASubject('');
       setMessage('Docente asignado al grupo.');
       await refreshAll();
     } catch (err) {
@@ -522,14 +679,14 @@ export function SchoolRosterPage() {
   }
 
   if (!schoolsReady || loading) {
-    return <p className="text-slate-600">Cargando plantel y grupos…</p>;
+    return <p className="text-slate-600 dark:text-slate-300">Cargando plantel y grupos…</p>;
   }
 
   if (platformAdmin && !selectedSchoolId) {
     return (
       <div className="max-w-3xl animate-fade-in">
-        <h1 className="font-serif text-3xl font-semibold tracking-tight text-slate-900">Grupos y personas</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <h1 className="font-serif text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Grupos y personas</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           Elija una escuela para administrar sus grupos, alumnos, docentes y familias.
         </p>
         {schools.length === 0 ? (
@@ -555,8 +712,8 @@ export function SchoolRosterPage() {
 
   return (
     <div className="max-w-5xl animate-fade-in">
-      <h1 className="font-serif text-3xl font-semibold tracking-tight text-slate-900">Grupos y personas</h1>
-      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+      <h1 className="font-serif text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Grupos y personas</h1>
+      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
         Cree grupos, registre alumnos y docentes, asigne docentes a cada grupo y vincule a padres o tutores con sus
         hijos.
       </p>
@@ -581,8 +738,8 @@ export function SchoolRosterPage() {
         </p>
       )}
 
-      <section className="mt-10 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Grupos</h2>
+      <section className="mt-10 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Grupos</h2>
         <form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={onCreateGroup}>
           <label className="text-sm">
             <span className="text-slate-700">Nombre del grupo</span>
@@ -608,9 +765,9 @@ export function SchoolRosterPage() {
               value={gShift}
               onChange={(e) => setGShift(e.target.value)}
             >
-              <option value="MATUTINO">Matutino</option>
-              <option value="VESPERTINO">Vespertino</option>
-              <option value="NOCTURNO">Nocturno</option>
+              <option value="MATUTINO">Mañana</option>
+              <option value="VESPERTINO">Tarde</option>
+              <option value="NOCTURNO">Noche</option>
             </select>
           </label>
           <label className="text-sm">
@@ -643,7 +800,7 @@ export function SchoolRosterPage() {
           <div className="flex items-end sm:col-span-2 lg:col-span-3">
             <button
               type="submit"
-              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800"
+              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
             >
               Crear grupo
             </button>
@@ -665,7 +822,7 @@ export function SchoolRosterPage() {
                 <tr key={r.id} className="border-b border-slate-100">
                   <td className="py-2 pr-4">{r.name}</td>
                   <td className="py-2 pr-4">{r.grade ?? '—'}</td>
-                  <td className="py-2 pr-4">{r.shift}</td>
+                  <td className="py-2 pr-4">{shiftLabel(r.shift)}</td>
                   <td className="py-2 pr-4">{r.schoolYear}</td>
                   <td className="py-2">{r.classroom ?? '—'}</td>
                 </tr>
@@ -676,8 +833,8 @@ export function SchoolRosterPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Alumnos</h2>
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Alumnos</h2>
         <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateStudent}>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Correo</span>
@@ -710,35 +867,41 @@ export function SchoolRosterPage() {
             />
           </label>
           <label className="text-sm">
-            <span className="text-slate-700">Matrícula</span>
+            <span className="text-slate-700">Matrícula (opcional)</span>
             <input
-              required
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={sMat}
               onChange={(e) => setSMat(e.target.value)}
+              placeholder={`Se genera automáticamente (ej. ${nextMatriculaHint || 'A-0001'})`}
             />
+            <p className="mt-1 text-xs text-slate-500">
+              {sMat.trim()
+                ? 'Si escribes una matrícula manual, se usará ese valor.'
+                : `Sugerida ahora: ${nextMatriculaHint || 'calculando...'}`}
+            </p>
           </label>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Grupo (opcional)</span>
             <div className="mt-1">
               <SmartSelect
-                options={groupOptions}
+                options={assignableGroupOptionsForNewStudent}
                 value={sGroup}
                 onChange={setSGroup}
                 placeholder="— Sin asignar —"
+                emptyLabel="No hay grupos con cupo disponible"
               />
             </div>
           </label>
           <div className="sm:col-span-2">
             <button
               type="submit"
-              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800"
+              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
             >
               Registrar alumno
             </button>
           </div>
         </form>
-        <p className="mt-4 text-sm text-slate-600">
+        <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
           En la tabla puede cambiar el grupo de un alumno ya registrado; el cambio se guarda al elegir otra opción.
         </p>
         <div className="mt-4 overflow-x-auto">
@@ -766,6 +929,11 @@ export function SchoolRosterPage() {
                   <td className="py-2 pr-4 align-middle">{r.fullName}</td>
                   <td className="py-2 pr-4 align-middle">{r.matricula}</td>
                   <td className="py-2 align-middle">
+                    {(() => {
+                      const selectableGroups = groupCapacityRows.filter(
+                        (g) => !g.isFull || g.id === r.groupId
+                      );
+                      return (
                     <select
                       className="max-w-full rounded border border-slate-300 px-2 py-1.5 text-sm disabled:opacity-60"
                       value={r.groupId ?? ''}
@@ -777,12 +945,15 @@ export function SchoolRosterPage() {
                       aria-label={`Grupo de ${r.fullName}`}
                     >
                       <option value="">— Sin asignar —</option>
-                      {groups.map((g) => (
+                      {selectableGroups.map((g) => (
                         <option key={g.id} value={g.id}>
                           {g.name} ({g.schoolYear})
+                          {g.available != null ? ` · ${g.available} cupos` : ''}
                         </option>
                       ))}
                     </select>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -790,10 +961,79 @@ export function SchoolRosterPage() {
           </table>
           {students.length === 0 && <p className="mt-2 text-slate-500">No hay alumnos registrados.</p>}
         </div>
+        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Grupos con cupo disponible</h3>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
+              {groupCapacityRows.filter((g) => !g.isFull).length} de {groupCapacityRows.length} con espacio
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-600">
+                  <th className="py-2 pr-4 font-medium">Grupo</th>
+                  <th className="py-2 pr-4 font-medium">Turno</th>
+                  <th className="py-2 pr-4 font-medium">Capacidad</th>
+                  <th className="py-2 pr-4 font-medium">Ocupados</th>
+                  <th className="py-2 pr-4 font-medium">Disponibles</th>
+                  <th className="py-2 font-medium">Uso</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupCapacityRows
+                  .filter((g) => !g.isFull)
+                  .sort((a, b) => {
+                    const avA = a.available ?? Number.POSITIVE_INFINITY;
+                    const avB = b.available ?? Number.POSITIVE_INFINITY;
+                    return avB - avA;
+                  })
+                  .map((g) => (
+                    <tr key={g.id} className="border-b border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900">
+                      <td className="py-2 pr-4">
+                        <div>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{g.name}</p>
+                          <p className="text-xs text-slate-500">
+                            {g.grade ?? '—'} · {g.schoolYear}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="py-2 pr-4">{shiftLabel(g.shift)}</td>
+                      <td className="py-2 pr-4">{g.capacity ?? 'Sin límite'}</td>
+                      <td className="py-2 pr-4">{g.occupied}</td>
+                      <td className="py-2 pr-4">
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                          {g.available ?? 'Ilimitado'}
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        {g.ratio != null ? (
+                          <div className="w-36">
+                            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className={`h-full rounded-full ${g.ratio >= 85 ? 'bg-amber-500' : 'bg-brand-700'}`}
+                                style={{ width: `${g.ratio}%` }}
+                              />
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">{g.ratio}%</p>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-500">Sin tope</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            {groupCapacityRows.filter((g) => !g.isFull).length === 0 && (
+              <p className="mt-2 text-slate-500">No hay grupos con cupo disponible en este momento.</p>
+            )}
+          </div>
+        </div>
       </section>
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Docentes</h2>
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Docentes</h2>
         <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateTeacher}>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Correo</span>
@@ -834,10 +1074,27 @@ export function SchoolRosterPage() {
               onChange={(e) => setTNum(e.target.value)}
             />
           </label>
+          <label className="text-sm sm:col-span-2">
+            <span className="text-slate-700">Asignaturas del docente (una o varias)</span>
+            <select
+              multiple
+              required
+              className="mt-1 h-32 w-full rounded border border-slate-300 px-3 py-2"
+              value={tSubjectIds}
+              onChange={(e) => setTSubjectIds(Array.from(e.target.selectedOptions).map((o) => o.value))}
+            >
+              {subjectOptions.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">Ctrl/Cmd + click para seleccionar varias.</p>
+          </label>
           <div className="sm:col-span-2">
             <button
               type="submit"
-              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800"
+              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
             >
               Registrar docente
             </button>
@@ -850,6 +1107,7 @@ export function SchoolRosterPage() {
                 <th className="w-28 py-2 pr-2 font-medium">Foto</th>
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">No. empleado</th>
+                <th className="py-2 pr-4 font-medium">Asignaturas</th>
                 <th className="py-2 font-medium">Correo</th>
               </tr>
             </thead>
@@ -867,6 +1125,11 @@ export function SchoolRosterPage() {
                   </td>
                   <td className="py-2 pr-4">{r.fullName}</td>
                   <td className="py-2 pr-4">{r.employeeNumber}</td>
+                  <td className="py-2 pr-4">
+                    {(teacherSubjectByTeacher.get(r.id) ?? []).length > 0
+                      ? (teacherSubjectByTeacher.get(r.id) ?? []).map((x) => x.subjectCode).join(', ')
+                      : '—'}
+                  </td>
                   <td className="py-2">{r.email}</td>
                 </tr>
               ))}
@@ -876,8 +1139,108 @@ export function SchoolRosterPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Docentes en grupos</h2>
+      {isAdminRole && (
+        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Asignaturas institucionales</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Defina un catalogo formal de materias con codigo, nivel, grado objetivo y area academica.
+          </p>
+          <form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={onCreateSubject}>
+            <label className="text-sm">
+              <span className="text-slate-700">Codigo</span>
+              <input
+                required
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={subCode}
+                onChange={(e) => setSubCode(e.target.value)}
+                placeholder="Ej. MAT-101"
+              />
+            </label>
+            <label className="text-sm sm:col-span-2">
+              <span className="text-slate-700">Nombre</span>
+              <input
+                required
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={subName}
+                onChange={(e) => setSubName(e.target.value)}
+                placeholder="Ej. Matematicas aplicadas"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-700">Nivel</span>
+              <input
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={subLevel}
+                onChange={(e) => setSubLevel(e.target.value)}
+                placeholder="Primaria, Secundaria..."
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-700">Grado objetivo</span>
+              <input
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={subGradeScope}
+                onChange={(e) => setSubGradeScope(e.target.value)}
+                placeholder="6°, 9°, Bachillerato..."
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-700">Area academica</span>
+              <input
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={subArea}
+                onChange={(e) => setSubArea(e.target.value)}
+                placeholder="Ciencias, Tecnologia..."
+              />
+            </label>
+            <label className="text-sm lg:col-span-3">
+              <span className="text-slate-700">Descripcion (opcional)</span>
+              <textarea
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                rows={2}
+                value={subDescription}
+                onChange={(e) => setSubDescription(e.target.value)}
+              />
+            </label>
+            <div className="lg:col-span-3">
+              <button
+                type="submit"
+                className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
+              >
+                Crear asignatura
+              </button>
+            </div>
+          </form>
+          <div className="mt-6 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-600">
+                  <th className="py-2 pr-4 font-medium">Codigo</th>
+                  <th className="py-2 pr-4 font-medium">Nombre</th>
+                  <th className="py-2 pr-4 font-medium">Nivel</th>
+                  <th className="py-2 pr-4 font-medium">Grado</th>
+                  <th className="py-2 font-medium">Area</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subjects.map((s) => (
+                  <tr key={s.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-4 font-medium text-slate-900">{s.code}</td>
+                    <td className="py-2 pr-4">{s.name}</td>
+                    <td className="py-2 pr-4">{s.educationLevel ?? '—'}</td>
+                    <td className="py-2 pr-4">{s.gradeScope ?? '—'}</td>
+                    <td className="py-2">{s.area ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {subjects.length === 0 && <p className="mt-2 text-slate-500">No hay asignaturas creadas.</p>}
+          </div>
+        </section>
+      )}
+
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Docentes en grupos</h2>
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onAssignTeacher}>
           <label className="text-sm">
             <span className="text-slate-700">Docente</span>
@@ -901,9 +1264,26 @@ export function SchoolRosterPage() {
               />
             </div>
           </label>
+          <label className="text-sm">
+            <span className="text-slate-700">Asignatura</span>
+            <div className="mt-1 min-w-[14rem]">
+              <SmartSelect
+                options={assignmentSubjectOptions}
+                value={aSubject}
+                onChange={setASubject}
+                placeholder={aTeacher ? '— Elegir —' : 'Primero elige docente'}
+                emptyLabel={
+                  aTeacher
+                    ? 'Este docente no tiene asignaturas cargadas'
+                    : 'Selecciona docente para ver asignaturas'
+                }
+              />
+            </div>
+          </label>
           <button
             type="submit"
-            className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800"
+            disabled={!aTeacher || !aGroup || !aSubject}
+            className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
           >
             Asignar
           </button>
@@ -914,6 +1294,7 @@ export function SchoolRosterPage() {
               <tr className="border-b border-slate-200 text-slate-600">
                 <th className="py-2 pr-4 font-medium">Docente</th>
                 <th className="py-2 pr-4 font-medium">Grupo</th>
+                <th className="py-2 pr-4 font-medium">Asignatura</th>
                 <th className="py-2 font-medium" />
               </tr>
             </thead>
@@ -921,10 +1302,12 @@ export function SchoolRosterPage() {
               {assignments.map((r) => {
                 const te = teachers.find((t) => t.id === r.teacherId);
                 const gr = groups.find((g) => g.id === r.groupId);
+                const sb = subjects.find((s) => s.id === r.subjectId);
                 return (
                   <tr key={r.id} className="border-b border-slate-100">
                     <td className="py-2 pr-4">{te?.fullName ?? r.teacherId}</td>
                     <td className="py-2 pr-4">{gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}</td>
+                    <td className="py-2 pr-4">{sb ? `${sb.code} · ${sb.name}` : r.subjectId ?? '—'}</td>
                     <td className="py-2">
                       <button
                         type="button"
@@ -949,8 +1332,8 @@ export function SchoolRosterPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Padres y tutores</h2>
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Padres y tutores</h2>
         <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateParent}>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Correo</span>
@@ -989,7 +1372,7 @@ export function SchoolRosterPage() {
           <div className="sm:col-span-2">
             <button
               type="submit"
-              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800"
+              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
             >
               Crear perfil de padre/tutor
             </button>
@@ -1028,9 +1411,9 @@ export function SchoolRosterPage() {
         </div>
       </section>
 
-      <section className="mt-8 mb-12 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Vincular padre o tutor con alumno</h2>
-        <p className="mt-1 text-sm text-slate-600">
+      <section className="mt-8 mb-12 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Vincular padre o tutor con alumno</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Elija un alumno y un padre o tutor ya registrados en esta escuela e indique el parentesco.
         </p>
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onLink}>
@@ -1071,7 +1454,7 @@ export function SchoolRosterPage() {
           </label>
           <button
             type="submit"
-            className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800"
+            className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
           >
             Vincular
           </button>

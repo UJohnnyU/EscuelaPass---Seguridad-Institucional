@@ -1,4 +1,15 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength
+} from 'class-validator';
 
 export class CreateTeacherDto {
   @IsEmail()
@@ -20,6 +31,13 @@ export class CreateTeacherDto {
   @IsBoolean()
   @IsOptional()
   canAccessCampus?: boolean;
+
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(30)
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  subjectIds?: string[];
 
   /** Obligatorio para ADMIN de plataforma sin escuela en el token. */
   @IsUUID()

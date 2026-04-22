@@ -48,8 +48,8 @@ export class ExternalVisitsService {
     private readonly notifier: EventNotificationsService
   ) {}
 
-  async create(dto: CreateExternalVisitDto, userId: string, role: UserRole): Promise<VisitRow> {
-    const schoolId = await this.assertStaffSchool(userId, role);
+  async create(dto: CreateExternalVisitDto, userId: string, role: UserRole, schoolIdParam?: string): Promise<VisitRow> {
+    const schoolId = await this.assertStaffSchool(userId, role, schoolIdParam);
 
     const groupIds = dto.audienceScope === ExternalVisitAudienceScope.GROUPS ? dto.groupIds ?? [] : [];
     const studentIds =
@@ -100,9 +100,12 @@ export class ExternalVisitsService {
     return this.getDetail(saved.id, userId, role);
   }
 
-  async list(user: { userId: string; role: UserRole }): Promise<VisitRow[]> {
+  async list(user: { userId: string; role: UserRole }, schoolIdParam?: string): Promise<VisitRow[]> {
     const qb = this.visitsRepository.createQueryBuilder('v').orderBy('v.visit_datetime', 'DESC');
     if (user.role === UserRole.ADMIN) {
+      if (schoolIdParam?.trim()) {
+        qb.where('v.school_id = :sid', { sid: schoolIdParam.trim() });
+      }
       const all = await qb.getMany();
       return this.hydrate(all);
     }
@@ -343,12 +346,18 @@ export class ExternalVisitsService {
     });
   }
 
-  private async assertStaffSchool(userId: string, role: UserRole): Promise<string> {
+  private async assertStaffSchool(userId: string, role: UserRole, schoolIdParam?: string): Promise<string> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new ForbiddenException('Usuario no encontrado');
     if (role === UserRole.ADMIN) {
-      if (!user.schoolId) throw new BadRequestException('Admin debe elegir una escuela');
-      return user.schoolId;
+      const sid = schoolIdParam?.trim() || user.schoolId || '';
+      if (!sid) throw new BadRequestException('Admin debe elegir una escuela');
+      const schoolRows = await this.dataSource.query<{ id: string }[]>(
+        `SELECT id FROM schools WHERE id = $1 LIMIT 1`,
+        [sid]
+      );
+      if (!schoolRows[0]?.id) throw new BadRequestException('Institución no encontrada');
+      return sid;
     }
     if (role !== UserRole.ADMINISTRATIVO && role !== UserRole.DOCENTE) {
       throw new ForbiddenException('Solo staff puede crear visitas');

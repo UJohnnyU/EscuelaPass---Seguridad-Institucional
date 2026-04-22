@@ -314,8 +314,86 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
       `CREATE INDEX IF NOT EXISTS ix_admin_report_comments_report ON admin_report_comments (report_id, created_at)`
     );
 
+    await runner.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS code varchar(30)`);
+    await runner.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS education_level varchar(80) NULL`);
+    await runner.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS grade_scope varchar(80) NULL`);
+    await runner.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS area varchar(80) NULL`);
+    await runner.query(`UPDATE subjects SET code = id::text WHERE code IS NULL OR trim(code) = ''`);
+    await runner.query(`ALTER TABLE subjects ALTER COLUMN code SET NOT NULL`);
+    await runner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_school_code_ci ON subjects (school_id, lower(code))`
+    );
+
+    await runner.query(`
+      CREATE TABLE IF NOT EXISTS teacher_subjects (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await runner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_subjects_teacher_subject ON teacher_subjects (teacher_id, subject_id)`
+    );
+
+    await runner.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id uuid`);
+    await runner.query(`
+      UPDATE students s
+      SET school_id = u.school_id
+      FROM users u
+      WHERE u.id = s.user_id
+        AND s.school_id IS NULL
+    `);
+    await runner.query(`ALTER TABLE students ALTER COLUMN school_id SET NOT NULL`);
+    await runner.query(`
+      DO $$
+      DECLARE con_name text;
+      BEGIN
+        SELECT c.conname
+          INTO con_name
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE n.nspname = current_schema()
+          AND t.relname = 'students'
+          AND c.contype = 'u'
+          AND (
+            array_length(c.conkey, 1) = 1
+            AND (
+              SELECT a.attname
+              FROM pg_attribute a
+              WHERE a.attrelid = c.conrelid
+                AND a.attnum = c.conkey[1]
+            ) = 'matricula'
+          )
+        LIMIT 1;
+
+        IF con_name IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE students DROP CONSTRAINT %I', con_name);
+        END IF;
+      END $$;
+    `);
+    await runner.query(`CREATE INDEX IF NOT EXISTS ix_students_school_id ON students (school_id)`);
+    await runner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS uq_students_school_matricula ON students (school_id, matricula)`
+    );
+    await runner.query(`
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE students
+            ADD CONSTRAINT fk_students_school_id
+            FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE;
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END;
+      END $$;
+    `);
+
     await runner.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(500) NULL`);
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500) NULL`);
+    await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS student_matricula_prefix VARCHAR(20) NULL`);
+    await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS circuit_enabled BOOLEAN NOT NULL DEFAULT true`);
 
     await runner.query(
       `ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS excuse_attachment_path VARCHAR(500) NULL`

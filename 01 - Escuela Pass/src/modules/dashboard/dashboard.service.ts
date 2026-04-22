@@ -118,75 +118,96 @@ export class DashboardService {
     }
   }
 
-  async summary(dateStr?: string) {
+  async summary(dateStr?: string, schoolId?: string) {
     const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const sid = schoolId?.trim();
     const nonInstructionalDay = await this.schoolCalendarService.isGloballyNonInstructional(date);
 
+    const teachersCountPromise = sid
+      ? this.teachersRepository
+          .createQueryBuilder('t')
+          .innerJoin('users', 'u', 'u.id = t.user_id')
+          .where('u.school_id = :sid', { sid })
+          .getCount()
+      : this.teachersRepository.count();
     const [students, teachers, groups, usersActive] = await Promise.all([
-      this.studentsRepository.count(),
-      this.teachersRepository.count(),
-      this.groupsRepository.count({ where: { status: true } }),
-      this.usersRepository.count({ where: { status: true } })
+      this.studentsRepository.count({ where: sid ? { schoolId: sid } : undefined }),
+      teachersCountPromise,
+      this.groupsRepository.count({ where: sid ? { status: true, schoolId: sid } : { status: true } }),
+      this.usersRepository.count({ where: sid ? { status: true, schoolId: sid } : { status: true } })
     ]);
 
-    const rolesRaw = await this.usersRepository
+    const rolesQb = this.usersRepository
       .createQueryBuilder('u')
       .select('u.role', 'role')
       .addSelect('COUNT(*)', 'total')
-      .groupBy('u.role')
-      .getRawMany<{ role: UserRole; total: string }>();
+      .groupBy('u.role');
+    if (sid) rolesQb.where('u.school_id = :sid', { sid });
+    const rolesRaw = await rolesQb.getRawMany<{ role: UserRole; total: string }>();
     const usersByRole = rolesRaw.reduce<Record<string, number>>((acc, row) => {
       acc[row.role] = Number(row.total);
       return acc;
     }, {});
 
-    const attendanceRaw = await this.attendanceRepository
+    const attendanceQb = this.attendanceRepository
       .createQueryBuilder('a')
+      .innerJoin('students', 's', 's.id = a.student_id')
       .select('a.status', 'status')
       .addSelect('COUNT(*)', 'total')
       .where('a.attendanceDate = :date', { date })
-      .groupBy('a.status')
-      .getRawMany<{ status: AttendanceStatus; total: string }>();
+      .groupBy('a.status');
+    if (sid) attendanceQb.andWhere('s.school_id = :sid', { sid });
+    const attendanceRaw = await attendanceQb.getRawMany<{ status: AttendanceStatus; total: string }>();
     const attendanceByStatus = attendanceRaw.reduce<Record<string, number>>((acc, row) => {
       acc[row.status] = Number(row.total);
       return acc;
     }, {});
     const attendanceTotal = Object.values(attendanceByStatus).reduce((sum, n) => sum + n, 0);
 
+    const pendingDebtsQb = this.debtsRepository
+      .createQueryBuilder('d')
+      .where('d.status = :pending', { pending: PaymentStatus.PENDIENTE });
+    const overdueDebtsQb = this.debtsRepository
+      .createQueryBuilder('d')
+      .where('d.status = :pending', { pending: PaymentStatus.PENDIENTE })
+      .andWhere('d.dueDate < :date', { date });
+    const pendingWithVoucherQb = this.debtsRepository
+      .createQueryBuilder('d')
+      .where('d.status = :pending', { pending: PaymentStatus.PENDIENTE })
+      .andWhere('d.voucherPath IS NOT NULL');
+    if (sid) {
+      pendingDebtsQb.innerJoin('students', 's', 's.id = d.student_id AND s.school_id = :sid', { sid });
+      overdueDebtsQb.innerJoin('students', 's', 's.id = d.student_id AND s.school_id = :sid', { sid });
+      pendingWithVoucherQb.innerJoin('students', 's', 's.id = d.student_id AND s.school_id = :sid', { sid });
+    }
     const [pendingDebts, overdueDebts, pendingWithVoucher] = await Promise.all([
-      this.debtsRepository.count({ where: { status: PaymentStatus.PENDIENTE } }),
-      this.debtsRepository
-        .createQueryBuilder('d')
-        .where('d.status = :pending', { pending: PaymentStatus.PENDIENTE })
-        .andWhere('d.dueDate < :date', { date })
-        .getCount(),
-      this.debtsRepository
-        .createQueryBuilder('d')
-        .where('d.status = :pending', { pending: PaymentStatus.PENDIENTE })
-        .andWhere('d.voucherPath IS NOT NULL')
-        .getCount()
+      pendingDebtsQb.getCount(),
+      overdueDebtsQb.getCount(),
+      pendingWithVoucherQb.getCount()
     ]);
 
-    const circuitRaw = await this.circuitRepository
+    const circuitQb = this.circuitRepository
       .createQueryBuilder('cr')
       .select('cr.status', 'status')
       .addSelect('COUNT(*)', 'total')
       .where('DATE(cr.requestTime) = :date', { date })
-      .groupBy('cr.status')
-      .getRawMany<{ status: CircuitStatus; total: string }>();
+      .groupBy('cr.status');
+    if (sid) circuitQb.innerJoin('students', 's', 's.id = cr.student_id AND s.school_id = :sid', { sid });
+    const circuitRaw = await circuitQb.getRawMany<{ status: CircuitStatus; total: string }>();
     const circuitByStatus = circuitRaw.reduce<Record<string, number>>((acc, row) => {
       acc[row.status] = Number(row.total);
       return acc;
     }, {});
     const circuitTodayTotal = Object.values(circuitByStatus).reduce((sum, n) => sum + n, 0);
 
-    const accessRaw = await this.accessEventsRepository
+    const accessQb = this.accessEventsRepository
       .createQueryBuilder('ae')
       .select('ae.eventType', 'eventType')
       .addSelect('COUNT(*)', 'total')
       .where('ae.eventDate = :date', { date })
-      .groupBy('ae.eventType')
-      .getRawMany<{ eventType: AccessEventType; total: string }>();
+      .groupBy('ae.eventType');
+    if (sid) accessQb.innerJoin('users', 'u', 'u.id = ae.user_id AND u.school_id = :sid', { sid });
+    const accessRaw = await accessQb.getRawMany<{ eventType: AccessEventType; total: string }>();
     const accessByType = accessRaw.reduce<Record<string, number>>((acc, row) => {
       acc[row.eventType] = Number(row.total);
       return acc;
@@ -196,6 +217,7 @@ export class DashboardService {
     return {
       generatedAt: new Date().toISOString(),
       date,
+      schoolId: sid ?? null,
       nonInstructionalDay,
       entities: {
         students,
@@ -228,11 +250,31 @@ export class DashboardService {
    * Panel administrativo: resumen operativo + serie de circuitos (7 días) y desglose por grupo.
    * Una sola institución por despliegue; "por grupo" sustituye granularidad multi-escuela.
    */
-  async adminPanel(referenceDateStr?: string) {
+  async adminPanel(referenceDateStr?: string, windowDaysStr?: string) {
     const endDate = referenceDateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
-    const startDate = addCalendarDays(endDate, -6);
+    const parsedDays = Number.parseInt(windowDaysStr ?? '7', 10);
+    const windowDays = parsedDays === 15 || parsedDays === 30 ? parsedDays : 7;
+    const startDate = addCalendarDays(endDate, -(windowDays - 1));
+    const previousEndDate = addCalendarDays(startDate, -1);
+    const previousStartDate = addCalendarDays(previousEndDate, -(windowDays - 1));
+    const toMetric = (current: number, previous: number) => {
+      const delta = current - previous;
+      const deltaPct = previous > 0 ? Number(((delta / previous) * 100).toFixed(2)) : current > 0 ? 100 : 0;
+      return { current, previous, delta, deltaPct };
+    };
 
-    const [summary, visitsPending, circuitDayStatusRows, circuitGroupRows] = await Promise.all([
+    const [
+      summary,
+      visitsPending,
+      circuitDayStatusRows,
+      circuitGroupRows,
+      attendanceCurrent,
+      attendancePrevious,
+      accessCurrent,
+      accessPrevious,
+      circuitCurrent,
+      circuitPrevious
+    ] = await Promise.all([
       this.summary(endDate),
       this.visitRequestsRepository.count({ where: { status: PickupRequestStatus.PENDIENTE } }),
       this.circuitRepository
@@ -260,7 +302,31 @@ export class DashboardService {
         .addGroupBy('COALESCE(g.grade, \'\')')
         .addGroupBy('g.shift')
         .orderBy('cnt', 'DESC')
-        .getRawMany<{ groupId: string; groupName: string; grade: string; shift: string | null; cnt: string }>()
+        .getRawMany<{ groupId: string; groupName: string; grade: string; shift: string | null; cnt: string }>(),
+      this.attendanceRepository
+        .createQueryBuilder('a')
+        .where('a.attendanceDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .getCount(),
+      this.attendanceRepository
+        .createQueryBuilder('a')
+        .where('a.attendanceDate BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate })
+        .getCount(),
+      this.accessEventsRepository
+        .createQueryBuilder('ae')
+        .where('ae.eventDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .getCount(),
+      this.accessEventsRepository
+        .createQueryBuilder('ae')
+        .where('ae.eventDate BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate })
+        .getCount(),
+      this.circuitRepository
+        .createQueryBuilder('cr')
+        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .getCount(),
+      this.circuitRepository
+        .createQueryBuilder('cr')
+        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate })
+        .getCount()
     ]);
 
     const byDayMap = new Map<string, { total: number; byStatus: Record<string, number> }>();
@@ -276,7 +342,7 @@ export class DashboardService {
     }
 
     const circuitByDay: Array<{ date: string; total: number; byStatus: Record<string, number> }> = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < windowDays; i++) {
       const d = addCalendarDays(startDate, i);
       const existing = byDayMap.get(d);
       circuitByDay.push({
@@ -296,8 +362,17 @@ export class DashboardService {
 
     return {
       referenceDate: endDate,
-      window: { startDate, endDate, label: 'Últimos 7 días' },
+      window: { startDate, endDate, label: `Últimos ${windowDays} días` },
       summary,
+      comparison: {
+        currentWindow: { startDate, endDate, label: `Últimos ${windowDays} días` },
+        previousWindow: { startDate: previousStartDate, endDate: previousEndDate, label: `Período previo (${windowDays} días)` },
+        metrics: {
+          attendanceRecords: toMetric(attendanceCurrent, attendancePrevious),
+          accessEvents: toMetric(accessCurrent, accessPrevious),
+          circuitRequests: toMetric(circuitCurrent, circuitPrevious)
+        }
+      },
       visits: {
         pendingApproval: visitsPending
       },

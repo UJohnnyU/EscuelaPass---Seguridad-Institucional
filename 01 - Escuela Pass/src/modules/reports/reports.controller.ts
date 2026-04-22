@@ -26,17 +26,18 @@ export class ReportsController {
 
   @Get('payments/pending')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  paymentsPending() {
-    return this.reportsService.paymentsPending();
+  paymentsPending(@Query('schoolId') schoolId: string | undefined) {
+    return this.reportsService.paymentsPending(schoolId);
   }
 
   @Get('circuit/today')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   circuitToday(
     @Query('status') status: CircuitStatus | undefined,
-    @Query('date') date: string | undefined
+    @Query('date') date: string | undefined,
+    @Query('schoolId') schoolId: string | undefined
   ) {
-    return this.reportsService.circuitToday(status, date);
+    return this.reportsService.circuitToday(status, date, schoolId);
   }
 }
 

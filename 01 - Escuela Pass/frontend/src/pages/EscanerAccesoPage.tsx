@@ -73,53 +73,80 @@ export function EscanerAccesoPage() {
   }
 
   return (
-    <div className="max-w-xl space-y-8">
-      <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Escáner de acceso</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+    <div className="mx-auto max-w-3xl animate-fade-in space-y-8">
+      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-6 text-white shadow-sm dark:border-slate-700 sm:p-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Control de acceso</p>
+        <h1 className="mt-1 font-serif text-3xl font-semibold tracking-tight">Escáner de acceso</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
           Use la cámara para leer el código QR de un estudiante, padre o visitante autorizado. Aparecerán su nombre y
           los datos necesarios para registrar el ingreso o la salida.
         </p>
-      </div>
+        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs text-white/90">
+          <span className={`h-2 w-2 rounded-full ${scanning ? 'bg-emerald-300' : 'bg-amber-300'}`} />
+          {scanning ? 'Cámara activa' : 'Cámara en espera'}
+        </div>
+      </header>
 
-      <Panel title="Tipo de registro">
-        <div className="flex flex-wrap gap-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
+      <Panel title="Tipo de registro" description="Seleccione qué evento desea registrar antes de escanear.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label
+            className={`group flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${
+              eventType === 'ENTRY'
+                ? 'border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-500/60 dark:bg-emerald-900/30 dark:text-emerald-100'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600'
+            }`}
+          >
             <input
               type="radio"
               name="ev"
               checked={eventType === 'ENTRY'}
               onChange={() => setEventType('ENTRY')}
+              className="h-4 w-4"
             />
-            Ingreso
+            <div>
+              <p className="text-sm font-semibold">Ingreso</p>
+              <p className="text-xs opacity-80">Entrada al plantel</p>
+            </div>
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <label
+            className={`group flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${
+              eventType === 'EXIT'
+                ? 'border-amber-400 bg-amber-50 text-amber-900 dark:border-amber-500/60 dark:bg-amber-900/30 dark:text-amber-100'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600'
+            }`}
+          >
             <input
               type="radio"
               name="ev"
               checked={eventType === 'EXIT'}
               onChange={() => setEventType('EXIT')}
+              className="h-4 w-4"
             />
-            Salida
+            <div>
+              <p className="text-sm font-semibold">Salida</p>
+              <p className="text-xs opacity-80">Salida del plantel</p>
+            </div>
           </label>
         </div>
       </Panel>
 
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+          {err}
+        </div>
       )}
 
-      <Panel title="Lectura con cámara">
+      <Panel title="Lectura con cámara" description="Alinee el código QR dentro del recuadro y espere la confirmación.">
         <div
           id={READER_ID}
-          className="min-h-[200px] w-full overflow-hidden rounded border border-slate-200 bg-slate-50"
+          className="min-h-[260px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-inner dark:border-slate-700 dark:bg-slate-900"
         />
         <div className="mt-4 flex flex-wrap gap-3">
           {!scanning ? (
             <button
               type="button"
               onClick={() => void startCamera()}
-              className="rounded bg-brand-900 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-950"
+              className="rounded-xl bg-brand-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
             >
               Iniciar cámara
             </button>
@@ -127,11 +154,14 @@ export function EscanerAccesoPage() {
             <button
               type="button"
               onClick={() => void stopCamera()}
-              className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900"
+              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               Detener
             </button>
           )}
+        </div>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+          Consejo: mantenga buena iluminación y evite reflejos en la pantalla del QR para una lectura más rápida.
         </div>
       </Panel>
 

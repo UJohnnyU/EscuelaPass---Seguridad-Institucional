@@ -31,6 +31,8 @@ type VisitRow = {
 
 type GroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
 type StudentRow = { id: string; matricula: string; fullName: string };
+type SchoolOption = { id: string; name: string };
+const STORAGE_VISITS_SCHOOL = 'ep:visits:schoolId';
 
 function formatDateLong(iso: string): string {
   try {
@@ -78,6 +80,7 @@ export function VisitasPage() {
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
   const canCreate = isStaff(user);
   const docenteOnly = user?.role === 'DOCENTE';
+  const platformAdmin = user?.role === 'ADMIN';
 
   const [tab, setTab] = useState<'upcoming' | 'past' | 'organized'>('upcoming');
   const [err, setErr] = useState<string | null>(null);
@@ -89,6 +92,41 @@ export function VisitasPage() {
   const [detailErr, setDetailErr] = useState<string | null>(null);
   const [groupNameMap, setGroupNameMap] = useState<Record<string, string>>({});
   const [studentNameMap, setStudentNameMap] = useState<Record<string, string>>({});
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return sessionStorage.getItem(STORAGE_VISITS_SCHOOL) ?? '';
+  });
+
+  useEffect(() => {
+    if (!platformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolOption[]>('/api/v1/schools');
+        const rows = Array.isArray(data) ? data : [];
+        if (!cancelled) {
+          setSchools(rows);
+          if (rows.length > 0) {
+            setSelectedSchoolId((prev) =>
+              prev && rows.some((s) => s.id === prev) ? prev : rows[0].id
+            );
+          }
+        }
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin]);
+
+  useEffect(() => {
+    if (!platformAdmin || typeof window === 'undefined') return;
+    if (!selectedSchoolId) return;
+    sessionStorage.setItem(STORAGE_VISITS_SCHOOL, selectedSchoolId);
+  }, [platformAdmin, selectedSchoolId]);
 
   const loadLists = useCallback(async () => {
     setErr(null);
@@ -96,7 +134,9 @@ export function VisitasPage() {
       const mineRes = await api.get<VisitRow[]>('/api/v1/external-visits/me');
       setMine(Array.isArray(mineRes.data) ? mineRes.data : []);
       if (staff) {
-        const orgRes = await api.get<VisitRow[]>('/api/v1/external-visits');
+        const params: Record<string, string> = {};
+        if (platformAdmin && selectedSchoolId) params.schoolId = selectedSchoolId;
+        const orgRes = await api.get<VisitRow[]>('/api/v1/external-visits', { params });
         setOrganized(Array.isArray(orgRes.data) ? orgRes.data : []);
       } else {
         setOrganized([]);
@@ -104,7 +144,7 @@ export function VisitasPage() {
     } catch (e) {
       setErr(getUserFacingMessage(e));
     }
-  }, [staff]);
+  }, [staff, platformAdmin, selectedSchoolId]);
 
   useEffect(() => {
     void loadLists();
@@ -280,7 +320,26 @@ export function VisitasPage() {
       )}
 
       {canCreate && (
-        <CreateVisitPanel onCreated={reloadAll} docenteOnly={docenteOnly} />
+        <CreateVisitPanel onCreated={reloadAll} docenteOnly={docenteOnly} schoolId={platformAdmin ? selectedSchoolId : undefined} />
+      )}
+
+      {platformAdmin && (
+        <div className="rounded border border-slate-200 bg-white p-4">
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-700">Institución</span>
+            <select
+              className="w-full rounded border border-slate-300 px-3 py-2"
+              value={selectedSchoolId}
+              onChange={(e) => setSelectedSchoolId(e.target.value)}
+            >
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       )}
 
       <div className="rounded border border-slate-200 bg-white">
@@ -489,10 +548,12 @@ function VisitActions({
 
 function CreateVisitPanel({
   onCreated,
-  docenteOnly
+  docenteOnly,
+  schoolId
 }: {
   onCreated: () => Promise<void> | void;
   docenteOnly: boolean;
+  schoolId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -514,8 +575,10 @@ function CreateVisitPanel({
     const endpoint = docenteOnly
       ? '/api/v1/schedules/me/teacher/groups'
       : '/api/v1/school/groups';
+    const params: Record<string, string | number | undefined> = { q: q.trim() || undefined, limit: 80 };
+    if (!docenteOnly && schoolId) params.schoolId = schoolId;
     const { data } = await api.get<GroupRow[]>(endpoint, {
-      params: { q: q.trim() || undefined, limit: 80 },
+      params,
       signal
     });
     const rows = Array.isArray(data) ? data : [];
@@ -525,11 +588,13 @@ function CreateVisitPanel({
         label: `${g.name}${g.grade ? ` · ${g.grade}` : ''} · ${g.schoolYear}`
       })
     );
-  }, [docenteOnly]);
+  }, [docenteOnly, schoolId]);
 
   const loadStudents = useCallback(async (q: string, signal: AbortSignal) => {
+    const params: Record<string, string | number | undefined> = { q: q.trim() || undefined, limit: 80 };
+    if (schoolId) params.schoolId = schoolId;
     const { data } = await api.get<StudentRow[]>('/api/v1/school/students', {
-      params: { q: q.trim() || undefined, limit: 80 },
+      params,
       signal
     });
     const rows = Array.isArray(data) ? data : [];
@@ -540,7 +605,7 @@ function CreateVisitPanel({
         searchText: s.matricula
       })
     );
-  }, []);
+  }, [schoolId]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -559,7 +624,9 @@ function CreateVisitPanel({
       };
       if (scope === 'GROUPS') payload.groupIds = groupIds;
       if (scope === 'STUDENTS') payload.studentIds = studentIds;
-      await api.post('/api/v1/external-visits', payload);
+      const params: Record<string, string> = {};
+      if (schoolId) params.schoolId = schoolId;
+      await api.post('/api/v1/external-visits', payload, { params });
       setTitle('');
       setPurpose('');
       setVisitorName('');

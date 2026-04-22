@@ -48,6 +48,16 @@ function groupLabel(g: Group, schoolName?: string): string {
   return parts.length ? parts.join(' · ') : 'Grupo';
 }
 
+function importKindLabel(kind: string): string {
+  const k = String(kind || '').toLowerCase();
+  if (k === 'groups') return 'Grupos';
+  if (k === 'students') return 'Alumnos';
+  if (k === 'teachers') return 'Docentes';
+  if (k === 'teacher-assignments') return 'Asignaciones docente-grupo-materia';
+  if (k === 'students-to-groups' || k === 'students-to-groups-xlsx') return 'Asignación de alumnos a grupos';
+  return kind;
+}
+
 export function ImportExportPage() {
   const { user } = useAuth();
   const admin = isAdmin(user);
@@ -254,7 +264,7 @@ export function ImportExportPage() {
 
   if (!admin && !administrativo && !docente) {
     return (
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-slate-600 dark:text-slate-300">
         Esta sección es para el personal del plantel. Si necesita un archivo, solicítelo en secretaría.
       </p>
     );
@@ -263,8 +273,8 @@ export function ImportExportPage() {
   return (
     <div className="max-w-3xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Importar y exportar información</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Importar y exportar información</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
           Descargue las <strong>plantillas oficiales</strong> para preparar listas de alumnos, docentes o grupos, y
           obtenga <strong>exportaciones</strong> en Excel con la información de cada grupo.
         </p>
@@ -282,7 +292,7 @@ export function ImportExportPage() {
           <label className="text-sm text-slate-700">
             Formato preferido
             <select
-              className="ml-3 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
+              className="ml-3 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               value={templateFormat}
               onChange={(e) => setTemplateFormat(e.target.value as TemplateFormat)}
             >
@@ -318,7 +328,7 @@ export function ImportExportPage() {
                 `plantilla-alumnos.${templateFormat}`
               )
             }
-            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             {`Plantilla estudiantes (.${templateFormat})`}
           </button>
@@ -333,7 +343,7 @@ export function ImportExportPage() {
                 `plantilla-asignacion-grupos.${templateFormat}`
               )
             }
-            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             {`Plantilla asignación a grupos (.${templateFormat})`}
           </button>
@@ -348,7 +358,7 @@ export function ImportExportPage() {
                 `plantilla-grupos.${templateFormat}`
               )
             }
-            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             {`Plantilla grupos (.${templateFormat})`}
           </button>
@@ -363,7 +373,7 @@ export function ImportExportPage() {
                 `plantilla-docentes.${templateFormat}`
               )
             }
-            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             {`Plantilla docentes (.${templateFormat})`}
           </button>
@@ -378,14 +388,13 @@ export function ImportExportPage() {
                 `plantilla-asignaciones-docentes.${templateFormat}`
               )
             }
-            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             {`Plantilla asignaciones docente–grupo (.${templateFormat})`}
           </button>
         </div>
         <p className="mt-4 text-xs text-slate-500">
-          Recomendamos primero subir el archivo en modo de validación para detectar errores y luego confirmar la
-          carga.
+          Recomendamos primero subir el archivo en modo de validación para detectar errores y luego confirmar la carga.
           {platformAdmin ? (
             <>
               {' '}
@@ -393,6 +402,7 @@ export function ImportExportPage() {
               esa escuela, la imagen en la plantilla.
             </>
           ) : null}
+          {' '}En CSV se conserva la estructura de columnas en español (el formato CSV no admite logo embebido).
         </p>
       </Panel>
 
@@ -401,7 +411,7 @@ export function ImportExportPage() {
         description="Pasos: 1) suba el archivo, 2) revise los errores en modo de validación, 3) corrija lo necesario, 4) confirme la carga."
       >
         {!adminOrStaff ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Puede descargar las plantillas y exportaciones. La carga de información en bloque está reservada para la
             administración del plantel.
           </p>
@@ -441,7 +451,7 @@ export function ImportExportPage() {
                 type="button"
                 disabled={loading}
                 onClick={() => void runImport(false)}
-                className="rounded bg-brand-900 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-950 disabled:opacity-50"
+                className="rounded bg-brand-900 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 disabled:opacity-50"
               >
                 {loading ? 'Procesando…' : dryRun ? 'Validar archivo' : 'Importar ahora'}
               </button>
@@ -449,13 +459,13 @@ export function ImportExportPage() {
                 type="button"
                 disabled={loading}
                 onClick={() => void runImport(true)}
-                className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
               >
                 Confirmar y guardar
               </button>
             </div>
             {importResult && (
-              <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                 <p className="font-medium text-slate-800">
                   Resultado: {importResult.totalRows} filas leídas ·{' '}
                   {'created' in importResult ? `creadas ${importResult.created ?? 0}` : `actualizadas ${importResult.updated ?? 0}`}{' '}
@@ -535,7 +545,7 @@ export function ImportExportPage() {
             onClick={() =>
               downloadExport('/api/v1/exports/attendance.xlsx', `asistencia-${date}.xlsx`, { date })
             }
-            className="rounded bg-brand-900 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-950 disabled:opacity-50"
+            className="rounded bg-brand-900 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 disabled:opacity-50"
           >
             Exportar asistencia (.xlsx)
           </button>
@@ -543,7 +553,7 @@ export function ImportExportPage() {
             type="button"
             disabled={loading || !groupId}
             onClick={() => downloadExport('/api/v1/exports/grades.xlsx', 'calificaciones.xlsx')}
-            className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             Exportar calificaciones (.xlsx)
           </button>
@@ -553,7 +563,7 @@ export function ImportExportPage() {
             onClick={() =>
               downloadExport('/api/v1/exports/bulletin-consolidated.xlsx', 'boletin-consolidado.xlsx')
             }
-            className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             Boletín consolidado (.xlsx)
           </button>
@@ -563,12 +573,12 @@ export function ImportExportPage() {
       {adminOrStaff && (
         <Panel title="Cargas recientes" description="Las últimas importaciones realizadas en su escuela.">
           {history.length === 0 ? (
-            <p className="text-sm text-slate-600">Aún no hay cargas recientes.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Aún no hay cargas recientes.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
+                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
                     <th className="px-3 py-2 font-semibold text-slate-700">Fecha</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Tipo</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Filas</th>
@@ -581,7 +591,7 @@ export function ImportExportPage() {
                   {history.map((h) => (
                     <tr key={h.id} className="border-b border-slate-100">
                       <td className="px-3 py-2 text-slate-700">{new Date(h.createdAt).toLocaleString()}</td>
-                      <td className="px-3 py-2 text-slate-700">{h.kind}</td>
+                      <td className="px-3 py-2 text-slate-700">{importKindLabel(h.kind)}</td>
                       <td className="px-3 py-2 text-slate-700">{h.totalRows}</td>
                       <td className="px-3 py-2 text-slate-700">{h.created}</td>
                       <td className="px-3 py-2 text-slate-700">{h.errorCount}</td>

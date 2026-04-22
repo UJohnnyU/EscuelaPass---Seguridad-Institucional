@@ -50,7 +50,7 @@ export function QrScanResultModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
         <div className={`px-6 pb-16 pt-8 text-white ${access ? 'bg-gradient-to-br from-emerald-600 to-emerald-700' : 'bg-gradient-to-br from-rose-600 to-rose-700'}`}>
           <p className="text-xs font-semibold uppercase tracking-widest text-white/80">
             {access ? 'Acceso autorizado' : 'Acceso restringido'}
@@ -72,25 +72,25 @@ export function QrScanResultModal({
           </div>
         </div>
         <div className="px-6 pb-6 pt-4 text-center">
-          <h2 className="font-serif text-xl font-semibold text-slate-900">{p.nombreCompleto ?? '—'}</h2>
-          <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-slate-500">{roleLabel}</p>
+          <h2 className="font-serif text-xl font-semibold text-slate-900 dark:text-slate-100">{p.nombreCompleto ?? '—'}</h2>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">{roleLabel}</p>
           <dl className="mt-5 grid grid-cols-2 gap-3 text-left text-sm">
             {p.matriculaAlumno ? (
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Matrícula</dt>
-                <dd className="mt-0.5 font-medium text-slate-900">{p.matriculaAlumno}</dd>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+                <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Matrícula</dt>
+                <dd className="mt-0.5 font-medium text-slate-900 dark:text-slate-100">{p.matriculaAlumno}</dd>
               </div>
             ) : null}
             {p.grupo ? (
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
-                <dd className="mt-0.5 font-medium text-slate-900">{p.grupo}</dd>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+                <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Grupo</dt>
+                <dd className="mt-0.5 font-medium text-slate-900 dark:text-slate-100">{p.grupo}</dd>
               </div>
             ) : null}
             {p.email ? (
-              <div className="col-span-2 rounded-lg bg-slate-50 px-3 py-2">
-                <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Correo</dt>
-                <dd className="mt-0.5 truncate font-medium text-slate-900">{p.email}</dd>
+              <div className="col-span-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+                <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Correo</dt>
+                <dd className="mt-0.5 truncate font-medium text-slate-900 dark:text-slate-100">{p.email}</dd>
               </div>
             ) : null}
           </dl>
@@ -98,14 +98,14 @@ export function QrScanResultModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="flex-1 rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cerrar
             </button>
             <button
               type="button"
               onClick={onRescan}
-              className="flex-1 rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="flex-1 rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
             >
               Escanear otro
             </button>

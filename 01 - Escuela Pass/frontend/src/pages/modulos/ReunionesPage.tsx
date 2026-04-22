@@ -44,6 +44,8 @@ type Meeting = {
 
 type GroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
 type DirectoryRow = { userId: string; fullName: string; email: string };
+type SchoolOption = { id: string; name: string };
+const STORAGE_MEETINGS_SCHOOL = 'ep:meetings:schoolId';
 
 function formatDateLong(iso: string): string {
   try {
@@ -99,6 +101,7 @@ export function ReunionesPage() {
   const { user } = useAuth();
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
   const canCreate = isStaff(user);
+  const platformAdmin = user?.role === 'ADMIN';
 
   const [tab, setTab] = useState<'mine' | 'organized' | 'past'>('mine');
   const [err, setErr] = useState<string | null>(null);
@@ -108,6 +111,41 @@ export function ReunionesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Meeting | null>(null);
   const [detailErr, setDetailErr] = useState<string | null>(null);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return sessionStorage.getItem(STORAGE_MEETINGS_SCHOOL) ?? '';
+  });
+
+  useEffect(() => {
+    if (!platformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<SchoolOption[]>('/api/v1/schools');
+        const rows = Array.isArray(data) ? data : [];
+        if (!cancelled) {
+          setSchools(rows);
+          if (rows.length > 0) {
+            setSelectedSchoolId((prev) =>
+              prev && rows.some((s) => s.id === prev) ? prev : rows[0].id
+            );
+          }
+        }
+      } catch {
+        if (!cancelled) setSchools([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin]);
+
+  useEffect(() => {
+    if (!platformAdmin || typeof window === 'undefined') return;
+    if (!selectedSchoolId) return;
+    sessionStorage.setItem(STORAGE_MEETINGS_SCHOOL, selectedSchoolId);
+  }, [platformAdmin, selectedSchoolId]);
 
   const loadLists = useCallback(async () => {
     setErr(null);
@@ -115,7 +153,9 @@ export function ReunionesPage() {
       const mineRes = await api.get<Meeting[]>('/api/v1/meetings/me');
       setMine(Array.isArray(mineRes.data) ? mineRes.data : []);
       if (staff) {
-        const orgRes = await api.get<Meeting[]>('/api/v1/meetings');
+        const params: Record<string, string> = {};
+        if (platformAdmin && selectedSchoolId) params.schoolId = selectedSchoolId;
+        const orgRes = await api.get<Meeting[]>('/api/v1/meetings', { params });
         setOrganized(Array.isArray(orgRes.data) ? orgRes.data : []);
       } else {
         setOrganized([]);
@@ -123,7 +163,7 @@ export function ReunionesPage() {
     } catch (e) {
       setErr(getUserFacingMessage(e));
     }
-  }, [staff]);
+  }, [staff, platformAdmin, selectedSchoolId]);
 
   useEffect(() => {
     void loadLists();
@@ -270,7 +310,26 @@ export function ReunionesPage() {
         </div>
       )}
 
-      {canCreate && <CreateMeetingPanel onCreated={reloadAll} role={user?.role ?? ''} />}
+      {canCreate && <CreateMeetingPanel onCreated={reloadAll} role={user?.role ?? ''} schoolId={platformAdmin ? selectedSchoolId : undefined} />}
+
+      {platformAdmin && (
+        <div className="rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-700 dark:text-slate-200">Institución</span>
+            <select
+              className="w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+              value={selectedSchoolId}
+              onChange={(e) => setSelectedSchoolId(e.target.value)}
+            >
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       <div className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 pt-3">
@@ -529,10 +588,12 @@ type InviteItem = { userId: string; label: string; studentContextId?: string };
 
 function CreateMeetingPanel({
   onCreated,
-  role
+  role,
+  schoolId
 }: {
   onCreated: () => Promise<void> | void;
   role: string;
+  schoolId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -557,8 +618,10 @@ function CreateMeetingPanel({
     const endpoint = docenteOnly
       ? '/api/v1/schedules/me/teacher/groups'
       : '/api/v1/school/groups';
+    const params: Record<string, string | number | undefined> = { q: q.trim() || undefined, limit: 80 };
+    if (!docenteOnly && schoolId) params.schoolId = schoolId;
     const { data } = await api.get<GroupRow[]>(endpoint, {
-      params: { q: q.trim() || undefined, limit: 80 },
+      params,
       signal
     });
     const rows = Array.isArray(data) ? data : [];
@@ -568,10 +631,11 @@ function CreateMeetingPanel({
         label: `${g.name}${g.grade ? ` · ${g.grade}` : ''} · ${g.schoolYear}`
       })
     );
-  }, [docenteOnly]);
+  }, [docenteOnly, schoolId]);
 
   const loadUsers = useCallback(async (q: string, signal: AbortSignal) => {
-    const params = { q: q.trim() || undefined, limit: 50 };
+    const params: Record<string, string | number | undefined> = { q: q.trim() || undefined, limit: 50 };
+    if (schoolId) params.schoolId = schoolId;
     const out: SmartSelectOption[] = [];
     const teachers = await api.get<DirectoryRow[]>('/api/v1/school/teachers', { params, signal });
     (Array.isArray(teachers.data) ? teachers.data : []).forEach((x) =>
@@ -593,7 +657,7 @@ function CreateMeetingPanel({
     );
     out.sort((a, b) => a.label.localeCompare(b.label, 'es'));
     return out;
-  }, [docenteOnly]);
+  }, [docenteOnly, schoolId]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -618,7 +682,9 @@ function CreateMeetingPanel({
         payload.presetAllTeachersOfSchool = presetAllTeachers;
         payload.presetAllAdministrativesOfSchool = presetAllAdmins;
       }
-      await api.post('/api/v1/meetings', payload);
+      const params: Record<string, string> = {};
+      if (schoolId) params.schoolId = schoolId;
+      await api.post('/api/v1/meetings', payload, { params });
       setTitle('');
       setPurpose('');
       setLocation('');

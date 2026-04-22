@@ -110,6 +110,62 @@ type Notification = {
   readAt?: string | null;
 };
 
+type HomeAdminApiPayload = {
+  asOf?: string;
+  role?: string;
+  blocks?: {
+    operationalSummary?: {
+      entities?: {
+        students?: number;
+        teachers?: number;
+        groups?: number;
+        usersActive?: number;
+        usersByRole?: Record<string, number>;
+      };
+      attendanceToday?: { total?: number; byStatus?: Record<string, number> };
+      payments?: { pendingDebts?: number; overdueDebts?: number; pendingWithVoucher?: number };
+      circuitToday?: { total?: number; byStatus?: Record<string, number> };
+      accessToday?: { total?: number; byType?: Record<string, number> };
+    };
+    panel?: {
+      window?: { label?: string; startDate?: string; endDate?: string };
+      circuits?: { byDay?: Array<{ date: string; total: number }> };
+      visits?: { pendingApproval?: number };
+    };
+    meetings?: unknown;
+  };
+};
+
+type OperationalSummary = {
+  entities?: {
+    students?: number;
+    teachers?: number;
+    groups?: number;
+    usersActive?: number;
+    usersByRole?: Record<string, number>;
+  };
+  attendanceToday?: { total?: number; byStatus?: Record<string, number> };
+  payments?: { pendingDebts?: number; overdueDebts?: number; pendingWithVoucher?: number };
+  circuitToday?: { total?: number; byStatus?: Record<string, number> };
+  accessToday?: { total?: number; byType?: Record<string, number> };
+};
+
+type AdminPanelApiPayload = {
+  window?: { label?: string; startDate?: string; endDate?: string };
+  summary?: OperationalSummary;
+  comparison?: {
+    currentWindow?: { startDate?: string; endDate?: string; label?: string };
+    previousWindow?: { startDate?: string; endDate?: string; label?: string };
+    metrics?: {
+      attendanceRecords?: { current?: number; previous?: number; delta?: number; deltaPct?: number };
+      accessEvents?: { current?: number; previous?: number; delta?: number; deltaPct?: number };
+      circuitRequests?: { current?: number; previous?: number; delta?: number; deltaPct?: number };
+    };
+  };
+  visits?: { pendingApproval?: number };
+  circuits?: { byDay?: Array<{ date: string; total: number }> };
+};
+
 type ReportCard = {
   id: string;
   schoolYear: string;
@@ -849,12 +905,322 @@ function HomeInstitutional() {
   );
 }
 
+function HomePlatformAdmin() {
+  const [windowDays, setWindowDays] = useState<7 | 15 | 30>(7);
+  const [panel, setPanel] = useState<AdminPanelApiPayload | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (panel) setRefreshing(true);
+      else setLoading(true);
+      setErr(null);
+      try {
+        const { data } = await api.get<AdminPanelApiPayload>('/api/v1/dashboard/panel', {
+          params: { windowDays }
+        });
+        if (!cancelled) setPanel(data ?? null);
+      } catch (e) {
+        if (!cancelled) setErr(getUserFacingMessage(e, 'No se pudo cargar el panel de administración.'));
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [windowDays]);
+
+  const summary = panel?.summary;
+  const usersByRole = summary?.entities?.usersByRole ?? {};
+  const circuitByDay = panel?.circuits?.byDay ?? [];
+  const maxCircuitDay = Math.max(1, ...circuitByDay.map((d) => Number(d.total ?? 0)));
+
+  const pendingVoucher = Number(summary?.payments?.pendingWithVoucher ?? 0);
+  const pendingVisits = Number(panel?.visits?.pendingApproval ?? 0);
+  const overdueDebts = Number(summary?.payments?.overdueDebts ?? 0);
+  const criticalAlerts = [pendingVoucher > 0, pendingVisits > 0, overdueDebts > 0].filter(Boolean).length;
+  const comparison = panel?.comparison;
+  const incidents = [
+    {
+      id: 'voucher-review',
+      title: 'Comprobantes en cola de verificación',
+      value: pendingVoucher,
+      severity: pendingVoucher >= 20 ? 'ALTA' : pendingVoucher >= 8 ? 'MEDIA' : 'BAJA',
+      hint: 'Riesgo de retraso en conciliación de pagos'
+    },
+    {
+      id: 'visits-pending',
+      title: 'Visitas institucionales sin resolver',
+      value: pendingVisits,
+      severity: pendingVisits >= 12 ? 'ALTA' : pendingVisits >= 5 ? 'MEDIA' : 'BAJA',
+      hint: 'Puede afectar operación y seguridad de acceso'
+    },
+    {
+      id: 'debts-overdue',
+      title: 'Deudas vencidas activas',
+      value: overdueDebts,
+      severity: overdueDebts >= 40 ? 'ALTA' : overdueDebts >= 15 ? 'MEDIA' : 'BAJA',
+      hint: 'Implica presión financiera y gestión administrativa'
+    }
+  ].sort((a, b) => {
+    const w = (s: string) => (s === 'ALTA' ? 3 : s === 'MEDIA' ? 2 : 1);
+    return w(b.severity) - w(a.severity) || b.value - a.value;
+  });
+  const trendRows = [
+    {
+      key: 'attendance',
+      label: 'Asistencias registradas',
+      data: comparison?.metrics?.attendanceRecords
+    },
+    {
+      key: 'access',
+      label: 'Eventos de acceso',
+      data: comparison?.metrics?.accessEvents
+    },
+    {
+      key: 'circuit',
+      label: 'Solicitudes de circuito',
+      data: comparison?.metrics?.circuitRequests
+    }
+  ];
+
+  return (
+    <div className="space-y-5">
+      {err ? (
+        <div className="rounded border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{err}</div>
+      ) : null}
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="font-serif text-xl font-semibold text-slate-900 dark:text-slate-100">
+              Centro de control de plataforma
+            </h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Vista ejecutiva para supervisar operación global, cuellos de botella y actividad institucional.
+            </p>
+            {panel?.window ? (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Ventana activa: {panel.window.label} ({panel.window.startDate} a {panel.window.endDate})
+              </p>
+            ) : null}
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Rango</p>
+              <div className="flex rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
+                {[7, 15, 30].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setWindowDays(d as 7 | 15 | 30)}
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition ${
+                      windowDays === d
+                        ? 'bg-brand-900 text-white'
+                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-right dark:border-slate-700 dark:bg-slate-800">
+            <p className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Alertas críticas</p>
+            <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{criticalAlerts}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MiniStat label="Usuarios activos" value={Number(summary?.entities?.usersActive ?? 0)} />
+        <MiniStat label="Estudiantes" value={Number(summary?.entities?.students ?? 0)} />
+        <MiniStat label="Docentes" value={Number(summary?.entities?.teachers ?? 0)} />
+        <MiniStat label="Grupos activos" value={Number(summary?.entities?.groups ?? 0)} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-3">
+        <Card title="Riesgos operativos" subtitle="Items que requieren seguimiento inmediato" accent="rose">
+          <ul className="space-y-2">
+            <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
+              <span>Comprobantes por revisar</span>
+              <strong>{pendingVoucher}</strong>
+            </li>
+            <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
+              <span>Visitas pendientes</span>
+              <strong>{pendingVisits}</strong>
+            </li>
+            <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
+              <span>Deudas vencidas</span>
+              <strong>{overdueDebts}</strong>
+            </li>
+          </ul>
+        </Card>
+
+        <Card title="Distribución de usuarios" subtitle="Composición por rol en el sistema" accent="indigo">
+          <ul className="space-y-2">
+            {Object.entries(usersByRole)
+              .sort((a, b) => Number(b[1]) - Number(a[1]))
+              .slice(0, 5)
+              .map(([role, total]) => (
+                <li key={role} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{role}</span>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">{Number(total)}</span>
+                </li>
+              ))}
+          </ul>
+        </Card>
+
+        <Card title="Accesos rápidos" subtitle="Atajos a módulos de control estratégico" accent="slate">
+          <div className="grid grid-cols-1 gap-2">
+            <Link to="/app/modulos/administracion" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800">
+              Administración e informes
+            </Link>
+            <Link to="/app/circuito/hoy" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800">
+              Circuito del día
+            </Link>
+            <Link to="/app/modulos/comunicacion" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800">
+              Comunicación institucional
+            </Link>
+          </div>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card title={`Tendencia de circuito (${windowDays} días)`} subtitle="Solicitudes por día de la ventana actual" accent="emerald">
+          {circuitByDay.length === 0 ? (
+            <p className="text-slate-500">Sin datos disponibles.</p>
+          ) : (
+            <div className="mt-1 flex h-40 items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+              {circuitByDay.map((d) => {
+                const total = Number(d.total ?? 0);
+                const h = Math.max(6, Math.round((total / maxCircuitDay) * 100));
+                return (
+                  <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
+                    <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">{total}</span>
+                    <div className="flex h-24 w-full items-end">
+                      <div className="w-full rounded-t bg-emerald-500/90" style={{ height: `${h}%` }} />
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {formatISO(d.date, { day: '2-digit', month: '2-digit' })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        <Card title="Actividad transversal" subtitle="Pulso global de operación diaria" accent="amber">
+          <ul className="space-y-2">
+            <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
+              <span>Asistencias registradas hoy</span>
+              <strong>{Number(summary?.attendanceToday?.total ?? 0)}</strong>
+            </li>
+            <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
+              <span>Eventos de acceso hoy</span>
+              <strong>{Number(summary?.accessToday?.total ?? 0)}</strong>
+            </li>
+            <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
+              <span>Solicitudes de circuito hoy</span>
+              <strong>{Number(summary?.circuitToday?.total ?? 0)}</strong>
+            </li>
+          </ul>
+        </Card>
+      </section>
+
+      <Card
+        title="Comparativo vs período anterior"
+        subtitle={
+          comparison?.previousWindow
+            ? `${comparison.previousWindow.startDate} a ${comparison.previousWindow.endDate}`
+            : 'Mismo tamaño de ventana inmediatamente anterior'
+        }
+        accent="indigo"
+      >
+        <ul className="space-y-2">
+          {trendRows.map((row) => {
+            const current = Number(row.data?.current ?? 0);
+            const previous = Number(row.data?.previous ?? 0);
+            const delta = Number(row.data?.delta ?? current - previous);
+            const pct = Number(row.data?.deltaPct ?? 0);
+            const up = delta > 0;
+            const down = delta < 0;
+            return (
+              <li key={row.key} className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{row.label}</p>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      up
+                        ? 'bg-emerald-100 text-emerald-900'
+                        : down
+                          ? 'bg-rose-100 text-rose-900'
+                          : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {up ? '▲' : down ? '▼' : '•'} {delta >= 0 ? '+' : ''}
+                    {delta} ({pct >= 0 ? '+' : ''}
+                    {pct.toFixed(2)}%)
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                  Actual: {current} · Anterior: {previous}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+
+      <Card title="Incidentes recientes priorizados" subtitle="Clasificación automática por impacto operativo" accent="slate">
+        <ul className="space-y-2">
+          {incidents.map((inc) => (
+            <li key={inc.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{inc.title}</p>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    inc.severity === 'ALTA'
+                      ? 'bg-rose-100 text-rose-900'
+                      : inc.severity === 'MEDIA'
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'bg-emerald-100 text-emerald-900'
+                  }`}
+                >
+                  {inc.severity}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{inc.hint}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200">Registros: {inc.value}</p>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {(loading || refreshing) ? (
+        <p className="text-sm text-slate-500">
+          {loading ? 'Actualizando panel ejecutivo…' : 'Refrescando métricas del rango…'}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 // --- Dispatcher -------------------------------------------------------------
 
 export function AppHomePage() {
   const { user } = useAuth();
   const role = user?.role ?? '';
   const institutional = role === 'ADMIN' || role === 'ADMINISTRATIVO';
+  const isPlatformAdmin = role === 'ADMIN';
 
   const todayLong = useMemo(
     () =>
@@ -874,6 +1240,8 @@ export function AppHomePage() {
       return 'Un vistazo al día a día de sus hijos: asistencia, pagos, reuniones y avisos.';
     if (role === 'DOCENTE')
       return 'Sus reuniones del día, los grupos y materias a su cargo, y los avisos recientes.';
+    if (role === 'ADMIN')
+      return 'Vista ejecutiva de plataforma: métricas globales, alertas priorizadas y control transversal del sistema.';
     if (institutional) return 'Aquí tiene el pulso operativo de su plantel: accesos, circuito, pagos y más.';
     return 'Este es su punto de partida; abra cualquier opción del menú lateral para entrar.';
   }, [role, institutional]);
@@ -906,7 +1274,8 @@ export function AppHomePage() {
         {role === 'ALUMNO' ? <HomeAlumno /> : null}
         {role === 'PADRE' ? <HomePadre /> : null}
         {role === 'DOCENTE' ? <HomeDocente /> : null}
-        {institutional ? <HomeInstitutional /> : null}
+        {isPlatformAdmin ? <HomePlatformAdmin /> : null}
+        {role === 'ADMINISTRATIVO' ? <HomeInstitutional /> : null}
       </div>
     </div>
   );

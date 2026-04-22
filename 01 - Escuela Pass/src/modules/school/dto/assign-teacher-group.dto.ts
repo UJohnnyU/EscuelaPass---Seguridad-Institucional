@@ -8,8 +8,7 @@ export class AssignTeacherGroupDto {
   groupId!: string;
 
   @IsUUID()
-  @IsOptional()
-  subjectId?: string | null;
+  subjectId!: string;
 
   @IsBoolean()
   @IsOptional()

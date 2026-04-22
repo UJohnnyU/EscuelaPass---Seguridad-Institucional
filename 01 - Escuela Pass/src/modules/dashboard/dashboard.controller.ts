@@ -12,14 +12,20 @@ export class DashboardController {
 
   @Get('summary')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  summary(@Query('date') date: string | undefined) {
-    return this.dashboardService.summary(date);
+  summary(
+    @Query('date') date: string | undefined,
+    @Query('schoolId') schoolId: string | undefined
+  ) {
+    return this.dashboardService.summary(date, schoolId);
   }
 
   /** Panel con serie semanal de circuitos, desglose por grupo y KPIs operativos. */
   @Get('panel')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  panel(@Query('date') date: string | undefined) {
-    return this.dashboardService.adminPanel(date);
+  panel(
+    @Query('date') date: string | undefined,
+    @Query('windowDays') windowDays: string | undefined
+  ) {
+    return this.dashboardService.adminPanel(date, windowDays);
   }
 }

@@ -31,6 +31,7 @@ export type InstitutionProfile = {
   email?: string;
   directorName?: string;
   motto?: string;
+  studentMatriculaPrefix?: string;
   maxGradeScale?: string;
   /** Ruta pública `/uploads/school-logos/…` */
   logoUrl?: string | null;
@@ -102,6 +103,7 @@ export class SettingsService {
       email: pick(school.email, global.email),
       directorName: pick(school.directorName, global.directorName),
       motto: pick(school.motto, global.motto),
+      studentMatriculaPrefix: pick(school.studentMatriculaPrefix),
       maxGradeScale: school.maxGradeScale,
       logoUrl: school.logoPath ?? null,
       latitude: school.latitude ?? null,
@@ -170,33 +172,83 @@ export class SettingsService {
       school.directorName = dto.directorName.trim() ? dto.directorName.trim() : null;
     }
     if (dto.motto !== undefined) school.motto = dto.motto.trim() ? dto.motto.trim() : null;
+    if (dto.studentMatriculaPrefix !== undefined) {
+      const normalized = dto.studentMatriculaPrefix
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 20);
+      school.studentMatriculaPrefix = normalized.length > 0 ? normalized : null;
+    }
     if (dto.maxGradeScale !== undefined) {
       school.maxGradeScale = dto.maxGradeScale.toFixed(2);
+    }
+    if (dto.latitude !== undefined || dto.longitude !== undefined) {
+      if (user.role !== UserRole.ADMIN) {
+        throw new ForbiddenException('Solo ADMIN puede modificar la ubicación institucional');
+      }
+      if (dto.latitude !== undefined) {
+        school.latitude = dto.latitude.toFixed(8);
+      }
+      if (dto.longitude !== undefined) {
+        school.longitude = dto.longitude.toFixed(8);
+      }
     }
 
     await this.schoolsRepository.save(school);
     return this.getMergedProfileForSchoolId(targetSchoolId);
   }
 
-  async isCircuitEnabled(): Promise<boolean> {
-    const row = await this.settingsRepository.findOne({ where: { settingKey: CIRCUIT_ENABLED_KEY } });
-    if (!row) return true;
-    return row.value === 'true';
+  private async resolveSchoolIdForCircuit(user: JwtLike, querySchoolId?: string): Promise<string> {
+    if (user.role === UserRole.ADMIN) {
+      const sid = querySchoolId?.trim();
+      if (!sid) {
+        throw new BadRequestException(
+          'Indique qué escuela desea consultar/modificar (parámetro schoolId en la URL).'
+        );
+      }
+      const school = await this.schoolsRepository.findOne({ where: { id: sid }, select: ['id'] });
+      if (!school) throw new NotFoundException('Escuela no encontrada');
+      return sid;
+    }
+
+    if (user.role === UserRole.ADMINISTRATIVO || user.role === UserRole.DOCENTE || user.role === UserRole.PADRE || user.role === UserRole.ALUMNO) {
+      const sid = user.schoolId?.trim();
+      if (!sid) {
+        throw new ForbiddenException('Su cuenta no tiene escuela asignada');
+      }
+      return sid;
+    }
+
+    throw new ForbiddenException('No autorizado');
   }
 
-  async getCircuitSetting(): Promise<{ enabled: boolean }> {
-    const enabled = await this.isCircuitEnabled();
+  async isCircuitEnabled(schoolId: string | null | undefined): Promise<boolean> {
+    if (!schoolId) return true;
+    const school = await this.schoolsRepository.findOne({
+      where: { id: schoolId },
+      select: ['id', 'circuitEnabled']
+    });
+    if (!school) return true;
+    return school.circuitEnabled !== false;
+  }
+
+  async getCircuitSetting(user: JwtLike, querySchoolId?: string): Promise<{ enabled: boolean }> {
+    const schoolId = await this.resolveSchoolIdForCircuit(user, querySchoolId);
+    const enabled = await this.isCircuitEnabled(schoolId);
     return { enabled };
   }
 
-  async setCircuitEnabled(enabled: boolean): Promise<{ enabled: boolean }> {
-    const value = enabled ? 'true' : 'false';
-    await this.settingsRepository.save(
-      this.settingsRepository.create({
-        settingKey: CIRCUIT_ENABLED_KEY,
-        value
-      })
-    );
-    return { enabled };
+  async setCircuitEnabled(user: JwtLike, enabled: boolean, querySchoolId?: string): Promise<{ enabled: boolean }> {
+    if (user.role !== UserRole.ADMIN && user.role !== UserRole.ADMINISTRATIVO) {
+      throw new ForbiddenException('No autorizado para cambiar el estado del circuito');
+    }
+
+    const schoolId = await this.resolveSchoolIdForCircuit(user, querySchoolId);
+    const school = await this.schoolsRepository.findOne({ where: { id: schoolId } });
+    if (!school) throw new NotFoundException('Escuela no encontrada');
+    school.circuitEnabled = Boolean(enabled);
+    await this.schoolsRepository.save(school);
+    return { enabled: school.circuitEnabled };
   }
 }

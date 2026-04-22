@@ -19,6 +19,7 @@ type TeacherAssignment = {
 };
 
 type SchoolRow = { id: string; name: string; code: string };
+const STORAGE_ACTIVITIES_SCHOOL = 'ep:activities:schoolId';
 
 type ActivityStatus = 'OPEN' | 'CLOSED';
 
@@ -123,7 +124,10 @@ export function CalificacionesDocentePage() {
   const [searchParams] = useSearchParams();
 
   const [schools, setSchools] = useState<SchoolRow[]>([]);
-  const [schoolFilter, setSchoolFilter] = useState('');
+  const [schoolFilter, setSchoolFilter] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return sessionStorage.getItem(STORAGE_ACTIVITIES_SCHOOL) ?? '';
+  });
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(true);
 
@@ -153,22 +157,23 @@ export function CalificacionesDocentePage() {
   const preselectedStatus = searchParams.get('status')?.trim() ?? '';
 
   const schoolFilterOptions = useMemo(
-    () => [
-      { value: '', label: 'Todas las instituciones' },
-      ...schools.map((s) => ({
+    () =>
+      schools.map((s) => ({
         value: s.id,
         label: `${s.name} (${s.code})`,
         searchText: s.code
-      }))
-    ],
+      })),
     [schools]
   );
+
+  const assignmentShortLabel = (a: TeacherAssignment) =>
+    `${a.groupName ?? 'Grupo'} · ${a.subjectName}${a.grade ? ` · ${a.grade}` : ''}`;
 
   const assignmentSelectOptions = useMemo(
     () =>
       assignments.map((a) => ({
         value: `${a.groupId}::${a.subjectId}`,
-        label: `${a.schoolName ? `${a.schoolName} · ` : ''}${a.groupName ?? 'Grupo'} · ${a.grade ?? '—'} · ${a.schoolYear ?? '—'} — ${a.subjectName}`,
+        label: assignmentShortLabel(a),
         searchText: [a.groupName, a.subjectName, a.schoolName, a.grade].filter(Boolean).join(' ')
       })),
     [assignments]
@@ -185,7 +190,12 @@ export function CalificacionesDocentePage() {
     (async () => {
       try {
         const { data } = await api.get<SchoolRow[]>('/api/v1/schools');
-        if (!cancelled && Array.isArray(data)) setSchools(data);
+        if (!cancelled && Array.isArray(data)) {
+          setSchools(data);
+          if (data.length > 0) {
+            setSchoolFilter((prev) => (prev && data.some((s) => s.id === prev) ? prev : data[0].id));
+          }
+        }
       } catch {
         if (!cancelled) setSchools([]);
       }
@@ -196,8 +206,19 @@ export function CalificacionesDocentePage() {
   }, [platformAdmin]);
 
   useEffect(() => {
+    if (!platformAdmin || typeof window === 'undefined') return;
+    if (!schoolFilter) return;
+    sessionStorage.setItem(STORAGE_ACTIVITIES_SCHOOL, schoolFilter);
+  }, [platformAdmin, schoolFilter]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (platformAdmin && !schoolFilter.trim()) {
+        setAssignments([]);
+        setLoadingAssignments(false);
+        return;
+      }
       setLoadingAssignments(true);
       setErr(null);
       try {
@@ -240,6 +261,10 @@ export function CalificacionesDocentePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (platformAdmin && !schoolFilter.trim()) {
+        setPeriods([]);
+        return;
+      }
       try {
         const params: Record<string, string> = {};
         if (platformAdmin && schoolFilter.trim()) params.schoolId = schoolFilter.trim();
@@ -275,6 +300,11 @@ export function CalificacionesDocentePage() {
   );
 
   const loadActivities = useCallback(async () => {
+    if (platformAdmin && !schoolFilter.trim()) {
+      setActivities([]);
+      setLoadingActivities(false);
+      return;
+    }
     setLoadingActivities(true);
     setErr(null);
     try {
@@ -573,7 +603,7 @@ export function CalificacionesDocentePage() {
                         options={schoolFilterOptions}
                         value={schoolFilter}
                         onChange={setSchoolFilter}
-                        placeholder="Todas las instituciones"
+                        placeholder={schoolFilterOptions.length === 0 ? 'Sin instituciones' : '— Elegir institución —'}
                         disabled={loadingAssignments}
                       />
                     </div>

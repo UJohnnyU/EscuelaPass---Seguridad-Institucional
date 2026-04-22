@@ -8,8 +8,11 @@ export class StudentEntity {
   @Column({ name: 'user_id', type: 'uuid', unique: true })
   userId!: string;
 
-  @Column({ type: 'varchar', length: 50, unique: true })
+  @Column({ type: 'varchar', length: 50 })
   matricula!: string;
+
+  @Column({ name: 'school_id', type: 'uuid' })
+  schoolId!: string;
 
   @Column({ name: 'group_id', type: 'uuid', nullable: true })
   groupId!: string | null;

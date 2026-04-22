@@ -154,12 +154,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   }
 
   async create(payload: CreateCircuitRequestDto) {
-    if (!(await this.settingsService.isCircuitEnabled())) {
-      throw new BadRequestException('El circuito de recogida está deshabilitado por la institución.');
-    }
-
     const student = await this.studentsRepository.findOne({ where: { id: payload.studentId } });
     if (!student) throw new NotFoundException('Estudiante no existe');
+    if (!(await this.settingsService.isCircuitEnabled(student.schoolId))) {
+      throw new BadRequestException('El circuito de recogida está deshabilitado por la institución.');
+    }
     const today = new Date().toISOString().slice(0, 10);
     if (await this.departureConsentService.hasAutonomousConsentOnDate(student.id, today)) {
       throw new BadRequestException(
@@ -433,11 +432,13 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       .innerJoin(StudentEntity, 'st', 'st.id = cr.student_id')
       .innerJoin(GroupEntity, 'g', 'g.id = st.group_id')
       .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
-      .where('DATE(cr.request_time) = :today', { today });
+      .innerJoin(ParentEntity, 'pr', 'pr.id = cr.requested_by_parent_id')
+      .innerJoin(UserEntity, 'pu', 'pu.id = pr.user_id')
+      .where(`to_char(cr.request_time AT TIME ZONE 'UTC', 'YYYY-MM-DD') = :today`, { today });
 
     const q = searchQ?.trim();
     if (q) {
-      qb.andWhere('(su.full_name ILIKE :pat OR st.matricula ILIKE :pat)', {
+      qb.andWhere('(su.full_name ILIKE :pat OR pu.full_name ILIKE :pat OR st.matricula ILIKE :pat)', {
         pat: `%${q}%`
       });
     }
@@ -465,7 +466,89 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    return qb.orderBy('cr.request_time', 'DESC').take(maxRows).getMany();
+    try {
+      return await qb.orderBy('cr.request_time', 'DESC').take(maxRows).getMany();
+    } catch (error) {
+      const reason =
+        error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      this.logger.warn(`Circuito findToday: fallback SQL por error en query principal (${reason})`);
+      try {
+        return await this.findTodayFallback(userId, role, schoolIdParam, searchQ, maxRows, today);
+      } catch (fallbackError) {
+        const fallbackReason =
+          fallbackError instanceof Error
+            ? `${fallbackError.name}: ${fallbackError.message}`
+            : String(fallbackError);
+        this.logger.error(`Circuito findToday: fallback SQL también falló (${fallbackReason})`);
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Fallback robusto para entornos legacy donde request_time no siempre mantiene el mismo tipo SQL.
+   * Filtra por prefijo de fecha textual (YYYY-MM-DD) y evita funciones de fecha sensibles al tipo.
+   */
+  private async findTodayFallback(
+    userId: string,
+    role: UserRole,
+    schoolIdParam: string | null | undefined,
+    searchQ: string | null | undefined,
+    maxRows: number,
+    todayIso: string
+  ): Promise<CircuitRequestEntity[]> {
+    const params: Array<string | number> = [todayIso, maxRows];
+    let idx = params.length;
+    const where: string[] = [`COALESCE(cr.request_time::text, '') LIKE ($1 || '%')`];
+
+    const q = searchQ?.trim();
+    if (q) {
+      idx += 1;
+      params.push(`%${q}%`);
+      where.push(`(su.full_name ILIKE $${idx} OR pu.full_name ILIKE $${idx} OR st.matricula ILIKE $${idx})`);
+    }
+
+    if (role === UserRole.ADMIN) {
+      const sid = schoolIdParam?.trim();
+      if (!sid || !this.isUuid(sid)) {
+        return [];
+      }
+      idx += 1;
+      params.push(sid);
+      where.push(`g.school_id = $${idx}`);
+    } else if (role === UserRole.ADMINISTRATIVO) {
+      const schoolId = await this.userSchoolId(userId);
+      if (!schoolId) {
+        return [];
+      }
+      idx += 1;
+      params.push(schoolId);
+      where.push(`g.school_id = $${idx}`);
+    } else if (role === UserRole.DOCENTE) {
+      idx += 1;
+      params.push(userId);
+      where.push(`EXISTS (
+        SELECT 1
+        FROM teachers t
+        INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
+        WHERE t.user_id = $${idx} AND tg.group_id = st.group_id
+      )`);
+    }
+
+    const sql = `
+      SELECT cr.*
+      FROM circuit_requests cr
+      INNER JOIN students st ON st.id = cr.student_id
+      INNER JOIN groups g ON g.id = st.group_id
+      INNER JOIN users su ON su.id = st.user_id
+      INNER JOIN parents pr ON pr.id = cr.requested_by_parent_id
+      INNER JOIN users pu ON pu.id = pr.user_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY cr.request_time DESC
+      LIMIT $2
+    `;
+
+    return this.circuitRepository.query(sql, params) as Promise<CircuitRequestEntity[]>;
   }
 
   private isUuid(value: string): boolean {
