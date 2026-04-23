@@ -1729,6 +1729,19 @@ export function AdministracionPage() {
   const topActions = audit.slice(0, 8);
   const latestPayments = (repAtt?.latest ?? []).slice(0, 5);
   const schoolNameById = new Map(schools.map((s) => [s.id, s.name]));
+  const circuitStatusLabel: Record<string, string> = {
+    PENDIENTE: 'Pendiente',
+    PADRE_EN_CAMINO: 'Padre en camino',
+    NOTIFICADO_LLEGADA: 'Llegada notificada',
+    AUTORIZADO_SALIR: 'Autorizado para salir',
+    EN_CAMINO: 'En camino',
+    ENTREGADO: 'Entregado',
+    CERRADO_SIN_CONFIRMACION_PADRE: 'Cerrado sin confirmación',
+    CONSENTIDO_SOLO: 'Salida con consentimiento',
+    CANCELADO: 'Cancelado'
+  };
+  const circuitStatusRows = Object.entries(circuit?.byStatus ?? {}).sort((a, b) => b[1] - a[1]);
+  const circuitRecent = (circuit?.data ?? []).slice(0, 8);
 
   return (
     <div className="max-w-5xl space-y-8">
@@ -2190,8 +2203,76 @@ export function AdministracionPage() {
           </Panel>
         </>
       ) : null}
-      <Panel title="Recogidas del día (informe)">
-        <ValueView data={circuit} />
+      <Panel
+        title="Recogidas del día (informe)"
+        description="Seguimiento operativo de solicitudes de recogida: volumen, estado y trazabilidad reciente."
+      >
+        <div className="grid gap-3 sm:grid-cols-3">
+          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Solicitudes registradas</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{circuit?.total ?? 0}</p>
+          </article>
+          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Estado predominante</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {circuitStatusRows[0] ? (circuitStatusLabel[circuitStatusRows[0][0]] ?? circuitStatusRows[0][0]) : 'Sin datos'}
+            </p>
+          </article>
+          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Última actualización</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {circuitRecent[0]?.requestTime ? new Date(circuitRecent[0].requestTime).toLocaleString('es') : 'Sin movimientos'}
+            </p>
+          </article>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <article className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Distribución por estado</p>
+            {circuitStatusRows.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-600">No hay solicitudes para hoy.</p>
+            ) : (
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-700">
+                {circuitStatusRows.map(([status, count]) => (
+                  <li key={status} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+                    <div className="flex items-center justify-between">
+                      <span>{circuitStatusLabel[status] ?? status}</span>
+                      <strong>
+                        {count}
+                        <span className="ml-1 text-xs font-medium text-slate-500">
+                          ({Math.round((count / Math.max(1, circuit?.total ?? 0)) * 100)}%)
+                        </span>
+                      </strong>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-brand-700"
+                        style={{ width: `${Math.round((count / Math.max(1, circuit?.total ?? 0)) * 100)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+          <article className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Movimientos recientes</p>
+            {circuitRecent.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-600">Sin actividad reciente.</p>
+            ) : (
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-700">
+                {circuitRecent.map((row, idx) => (
+                  <li key={`${row.requestTime ?? 'x'}-${idx}`} className="flex items-center justify-between gap-3">
+                    <span>{circuitStatusLabel[row.status ?? ''] ?? row.status ?? 'Estado no disponible'}</span>
+                    <span className="text-xs text-slate-500">
+                      {row.requestTime ? new Date(row.requestTime).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </div>
       </Panel>
     </div>
   );

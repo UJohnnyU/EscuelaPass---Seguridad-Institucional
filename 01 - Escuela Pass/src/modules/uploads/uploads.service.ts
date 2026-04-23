@@ -45,6 +45,10 @@ export class UploadsService {
     return { logoUrl: relative };
   }
 
+  uploadReportEvidence(filename: string): { evidenceUrl: string } {
+    return { evidenceUrl: `/uploads/report-evidence/${filename}` };
+  }
+
   private async assertStaffCanSetUserAvatar(
     actorUserId: string,
     actorRole: UserRole,

@@ -319,10 +319,6 @@ export function VisitasPage() {
         </div>
       )}
 
-      {canCreate && (
-        <CreateVisitPanel onCreated={reloadAll} docenteOnly={docenteOnly} schoolId={platformAdmin ? selectedSchoolId : undefined} />
-      )}
-
       {platformAdmin && (
         <div className="rounded border border-slate-200 bg-white p-4">
           <label className="text-sm">
@@ -340,6 +336,14 @@ export function VisitasPage() {
             </select>
           </label>
         </div>
+      )}
+      {canCreate && (
+        <CreateVisitPanel
+          onCreated={reloadAll}
+          docenteOnly={docenteOnly}
+          schoolId={platformAdmin ? selectedSchoolId : undefined}
+          requireSchoolSelection={platformAdmin}
+        />
       )}
 
       <div className="rounded border border-slate-200 bg-white">
@@ -549,11 +553,13 @@ function VisitActions({
 function CreateVisitPanel({
   onCreated,
   docenteOnly,
-  schoolId
+  schoolId,
+  requireSchoolSelection
 }: {
   onCreated: () => Promise<void> | void;
   docenteOnly: boolean;
   schoolId?: string;
+  requireSchoolSelection?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -610,6 +616,10 @@ function CreateVisitPanel({
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErr(null);
+    if (requireSchoolSelection && !schoolId) {
+      setErr('Seleccione primero la institución para crear la visita.');
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -818,7 +828,7 @@ function CreateVisitPanel({
           <div className="sm:col-span-2">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || (requireSchoolSelection && !schoolId)}
               className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
             >
               {saving ? 'Creando…' : 'Crear visita'}

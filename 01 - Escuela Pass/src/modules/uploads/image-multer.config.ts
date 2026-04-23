@@ -6,7 +6,7 @@ import { uploadsSubDir } from '../../lib/uploads-path';
 
 const ALLOWED_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function imageStorage(subfolder: 'avatars' | 'school-logos') {
+function imageStorage(subfolder: 'avatars' | 'school-logos' | 'report-evidence') {
   return diskStorage({
     destination: (_req, _file, cb) => {
       cb(null, uploadsSubDir(subfolder));
@@ -44,5 +44,13 @@ export const avatarMulterOptions = {
 export const schoolLogoMulterOptions = {
   storage: imageStorage('school-logos'),
   limits,
+  fileFilter
+};
+
+export const reportEvidenceMulterOptions = {
+  storage: imageStorage('report-evidence'),
+  limits: {
+    fileSize: Number(process.env.REPORT_IMAGE_MAX_BYTES ?? 5 * 1024 * 1024)
+  },
   fileFilter
 };

@@ -14,7 +14,7 @@ import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { avatarMulterOptions, schoolLogoMulterOptions } from './image-multer.config';
+import { avatarMulterOptions, reportEvidenceMulterOptions, schoolLogoMulterOptions } from './image-multer.config';
 import { UploadsService } from './uploads.service';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
@@ -49,5 +49,14 @@ export class UploadsController {
       return { logoUrl: null };
     }
     return this.uploadsService.setSchoolLogo(schoolId, file.filename);
+  }
+
+  @Post('reports/evidence')
+  @UseInterceptors(FileInterceptor('file', reportEvidenceMulterOptions))
+  async uploadReportEvidence(@UploadedFile() file: Express.Multer.File) {
+    if (!file?.filename) {
+      return { evidenceUrl: null };
+    }
+    return this.uploadsService.uploadReportEvidence(file.filename);
   }
 }

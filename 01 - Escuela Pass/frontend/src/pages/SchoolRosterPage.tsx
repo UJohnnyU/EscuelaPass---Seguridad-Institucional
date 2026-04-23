@@ -192,6 +192,7 @@ export function SchoolRosterPage() {
   const [tName, setTName] = useState('');
   const [tNum, setTNum] = useState('');
   const [tSubjectIds, setTSubjectIds] = useState<string[]>([]);
+  const [tSubjectQuery, setTSubjectQuery] = useState('');
 
   const [aTeacher, setATeacher] = useState('');
   const [aGroup, setAGroup] = useState('');
@@ -278,6 +279,17 @@ export function SchoolRosterPage() {
       })),
     [subjects]
   );
+  const selectedTeacherSubjectLabels = useMemo(() => {
+    const byId = new Map(subjectOptions.map((opt) => [opt.value, opt.label]));
+    return tSubjectIds
+      .map((id) => ({ id, label: byId.get(id) }))
+      .filter((row): row is { id: string; label: string } => Boolean(row.label));
+  }, [subjectOptions, tSubjectIds]);
+  const filteredTeacherSubjectOptions = useMemo(() => {
+    const q = tSubjectQuery.trim().toLowerCase();
+    if (!q) return subjectOptions;
+    return subjectOptions.filter((opt) => opt.label.toLowerCase().includes(q));
+  }, [subjectOptions, tSubjectQuery]);
   const teacherSubjectByTeacher = useMemo(() => {
     const map = new Map<string, TeacherSubjectRow[]>();
     for (const row of teacherSubjects) {
@@ -517,6 +529,10 @@ export function SchoolRosterPage() {
     e.preventDefault();
     setMessage(null);
     setError(null);
+    if (tSubjectIds.length === 0) {
+      setError('Seleccione al menos una asignatura para el docente.');
+      return;
+    }
     try {
       const body: Record<string, unknown> = {
         email: tEmail.trim(),
@@ -532,6 +548,7 @@ export function SchoolRosterPage() {
       setTName('');
       setTNum('');
       setTSubjectIds([]);
+      setTSubjectQuery('');
       setMessage('Docente registrado.');
       await refreshAll();
     } catch (err) {
@@ -1076,20 +1093,67 @@ export function SchoolRosterPage() {
           </label>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Asignaturas del docente (una o varias)</span>
-            <select
-              multiple
-              required
-              className="mt-1 h-32 w-full rounded border border-slate-300 px-3 py-2"
-              value={tSubjectIds}
-              onChange={(e) => setTSubjectIds(Array.from(e.target.selectedOptions).map((o) => o.value))}
-            >
-              {subjectOptions.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">Ctrl/Cmd + click para seleccionar varias.</p>
+            <input
+              type="text"
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={tSubjectQuery}
+              onChange={(e) => setTSubjectQuery(e.target.value)}
+              placeholder="Buscar asignatura por código o nombre"
+            />
+            <div className="mt-2 max-h-44 overflow-y-auto rounded border border-slate-300 bg-white p-2">
+              {filteredTeacherSubjectOptions.length === 0 ? (
+                <p className="px-1 py-2 text-xs text-slate-500">No hay asignaturas que coincidan.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {filteredTeacherSubjectOptions.map((s) => {
+                    const checked = tSubjectIds.includes(s.value);
+                    return (
+                      <li key={s.value}>
+                        <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const nextChecked = e.target.checked;
+                              setTSubjectIds((prev) => {
+                                if (nextChecked) {
+                                  if (prev.includes(s.value)) return prev;
+                                  return [...prev, s.value];
+                                }
+                                return prev.filter((id) => id !== s.value);
+                              });
+                            }}
+                          />
+                          <span className="text-slate-700">{s.label}</span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            {selectedTeacherSubjectLabels.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {selectedTeacherSubjectLabels.map((item) => (
+                  <span
+                    key={item.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs text-brand-900"
+                  >
+                    {item.label}
+                    <button
+                      type="button"
+                      className="font-semibold leading-none"
+                      onClick={() => setTSubjectIds((prev) => prev.filter((id) => id !== item.id))}
+                      aria-label={`Quitar ${item.label}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500">Seleccione al menos una asignatura.</p>
+            )}
           </label>
           <div className="sm:col-span-2">
             <button
@@ -1127,7 +1191,9 @@ export function SchoolRosterPage() {
                   <td className="py-2 pr-4">{r.employeeNumber}</td>
                   <td className="py-2 pr-4">
                     {(teacherSubjectByTeacher.get(r.id) ?? []).length > 0
-                      ? (teacherSubjectByTeacher.get(r.id) ?? []).map((x) => x.subjectCode).join(', ')
+                      ? (teacherSubjectByTeacher.get(r.id) ?? [])
+                          .map((x) => `${x.subjectCode} · ${x.subjectName}`)
+                          .join(', ')
                       : '—'}
                   </td>
                   <td className="py-2">{r.email}</td>

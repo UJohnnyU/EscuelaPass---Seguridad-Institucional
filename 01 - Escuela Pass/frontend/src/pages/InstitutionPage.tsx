@@ -192,7 +192,7 @@ export function InstitutionPage() {
   }
 
   async function onLogoPick(file: File) {
-    if (!canEditLocationAndLogo || !selectedSchoolId) return;
+    if (!canEditLocationAndLogo || !isEditing || !selectedSchoolId) return;
     setUploadingLogo(true);
     setError(null);
     setMessage(null);
@@ -426,13 +426,19 @@ export function InstitutionPage() {
                   Imagen oficial para portada, informes y documentos.
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <label className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  <label
+                    className={`rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 ${
+                      isEditing && !uploadingLogo && selectedSchoolId
+                        ? 'cursor-pointer hover:bg-slate-50'
+                        : 'cursor-not-allowed opacity-60'
+                    }`}
+                  >
                     {uploadingLogo ? 'Subiendo logo…' : 'Subir nuevo logo'}
                     <input
                       type="file"
                       className="sr-only"
                       accept="image/jpeg,image/png,image/webp"
-                      disabled={uploadingLogo || !selectedSchoolId}
+                      disabled={uploadingLogo || !selectedSchoolId || !isEditing}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         e.target.value = '';

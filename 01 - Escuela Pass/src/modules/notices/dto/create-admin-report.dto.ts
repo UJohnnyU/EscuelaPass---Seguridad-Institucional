@@ -1,4 +1,4 @@
-import { IsEnum, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export enum AdminReportType {
   ERROR = 'ERROR',
@@ -20,4 +20,10 @@ export class CreateAdminReportDto {
   @MinLength(10)
   @MaxLength(4000)
   message!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  evidenceUrls?: string[];
 }

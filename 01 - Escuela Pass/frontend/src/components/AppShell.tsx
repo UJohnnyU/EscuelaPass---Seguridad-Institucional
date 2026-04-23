@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
+import { api } from '@/lib/api';
+import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
+import { uploadReportEvidence } from '@/lib/uploads-api';
 import { navVisibleForRole, SIDEBAR_NAV } from '@/navigation/navConfig';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationsBadge } from '@/components/NotificationsBadge';
@@ -34,9 +37,60 @@ export function AppShell() {
   const avatarSrc = publicAssetUrl(user?.avatarUrl ?? null);
   const navItems = SIDEBAR_NAV.filter((item) => navVisibleForRole(item, role));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportType, setReportType] = useState<'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO'>('ERROR');
+  const [reportSubject, setReportSubject] = useState('');
+  const [reportMessage, setReportMessage] = useState('');
+  const [reportFiles, setReportFiles] = useState<File[]>([]);
+  const [reportSending, setReportSending] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportOk, setReportOk] = useState<string | null>(null);
 
   function closeMobileMenu() {
     setMobileMenuOpen(false);
+  }
+
+  function resetReportForm() {
+    setReportType('ERROR');
+    setReportSubject('');
+    setReportMessage('');
+    setReportFiles([]);
+    setReportError(null);
+    setReportOk(null);
+  }
+
+  async function submitReport() {
+    setReportError(null);
+    setReportOk(null);
+    if (reportSubject.trim().length < 5) {
+      setReportError('El asunto debe tener al menos 5 caracteres.');
+      return;
+    }
+    if (reportMessage.trim().length < 10) {
+      setReportError('El detalle debe tener al menos 10 caracteres.');
+      return;
+    }
+    try {
+      setReportSending(true);
+      const evidenceUrls: string[] = [];
+      for (const file of reportFiles.slice(0, 5)) {
+        const uploaded = await uploadReportEvidence(file);
+        if (uploaded?.evidenceUrl) evidenceUrls.push(uploaded.evidenceUrl);
+      }
+      await api.post('/api/v1/notifications/admin-reports', {
+        type: reportType,
+        subject: reportSubject.trim(),
+        message: reportMessage.trim(),
+        evidenceUrls
+      });
+      setReportOk('Reporte enviado al equipo administrador.');
+      resetReportForm();
+      setReportOpen(false);
+    } catch (e) {
+      setReportError(getUserFacingMessage(e, 'No se pudo enviar el reporte.'));
+    } finally {
+      setReportSending(false);
+    }
   }
 
   return (
@@ -57,6 +111,16 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
+            onClick={() => setReportOpen(true)}
+          >
+            <span aria-hidden="true" className="text-red-400">▲</span>
+            Reportar problema
+          </button>
+        </div>
         <div className="border-t border-slate-800 p-4 text-xs text-slate-500">
           Uso autorizado de la institución
         </div>
@@ -133,6 +197,19 @@ export function AppShell() {
                   </NavLink>
                 ))}
               </nav>
+              <div className="px-3 pb-3">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
+                  onClick={() => {
+                    setReportOpen(true);
+                    closeMobileMenu();
+                  }}
+                >
+                  <span aria-hidden="true" className="text-red-400">▲</span>
+                  Reportar problema
+                </button>
+              </div>
               <div className="border-t border-slate-800 p-4 text-xs text-slate-500">Uso autorizado de la institución</div>
             </aside>
           </div>
@@ -171,7 +248,9 @@ export function AppShell() {
         </header>
 
         <main className="flex-1 px-4 py-8 lg:px-10">
-          <Outlet />
+          <div className="mx-auto w-full max-w-6xl">
+            <Outlet />
+          </div>
         </main>
 
         <footer className="border-t border-slate-200/80 bg-white px-4 py-6 text-center text-[11px] text-slate-500 lg:px-10">
@@ -179,6 +258,122 @@ export function AppShell() {
           su perfil.
         </footer>
       </div>
+      {reportOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Reporte de incidencia</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Envíe un reporte profesional al equipo administrador. Puede incluir capturas para facilitar el diagnóstico.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600"
+                onClick={() => {
+                  setReportOpen(false);
+                  setReportError(null);
+                  setReportOk(null);
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm">
+                <span className="text-slate-700">Tipo</span>
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  value={reportType}
+                  onChange={(e) => setReportType(e.target.value as 'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO')}
+                >
+                  <option value="ERROR">Error</option>
+                  <option value="SUGERENCIA">Sugerencia</option>
+                  <option value="PETICION">Petición</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-700">Asunto</span>
+                <input
+                  type="text"
+                  maxLength={160}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  value={reportSubject}
+                  onChange={(e) => setReportSubject(e.target.value)}
+                  placeholder="Ej. Error al guardar la asistencia"
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-700">Detalle</span>
+                <textarea
+                  className="mt-1 min-h-[140px] w-full rounded border border-slate-300 px-3 py-2"
+                  maxLength={4000}
+                  value={reportMessage}
+                  onChange={(e) => setReportMessage(e.target.value)}
+                  placeholder="Indique qué intentó hacer, qué ocurrió y cómo se puede reproducir."
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-700">Capturas (opcional, hasta 5)</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? []).slice(0, 5);
+                    setReportFiles(selected);
+                  }}
+                />
+                {reportFiles.length > 0 ? (
+                  <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                    {reportFiles.map((f, idx) => (
+                      <li key={`${f.name}-${idx}`} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{f.name}</span>
+                        <button
+                          type="button"
+                          className="text-red-700 underline"
+                          onClick={() => setReportFiles((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          Quitar
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </label>
+            </div>
+            {reportError ? (
+              <p className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{reportError}</p>
+            ) : null}
+            {reportOk ? (
+              <p className="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{reportOk}</p>
+            ) : null}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700"
+                onClick={() => {
+                  resetReportForm();
+                  setReportOpen(false);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
+                onClick={() => void submitReport()}
+                disabled={reportSending}
+              >
+                {reportSending ? 'Enviando…' : 'Enviar reporte'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

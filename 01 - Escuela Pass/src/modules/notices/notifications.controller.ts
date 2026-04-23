@@ -59,7 +59,6 @@ export class NotificationsController {
   }
 
   @Get('admin-reports/mine')
-  @Roles(UserRole.ADMINISTRATIVO)
   listMyAdminReports(
     @Req() req: Request & { user: JwtUser },
     @Query('page') page: string | undefined,
@@ -130,12 +129,8 @@ export class NotificationsController {
     return this.noticesService.markAsRead(id, req.user.userId);
   }
 
-  /**
-   * Canal interno: el personal administrativo reporta incidencias/sugerencias
-   * al equipo administrador para ajustes operativos del sistema.
-   */
+  /** Canal interno: cualquier usuario autenticado puede reportar incidencias al equipo ADMIN. */
   @Post('admin-reports')
-  @Roles(UserRole.ADMINISTRATIVO)
   createAdminReport(
     @Body() dto: CreateAdminReportDto,
     @Req() req: Request & { user: JwtUser }

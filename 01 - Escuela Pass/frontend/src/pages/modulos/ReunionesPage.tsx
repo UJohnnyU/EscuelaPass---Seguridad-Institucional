@@ -318,8 +318,6 @@ export function ReunionesPage() {
         </div>
       )}
 
-      {canCreate && <CreateMeetingPanel onCreated={reloadAll} role={user?.role ?? ''} schoolId={platformAdmin ? selectedSchoolId : undefined} />}
-
       {platformAdmin && (
         <div className="rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
           <label className="text-sm">
@@ -337,6 +335,14 @@ export function ReunionesPage() {
             </select>
           </label>
         </div>
+      )}
+      {canCreate && (
+        <CreateMeetingPanel
+          onCreated={reloadAll}
+          role={user?.role ?? ''}
+          schoolId={platformAdmin ? selectedSchoolId : undefined}
+          requireSchoolSelection={platformAdmin}
+        />
       )}
 
       <div className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
@@ -600,11 +606,13 @@ type InviteItem = { userId: string; label: string; studentContextId?: string };
 function CreateMeetingPanel({
   onCreated,
   role,
-  schoolId
+  schoolId,
+  requireSchoolSelection
 }: {
   onCreated: () => Promise<void> | void;
   role: string;
   schoolId?: string;
+  requireSchoolSelection?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -673,6 +681,10 @@ function CreateMeetingPanel({
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErr(null);
+    if (requireSchoolSelection && !schoolId) {
+      setErr('Seleccione primero la institución para crear la reunión.');
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -902,7 +914,7 @@ function CreateMeetingPanel({
           <div className="sm:col-span-2">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || (requireSchoolSelection && !schoolId)}
               className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
             >
               {saving ? 'Creando…' : 'Crear reunión'}

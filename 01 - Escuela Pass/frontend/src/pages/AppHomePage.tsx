@@ -1380,22 +1380,27 @@ function HomePlatformAdmin() {
           {circuitByDay.length === 0 ? (
             <p className="text-slate-500">Sin datos disponibles.</p>
           ) : (
-            <div className="mt-1 flex h-40 items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
-              {circuitByDay.map((d) => {
-                const total = Number(d.total ?? 0);
-                const h = Math.max(6, Math.round((total / maxCircuitDay) * 100));
-                return (
-                  <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
-                    <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">{total}</span>
-                    <div className="flex h-24 w-full items-end">
-                      <div className="w-full rounded-t bg-emerald-500/90" style={{ height: `${h}%` }} />
+            <div className="mt-1 overflow-x-auto">
+              <div
+                className="flex h-40 items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800"
+                style={{ minWidth: `${Math.max(520, circuitByDay.length * 42)}px` }}
+              >
+                {circuitByDay.map((d) => {
+                  const total = Number(d.total ?? 0);
+                  const h = Math.max(6, Math.round((total / maxCircuitDay) * 100));
+                  return (
+                    <div key={d.date} className="flex min-w-[2rem] flex-1 flex-col items-center gap-1">
+                      <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">{total}</span>
+                      <div className="flex h-24 w-full items-end">
+                        <div className="w-full rounded-t bg-emerald-500/90" style={{ height: `${h}%` }} />
+                      </div>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                        {formatISO(d.date, { day: '2-digit', month: '2-digit' })}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      {formatISO(d.date, { day: '2-digit', month: '2-digit' })}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
         </Card>

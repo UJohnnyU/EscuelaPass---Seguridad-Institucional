@@ -42,3 +42,18 @@ export async function uploadSchoolLogo(schoolId: string, file: File): Promise<{ 
   if (!res.ok) throw new Error(await parseError(res));
   return (await res.json()) as { logoUrl: string };
 }
+
+export async function uploadReportEvidence(file: File): Promise<{ evidenceUrl: string }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const base = API_BASE_URL || '';
+  const url = `${base}/api/v1/uploads/reports/evidence`;
+  const { access } = loadTokens();
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: access ? { Authorization: `Bearer ${access}` } : {},
+    body: fd
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return (await res.json()) as { evidenceUrl: string };
+}

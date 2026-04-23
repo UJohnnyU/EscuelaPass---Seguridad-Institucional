@@ -6,7 +6,7 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { AdminReportCommentEntity } from '../../database/entities/admin-report-comment.entity';
 import { AdminReportEntity, AdminReportStatus, AdminReportType } from '../../database/entities/admin-report.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
@@ -126,12 +126,30 @@ export class NoticesService {
   async listMyNotifications(userId: string, page = 1, limit = 30) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
-    const [items, total] = await this.notificationsRepository.findAndCount({
-      where: { userId },
-      order: { sentAt: 'DESC' },
-      skip,
-      take
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'role']
     });
+    if (!user) {
+      throw new ForbiddenException('Usuario no encontrado');
+    }
+    const qb = this.notificationsRepository
+      .createQueryBuilder('n')
+      .where('n.user_id = :userId', { userId })
+      .orderBy('n.sent_at', 'DESC')
+      .skip(skip)
+      .take(take);
+    if (user.role === UserRole.ADMIN) {
+      qb.andWhere(
+        new Brackets((sub) => {
+          sub
+            .where('n.title ILIKE :reportTitle', { reportTitle: '[Reporte%' })
+            .orWhere('n.title ILIKE :commentTitle', { commentTitle: '[Comentario]%' })
+            .orWhere('n.message ILIKE :reportIdTag', { reportIdTag: '%Reporte ID:%' });
+        })
+      );
+    }
+    const [items, total] = await qb.getManyAndCount();
     return {
       data: items,
       meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
@@ -289,15 +307,15 @@ export class NoticesService {
   }
 
   async createAdminReport(dto: CreateAdminReportDto, senderUserId: string, role: UserRole) {
-    if (role !== UserRole.ADMINISTRATIVO) {
-      throw new ForbiddenException('Solo personal administrativo puede enviar reportes al equipo administrador');
-    }
     const sender = await this.usersRepository.findOne({
       where: { id: senderUserId },
       select: ['id', 'fullName', 'email', 'schoolId', 'role']
     });
-    if (!sender?.schoolId) {
-      throw new ForbiddenException('Tu usuario administrativo no tiene escuela asignada');
+    if (!sender) {
+      throw new ForbiddenException('Usuario no encontrado');
+    }
+    if (!sender.schoolId) {
+      throw new ForbiddenException('Tu usuario no tiene escuela asignada para enviar reportes.');
     }
 
     const adminsInSchool = await this.usersRepository.find({
@@ -332,14 +350,27 @@ export class NoticesService {
       [sender.schoolId]
     );
     const schoolName = schoolRow[0]?.name?.trim() || 'Institución';
-    const senderName = sender.fullName?.trim() || sender.email || 'Usuario administrativo';
+    const senderName = sender.fullName?.trim() || sender.email || 'Usuario';
+    const roleLabelByEnum: Record<UserRole, string> = {
+      ADMIN: 'Admin',
+      ADMINISTRATIVO: 'Administrativo',
+      DOCENTE: 'Docente',
+      PADRE: 'Padre/Tutor',
+      ALUMNO: 'Alumno'
+    };
+    const cleanEvidence = Array.from(
+      new Set((dto.evidenceUrls ?? []).map((u) => u.trim()).filter((u) => u.startsWith('/uploads/')))
+    ).slice(0, 5);
+    const evidenceBlock =
+      cleanEvidence.length > 0 ? `\n\nEvidencias:\n${cleanEvidence.map((u, i) => `${i + 1}. ${u}`).join('\n')}` : '';
     const message = [
       `Escuela: ${schoolName}`,
       `Remitente: ${senderName}`,
+      `Rol: ${roleLabelByEnum[sender.role] ?? sender.role}`,
       `Tipo: ${typeLabel}`,
       '',
       cleanMessage
-    ].join('\n');
+    ].join('\n') + evidenceBlock;
 
     const report = this.adminReportsRepository.create({
       schoolId: sender.schoolId,
@@ -347,7 +378,7 @@ export class NoticesService {
       assignedAdminUserId: recipientIds[0] ?? null,
       type: dto.type as unknown as AdminReportType,
       subject: cleanSubject,
-      message: cleanMessage,
+      message: cleanMessage + evidenceBlock,
       status: AdminReportStatus.PENDIENTE
     });
     const savedReport = await this.adminReportsRepository.save(report);
@@ -440,10 +471,8 @@ export class NoticesService {
   }
 
   async listMyAdminReports(userId: string, page = 1, limit = 20) {
-    const user = await this.usersRepository.findOne({ where: { id: userId }, select: ['id', 'role', 'schoolId'] });
-    if (!user || user.role !== UserRole.ADMINISTRATIVO) {
-      throw new ForbiddenException('Solo personal administrativo puede consultar sus reportes');
-    }
+    const user = await this.usersRepository.findOne({ where: { id: userId }, select: ['id'] });
+    if (!user) throw new ForbiddenException('Usuario no encontrado');
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
     const [data, total] = await this.adminReportsRepository.findAndCount({
@@ -541,7 +570,7 @@ export class NoticesService {
       }
       return report;
     }
-    if (role === UserRole.ADMINISTRATIVO && report.createdByUserId === userId) {
+    if (report.createdByUserId === userId) {
       return report;
     }
     throw new ForbiddenException('No autorizado para ver este reporte');
