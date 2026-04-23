@@ -160,6 +160,10 @@ export function CircuitPadrePage() {
     );
   }
 
+  /** Con salida autónoma activa no debe cambiarse alumno/método/vehículo hasta desmarcar (ni durante el guardado). */
+  const circuitPickupsLocked = !!consentActive[studentId] || consentSaving;
+  const selectLockedClass = circuitPickupsLocked ? 'cursor-not-allowed opacity-60' : '';
+
   return (
     <div className="max-w-lg animate-slide-up">
       <h1 className="text-2xl font-bold text-slate-900">Nueva solicitud de recogida</h1>
@@ -208,8 +212,9 @@ export function CircuitPadrePage() {
           <select
             id="student"
             value={studentId}
+            disabled={circuitPickupsLocked}
             onChange={(e) => setStudentId(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2"
+            className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
           >
             {data.students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -226,8 +231,9 @@ export function CircuitPadrePage() {
           <select
             id="method"
             value={pickupMethod}
+            disabled={circuitPickupsLocked}
             onChange={(e) => setPickupMethod(e.target.value as (typeof METHODS)[number])}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2"
+            className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
           >
             {METHODS.map((m) => (
               <option key={m} value={m}>
@@ -245,8 +251,9 @@ export function CircuitPadrePage() {
             <select
               id="vehicle"
               value={vehicleId}
+              disabled={circuitPickupsLocked}
               onChange={(e) => setVehicleId(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2"
+              className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
             >
               <option value="">— Elegir —</option>
               {vehicles.map((v) => (
@@ -272,7 +279,7 @@ export function CircuitPadrePage() {
         )}
         <button
           type="submit"
-          disabled={submitting || !!consentActive[studentId]}
+          disabled={submitting || circuitPickupsLocked}
           className="w-full rounded-xl bg-brand-600 py-3 font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
         >
           {submitting ? 'Enviando…' : 'Crear solicitud'}

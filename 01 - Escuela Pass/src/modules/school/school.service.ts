@@ -1449,8 +1449,34 @@ export class SchoolService {
   buildTemplateStudentsCsv(): string {
     return this.toCsv(
       ['correo', 'contrasena', 'nombre_completo', 'matricula', 'id_grupo', 'acceso_al_campus', 'puede_salir_solo'],
-      [['alumno.nuevo@escuelapass.local', 'Alumno123*', 'Alumno Nuevo', 'ALUMNO-1001', '', 'false', 'false']]
+      [['alumno.nuevo@escuelapass.local', 'Alumno123*', 'Alumno Nuevo', 'MAT-1001', '', 'false', 'false']]
     );
+  }
+
+  /** CSV con BOM y `sep=,` para que Excel (p. ej. regionalización con `;`) abra columnas alineadas. */
+  buildTemplateGroupsCsvBuffer(): Buffer {
+    return this.wrapCsvForExcelDownload(this.buildTemplateGroupsCsv());
+  }
+
+  buildTemplateStudentsCsvBuffer(): Buffer {
+    return this.wrapCsvForExcelDownload(this.buildTemplateStudentsCsv());
+  }
+
+  buildTemplateTeachersCsvBuffer(): Buffer {
+    return this.wrapCsvForExcelDownload(this.buildTemplateTeachersCsv());
+  }
+
+  buildTemplateTeacherAssignmentsCsvBuffer(): Buffer {
+    return this.wrapCsvForExcelDownload(this.buildTemplateTeacherAssignmentsCsv());
+  }
+
+  buildStudentsToGroupsTemplateCsvBuffer(): Buffer {
+    return this.wrapCsvForExcelDownload(this.buildStudentsToGroupsTemplateCsv());
+  }
+
+  private wrapCsvForExcelDownload(csvBody: string): Buffer {
+    const normalized = csvBody.replace(/\r?\n/g, '\r\n');
+    return Buffer.from(`\uFEFFsep=,\r\n${normalized}`, 'utf-8');
   }
 
   buildTemplateTeachersCsv(): string {
@@ -1622,7 +1648,10 @@ export class SchoolService {
 
   private parseCsvRows(buffer: Buffer): Array<Record<string, string>> {
     const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    let lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    while (lines.length > 0 && /^sep=/i.test(lines[0].trim())) {
+      lines = lines.slice(1);
+    }
     if (lines.length === 0) throw new BadRequestException('CSV vacío');
     const headers = this.parseCsvLine(lines[0]).map((h) => h.trim());
     if (headers.length === 0 || headers.every((h) => !h)) {
@@ -1674,7 +1703,7 @@ export class SchoolService {
       return v;
     };
     const lines = [headers.map(esc).join(','), ...rows.map((r) => r.map((v) => esc(v ?? '')).join(','))];
-    return lines.join('\n');
+    return lines.join('\r\n');
   }
 
   private async importStudentsToGroupsFromFlatRows(

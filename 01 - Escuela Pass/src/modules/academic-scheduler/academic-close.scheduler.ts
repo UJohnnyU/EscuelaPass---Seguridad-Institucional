@@ -9,6 +9,7 @@ import {
 } from '../../database/entities/academic-period.entity';
 import { ReportCardType } from '../../database/entities/report-card.entity';
 import { AcademicNotificationsService } from '../academic-notifications/academic-notifications.service';
+import { AcademicPeriodsService } from '../academic-periods/academic-periods.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { ReportCardsService } from '../report-cards/report-cards.service';
 
@@ -20,6 +21,8 @@ import { ReportCardsService } from '../report-cards/report-cards.service';
  *     genera y publica los boletines de periodo.
  *  3. Si todos los periodos del año escolar de una escuela están cerrados,
  *     genera y publica el boletín final con el estado de promoción.
+ *  4. Cierra periodos que fueron reabiertos y siguen ACTIVOS pasado el 1 de enero del año
+ *     siguiente al de la reapertura (si no se cerraron a mano antes).
  */
 @Injectable()
 export class AcademicCloseScheduler {
@@ -30,7 +33,8 @@ export class AcademicCloseScheduler {
     private readonly dataSource: DataSource,
     private readonly activitiesService: ActivitiesService,
     private readonly reportCardsService: ReportCardsService,
-    private readonly notifications: AcademicNotificationsService
+    private readonly notifications: AcademicNotificationsService,
+    private readonly academicPeriodsService: AcademicPeriodsService
   ) {}
 
   /** 03:00 hora del servidor — evita solaparse con otros jobs nocturnos. */
@@ -47,6 +51,10 @@ export class AcademicCloseScheduler {
     try {
       await this.activatePlannedPeriods();
       await this.closeExpiredPeriods();
+      const autoReclosed = await this.academicPeriodsService.runAutoCloseReopenedPastDeadline();
+      if (autoReclosed > 0) {
+        this.logger.log(`Periodos reabiertos cerrados automáticamente (plazo 1 ene): ${autoReclosed}`);
+      }
       await this.tryGenerateFinalReportCards();
       this.logger.log('Ciclo académico diario: finalizado');
     } catch (err) {

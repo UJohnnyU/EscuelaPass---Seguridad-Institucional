@@ -5,13 +5,13 @@ import {
   Delete,
   ForbiddenException,
   Get,
-  Header,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
   Req,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors
@@ -461,114 +461,118 @@ export class SchoolController {
 
   @Get('import/templates/groups.xlsx')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header(
-    'Content-Type',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  )
-  @Header('Content-Disposition', 'attachment; filename="plantilla-grupos.xlsx"')
   async templateGroupsXlsx(
     @Req() req: Request & { user: JwtUser },
     @Query('schoolId') schoolId?: string
   ) {
-    return this.schoolService.buildTemplateGroupsXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
+    const buffer = await this.schoolService.buildTemplateGroupsXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment; filename="plantilla-grupos.xlsx"'
+    });
   }
 
   @Get('import/templates/students.xlsx')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header(
-    'Content-Type',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  )
-  @Header('Content-Disposition', 'attachment; filename="plantilla-alumnos.xlsx"')
   async templateStudentsXlsx(
     @Req() req: Request & { user: JwtUser },
     @Query('schoolId') schoolId?: string
   ) {
-    return this.schoolService.buildTemplateStudentsXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
+    const buffer = await this.schoolService.buildTemplateStudentsXlsx(
+      this.resolveSchoolIdForTemplate(req.user, schoolId)
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment; filename="plantilla-alumnos.xlsx"'
+    });
   }
 
   @Get('import/templates/teachers.xlsx')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header(
-    'Content-Type',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  )
-  @Header('Content-Disposition', 'attachment; filename="plantilla-docentes.xlsx"')
   async templateTeachersXlsx(
     @Req() req: Request & { user: JwtUser },
     @Query('schoolId') schoolId?: string
   ) {
-    return this.schoolService.buildTemplateTeachersXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
+    const buffer = await this.schoolService.buildTemplateTeachersXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment; filename="plantilla-docentes.xlsx"'
+    });
   }
 
   @Get('import/templates/teacher-assignments.xlsx')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header(
-    'Content-Type',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  )
-  @Header('Content-Disposition', 'attachment; filename="plantilla-asignaciones-docentes.xlsx"')
   async templateTeacherAssignmentsXlsx(
     @Req() req: Request & { user: JwtUser },
     @Query('schoolId') schoolId?: string
   ) {
-    return this.schoolService.buildTemplateTeacherAssignmentsXlsx(
+    const buffer = await this.schoolService.buildTemplateTeacherAssignmentsXlsx(
       this.resolveSchoolIdForTemplate(req.user, schoolId)
     );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment; filename="plantilla-asignaciones-docentes.xlsx"'
+    });
   }
 
   @Get('import/templates/students-to-groups.xlsx')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header(
-    'Content-Type',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  )
-  @Header('Content-Disposition', 'attachment; filename="plantilla-asignacion-grupos.xlsx"')
-  templateStudentsToGroupsXlsx(
+  async templateStudentsToGroupsXlsx(
     @Req() req: Request & { user: JwtUser },
     @Query('schoolId') schoolId?: string
   ) {
-    return this.schoolService.buildStudentsToGroupsTemplateXlsx(this.resolveSchoolIdForTemplate(req.user, schoolId));
+    const buffer = await this.schoolService.buildStudentsToGroupsTemplateXlsx(
+      this.resolveSchoolIdForTemplate(req.user, schoolId)
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment; filename="plantilla-asignacion-grupos.xlsx"'
+    });
   }
 
   @Get('import/templates/groups.csv')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="plantilla-grupos.csv"')
   templateGroupsCsv() {
-    return this.schoolService.buildTemplateGroupsCsv();
+    return new StreamableFile(this.schoolService.buildTemplateGroupsCsvBuffer(), {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="plantilla-grupos.csv"'
+    });
   }
 
   @Get('import/templates/students.csv')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="plantilla-alumnos.csv"')
   templateStudentsCsv() {
-    return this.schoolService.buildTemplateStudentsCsv();
+    return new StreamableFile(this.schoolService.buildTemplateStudentsCsvBuffer(), {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="plantilla-alumnos.csv"'
+    });
   }
 
   @Get('import/templates/teachers.csv')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="plantilla-docentes.csv"')
   templateTeachersCsv() {
-    return this.schoolService.buildTemplateTeachersCsv();
+    return new StreamableFile(this.schoolService.buildTemplateTeachersCsvBuffer(), {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="plantilla-docentes.csv"'
+    });
   }
 
   @Get('import/templates/teacher-assignments.csv')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="plantilla-asignaciones-docentes.csv"')
   templateTeacherAssignmentsCsv() {
-    return this.schoolService.buildTemplateTeacherAssignmentsCsv();
+    return new StreamableFile(this.schoolService.buildTemplateTeacherAssignmentsCsvBuffer(), {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="plantilla-asignaciones-docentes.csv"'
+    });
   }
 
   @Get('import/templates/students-to-groups.csv')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="plantilla-asignacion-grupos.csv"')
   templateStudentsToGroupsCsv() {
-    return this.schoolService.buildStudentsToGroupsTemplateCsv();
+    return new StreamableFile(this.schoolService.buildStudentsToGroupsTemplateCsvBuffer(), {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="plantilla-asignacion-grupos.csv"'
+    });
   }
 
   @Get('import/history')

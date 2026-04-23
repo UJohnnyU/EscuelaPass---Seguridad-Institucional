@@ -243,9 +243,6 @@ export class ActivitiesService {
       throw new ForbiddenException('No autorizado');
     }
     const teacherId = await this.getTeacherIdByUser(userId);
-    if (teacherId !== activity.teacherId) {
-      throw new ForbiddenException('Solo el docente creador puede gestionar esta actividad');
-    }
     await this.assertTeacherTeachesSubjectInGroup(teacherId, activity.groupId, activity.subjectId);
   }
 
@@ -405,9 +402,9 @@ export class ActivitiesService {
     const activity = await this.loadActivityOrFail(id);
     await this.assertCanManageActivity(activity, userId, role);
     const count = await this.activityGradesRepository.count({ where: { activityId: id } });
-    if (count > 0 && role !== UserRole.ADMIN) {
+    if (count > 0 && role === UserRole.DOCENTE) {
       throw new BadRequestException(
-        'La actividad ya tiene calificaciones registradas. Ciérrala en su lugar.'
+        'La actividad ya tiene calificaciones registradas. Ciérrala en su lugar o solicite apoyo a administración.'
       );
     }
     await this.activitiesRepository.delete({ id });

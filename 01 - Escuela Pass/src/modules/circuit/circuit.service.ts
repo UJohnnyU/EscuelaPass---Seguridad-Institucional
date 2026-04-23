@@ -43,6 +43,17 @@ type SchoolGeo = {
   radiusKm: number;
 };
 
+/** Respuesta estable para GET /circuit-requests/today (camelCase; evita filas SQL crudas en fallback). */
+export type CircuitTodayListItem = {
+  id: string;
+  studentId: string;
+  status: CircuitStatus;
+  pickupMethod: PickupMethod;
+  requestTime: string | null;
+  studentFullName: string | null;
+  studentMatricula: string | null;
+};
+
 @Injectable()
 export class CircuitService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CircuitService.name);
@@ -423,7 +434,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     schoolIdParam?: string | null,
     searchQ?: string | null,
     limitStr?: string | null
-  ) {
+  ): Promise<CircuitTodayListItem[]> {
     const today = new Date().toISOString().slice(0, 10);
     const maxRows = Math.min(300, Math.max(10, Number.parseInt(limitStr ?? '120', 10) || 120));
 
@@ -432,15 +443,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       .innerJoin(StudentEntity, 'st', 'st.id = cr.student_id')
       .innerJoin(GroupEntity, 'g', 'g.id = st.group_id')
       .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
-      .innerJoin(ParentEntity, 'pr', 'pr.id = cr.requested_by_parent_id')
-      .innerJoin(UserEntity, 'pu', 'pu.id = pr.user_id')
       .where(`to_char(cr.request_time AT TIME ZONE 'UTC', 'YYYY-MM-DD') = :today`, { today });
 
     const q = searchQ?.trim();
     if (q) {
-      qb.andWhere('(su.full_name ILIKE :pat OR pu.full_name ILIKE :pat OR st.matricula ILIKE :pat)', {
-        pat: `%${q}%`
-      });
+      qb.andWhere('(su.full_name ILIKE :pat OR st.matricula ILIKE :pat)', { pat: `%${q}%` });
     }
 
     if (role === UserRole.ADMIN) {
@@ -467,7 +474,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      return await qb.orderBy('cr.request_time', 'DESC').take(maxRows).getMany();
+      const entities = await qb.orderBy('cr.request_time', 'DESC').take(maxRows).getMany();
+      return await this.mapCircuitEntitiesToTodayList(entities);
     } catch (error) {
       const reason =
         error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -496,7 +504,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     searchQ: string | null | undefined,
     maxRows: number,
     todayIso: string
-  ): Promise<CircuitRequestEntity[]> {
+  ): Promise<CircuitTodayListItem[]> {
     const params: Array<string | number> = [todayIso, maxRows];
     let idx = params.length;
     const where: string[] = [`COALESCE(cr.request_time::text, '') LIKE ($1 || '%')`];
@@ -505,7 +513,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     if (q) {
       idx += 1;
       params.push(`%${q}%`);
-      where.push(`(su.full_name ILIKE $${idx} OR pu.full_name ILIKE $${idx} OR st.matricula ILIKE $${idx})`);
+      where.push(`(su.full_name ILIKE $${idx} OR st.matricula ILIKE $${idx})`);
     }
 
     if (role === UserRole.ADMIN) {
@@ -536,19 +544,105 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     const sql = `
-      SELECT cr.*
+      SELECT
+        cr.*,
+        su.full_name AS student_full_name,
+        st.matricula AS student_matricula
       FROM circuit_requests cr
       INNER JOIN students st ON st.id = cr.student_id
       INNER JOIN groups g ON g.id = st.group_id
       INNER JOIN users su ON su.id = st.user_id
-      INNER JOIN parents pr ON pr.id = cr.requested_by_parent_id
-      INNER JOIN users pu ON pu.id = pr.user_id
       WHERE ${where.join(' AND ')}
       ORDER BY cr.request_time DESC
       LIMIT $2
     `;
 
-    return this.circuitRepository.query(sql, params) as Promise<CircuitRequestEntity[]>;
+    const raw = (await this.circuitRepository.query(sql, params)) as Record<string, unknown>[];
+    return raw.map((row) => this.mapRawCircuitRowToTodayItem(row));
+  }
+
+  private async mapCircuitEntitiesToTodayList(entities: CircuitRequestEntity[]): Promise<CircuitTodayListItem[]> {
+    const meta = await this.studentMetaForTodayList(entities.map((e) => e.studentId));
+    return entities.map((e) => ({
+      id: e.id,
+      studentId: e.studentId,
+      status: e.status,
+      pickupMethod: e.pickupMethod,
+      requestTime: this.normalizeRequestTimeIso(e.requestTime),
+      studentFullName: meta.get(e.studentId)?.fullName ?? null,
+      studentMatricula: meta.get(e.studentId)?.matricula ?? null
+    }));
+  }
+
+  private async studentMetaForTodayList(studentIds: string[]): Promise<
+    Map<string, { fullName: string; matricula: string }>
+  > {
+    const map = new Map<string, { fullName: string; matricula: string }>();
+    const ids = [...new Set(studentIds)].filter(Boolean);
+    if (ids.length === 0) return map;
+    const rows = await this.studentsRepository
+      .createQueryBuilder('st')
+      .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
+      .select('st.id', 'sid')
+      .addSelect('st.matricula', 'matricula')
+      .addSelect('su.full_name', 'full_name')
+      .where('st.id IN (:...ids)', { ids })
+      .getRawMany<Record<string, unknown>>();
+    for (const r of rows) {
+      const sid = String(r.sid ?? '');
+      const matricula = String(r.matricula ?? '');
+      const fullName = String(r.full_name ?? '');
+      if (sid) map.set(sid, { fullName, matricula });
+    }
+    return map;
+  }
+
+  private normalizeRequestTimeIso(value: unknown): string | null {
+    if (value == null) return null;
+    if (value instanceof Date) {
+      const t = value.getTime();
+      return Number.isNaN(t) ? null : value.toISOString();
+    }
+    if (typeof value === 'string') {
+      const normalized =
+        value.length >= 10 && value.includes(' ') && !value.includes('T') ? value.replace(' ', 'T') : value;
+      const d = new Date(normalized);
+      return Number.isNaN(d.getTime()) ? null : d.toISOString();
+    }
+    return null;
+  }
+
+  private mapRawCircuitRowToTodayItem(r: Record<string, unknown>): CircuitTodayListItem {
+    const pickStr = (...keys: string[]) => {
+      for (const k of keys) {
+        const v = r[k];
+        if (typeof v === 'string' && v.length > 0) return v;
+      }
+      return '';
+    };
+    const id = pickStr('id');
+    const studentId = pickStr('student_id', 'studentId');
+    const status = pickStr('status') as CircuitStatus;
+    const pickupMethod = pickStr('pickup_method', 'pickupMethod') as PickupMethod;
+    const rt = r.request_time ?? r.requestTime;
+    const requestTime = this.normalizeRequestTimeIso(rt);
+    const studentFullNameRaw = r.student_full_name ?? r.studentFullName;
+    const studentMatriculaRaw = r.student_matricula ?? r.studentMatricula;
+    const studentFullName =
+      typeof studentFullNameRaw === 'string' && studentFullNameRaw.trim() ? studentFullNameRaw.trim() : null;
+    const studentMatricula =
+      typeof studentMatriculaRaw === 'string' && studentMatriculaRaw.trim()
+        ? studentMatriculaRaw.trim()
+        : null;
+    return {
+      id,
+      studentId,
+      status,
+      pickupMethod,
+      requestTime,
+      studentFullName,
+      studentMatricula
+    };
   }
 
   private isUuid(value: string): boolean {

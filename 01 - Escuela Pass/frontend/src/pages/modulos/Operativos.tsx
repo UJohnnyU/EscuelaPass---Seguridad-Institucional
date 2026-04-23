@@ -26,7 +26,7 @@ import {
   WeekScheduleGrid
 } from '@/components/WeekScheduleGrid';
 import { useAuth } from '@/context/useAuth';
-import { hasRole, isAdmin, isStaff } from '@/lib/roles';
+import { hasRole, isAdmin, isPlatformAdmin, isStaff } from '@/lib/roles';
 import axios from 'axios';
 
 type TeacherGroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
@@ -731,7 +731,9 @@ export function AcademicoPage() {
           const [a, g, s, c, childNotifs, alerts, mineNotifs, m] = await Promise.all([
             api.get('/api/v1/attendance/parent/my-children'),
             Promise.resolve({ data: [] as unknown }),
-            api.get<{ children: ParentScheduleChild[] }>('/api/v1/schedules/parent/my-children'),
+            api.get<{ children: ParentScheduleChild[] }>(
+              `/api/v1/schedules/parent/my-children?weekFrom=${encodeURIComponent(from)}&weekTo=${encodeURIComponent(to)}`
+            ),
             api.get<{ children: ParentCalendarChild[] }>(
               `/api/v1/calendar/parent/my-children?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
             ),
@@ -1521,13 +1523,14 @@ export function AdministracionPage() {
   const [myAdminReports, setMyAdminReports] = useState<AdminReportItem[]>([]);
   const [myAdminReportsLoading, setMyAdminReportsLoading] = useState(false);
   const { user } = useAuth();
-  const admin = isAdmin(user);
+  const platformAdmin = isPlatformAdmin(user);
   const docente = user?.role === 'DOCENTE';
   const administrativo = user?.role === 'ADMINISTRATIVO';
+  const institSchoolId = user?.schoolId?.trim() || undefined;
   const scopedSchoolId = selectedSchoolId !== 'ALL' ? selectedSchoolId : undefined;
 
   useEffect(() => {
-    if (!admin) return;
+    if (!platformAdmin) return;
     let cancelled = false;
     (async () => {
       try {
@@ -1542,14 +1545,14 @@ export function AdministracionPage() {
     return () => {
       cancelled = true;
     };
-  }, [admin]);
+  }, [platformAdmin]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setErr(null);
       try {
-        if (admin) {
+        if (platformAdmin) {
           const s = await api.get<DashboardSummary>('/api/v1/dashboard/summary', {
             params: { schoolId: scopedSchoolId }
           });
@@ -1560,20 +1563,36 @@ export function AdministracionPage() {
             setAudit(Array.isArray(a.data) ? a.data : []);
             setCalendar(cal.data);
           }
-        } else if (administrativo) {
+        } else if (administrativo && institSchoolId) {
+          const s = await api.get<DashboardSummary>('/api/v1/dashboard/summary', {
+            params: { schoolId: institSchoolId }
+          });
           const cal = await api.get('/api/v1/calendar/non-instructional-days');
-          if (!cancelled) setCalendar(cal.data);
+          if (!cancelled) {
+            setSummary(s.data);
+            setAudit([]);
+            setCalendar(cal.data);
+          }
+        } else if (administrativo && !institSchoolId) {
+          if (!cancelled) {
+            setSummary(null);
+            setAudit([]);
+            setCalendar(null);
+          }
         }
-        if (admin || docente || administrativo) {
+        if (platformAdmin || docente || administrativo) {
+          const circuitSchoolId = platformAdmin ? scopedSchoolId : administrativo ? institSchoolId : undefined;
           const cToday = await api.get<CircuitTodayReport>('/api/v1/reports/circuit/today', {
-            params: { schoolId: admin ? scopedSchoolId : undefined }
+            params: { schoolId: circuitSchoolId }
           });
           if (!cancelled) setCircuit(cToday.data);
-          if (admin) {
+          if (platformAdmin) {
             const rPay = await api.get<PaymentsPendingReport>('/api/v1/reports/payments/pending', {
               params: { schoolId: scopedSchoolId }
             });
             if (!cancelled) setRepAtt(rPay.data);
+          } else if (!cancelled) {
+            setRepAtt(null);
           }
         }
       } catch (e) {
@@ -1583,10 +1602,10 @@ export function AdministracionPage() {
     return () => {
       cancelled = true;
     };
-  }, [admin, docente, administrativo, scopedSchoolId]);
+  }, [platformAdmin, docente, administrativo, scopedSchoolId, institSchoolId]);
 
   useEffect(() => {
-    if (!admin) return;
+    if (!platformAdmin) return;
     let cancelled = false;
     (async () => {
       setAdminReportsLoading(true);
@@ -1614,7 +1633,7 @@ export function AdministracionPage() {
     return () => {
       cancelled = true;
     };
-  }, [admin, adminReportTypeFilter, adminReportStatusFilter, adminReportQuery, adminReportUnreadOnly, scopedSchoolId]);
+  }, [platformAdmin, adminReportTypeFilter, adminReportStatusFilter, adminReportQuery, adminReportUnreadOnly, scopedSchoolId]);
 
   useEffect(() => {
     if (!administrativo) return;
@@ -1689,7 +1708,7 @@ export function AdministracionPage() {
     }
   };
 
-  if (!admin && !docente && !administrativo) {
+  if (!platformAdmin && !docente && !administrativo) {
     return (
       <p className="text-sm text-slate-600">
         Esta sección es para el personal del plantel. Si necesita un informe, solicítelo en secretaría.
@@ -1722,7 +1741,36 @@ export function AdministracionPage() {
       {err && (
         <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
       )}
-      {admin && (
+      {administrativo && institSchoolId && summary ? (
+        <Panel
+          title="Indicadores de su escuela"
+          description="Cifras del día referidas solo a su institución (sin visión multi-plantel)."
+        >
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Fecha de corte:{' '}
+            {summary?.date ? new Date(`${summary.date}T12:00:00`).toLocaleDateString('es') : 'hoy'}
+          </p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { label: 'Estudiantes', value: summary?.entities?.students ?? 0 },
+              { label: 'Docentes', value: summary?.entities?.teachers ?? 0 },
+              { label: 'Grupos activos', value: summary?.entities?.groups ?? 0 },
+              { label: 'Asistencia registrada hoy', value: summary?.attendanceToday?.total ?? 0 },
+              { label: 'Recogidas hoy', value: summary?.circuitToday?.total ?? 0 },
+              { label: 'Pagos pendientes', value: summary?.payments?.pendingDebts ?? 0 }
+            ].map((kpi) => (
+              <article
+                key={kpi.label}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70"
+              >
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{kpi.label}</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{kpi.value}</p>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+      {platformAdmin && (
         <>
           <Panel
             title="Tablero ejecutivo"
@@ -1981,7 +2029,7 @@ export function AdministracionPage() {
           </Panel>
         </>
       )}
-      {administrativo && !admin ? (
+      {administrativo ? (
         <>
           <Panel title="Días sin clases de su escuela">
             <NonInstructionalDaysList data={calendar} />

@@ -346,18 +346,29 @@ type Meeting = {
   startAt: string;
   status?: string;
   purpose?: string | null;
+  modality?: string | null;
+  location?: string | null;
+  meetingLink?: string | null;
+  durationMinutes?: number | null;
+  organizerName?: string | null;
 };
 
 type ParentActivity = {
   id: string;
   title: string;
   subjectName?: string;
+  groupName?: string | null;
+  grade?: string | null;
+  schoolYear?: string | null;
   studentId?: string;
   studentName?: string;
   myScore?: string | number | null;
   maxScore?: string | number | null;
+  myNotes?: string | null;
   closedAt?: string | null;
   periodName?: string | null;
+  period?: string;
+  dueDate?: string | null;
 };
 
 type ParentAttentionNote = {
@@ -366,7 +377,28 @@ type ParentAttentionNote = {
   title: string;
   severity?: 'LEVE' | 'MODERADA' | 'GRAVE' | string;
   createdAt?: string;
+  description?: string;
+  occurredAt?: string;
+  createdByName?: string;
+  matricula?: string;
 };
+
+function meetingModalityLabel(m?: string | null) {
+  const u = (m ?? '').toUpperCase();
+  if (u === 'PRESENCIAL') return 'Presencial';
+  if (u === 'VIRTUAL') return 'Virtual';
+  if (u === 'HIBRIDO' || u === 'HÍBRIDO') return 'Híbrido';
+  return m?.trim() || '—';
+}
+
+function meetingStatusLabel(st?: string | null) {
+  const u = (st ?? '').toUpperCase();
+  if (u === 'PROGRAMADA') return 'Programada';
+  if (u === 'REPROGRAMADA') return 'Reprogramada';
+  if (u === 'REALIZADA') return 'Realizada';
+  if (u === 'CANCELADA') return 'Cancelada';
+  return st ?? '—';
+}
 
 function HomePadre() {
   const [children, setChildren] = useState<ChildAttendanceSummary[]>([]);
@@ -376,6 +408,9 @@ function HomePadre() {
   const [grades, setGrades] = useState<ParentActivity[]>([]);
   const [attentionNotes, setAttentionNotes] = useState<ParentAttentionNote[]>([]);
   const [openDebt, setOpenDebt] = useState<Debt | null>(null);
+  const [openGrade, setOpenGrade] = useState<ParentActivity | null>(null);
+  const [openMeeting, setOpenMeeting] = useState<Meeting | null>(null);
+  const [openNote, setOpenNote] = useState<ParentAttentionNote | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -581,16 +616,251 @@ function HomePadre() {
         ) : null}
       </DetailModal>
 
+      <DetailModal
+        open={openGrade !== null}
+        title={openGrade?.title ?? 'Calificación'}
+        subtitle={
+          openGrade
+            ? [openGrade.studentName ?? 'Alumno', openGrade.subjectName ?? 'Materia'].filter(Boolean).join(' · ')
+            : undefined
+        }
+        badge={
+          openGrade ? (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+              {openGrade.myScore}
+              {openGrade.maxScore ? `/${openGrade.maxScore}` : ''}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenGrade(null)}
+        footer={
+          <Link
+            to="/app/modulos/mis-calificaciones"
+            onClick={() => setOpenGrade(null)}
+            className="rounded-lg border border-brand-800 bg-white px-4 py-2 text-sm font-medium text-brand-900 hover:bg-slate-50"
+          >
+            Ver todas en actividades y notas
+          </Link>
+        }
+      >
+        {openGrade ? (
+          <div className="space-y-4">
+            <dl className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Periodo</dt>
+                <dd className="mt-0.5 text-slate-900">{openGrade.periodName ?? openGrade.period ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
+                <dd className="mt-0.5 text-slate-900">
+                  {[openGrade.groupName, openGrade.grade, openGrade.schoolYear].filter(Boolean).join(' · ') || '—'}
+                </dd>
+              </div>
+              {openGrade.dueDate ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Fecha de entrega</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {formatISO(openGrade.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </dd>
+                </div>
+              ) : null}
+              {openGrade.closedAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Publicada / cerrada</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {formatISO(openGrade.closedAt, {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+            {openGrade.myNotes?.trim() ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Observación del docente</p>
+                <p className="mt-1 whitespace-pre-line text-slate-800">{openGrade.myNotes}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </DetailModal>
+
+      <DetailModal
+        open={openMeeting !== null}
+        title={openMeeting?.title ?? 'Reunión'}
+        subtitle={
+          openMeeting
+            ? formatISO(openMeeting.startAt, {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+            : undefined
+        }
+        badge={
+          openMeeting ? (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-900">
+              {meetingStatusLabel(openMeeting.status)}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenMeeting(null)}
+        footer={
+          <Link
+            to="/app/modulos/reuniones"
+            onClick={() => setOpenMeeting(null)}
+            className="rounded-lg border border-indigo-800 bg-white px-4 py-2 text-sm font-medium text-indigo-900 hover:bg-slate-50"
+          >
+            Ir a reuniones
+          </Link>
+        }
+      >
+        {openMeeting ? (
+          <div className="space-y-4">
+            {openMeeting.purpose ? (
+              <p className="whitespace-pre-line text-slate-800">{openMeeting.purpose}</p>
+            ) : (
+              <p className="text-slate-500">Sin descripción adicional.</p>
+            )}
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500">Modalidad</dt>
+                <dd className="mt-0.5 text-slate-900">{meetingModalityLabel(openMeeting.modality)}</dd>
+              </div>
+              {openMeeting.durationMinutes != null ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Duración</dt>
+                  <dd className="mt-0.5 text-slate-900">{openMeeting.durationMinutes} min</dd>
+                </div>
+              ) : null}
+              {openMeeting.organizerName ? (
+                <div className="sm:col-span-2">
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Organiza</dt>
+                  <dd className="mt-0.5 text-slate-900">{openMeeting.organizerName}</dd>
+                </div>
+              ) : null}
+              {openMeeting.location ? (
+                <div className="sm:col-span-2">
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Lugar</dt>
+                  <dd className="mt-0.5 text-slate-900">{openMeeting.location}</dd>
+                </div>
+              ) : null}
+              {openMeeting.meetingLink ? (
+                <div className="sm:col-span-2">
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Enlace</dt>
+                  <dd className="mt-0.5">
+                    <a
+                      href={openMeeting.meetingLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-brand-800 underline break-all"
+                    >
+                      {openMeeting.meetingLink}
+                    </a>
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
+      </DetailModal>
+
+      <DetailModal
+        open={openNote !== null}
+        title={openNote?.title ?? 'Anotación'}
+        subtitle={
+          openNote
+            ? [openNote.studentName ?? 'Alumno', openNote.matricula].filter(Boolean).join(' · ')
+            : undefined
+        }
+        badge={
+          openNote?.severity ? (
+            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800">
+              {openNote.severity}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenNote(null)}
+        footer={
+          <Link
+            to="/app/modulos/comunicacion"
+            onClick={() => setOpenNote(null)}
+            className="rounded-lg border border-rose-800 bg-white px-4 py-2 text-sm font-medium text-rose-900 hover:bg-slate-50"
+          >
+            Ir a comunicación
+          </Link>
+        }
+      >
+        {openNote ? (
+          <div className="space-y-4">
+            <p className="whitespace-pre-line text-slate-800">
+              {openNote.description?.trim() ? openNote.description : 'Sin detalle adicional en el registro.'}
+            </p>
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+              {openNote.createdByName ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Registró</dt>
+                  <dd className="mt-0.5 text-slate-900">{openNote.createdByName}</dd>
+                </div>
+              ) : null}
+              {openNote.occurredAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Hecho o observado</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {formatISO(openNote.occurredAt, {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </dd>
+                </div>
+              ) : null}
+              {openNote.createdAt ? (
+                <div>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Registrado en sistema</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {formatISO(openNote.createdAt, {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
+      </DetailModal>
+
       <Card title="Próximas reuniones" to="/app/modulos/reuniones" accent="indigo">
         {upcomingMeetings.length === 0 ? (
           <p className="text-slate-500">No hay reuniones programadas próximamente.</p>
         ) : (
           <ul className="space-y-2">
             {upcomingMeetings.map((m) => (
-              <li key={m.id} className="rounded-lg bg-white px-3 py-2 text-sm">
-                <p className="truncate font-medium text-slate-900">{m.title}</p>
-                <p className="text-xs text-slate-500">{formatISO(m.startAt, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
-                {m.purpose ? <p className="mt-0.5 truncate text-xs text-slate-500">{m.purpose}</p> : null}
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenMeeting(m)}
+                  className="w-full rounded-lg bg-white px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+                >
+                  <p className="truncate font-medium text-slate-900">{m.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {formatISO(m.startAt, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  {m.purpose ? <p className="mt-0.5 truncate text-xs text-slate-500">{m.purpose}</p> : null}
+                </button>
               </li>
             ))}
           </ul>
@@ -603,18 +873,24 @@ function HomePadre() {
         ) : (
           <ul className="space-y-2">
             {recentGrades.map((g) => (
-              <li key={g.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-900">{g.title}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {g.studentName ?? 'Alumno'} · {g.subjectName ?? 'Materia'}
-                    {g.periodName ? ` · ${g.periodName}` : ''}
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                  {g.myScore}
-                  {g.maxScore ? `/${g.maxScore}` : ''}
-                </span>
+              <li key={`${g.id}-${g.studentId ?? ''}`}>
+                <button
+                  type="button"
+                  onClick={() => setOpenGrade(g)}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-900">{g.title}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {g.studentName ?? 'Alumno'} · {g.subjectName ?? 'Materia'}
+                      {g.periodName ? ` · ${g.periodName}` : ''}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                    {g.myScore}
+                    {g.maxScore ? `/${g.maxScore}` : ''}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -627,19 +903,25 @@ function HomePadre() {
         ) : (
           <ul className="space-y-2">
             {recentNotes.map((n) => (
-              <li key={n.id} className="rounded-lg bg-white px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate font-medium text-slate-900">{n.title}</p>
-                  {n.severity ? (
-                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800">
-                      {n.severity}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="truncate text-xs text-slate-500">
-                  {n.studentName ?? 'Alumno'}
-                  {n.createdAt ? ` · ${formatISO(n.createdAt, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
-                </p>
+              <li key={n.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenNote(n)}
+                  className="w-full rounded-lg bg-white px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate font-medium text-slate-900">{n.title}</p>
+                    {n.severity ? (
+                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800">
+                        {n.severity}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="truncate text-xs text-slate-500">
+                    {n.studentName ?? 'Alumno'}
+                    {n.createdAt ? ` · ${formatISO(n.createdAt, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+                  </p>
+                </button>
               </li>
             ))}
           </ul>
@@ -818,10 +1100,10 @@ function HomeDocente() {
       </Card>
 
       <Card
-        title="Mis grupos y actividades"
+        title="Mis grupos y materias"
         to="/app/modulos/calificaciones-docente"
         accent="emerald"
-        ctaLabel="Ver actividades"
+        ctaLabel="Actividades y notas"
       >
         {groupsWithDetails.length === 0 ? (
           <p className="text-slate-500">Aún no tiene grupos asignados.</p>
@@ -848,7 +1130,7 @@ function HomeDocente() {
                     to={`/app/modulos/calificaciones-docente?assignment=${encodeURIComponent(g.primaryAssignmentKey)}&status=OPEN`}
                     className="mt-2 inline-flex rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-slate-400"
                   >
-                    Abrir grupo/materia
+                    Actividades y notas
                   </Link>
                 ) : null}
               </li>

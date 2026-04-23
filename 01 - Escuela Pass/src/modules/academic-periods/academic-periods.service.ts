@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { todayLocalISODate } from '../../common/local-date';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -31,6 +32,7 @@ export type AcademicPeriodListItem = {
   weight: string;
   status: AcademicPeriodStatus;
   closedAt: string | null;
+  reopenedAt: string | null;
 };
 
 @Injectable()
@@ -79,7 +81,8 @@ export class AcademicPeriodsService {
       endDate: r.endDate,
       weight: r.weight,
       status: r.status,
-      closedAt: r.closedAt ? r.closedAt.toISOString() : null
+      closedAt: r.closedAt ? r.closedAt.toISOString() : null,
+      reopenedAt: r.reopenedAt ? r.reopenedAt.toISOString() : null
     };
   }
 
@@ -259,64 +262,73 @@ export class AcademicPeriodsService {
     if (!row) throw new NotFoundException('Periodo no encontrado');
     await this.resolveSchoolIdForUser(userId, role, row.schoolId);
     if (row.status === AcademicPeriodStatus.CLOSED) {
-      throw new BadRequestException('El periodo ya está cerrado');
+      throw new BadRequestException(
+        'El periodo está cerrado. Use «Reabrir» si aplica (mismo año calendario del cierre).'
+      );
     }
     row.status = AcademicPeriodStatus.ACTIVE;
     const saved = await this.periodsRepository.save(row);
     return this.rowToDto(saved);
   }
 
-  async close(id: string, userId: string, role: UserRole): Promise<AcademicPeriodListItem> {
+  /**
+   * Vuelve a ACTIVO un periodo CERRADO solo si el cierre fue en el año calendario en curso (zona del servidor).
+   * Marca `reopenedAt`: si no se cierra de nuevo a mano antes del 1 de enero del año siguiente, el cron lo cerrará.
+   */
+  async reopen(id: string, userId: string, role: UserRole): Promise<AcademicPeriodListItem> {
     const row = await this.periodsRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Periodo no encontrado');
     await this.resolveSchoolIdForUser(userId, role, row.schoolId);
-    if (row.status === AcademicPeriodStatus.CLOSED) {
-      return this.rowToDto(row);
+    if (row.status !== AcademicPeriodStatus.CLOSED) {
+      throw new BadRequestException('Solo se pueden reabrir periodos cerrados');
     }
-
-    let saved: AcademicPeriodEntity;
-    try {
-      saved = await this.dataSource.transaction(async (mgr) => {
-        try {
-          await this.activitiesService.closeManyByPeriod(mgr, row.id, userId);
-        } catch (err) {
-          this.logger.error(
-            `close(${id}): fallo al cerrar actividades — ${(err as Error).message}`
-          );
-          throw err;
-        }
-        row.status = AcademicPeriodStatus.CLOSED;
-        row.closedAt = new Date();
-        row.closedBy = userId;
-        const persisted = await mgr.getRepository(AcademicPeriodEntity).save(row);
-        try {
-          await this.reportCardsService.generateForPeriod(row.id, true, mgr);
-        } catch (err) {
-          this.logger.error(
-            `close(${id}): fallo al generar boletines — ${(err as Error).message}`
-          );
-          throw err;
-        }
-        return persisted;
-      });
-    } catch (err) {
-      this.logger.error(
-        `close(${id}) aborted: ${(err as Error).message}`,
-        (err as Error).stack
+    if (!row.closedAt) {
+      throw new BadRequestException('El periodo no tiene fecha de cierre registrada; no se puede reabrir.');
+    }
+    const closedAt = row.closedAt instanceof Date ? row.closedAt : new Date(row.closedAt);
+    const now = new Date();
+    if (closedAt.getFullYear() !== now.getFullYear()) {
+      throw new BadRequestException(
+        'Solo puede reabrir periodos cerrados en el año calendario actual (el año en que se cerraron).'
       );
-      if (err instanceof BadRequestException || err instanceof ForbiddenException || err instanceof NotFoundException) {
+    }
+    row.status = AcademicPeriodStatus.ACTIVE;
+    row.closedAt = null;
+    row.closedBy = null;
+    row.reopenedAt = new Date();
+    const saved = await this.periodsRepository.save(row);
+    return this.rowToDto(saved);
+  }
+
+  private async executeCloseTransaction(
+    row: AcademicPeriodEntity,
+    closedByUserId: string | null
+  ): Promise<AcademicPeriodEntity> {
+    return this.dataSource.transaction(async (mgr) => {
+      try {
+        await this.activitiesService.closeManyByPeriod(mgr, row.id, closedByUserId);
+      } catch (err) {
+        this.logger.error(
+          `close(${row.id}): fallo al cerrar actividades — ${(err as Error).message}`
+        );
         throw err;
       }
-      if (err instanceof QueryFailedError) {
-        throw new UnprocessableEntityException(
-          `No se pudo cerrar el periodo por un error en base de datos. Si persiste, revise restricciones o datos vinculados. Detalle: ${err.message}`
-        );
+      row.status = AcademicPeriodStatus.CLOSED;
+      row.closedAt = new Date();
+      row.closedBy = closedByUserId;
+      row.reopenedAt = null;
+      const persisted = await mgr.getRepository(AcademicPeriodEntity).save(row);
+      try {
+        await this.reportCardsService.generateForPeriod(row.id, true, mgr);
+      } catch (err) {
+        this.logger.error(`close(${row.id}): fallo al generar boletines — ${(err as Error).message}`);
+        throw err;
       }
-      throw new UnprocessableEntityException(
-        `No se pudo cerrar el periodo (datos o dependencias incompletas). Detalle: ${(err as Error).message}`
-      );
-    }
+      return persisted;
+    });
+  }
 
+  private async publishAfterPeriodClose(row: AcademicPeriodEntity): Promise<void> {
     try {
       await this.notifications.notifyReportCardsPublished(
         row.schoolId,
@@ -325,9 +337,8 @@ export class AcademicPeriodsService {
         row.id
       );
     } catch {
-      // no-op: fallo de notificación no revierte el cierre
+      // no-op
     }
-
     try {
       const res = await this.reportCardsService.generateFinalForSchoolYear(
         row.schoolId,
@@ -343,8 +354,70 @@ export class AcademicPeriodsService {
         );
       }
     } catch {
-      // no-op: los finales se re-intentarán por el scheduler si falla aquí
+      // no-op
     }
+  }
+
+  /**
+   * Periodos reabiertos (reopened_at) que sigan ACTIVOS pasado el 1 de ene del año siguiente al de la reapertura.
+   * Invocado solo desde el cron académico.
+   */
+  async runAutoCloseReopenedPastDeadline(): Promise<number> {
+    const today = todayLocalISODate();
+    const candidates = await this.periodsRepository.find({
+      where: { status: AcademicPeriodStatus.ACTIVE }
+    });
+    let n = 0;
+    for (const candidate of candidates) {
+      if (!candidate.reopenedAt) continue;
+      const re = candidate.reopenedAt instanceof Date ? candidate.reopenedAt : new Date(candidate.reopenedAt);
+      const deadline = `${re.getFullYear() + 1}-01-01`;
+      if (today < deadline) continue;
+      const row = await this.periodsRepository.findOne({ where: { id: candidate.id } });
+      if (!row || row.status !== AcademicPeriodStatus.ACTIVE || !row.reopenedAt) continue;
+      try {
+        const saved = await this.executeCloseTransaction(row, null);
+        await this.publishAfterPeriodClose(saved);
+        n += 1;
+        this.logger.log(
+          `Auto-cierre periodo reabierto (plazo 1 ene): ${saved.schoolYear} ${saved.name} (${saved.id})`
+        );
+      } catch (err) {
+        this.logger.warn(
+          `No se pudo auto-cerrar periodo reabierto ${candidate.id}: ${(err as Error).message}`
+        );
+      }
+    }
+    return n;
+  }
+
+  async close(id: string, userId: string, role: UserRole): Promise<AcademicPeriodListItem> {
+    const row = await this.periodsRepository.findOne({ where: { id } });
+    if (!row) throw new NotFoundException('Periodo no encontrado');
+    await this.resolveSchoolIdForUser(userId, role, row.schoolId);
+    if (row.status === AcademicPeriodStatus.CLOSED) {
+      return this.rowToDto(row);
+    }
+
+    let saved: AcademicPeriodEntity;
+    try {
+      saved = await this.executeCloseTransaction(row, userId);
+    } catch (err) {
+      this.logger.error(`close(${id}) aborted: ${(err as Error).message}`, (err as Error).stack);
+      if (err instanceof BadRequestException || err instanceof ForbiddenException || err instanceof NotFoundException) {
+        throw err;
+      }
+      if (err instanceof QueryFailedError) {
+        throw new UnprocessableEntityException(
+          `No se pudo cerrar el periodo por un error en base de datos. Si persiste, revise restricciones o datos vinculados. Detalle: ${err.message}`
+        );
+      }
+      throw new UnprocessableEntityException(
+        `No se pudo cerrar el periodo (datos o dependencias incompletas). Detalle: ${(err as Error).message}`
+      );
+    }
+
+    await this.publishAfterPeriodClose(saved);
 
     return this.rowToDto(saved);
   }

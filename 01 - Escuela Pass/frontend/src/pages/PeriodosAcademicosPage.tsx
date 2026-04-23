@@ -20,6 +20,7 @@ type Period = {
   weight: string;
   status: PeriodStatus;
   closedAt: string | null;
+  reopenedAt?: string | null;
 };
 
 type NewForm = {
@@ -39,6 +40,16 @@ const emptyForm = (): NewForm => ({
   endDate: '',
   weight: ''
 });
+
+function canReopenClosedPeriodThisCalendarYear(p: Period): boolean {
+  if (p.status !== 'CLOSED' || !p.closedAt) return false;
+  return new Date(p.closedAt).getFullYear() === new Date().getFullYear();
+}
+
+function reopenAutoCloseDeadlineYear(p: Period): number | null {
+  if (!p.reopenedAt) return null;
+  return new Date(p.reopenedAt).getFullYear() + 1;
+}
 
 export function PeriodosAcademicosPage() {
   const { user } = useAuth();
@@ -186,6 +197,26 @@ export function PeriodosAcademicosPage() {
     }
   };
 
+  const reopenPeriod = async (id: string) => {
+    if (
+      !window.confirm(
+        '¿Reabrir este periodo? Volverá a ACTIVO para que los docentes puedan trabajar calificaciones. Debe cerrarlo de nuevo a mano antes del 1 de enero del año siguiente; si no, el sistema lo cerrará automáticamente esa fecha (misma lógica que el cierre manual: actividades y boletines).'
+      )
+    )
+      return;
+    setBusyId(id);
+    setErr(null);
+    try {
+      await api.post(`/api/v1/academic-periods/${id}/reopen`);
+      setOk('Periodo reabierto. Recuerde cerrarlo de nuevo antes del 1 de enero del año siguiente.');
+      await loadPeriods();
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const removePeriod = async (id: string) => {
     if (!window.confirm('¿Eliminar este periodo? Solo se permite si no tiene actividades vinculadas.')) return;
     setBusyId(id);
@@ -208,7 +239,10 @@ export function PeriodosAcademicosPage() {
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
           Defina los bimestres o trimestres del año escolar. Al <strong>activar</strong> un periodo, los docentes
           pueden crear actividades y poner notas. Al <strong>cerrar</strong> un periodo, las notas quedan fijas, los
-          alumnos sin calificar reciben cero y los boletines se publican a las familias.
+          alumnos sin calificar reciben cero y los boletines se publican a las familias. Un periodo{' '}
+          <strong>cerrado en el año calendario en curso</strong> puede <strong>reabrirse</strong>; si queda reabierto,
+          debe <strong>cerrarse de nuevo a mano antes del 1 de enero del año siguiente</strong>; de lo contrario, el
+          cierre automático se aplicará esa fecha.
         </p>
       </div>
 
@@ -344,7 +378,9 @@ export function PeriodosAcademicosPage() {
                     {periods
                       .filter((p) => p.schoolYear === year)
                       .sort((a, b) => a.orderIndex - b.orderIndex)
-                      .map((p) => (
+                      .map((p) => {
+                        const autoCloseYear = reopenAutoCloseDeadlineYear(p);
+                        return (
                         <li key={p.id} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-slate-900">
@@ -357,6 +393,12 @@ export function PeriodosAcademicosPage() {
                               {p.startDate} → {p.endDate} · Peso {parseFloat(p.weight)}%{' '}
                               {p.closedAt ? `· Cerrado ${new Date(p.closedAt).toLocaleDateString('es')}` : ''}
                             </p>
+                            {p.status === 'ACTIVE' && autoCloseYear != null ? (
+                              <p className="mt-1 text-xs font-medium text-amber-800">
+                                Reabierto: cierre manual antes del 1 de enero de {autoCloseYear} (si no, cierre
+                                automático).
+                              </p>
+                            ) : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             {p.status === 'PLANNED' && (
@@ -379,6 +421,16 @@ export function PeriodosAcademicosPage() {
                                 Cerrar periodo
                               </button>
                             )}
+                            {p.status === 'CLOSED' && canReopenClosedPeriodThisCalendarYear(p) && (
+                              <button
+                                type="button"
+                                onClick={() => void reopenPeriod(p.id)}
+                                disabled={busyId === p.id}
+                                className="rounded border border-amber-600 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-60"
+                              >
+                                Reabrir (mismo año)
+                              </button>
+                            )}
                             {p.status !== 'CLOSED' && (
                               <button
                                 type="button"
@@ -391,7 +443,8 @@ export function PeriodosAcademicosPage() {
                             )}
                           </div>
                         </li>
-                      ))}
+                        );
+                      })}
                   </ul>
                 </div>
               );

@@ -102,6 +102,8 @@ export function ReunionesPage() {
   const staff = hasRole(user, 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE');
   const canCreate = isStaff(user);
   const platformAdmin = user?.role === 'ADMIN';
+  /** Padres y alumnos no crean reuniones; no mostrar pestaña de organizadas. */
+  const showOrganizedTab = staff;
 
   const [tab, setTab] = useState<'mine' | 'organized' | 'past'>('mine');
   const [err, setErr] = useState<string | null>(null);
@@ -170,6 +172,12 @@ export function ReunionesPage() {
   }, [loadLists]);
 
   useEffect(() => {
+    if (!showOrganizedTab && tab === 'organized') {
+      setTab('mine');
+    }
+  }, [showOrganizedTab, tab]);
+
+  useEffect(() => {
     if (!selectedId) {
       setDetail(null);
       return;
@@ -213,11 +221,11 @@ export function ReunionesPage() {
 
   const list =
     tab === 'mine'
-      ? invitations.concat(organizedByMe)
+      ? showOrganizedTab
+        ? invitations.concat(organizedByMe)
+        : invitations
       : tab === 'organized'
-        ? staff
-          ? organized
-          : organizedByMe
+        ? organized
         : past;
   const allMeetings = useMemo(() => {
     const byId = new Map<string, Meeting>();
@@ -334,11 +342,14 @@ export function ReunionesPage() {
       <div className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 pt-3">
           <TabButton active={tab === 'mine'} onClick={() => setTab('mine')}>
-            Próximas ({invitations.length + organizedByMe.length})
+            Próximas (
+            {showOrganizedTab ? invitations.length + organizedByMe.length : invitations.length})
           </TabButton>
-          <TabButton active={tab === 'organized'} onClick={() => setTab('organized')}>
-            {staff ? `Organizadas (${organized.length})` : `Organizadas por mí (${organizedByMe.length})`}
-          </TabButton>
+          {showOrganizedTab ? (
+            <TabButton active={tab === 'organized'} onClick={() => setTab('organized')}>
+              Organizadas ({organized.length})
+            </TabButton>
+          ) : null}
           <TabButton active={tab === 'past'} onClick={() => setTab('past')}>
             Pasadas ({past.length})
           </TabButton>

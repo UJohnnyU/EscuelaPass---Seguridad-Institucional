@@ -13,6 +13,7 @@ import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { AcademicPeriodStatus } from '../../database/entities/academic-period.entity';
 import { CreateScheduleSlotDto } from './dto/create-schedule-slot.dto';
 import { UpdateScheduleSlotDto } from './dto/update-schedule-slot.dto';
 
@@ -67,8 +68,13 @@ export class SchedulesService {
 
   /** Todas las franjas horarias donde figura el docente (cualquier grupo). */
   /** Horario del grupo del estudiante (franjas semanales). */
-  async listMySlotsAsStudent(userId: string, refDateRaw?: string) {
-    const refDate = this.parseRefDate(refDateRaw);
+  async listMySlotsAsStudent(userId: string, refDateRaw?: string, weekFromRaw?: string) {
+    const weekEnd = this.parseRefDate(refDateRaw);
+    let weekStart = this.parseRefDate(weekFromRaw);
+    if (!weekStart && weekEnd) {
+      weekStart = new Date(weekEnd);
+      weekStart.setDate(weekStart.getDate() - 6);
+    }
     const student = await this.studentsRepository.findOne({ where: { userId } });
     if (!student) throw new ForbiddenException('Perfil de estudiante no encontrado');
     if (!student.groupId) {
@@ -81,10 +87,28 @@ export class SchedulesService {
       };
     }
     const group = await this.groupsRepository.findOne({ where: { id: student.groupId } });
+    const schoolId = group?.schoolId ?? student.schoolId;
+    const capYmd = await this.fetchScheduleCapYmdForSchool(schoolId);
+    const weekStartYmd = weekStart ? this.toYmdLocal(weekStart) : null;
+    if (capYmd && weekStartYmd && weekStartYmd > capYmd) {
+      return {
+        groupId: student.groupId,
+        group: group
+          ? {
+              id: group.id,
+              name: group.name,
+              grade: group.grade,
+              schoolYear: group.schoolYear
+            }
+          : null,
+        slots: [] as Array<ClassScheduleSlotEntity & { subjectName: string | null }>
+      };
+    }
+    const asOfDate = this.resolveScheduleAsOfDate(weekEnd, capYmd);
     const slots = await this.slotsRepository.find({
       where: {
         groupId: student.groupId,
-        createdAt: refDate ? LessThanOrEqual(this.endOfDay(refDate)) : undefined
+        createdAt: asOfDate ? LessThanOrEqual(this.endOfDay(asOfDate)) : undefined
       },
       order: { weekday: 'ASC', startTime: 'ASC' }
     });
@@ -109,19 +133,38 @@ export class SchedulesService {
     };
   }
 
-  async listMyChildrenSlotsAsParent(userId: string) {
+  async listMyChildrenSlotsAsParent(
+    userId: string,
+    opts?: { weekFrom?: string; weekTo?: string }
+  ) {
     const parent = await this.parentsRepository.findOne({ where: { userId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
+    const weekTo = this.parseRefDate(opts?.weekTo?.trim()) ?? new Date();
+    let weekFrom = this.parseRefDate(opts?.weekFrom?.trim());
+    if (!weekFrom) {
+      weekFrom = new Date(weekTo);
+      weekFrom.setDate(weekFrom.getDate() - 6);
+    }
+
     const children = await this.studentsRepository.manager.query<
-      { studentId: string; studentName: string; groupId: string | null; groupName: string | null; grade: string | null; schoolYear: string | null }[]
+      {
+        studentId: string;
+        studentName: string;
+        groupId: string | null;
+        groupName: string | null;
+        grade: string | null;
+        schoolYear: string | null;
+        groupSchoolId: string | null;
+      }[]
     >(
       `SELECT s.id AS "studentId",
               u.full_name AS "studentName",
               s.group_id AS "groupId",
               g.name AS "groupName",
               g.grade AS "grade",
-              g.school_year AS "schoolYear"
+              g.school_year AS "schoolYear",
+              g.school_id AS "groupSchoolId"
        FROM student_parents sp
        JOIN students s ON s.id = sp.student_id
        JOIN users u ON u.id = s.user_id
@@ -132,16 +175,29 @@ export class SchedulesService {
     );
 
     const groupIds = [...new Set(children.map((c) => c.groupId).filter((x): x is string => !!x))];
-    const allSlots =
-      groupIds.length > 0
-        ? await this.slotsRepository.find({
-            where: {
-              groupId: In(groupIds),
-              createdAt: LessThanOrEqual(this.endOfDay(new Date()))
-            },
-            order: { weekday: 'ASC', startTime: 'ASC' }
-          })
-        : [];
+    const schoolIds = [
+      ...new Set(children.map((c) => c.groupSchoolId).filter((x): x is string => !!x))
+    ];
+    const capBySchool = await this.fetchScheduleCapYmdBySchoolIds(schoolIds);
+
+    const allSlots: ClassScheduleSlotEntity[] = [];
+    for (const gid of groupIds) {
+      const schoolId = children.find((c) => c.groupId === gid)?.groupSchoolId ?? null;
+      const capYmd = schoolId ? capBySchool.get(schoolId) ?? null : null;
+      const weekStartYmd = this.toYmdLocal(weekFrom);
+      if (capYmd && weekStartYmd > capYmd) {
+        continue;
+      }
+      const asOfDate = this.resolveScheduleAsOfDate(weekTo, capYmd) ?? weekTo;
+      const part = await this.slotsRepository.find({
+        where: {
+          groupId: gid,
+          createdAt: LessThanOrEqual(this.endOfDay(asOfDate))
+        },
+        order: { weekday: 'ASC', startTime: 'ASC' }
+      });
+      allSlots.push(...part);
+    }
     const subjectIds = [...new Set(allSlots.map((s) => s.subjectId).filter((x): x is string => !!x))];
     const subjects =
       subjectIds.length > 0 ? await this.subjectsRepository.find({ where: { id: In(subjectIds) } }) : [];
@@ -305,6 +361,48 @@ export class SchedulesService {
 
   private endOfDay(d: Date): Date {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  }
+
+  /** Fecha tope (YYYY-MM-DD) según el cierre más tardío de periodos CLOSED de la escuela; null si no hay cierres. */
+  private async fetchScheduleCapYmdForSchool(schoolId: string): Promise<string | null> {
+    const map = await this.fetchScheduleCapYmdBySchoolIds([schoolId]);
+    return map.get(schoolId) ?? null;
+  }
+
+  private async fetchScheduleCapYmdBySchoolIds(schoolIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (schoolIds.length === 0) return out;
+    const rows = await this.studentsRepository.manager.query<{ schoolId: string; cap: string | null }[]>(
+      `SELECT ap.school_id::text AS "schoolId",
+              TO_CHAR(MAX(COALESCE(DATE(ap.closed_at), ap.end_date)), 'YYYY-MM-DD') AS cap
+       FROM academic_periods ap
+       WHERE ap.status = $2
+         AND ap.school_id = ANY($1::uuid[])
+       GROUP BY ap.school_id`,
+      [schoolIds, AcademicPeriodStatus.CLOSED]
+    );
+    for (const r of rows) {
+      if (r.cap) out.set(r.schoolId, r.cap);
+    }
+    return out;
+  }
+
+  private toYmdLocal(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  /**
+   * Fecha "hasta la cual" aplicar createdAt <= endOfDay(asOf): fin de semana solicitada acotada al último cierre institucional.
+   */
+  private resolveScheduleAsOfDate(weekEnd: Date | null, capYmd: string | null): Date | null {
+    if (!weekEnd) return null;
+    if (!capYmd) return weekEnd;
+    const endYmd = this.toYmdLocal(weekEnd);
+    const asOfYmd = endYmd <= capYmd ? endYmd : capYmd;
+    return this.parseRefDate(asOfYmd);
   }
 
   private async assertCanViewGroupSchedule(userId: string, role: UserRole, groupId: string) {

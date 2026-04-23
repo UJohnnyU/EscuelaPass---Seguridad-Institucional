@@ -121,6 +121,8 @@ const emptyCreateForm = (): CreateForm => ({
 export function CalificacionesDocentePage() {
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
+  /** ADMIN / ADMINISTRATIVO pueden borrar aunque ya existan notas (cascada en servidor). */
+  const canDeleteActivityWithGrades = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
   const [searchParams] = useSearchParams();
 
   const [schools, setSchools] = useState<SchoolRow[]>([]);
@@ -543,8 +545,12 @@ export function CalificacionesDocentePage() {
     }
   };
 
-  const deleteActivityFromList = async (id: string) => {
-    if (!window.confirm('¿Eliminar esta actividad? Esta acción no se puede deshacer.')) return;
+  const deleteActivityFromList = async (id: string, gradedCount: number) => {
+    const hasGrades = gradedCount > 0;
+    const msg = hasGrades
+      ? '¿Eliminar esta actividad y todas las calificaciones asociadas? Esta acción no se puede deshacer.'
+      : '¿Eliminar esta actividad? Esta acción no se puede deshacer.';
+    if (!window.confirm(msg)) return;
     setErr(null);
     try {
       await api.delete(`/api/v1/activities/${id}`);
@@ -710,10 +716,10 @@ export function CalificacionesDocentePage() {
                       >
                         {a.status === 'OPEN' ? 'Calificar' : 'Ver notas'}
                       </button>
-                      {a.gradedCount === 0 && (
+                      {(a.gradedCount === 0 || canDeleteActivityWithGrades) && (
                         <button
                           type="button"
-                          onClick={() => void deleteActivityFromList(a.id)}
+                          onClick={() => void deleteActivityFromList(a.id, a.gradedCount)}
                           className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
                         >
                           Eliminar

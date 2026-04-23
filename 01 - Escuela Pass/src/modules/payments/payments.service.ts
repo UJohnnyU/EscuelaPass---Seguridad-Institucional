@@ -376,6 +376,7 @@ export class PaymentsService {
     if (debt.status !== PaymentStatus.PENDIENTE) {
       throw new BadRequestException('La deuda no admite comprobante en este estado');
     }
+    this.assertDebtDueDateNotPastForParentVoucherUpload(debt);
     const allowed = await this.debtsRepository
       .createQueryBuilder('d')
       .innerJoin('students', 's', 's.id = d.student_id')
@@ -393,6 +394,19 @@ export class PaymentsService {
     const saved = await this.debtsRepository.save(debt);
     void this.notifyStaffVoucherUploaded(saved.id, debt.studentId).catch(() => undefined);
     return saved;
+  }
+
+  /** Fecha de vencimiento estrictamente anterior al día calendario actual (zona del servidor). */
+  private assertDebtDueDateNotPastForParentVoucherUpload(debt: DebtEntity): void {
+    const ymd = debt.dueDate?.toString().slice(0, 10) ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+    const today = new Date();
+    const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (ymd < todayYmd) {
+      throw new BadRequestException(
+        'Este pago está vencido. Comuníquese con la institución si requiere generar el cobro nuevamente.'
+      );
+    }
   }
 
   private async notifyStaffVoucherUploaded(debtId: string, studentId: string): Promise<void> {

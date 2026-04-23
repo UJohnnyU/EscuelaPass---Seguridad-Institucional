@@ -100,6 +100,15 @@ export class AcademicPeriodsController {
     return this.service.close(id, req.user.userId, req.user.role);
   }
 
+  @Post(':id/reopen')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  reopen(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.service.reopen(id, req.user.userId, req.user.role);
+  }
+
   @Delete(':id')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   remove(

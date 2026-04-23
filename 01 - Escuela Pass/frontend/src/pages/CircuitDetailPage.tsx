@@ -1,10 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL, TEACHER_SIGNAL_LABEL } from '@/lib/circuit-labels';
 import { getNextPedagogicalSignal, isCircuitTerminal } from '@/lib/circuit-utils';
 import { STAFF_ALLOWED_NEXT, getPrimaryNextOperationalStatus } from '@/lib/circuit-transitions';
+import {
+  CIRCUIT_FLOW_MUTE_STORAGE_KEY,
+  circuitPartnerActivitySignature,
+  playCircuitPartnerAlert
+} from '@/lib/circuit-partner-sound';
 import { useAuth } from '@/context/useAuth';
 import { isStaff as userIsStaff } from '@/lib/roles';
 import { requestGeolocationForCircuitArrival } from '@/lib/geolocation';
@@ -46,6 +51,14 @@ export function CircuitDetailPage() {
   const [nowTick, setNowTick] = useState(Date.now());
   const [reminderOpen, setReminderOpen] = useState(false);
   const [mapCtx, setMapCtx] = useState<MapContextPayload | null>(null);
+  const [circuitFlowMuted, setCircuitFlowMuted] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(CIRCUIT_FLOW_MUTE_STORAGE_KEY) === '1';
+  });
+
+  const suppressPartnerSoundRef = useRef(false);
+  const circuitSoundHydratedRef = useRef(false);
+  const lastCircuitSigRef = useRef<string | null>(null);
 
   const isParent = user?.role === 'PADRE';
   const isStaff = userIsStaff(user);
@@ -89,6 +102,35 @@ export function CircuitDetailPage() {
       cancelled = true;
     };
   }, [id, reload]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(CIRCUIT_FLOW_MUTE_STORAGE_KEY, circuitFlowMuted ? '1' : '0');
+  }, [circuitFlowMuted]);
+
+  useEffect(() => {
+    circuitSoundHydratedRef.current = false;
+    lastCircuitSigRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    if (!row || !id) return;
+    if (row.id !== id) {
+      circuitSoundHydratedRef.current = false;
+      return;
+    }
+    const sig = circuitPartnerActivitySignature(row);
+    if (!circuitSoundHydratedRef.current) {
+      circuitSoundHydratedRef.current = true;
+      lastCircuitSigRef.current = sig;
+      return;
+    }
+    if (sig === lastCircuitSigRef.current) return;
+    lastCircuitSigRef.current = sig;
+    if (suppressPartnerSoundRef.current) return;
+    if (circuitFlowMuted) return;
+    playCircuitPartnerAlert();
+  }, [row, circuitFlowMuted, id]);
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 1000);
@@ -153,10 +195,18 @@ export function CircuitDetailPage() {
     };
   }, [id, reload]);
 
+  function releasePartnerSoundSuppressionSoon() {
+    if (typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      suppressPartnerSoundRef.current = false;
+    }, 850);
+  }
+
   async function run(action: () => Promise<void>) {
     setMsg(null);
     setError(null);
     setBusy(true);
+    suppressPartnerSoundRef.current = true;
     try {
       await action();
       await reload();
@@ -165,6 +215,7 @@ export function CircuitDetailPage() {
       setError(getUserFacingMessage(e));
     } finally {
       setBusy(false);
+      releasePartnerSoundSuppressionSoon();
     }
   }
 
@@ -173,6 +224,7 @@ export function CircuitDetailPage() {
     setMsg(null);
     setError(null);
     setBusy(true);
+    suppressPartnerSoundRef.current = true;
     try {
       const data = await action();
       setRow(data);
@@ -182,6 +234,7 @@ export function CircuitDetailPage() {
       setError(getUserFacingMessage(e));
     } finally {
       setBusy(false);
+      releasePartnerSoundSuppressionSoon();
     }
   }
 
@@ -270,11 +323,29 @@ export function CircuitDetailPage() {
           )}
         </div>
       )}
-      <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight text-slate-900">
-        Circuito de recogida
-      </h1>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <h1 className="font-serif text-2xl font-semibold tracking-tight text-slate-900">
+          Circuito de recogida
+        </h1>
+        <button
+          type="button"
+          onClick={() => setCircuitFlowMuted((v) => !v)}
+          className={`shrink-0 self-start rounded-full border px-3 py-1.5 text-xs font-medium ${
+            circuitFlowMuted
+              ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+              : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+          }`}
+          title="Aviso cuando la familia o el plantel actualicen el circuito en esta pantalla (distinto al sonido de notificaciones)"
+        >
+          {circuitFlowMuted ? 'Activar aviso del circuito' : 'Silenciar aviso del circuito'}
+        </button>
+      </div>
       <p className="mt-1 text-sm text-slate-500">
         Registro {new Date(row.requestTime).toLocaleString('es')}
+      </p>
+      <p className="mt-1 text-xs text-slate-500">
+        Si deja esta vista abierta, sonará un aviso discreto cuando la otra parte avance el flujo (no es el mismo sonido
+        que la campana de notificaciones).
       </p>
 
       <dl className="mt-8 space-y-4 rounded border border-slate-200/80 bg-white p-6 shadow-sm">

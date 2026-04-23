@@ -546,7 +546,18 @@ function statusStyle(status: Debt['status'], isOverdue: boolean) {
   return { label: 'Pendiente', cls: 'bg-amber-100 text-amber-900' };
 }
 
-function DebtItem({ d, canUpload, onUpdated }: { d: Debt; canUpload: boolean; onUpdated: (next: Partial<Debt>) => void }) {
+/** Vencido por estado o por fecha (anterior al día de hoy): no se permite subir comprobante (misma lógica que el panel de inicio). */
+function debtIsExpiredForParentVoucher(d: Debt): boolean {
+  if (d.status === 'PAGADO') return false;
+  if (d.status === 'VENCIDO') return true;
+  const ymd = (d.dueDate ?? '').toString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const now = new Date();
+  const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return ymd < todayYmd;
+}
+
+function debtRowPresentation(d: Debt) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(d.dueDate);
@@ -556,12 +567,30 @@ function DebtItem({ d, canUpload, onUpdated }: { d: Debt; canUpload: boolean; on
     d.status !== 'PAGADO' &&
     d.status !== 'COMPROBANTE_RECHAZADO';
   const st = statusStyle(d.status, isOverdue);
+  const expiredNoUpload = debtIsExpiredForParentVoucher(d);
+  const voucherUrl = d.voucherPath ? publicAssetUrl(d.voucherPath) : null;
+  return { isOverdue, st, expiredNoUpload, voucherUrl };
+}
+
+function DebtDetailPanel({
+  d,
+  canUpload,
+  onUpdated
+}: {
+  d: Debt;
+  canUpload: boolean;
+  onUpdated: (next: Partial<Debt>) => void;
+}) {
+  const { isOverdue, st, expiredNoUpload, voucherUrl } = debtRowPresentation(d);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const voucherUrl = d.voucherPath ? publicAssetUrl(d.voucherPath) : null;
 
   const handleFile = async (file: File) => {
+    if (expiredNoUpload) {
+      setErrMsg('Este pago está vencido. Comuníquese con la institución si requiere generar el cobro nuevamente.');
+      return;
+    }
     setErrMsg(null);
     setBusy(true);
     try {
@@ -596,108 +625,146 @@ function DebtItem({ d, canUpload, onUpdated }: { d: Debt; canUpload: boolean; on
   };
 
   return (
-    <li className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-medium text-slate-900">{d.conceptName ?? 'Concepto de cobro'}</h3>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span>
+    <div className="space-y-4">
+      {(d.description || d.conceptDescription) && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Descripción</p>
+          <p className="mt-1 whitespace-pre-line text-slate-800">{d.description ?? d.conceptDescription}</p>
+        </div>
+      )}
+      {expiredNoUpload ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Este pago está vencido. Si requiere generarlo nuevamente, comuníquese con la institución.
+        </p>
+      ) : null}
+      <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+        <div>
+          <dt className="font-semibold uppercase tracking-widest text-slate-500">Importe</dt>
+          <dd className="mt-0.5 text-base font-semibold text-slate-900">{fmtCurrency(d.amount)}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold uppercase tracking-widest text-slate-500">Vencimiento</dt>
+          <dd className={`mt-0.5 ${isOverdue ? 'font-medium text-red-800' : 'text-slate-900'}`}>
+            {fmtDate(d.dueDate)}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-semibold uppercase tracking-widest text-slate-500">Estado</dt>
+          <dd className="mt-0.5">
+            <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>
+              {st.label}
+            </span>
+          </dd>
+        </div>
+        {d.studentName ? (
+          <div>
+            <dt className="font-semibold uppercase tracking-widest text-slate-500">Alumno</dt>
+            <dd className="mt-0.5 text-slate-900">{d.studentName}</dd>
           </div>
-          {d.studentName && <p className="mt-0.5 text-xs text-slate-500">Alumno: {d.studentName}</p>}
-          {(d.description || d.conceptDescription) && (
-            <p className="mt-1 text-sm text-slate-700">{d.description ?? d.conceptDescription}</p>
-          )}
-          <p className={`mt-2 text-xs ${isOverdue ? 'text-red-700' : 'text-slate-500'}`}>
-            Vence el {fmtDate(d.dueDate)}
-          </p>
-          {d.voucherPath && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span
-                className={
-                  d.status === 'COMPROBANTE_RECHAZADO'
-                    ? 'text-rose-800'
-                    : d.verifiedAt
-                      ? 'text-emerald-700'
-                      : 'text-amber-700'
-                }
-              >
-                {d.status === 'COMPROBANTE_RECHAZADO'
-                  ? `Comprobante no aceptado${d.uploadedAt ? ` · ${fmtDate(d.uploadedAt)}` : ''}`
-                  : d.verifiedAt
-                    ? `Comprobante verificado${d.verifiedAt ? ` · ${fmtDate(d.verifiedAt)}` : ''}`
-                    : `Comprobante en revisión${d.uploadedAt ? ` · ${fmtDate(d.uploadedAt)}` : ''}`}
-              </span>
-              {voucherUrl && (
-                <a
-                  href={voucherUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full border border-slate-300 bg-white px-2 py-0.5 font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Ver comprobante
-                </a>
-              )}
-            </div>
-          )}
-          {d.status === 'COMPROBANTE_RECHAZADO' && d.notes ? (
-            <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-              <span className="font-semibold">Motivo: </span>
-              {d.notes}
-            </p>
+        ) : null}
+        {d.uploadedAt ? (
+          <div>
+            <dt className="font-semibold uppercase tracking-widest text-slate-500">Comprobante enviado</dt>
+            <dd className="mt-0.5 text-slate-900">{fmtDateTime(d.uploadedAt)}</dd>
+          </div>
+        ) : null}
+        {d.verifiedAt ? (
+          <div>
+            <dt className="font-semibold uppercase tracking-widest text-slate-500">Comprobante verificado</dt>
+            <dd className="mt-0.5 text-slate-900">{fmtDateTime(d.verifiedAt)}</dd>
+          </div>
+        ) : null}
+      </dl>
+      {d.voucherPath ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-sm">
+          <span
+            className={
+              d.status === 'COMPROBANTE_RECHAZADO'
+                ? 'text-rose-800'
+                : d.verifiedAt
+                  ? 'text-emerald-700'
+                  : 'text-amber-800'
+            }
+          >
+            {d.status === 'COMPROBANTE_RECHAZADO'
+              ? 'Comprobante no aceptado por la institución.'
+              : d.verifiedAt
+                ? 'Comprobante verificado.'
+                : 'Comprobante en revisión por la institución.'}
+          </span>
+          {voucherUrl ? (
+            <a
+              href={voucherUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Ver comprobante
+            </a>
           ) : null}
-          {canUpload && d.status !== 'PAGADO' && (
-            <div className="mt-3">
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".pdf,image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleFile(f);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-700 bg-white px-3 py-1 text-xs font-semibold text-brand-900 hover:bg-brand-50 disabled:opacity-60"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-3.5 w-3.5"
-                  aria-hidden
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                {busy ? 'Subiendo…' : d.voucherPath ? 'Reemplazar comprobante' : 'Subir comprobante'}
-              </button>
-              {errMsg && <p className="mt-1 text-xs text-red-700">{errMsg}</p>}
-            </div>
-          )}
         </div>
-        <div className="text-right">
-          <p className="text-lg font-semibold text-slate-900">{fmtCurrency(d.amount)}</p>
+      ) : null}
+      {d.status === 'COMPROBANTE_RECHAZADO' && d.notes ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+          <p className="font-semibold">Indicación de la institución</p>
+          <p className="mt-1 whitespace-pre-line">{d.notes}</p>
         </div>
-      </div>
-    </li>
+      ) : null}
+      {canUpload && d.status !== 'PAGADO' && !expiredNoUpload ? (
+        <div className="border-t border-slate-100 pt-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Comprobante de pago</p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".pdf,image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleFile(f);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={busy}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-brand-700 bg-white px-3 py-1.5 text-xs font-semibold text-brand-900 hover:bg-brand-50 disabled:opacity-60"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3.5 w-3.5"
+              aria-hidden
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            {busy ? 'Subiendo…' : d.voucherPath ? 'Reemplazar comprobante' : 'Subir comprobante'}
+          </button>
+          {errMsg ? <p className="mt-2 text-xs text-red-700">{errMsg}</p> : null}
+          <p className="mt-2 text-xs text-slate-500">
+            Subir un archivo no marca el pago como liquidado: el personal debe verificarlo en Finanzas.
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 export function DebtsList({ data, canUpload = false }: { data: unknown; canUpload?: boolean }) {
   const initial = useMemo(() => unwrapList<Debt>(data), [data]);
   const [items, setItems] = useState<Debt[]>(initial);
+  const [openId, setOpenId] = useState<string | null>(null);
   useEffect(() => {
     setItems(initial);
   }, [initial]);
+
+  const open = useMemo(() => items.find((x) => x.id === openId) ?? null, [items, openId]);
 
   if (items.length === 0) {
     return (
@@ -718,17 +785,64 @@ export function DebtsList({ data, canUpload = false }: { data: unknown; canUploa
         <span className="text-xl font-semibold text-slate-900">{fmtCurrency(total)}</span>
       </div>
       <ul className="space-y-3">
-        {items.map((d) => (
-          <DebtItem
-            key={d.id}
-            d={d}
-            canUpload={canUpload}
-            onUpdated={(patch) =>
-              setItems((prev) => prev.map((x) => (x.id === d.id ? { ...x, ...patch } : x)))
-            }
-          />
-        ))}
+        {items.map((d) => {
+          const { isOverdue, st } = debtRowPresentation(d);
+          return (
+            <li
+              key={d.id}
+              className="rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-slate-300"
+            >
+              <button
+                type="button"
+                onClick={() => setOpenId(d.id)}
+                className="flex w-full flex-wrap items-start justify-between gap-3 p-4 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-medium text-slate-900">{d.conceptName ?? 'Concepto de cobro'}</h3>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span>
+                  </div>
+                  {d.studentName ? <p className="mt-0.5 text-xs text-slate-500">Alumno: {d.studentName}</p> : null}
+                  {(d.description || d.conceptDescription) && (
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-600">{d.description ?? d.conceptDescription}</p>
+                  )}
+                  <p className={`mt-2 text-xs ${isOverdue ? 'text-red-700' : 'text-slate-500'}`}>
+                    Vence el {fmtDate(d.dueDate)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-semibold text-slate-900">{fmtCurrency(d.amount)}</p>
+                </div>
+              </button>
+            </li>
+          );
+        })}
       </ul>
+      <DetailModal
+        open={open !== null}
+        title={open?.conceptName ?? 'Detalle de pago'}
+        subtitle={open?.studentName ? `Alumno: ${open.studentName}` : undefined}
+        badge={
+          open ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${debtRowPresentation(open).st.cls}`}
+            >
+              {debtRowPresentation(open).st.label}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenId(null)}
+      >
+        {open ? (
+          <DebtDetailPanel
+            d={open}
+            canUpload={canUpload}
+            onUpdated={(patch) => {
+              setItems((prev) => prev.map((x) => (x.id === open.id ? { ...x, ...patch } : x)));
+            }}
+          />
+        ) : null}
+      </DetailModal>
     </div>
   );
 }

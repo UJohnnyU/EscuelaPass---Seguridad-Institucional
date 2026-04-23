@@ -58,15 +58,20 @@ export class SchedulesController {
   @Roles(UserRole.ALUMNO)
   listMySlotsAsStudent(
     @Req() req: Request & { user: JwtUser },
-    @Query('refDate') refDate: string | undefined
+    @Query('refDate') refDate: string | undefined,
+    @Query('weekFrom') weekFrom: string | undefined
   ) {
-    return this.schedulesService.listMySlotsAsStudent(req.user.userId, refDate);
+    return this.schedulesService.listMySlotsAsStudent(req.user.userId, refDate, weekFrom);
   }
 
   @Get('parent/my-children')
   @Roles(UserRole.PADRE)
-  listMyChildrenSlotsAsParent(@Req() req: Request & { user: JwtUser }) {
-    return this.schedulesService.listMyChildrenSlotsAsParent(req.user.userId);
+  listMyChildrenSlotsAsParent(
+    @Req() req: Request & { user: JwtUser },
+    @Query('weekFrom') weekFrom: string | undefined,
+    @Query('weekTo') weekTo: string | undefined
+  ) {
+    return this.schedulesService.listMyChildrenSlotsAsParent(req.user.userId, { weekFrom, weekTo });
   }
 
   @Get('groups/:groupId')

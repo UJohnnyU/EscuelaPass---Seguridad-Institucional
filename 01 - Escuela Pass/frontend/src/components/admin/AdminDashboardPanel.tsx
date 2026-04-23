@@ -153,16 +153,16 @@ export function AdminDashboardPanel() {
             />
           </label>
           <Link
-            to="/app/modulos/administracion"
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
-          >
-            Informes detallados
-          </Link>
-          <Link
             to="/app/circuito/hoy"
             className="rounded border border-brand-800/30 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 shadow-sm transition hover:bg-brand-100"
           >
             Circuito del día
+          </Link>
+          <Link
+            to="/app/modulos/administracion"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+          >
+            Informes detallados
           </Link>
         </div>
       </div>

@@ -124,7 +124,14 @@ export default function App() {
           />
           <Route path="modulos/visitas" element={<VisitasPage />} />
           <Route path="modulos/reuniones" element={<ReunionesPage />} />
-          <Route path="modulos/administracion" element={<AdministracionPage />} />
+          <Route
+            path="modulos/administracion"
+            element={
+              <RoleGate allow={['ADMIN', 'ADMINISTRATIVO']}>
+                <AdministracionPage />
+              </RoleGate>
+            }
+          />
           <Route path="modulos/herramientas" element={<Navigate to="/app/perfil" replace />} />
           <Route
             path="importaciones"

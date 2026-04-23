@@ -101,12 +101,33 @@ export class DashboardService {
           blocks: { meetings, notifications, childrenGrades }
         };
       }
-      case UserRole.ADMIN:
-      case UserRole.ADMINISTRATIVO: {
+      case UserRole.ADMIN: {
         const [operationalSummary, panel, meetings] = await Promise.all([
           this.summary(),
           this.adminPanel(),
           this.meetingsService.listForStaff({ userId, role })
+        ]);
+        return {
+          ...base,
+          blocks: { operationalSummary, panel, meetings }
+        };
+      }
+      case UserRole.ADMINISTRATIVO: {
+        const u = await this.usersRepository.findOne({
+          where: { id: userId },
+          select: { schoolId: true }
+        });
+        const sid = u?.schoolId?.trim() || undefined;
+        const meetings = await this.meetingsService.listForStaff({ userId, role });
+        if (!sid) {
+          return {
+            ...base,
+            blocks: { operationalSummary: null, panel: null, meetings }
+          };
+        }
+        const [operationalSummary, panel] = await Promise.all([
+          this.summary(undefined, sid),
+          this.adminPanel(undefined, undefined, sid)
         ]);
         return {
           ...base,
@@ -248,10 +269,11 @@ export class DashboardService {
 
   /**
    * Panel administrativo: resumen operativo + serie de circuitos (7 días) y desglose por grupo.
-   * Una sola institución por despliegue; "por grupo" sustituye granularidad multi-escuela.
+   * `schoolScope`: si se indica, todas las métricas quedan acotadas a esa institución (administrativo).
    */
-  async adminPanel(referenceDateStr?: string, windowDaysStr?: string) {
+  async adminPanel(referenceDateStr?: string, windowDaysStr?: string, schoolScope?: string | null) {
     const endDate = referenceDateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const sid = schoolScope?.trim() || undefined;
     const parsedDays = Number.parseInt(windowDaysStr ?? '7', 10);
     const windowDays = parsedDays === 15 || parsedDays === 30 ? parsedDays : 7;
     const startDate = addCalendarDays(endDate, -(windowDays - 1));
@@ -262,6 +284,71 @@ export class DashboardService {
       const deltaPct = previous > 0 ? Number(((delta / previous) * 100).toFixed(2)) : current > 0 ? 100 : 0;
       return { current, previous, delta, deltaPct };
     };
+
+    const circuitDayQb = this.circuitRepository
+      .createQueryBuilder('cr')
+      .select("TO_CHAR(DATE(cr.request_time), 'YYYY-MM-DD')", 'day')
+      .addSelect('cr.status', 'status')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .groupBy("DATE(cr.request_time)")
+      .addGroupBy('cr.status')
+      .orderBy('day', 'ASC');
+    if (sid) circuitDayQb.innerJoin('students', 's', 's.id = cr.student_id AND s.school_id = :sid', { sid });
+
+    const circuitGroupQb = this.circuitRepository
+      .createQueryBuilder('cr')
+      .innerJoin('students', 's', 's.id = cr.student_id')
+      .leftJoin('groups', 'g', 'g.id = s.group_id')
+      .select('COALESCE(g.id::text, \'none\')', 'groupId')
+      .addSelect('COALESCE(g.name, \'Sin grupo\')', 'groupName')
+      .addSelect('COALESCE(g.grade, \'\')', 'grade')
+      .addSelect('g.shift', 'shift')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .groupBy('COALESCE(g.id::text, \'none\')')
+      .addGroupBy('COALESCE(g.name, \'Sin grupo\')')
+      .addGroupBy('COALESCE(g.grade, \'\')')
+      .addGroupBy('g.shift')
+      .orderBy('cnt', 'DESC');
+    if (sid) circuitGroupQb.andWhere('s.school_id = :sid', { sid });
+
+    const attendanceCurrentQb = this.attendanceRepository
+      .createQueryBuilder('a')
+      .where('a.attendanceDate BETWEEN :start AND :end', { start: startDate, end: endDate });
+    if (sid)
+      attendanceCurrentQb.innerJoin('students', 's', 's.id = a.student_id AND s.school_id = :sid', { sid });
+
+    const attendancePreviousQb = this.attendanceRepository
+      .createQueryBuilder('a')
+      .where('a.attendanceDate BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate });
+    if (sid)
+      attendancePreviousQb.innerJoin('students', 's', 's.id = a.student_id AND s.school_id = :sid', { sid });
+
+    const accessCurrentQb = this.accessEventsRepository
+      .createQueryBuilder('ae')
+      .where('ae.eventDate BETWEEN :start AND :end', { start: startDate, end: endDate });
+    if (sid) accessCurrentQb.innerJoin('users', 'u', 'u.id = ae.user_id AND u.school_id = :sid', { sid });
+
+    const accessPreviousQb = this.accessEventsRepository
+      .createQueryBuilder('ae')
+      .where('ae.eventDate BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate });
+    if (sid) accessPreviousQb.innerJoin('users', 'u', 'u.id = ae.user_id AND u.school_id = :sid', { sid });
+
+    const circuitCurrentQb = this.circuitRepository
+      .createQueryBuilder('cr')
+      .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate });
+    if (sid) circuitCurrentQb.innerJoin('students', 's', 's.id = cr.student_id AND s.school_id = :sid', { sid });
+
+    const circuitPreviousQb = this.circuitRepository
+      .createQueryBuilder('cr')
+      .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate });
+    if (sid) circuitPreviousQb.innerJoin('students', 's', 's.id = cr.student_id AND s.school_id = :sid', { sid });
+
+    const visitsPendingQb = this.visitRequestsRepository
+      .createQueryBuilder('vr')
+      .where('vr.status = :st', { st: PickupRequestStatus.PENDIENTE });
+    if (sid) visitsPendingQb.innerJoin('students', 's', 's.id = vr.student_id AND s.school_id = :sid', { sid });
 
     const [
       summary,
@@ -275,58 +362,16 @@ export class DashboardService {
       circuitCurrent,
       circuitPrevious
     ] = await Promise.all([
-      this.summary(endDate),
-      this.visitRequestsRepository.count({ where: { status: PickupRequestStatus.PENDIENTE } }),
-      this.circuitRepository
-        .createQueryBuilder('cr')
-        .select("TO_CHAR(DATE(cr.request_time), 'YYYY-MM-DD')", 'day')
-        .addSelect('cr.status', 'status')
-        .addSelect('COUNT(*)', 'cnt')
-        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .groupBy("DATE(cr.request_time)")
-        .addGroupBy('cr.status')
-        .orderBy('day', 'ASC')
-        .getRawMany<{ day: string; status: CircuitStatus; cnt: string }>(),
-      this.circuitRepository
-        .createQueryBuilder('cr')
-        .innerJoin('students', 's', 's.id = cr.student_id')
-        .leftJoin('groups', 'g', 'g.id = s.group_id')
-        .select('COALESCE(g.id::text, \'none\')', 'groupId')
-        .addSelect('COALESCE(g.name, \'Sin grupo\')', 'groupName')
-        .addSelect('COALESCE(g.grade, \'\')', 'grade')
-        .addSelect('g.shift', 'shift')
-        .addSelect('COUNT(*)', 'cnt')
-        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .groupBy('COALESCE(g.id::text, \'none\')')
-        .addGroupBy('COALESCE(g.name, \'Sin grupo\')')
-        .addGroupBy('COALESCE(g.grade, \'\')')
-        .addGroupBy('g.shift')
-        .orderBy('cnt', 'DESC')
-        .getRawMany<{ groupId: string; groupName: string; grade: string; shift: string | null; cnt: string }>(),
-      this.attendanceRepository
-        .createQueryBuilder('a')
-        .where('a.attendanceDate BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .getCount(),
-      this.attendanceRepository
-        .createQueryBuilder('a')
-        .where('a.attendanceDate BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate })
-        .getCount(),
-      this.accessEventsRepository
-        .createQueryBuilder('ae')
-        .where('ae.eventDate BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .getCount(),
-      this.accessEventsRepository
-        .createQueryBuilder('ae')
-        .where('ae.eventDate BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate })
-        .getCount(),
-      this.circuitRepository
-        .createQueryBuilder('cr')
-        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .getCount(),
-      this.circuitRepository
-        .createQueryBuilder('cr')
-        .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate })
-        .getCount()
+      this.summary(endDate, sid),
+      visitsPendingQb.getCount(),
+      circuitDayQb.getRawMany<{ day: string; status: CircuitStatus; cnt: string }>(),
+      circuitGroupQb.getRawMany<{ groupId: string; groupName: string; grade: string; shift: string | null; cnt: string }>(),
+      attendanceCurrentQb.getCount(),
+      attendancePreviousQb.getCount(),
+      accessCurrentQb.getCount(),
+      accessPreviousQb.getCount(),
+      circuitCurrentQb.getCount(),
+      circuitPreviousQb.getCount()
     ]);
 
     const byDayMap = new Map<string, { total: number; byStatus: Record<string, number> }>();

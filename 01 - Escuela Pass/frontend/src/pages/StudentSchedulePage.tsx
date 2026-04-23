@@ -48,10 +48,24 @@ type MeetingRow = {
   id: string;
   title?: string;
   topic?: string;
+  purpose?: string;
+  modality?: string;
+  durationMinutes?: number;
   startAt?: string;
   startsAt?: string;
   scheduledAt?: string;
+  start_at?: string;
   status?: string | null;
+};
+
+type VisitScheduleRow = {
+  id: string;
+  title: string;
+  visitorName: string;
+  visitDatetime: string;
+  durationMinutes: number;
+  status: string;
+  location?: string | null;
 };
 
 type NotifRow = {
@@ -79,6 +93,27 @@ function weekRangeISO(offsetWeeks: number): { from: string; to: string; label: s
   return { from: fmt(start), to: fmt(end), label };
 }
 
+function localDateISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseFlexibleInstant(iso: string): Date {
+  if (iso.length <= 10) return new Date(`${iso}T12:00:00`);
+  return new Date(iso);
+}
+
+function meetingWhenIso(m: MeetingRow & Record<string, unknown>): string | null {
+  const v = m.startAt ?? m.startsAt ?? m.scheduledAt ?? m.start_at;
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+function isDateInWeek(dayISO: string, weekFrom: string, weekTo: string): boolean {
+  return dayISO >= weekFrom && dayISO <= weekTo;
+}
+
 export function StudentSchedulePage() {
   const { user } = useAuth();
   const alumno = user?.role === 'ALUMNO';
@@ -91,6 +126,7 @@ export function StudentSchedulePage() {
   const [calendar, setCalendar] = useState<{ groupId: string | null; days: CalendarDay[] } | null>(null);
   const [notifications, setNotifications] = useState<NotifRow[] | null>(null);
   const [meetings, setMeetings] = useState<MeetingRow[] | null>(null);
+  const [visits, setVisits] = useState<VisitScheduleRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [openSlotId, setOpenSlotId] = useState<string | null>(null);
@@ -101,23 +137,38 @@ export function StudentSchedulePage() {
     setLoading(true);
     try {
       if (alumno) {
-        const [sRes, cRes, nRes] = await Promise.all([
-          api.get<SchedulePayload>(`/api/v1/schedules/me/student?refDate=${encodeURIComponent(to)}`),
+        const [sRes, cRes, nRes, mRes, vRes] = await Promise.all([
+          api.get<SchedulePayload>(
+            `/api/v1/schedules/me/student?refDate=${encodeURIComponent(to)}&weekFrom=${encodeURIComponent(from)}`
+          ),
           api.get<{ groupId: string | null; days: CalendarDay[] }>(
             `/api/v1/calendar/me/student?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
           ),
-          api.get<{ data: NotifRow[] }>('/api/v1/notifications/me?limit=25')
+          api.get<{ data: NotifRow[] }>('/api/v1/notifications/me?limit=25'),
+          api.get<MeetingRow[]>('/api/v1/meetings/me').catch(() => ({ data: [] as MeetingRow[] })),
+          api.get<VisitScheduleRow[]>('/api/v1/external-visits/me').catch(() => ({ data: [] as VisitScheduleRow[] }))
         ]);
         setSchedule(sRes.data);
         setTeacherSlots(null);
         setCalendar(cRes.data);
         setNotifications(nRes.data.data ?? []);
-        setMeetings(null);
+        const meetPayload = mRes.data as unknown;
+        const meetList = Array.isArray(meetPayload)
+          ? meetPayload
+          : meetPayload &&
+              typeof meetPayload === 'object' &&
+              Array.isArray((meetPayload as { items?: unknown }).items)
+            ? ((meetPayload as { items: MeetingRow[] }).items ?? [])
+            : [];
+        setMeetings(meetList as MeetingRow[]);
+        const visitPayload = vRes.data as unknown;
+        setVisits(Array.isArray(visitPayload) ? visitPayload : []);
       } else {
-        const [sRes, nRes, mRes] = await Promise.all([
+        const [sRes, nRes, mRes, vRes] = await Promise.all([
           api.get<TeacherSelfSlot[]>(`/api/v1/schedules/me/teacher?refDate=${encodeURIComponent(to)}`),
           api.get<{ data: NotifRow[] }>('/api/v1/notifications/me?limit=25'),
-          api.get<MeetingRow[]>('/api/v1/meetings/me').catch(() => ({ data: [] as MeetingRow[] }))
+          api.get<MeetingRow[]>('/api/v1/meetings/me').catch(() => ({ data: [] as MeetingRow[] })),
+          api.get<VisitScheduleRow[]>('/api/v1/external-visits/me').catch(() => ({ data: [] as VisitScheduleRow[] }))
         ]);
         const slots = Array.isArray(sRes.data) ? sRes.data : [];
         const groupIds = Array.from(new Set(slots.map((s) => s.groupId).filter((x): x is string => Boolean(x))));
@@ -139,7 +190,17 @@ export function StudentSchedulePage() {
         setTeacherSlots(slots);
         setCalendar({ groupId: null, days: Array.from(dayMap.values()) });
         setNotifications(nRes.data.data ?? []);
-        setMeetings(Array.isArray(mRes.data) ? mRes.data : []);
+        const meetPayload = mRes.data as unknown;
+        const meetList = Array.isArray(meetPayload)
+          ? meetPayload
+          : meetPayload &&
+              typeof meetPayload === 'object' &&
+              Array.isArray((meetPayload as { items?: unknown }).items)
+            ? ((meetPayload as { items: MeetingRow[] }).items ?? [])
+            : [];
+        setMeetings(meetList as MeetingRow[]);
+        const visitPayload = vRes.data as unknown;
+        setVisits(Array.isArray(visitPayload) ? visitPayload : []);
       }
     } catch (e) {
       setErr(getUserFacingMessage(e, 'No se pudo cargar el horario.'));
@@ -148,6 +209,7 @@ export function StudentSchedulePage() {
       setCalendar(null);
       setNotifications(null);
       setMeetings(null);
+      setVisits(null);
     } finally {
       setLoading(false);
     }
@@ -175,9 +237,67 @@ export function StudentSchedulePage() {
 
   const weekDays = useMemo(() => buildWeekDays(from, dayOffByISO), [from, dayOffByISO]);
 
+  const meetingsAndVisitsGridEvents = useMemo<WeekScheduleEvent[]>(() => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const out: WeekScheduleEvent[] = [];
+
+    const pushTimed = (
+      whenIso: string,
+      durationMinutes: number,
+      title: string,
+      subtitle: string | null,
+      id: string,
+      colorKey: string
+    ) => {
+      const d = parseFlexibleInstant(whenIso);
+      if (Number.isNaN(d.getTime())) return;
+      const dayStr = localDateISO(d);
+      if (!isDateInWeek(dayStr, from, to)) return;
+      const startM = d.getHours() * 60 + d.getMinutes();
+      const dur = Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : 30;
+      const endM = Math.min(startM + dur, 24 * 60 - 1);
+      const sh = Math.floor(startM / 60);
+      const sm = startM % 60;
+      const eh = Math.floor(endM / 60);
+      const em = endM % 60;
+      out.push({
+        id,
+        weekday: d.getDay(),
+        startTime: `${pad(sh)}:${pad(sm)}:00`,
+        endTime: `${pad(eh)}:${pad(em)}:00`,
+        title,
+        subtitle,
+        room: null,
+        colorKey
+      });
+    };
+
+    for (const m of meetings ?? []) {
+      if (m.status === 'CANCELADA') continue;
+      const when = meetingWhenIso(m as MeetingRow & Record<string, unknown>);
+      if (!when) continue;
+      const dur = m.durationMinutes ?? 30;
+      const label = m.title ?? m.topic ?? 'Reunión';
+      const sub = m.modality === 'VIRTUAL' ? 'Virtual' : m.modality === 'PRESENCIAL' ? 'Presencial' : null;
+      pushTimed(when, dur, `Reunión: ${label}`, sub, `meeting-${m.id}`, `reunion:${m.id}`);
+    }
+    for (const v of visits ?? []) {
+      if (v.status === 'CANCELADA') continue;
+      pushTimed(
+        v.visitDatetime,
+        v.durationMinutes ?? 60,
+        `Visita: ${v.title}`,
+        v.visitorName ? `Invitado: ${v.visitorName}` : null,
+        `visit-${v.id}`,
+        `visita:${v.id}`
+      );
+    }
+    return out;
+  }, [meetings, visits, from, to]);
+
   const weekEvents = useMemo<WeekScheduleEvent[]>(() => {
     if (alumno) {
-      return (schedule?.slots ?? []).map((s) => ({
+      const classes = (schedule?.slots ?? []).map((s) => ({
         id: s.id,
         weekday: s.weekday,
         startTime: s.startTime,
@@ -187,8 +307,9 @@ export function StudentSchedulePage() {
         room: s.room,
         colorKey: s.subjectName ?? s.subjectId ?? s.id
       }));
+      return [...classes, ...meetingsAndVisitsGridEvents];
     }
-    return (teacherSlots ?? []).map((s) => ({
+    const classes = (teacherSlots ?? []).map((s) => ({
       id: s.id,
       weekday: s.weekday,
       startTime: s.startTime,
@@ -198,7 +319,36 @@ export function StudentSchedulePage() {
       room: s.room,
       colorKey: s.subjectName ?? s.subjectId ?? s.id
     }));
-  }, [alumno, schedule?.slots, teacherSlots]);
+    return [...classes, ...meetingsAndVisitsGridEvents];
+  }, [alumno, schedule?.slots, teacherSlots, meetingsAndVisitsGridEvents]);
+
+  const meetingsThisWeek = useMemo(() => {
+    if (!meetings) return [];
+    return meetings
+      .filter((m) => m.status !== 'CANCELADA')
+      .filter((m) => {
+        const when = meetingWhenIso(m as MeetingRow & Record<string, unknown>);
+        if (!when) return false;
+        const dayStr = localDateISO(parseFlexibleInstant(when));
+        return isDateInWeek(dayStr, from, to);
+      })
+      .sort((a, b) =>
+        (meetingWhenIso(a as MeetingRow & Record<string, unknown>) ?? '').localeCompare(
+          meetingWhenIso(b as MeetingRow & Record<string, unknown>) ?? ''
+        )
+      );
+  }, [meetings, from, to]);
+
+  const visitsThisWeek = useMemo(() => {
+    if (!visits) return [];
+    return visits
+      .filter((v) => v.status !== 'CANCELADA')
+      .filter((v) => {
+        const dayStr = localDateISO(parseFlexibleInstant(v.visitDatetime));
+        return isDateInWeek(dayStr, from, to);
+      })
+      .sort((a, b) => a.visitDatetime.localeCompare(b.visitDatetime));
+  }, [visits, from, to]);
 
   async function downloadPdf() {
     if (!schedule?.groupId) return;
@@ -219,7 +369,7 @@ export function StudentSchedulePage() {
 
   if (!alumno && !docente) {
     return (
-      <p className="text-sm text-slate-600">Esta sección es solo para cuentas de estudiante.</p>
+      <p className="text-sm text-slate-600">Esta sección es solo para cuentas de estudiante o docente.</p>
     );
   }
 
@@ -233,8 +383,8 @@ export function StudentSchedulePage() {
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi horario semanal</h1>
         <p className="mt-2 text-sm text-slate-600">
           {alumno
-            ? 'Las clases de su grupo, los días sin clases de la semana y los avisos que le ha enviado la escuela.'
-            : 'Sus clases programadas, reuniones, días sin clases y avisos recientes.'}
+            ? 'Clases de su grupo, reuniones y visitas de la semana elegida, días sin clases y avisos recientes.'
+            : 'Sus clases, reuniones y visitas de la semana elegida, días sin clases y avisos recientes.'}
         </p>
       </div>
 
@@ -291,16 +441,24 @@ export function StudentSchedulePage() {
 
       {alumno && !schedule?.groupId && (
         <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Aún no tiene un grupo asignado. En cuanto la secretaría lo asigne, su horario aparecerá aquí.
+          Aún no tiene un grupo asignado: no verá franjas de clase hasta que la secretaría lo asigne. Las reuniones y
+          visitas en las que participe pueden seguir mostrándose en la cuadrícula y en los listados de abajo.
         </p>
       )}
 
-      {(alumno ? Boolean(schedule?.groupId) : Boolean(teacherSlots)) ? (
+      {(alumno ? schedule !== null : teacherSlots !== null) ? (
         <WeekScheduleGrid
           events={weekEvents}
           days={weekDays}
-          onSelect={(id) => setOpenSlotId(id)}
-          emptyLabel="No hay franjas cargadas para su grupo."
+          onSelect={(id) => {
+            if (id.startsWith('meeting-') || id.startsWith('visit-')) return;
+            setOpenSlotId(id);
+          }}
+          emptyLabel={
+            alumno
+              ? 'No hay clases, reuniones ni visitas programadas en esta semana.'
+              : 'No hay clases, reuniones ni visitas programadas en esta semana.'
+          }
         />
       ) : null}
 
@@ -362,40 +520,69 @@ export function StudentSchedulePage() {
         );
       })()}
 
-      {!alumno && (
-        <section>
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Reuniones próximas</h2>
-          {!meetings || meetings.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600">No hay reuniones registradas.</p>
+      <section className="space-y-8">
+        <div>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Reuniones de esta semana</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Coinciden con la semana mostrada arriba (use los botones de semana si no ve nada).
+          </p>
+          {meetingsThisWeek.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">No hay reuniones en esta semana.</p>
           ) : (
             <ul className="mt-4 space-y-2">
-              {meetings
-                .filter((m) => m.status !== 'CANCELADA')
-                .sort((a, b) => (a.startAt ?? a.startsAt ?? a.scheduledAt ?? '').localeCompare(b.startAt ?? b.startsAt ?? b.scheduledAt ?? ''))
-                .slice(0, 8)
-                .map((m) => {
-                  const when = m.startAt ?? m.startsAt ?? m.scheduledAt;
-                  return (
-                    <li key={m.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-                      <p className="font-medium text-slate-900">{m.title ?? m.topic ?? 'Reunión'}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {when
-                          ? new Date(when).toLocaleString('es', {
-                              weekday: 'short',
-                              day: '2-digit',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })
-                          : 'Sin fecha'}
-                      </p>
-                    </li>
-                  );
-                })}
+              {meetingsThisWeek.map((m) => {
+                const when = meetingWhenIso(m as MeetingRow & Record<string, unknown>);
+                return (
+                  <li key={m.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+                    <p className="font-medium text-slate-900">{m.title ?? m.topic ?? 'Reunión'}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {when
+                        ? new Date(when).toLocaleString('es', {
+                            weekday: 'short',
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Sin fecha'}
+                      {m.modality ? ` · ${m.modality === 'VIRTUAL' ? 'Virtual' : 'Presencial'}` : ''}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
           )}
-        </section>
-      )}
+        </div>
+        <div>
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Visitas de esta semana</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Visitas externas donde participa su grupo o la escuela según lo programado
+            {alumno ? ' (incluye visitas dirigidas a su curso).' : '.'}
+          </p>
+          {visitsThisWeek.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">No hay visitas en esta semana.</p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {visitsThisWeek.map((v) => (
+                <li key={v.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+                  <p className="font-medium text-slate-900">{v.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {new Date(v.visitDatetime).toLocaleString('es', {
+                      weekday: 'short',
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                    {v.visitorName ? ` · ${v.visitorName}` : ''}
+                    {v.location ? ` · ${v.location}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section>
         <h2 className="font-serif text-lg font-semibold text-slate-900">Días sin clases de esta semana</h2>

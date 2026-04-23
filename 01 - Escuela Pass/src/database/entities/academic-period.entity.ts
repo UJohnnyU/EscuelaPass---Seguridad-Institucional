@@ -52,6 +52,10 @@ export class AcademicPeriodEntity {
   @Column({ name: 'closed_by', type: 'uuid', nullable: true })
   closedBy!: string | null;
 
+  /** Si no se cierra de nuevo a mano antes del 1 de ene del año siguiente, el cron lo cerrará. */
+  @Column({ name: 'reopened_at', type: 'timestamptz', nullable: true })
+  reopenedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

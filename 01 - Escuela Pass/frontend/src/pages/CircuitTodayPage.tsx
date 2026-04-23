@@ -11,8 +11,26 @@ type CircuitRow = {
   studentId: string;
   status: string;
   pickupMethod: string;
-  requestTime: string;
+  requestTime: string | null;
+  studentFullName?: string | null;
+  studentMatricula?: string | null;
 };
+
+function formatCircuitRequestTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('es');
+}
+
+function studentLine(r: CircuitRow): string {
+  const name = r.studentFullName?.trim();
+  const mat = r.studentMatricula?.trim();
+  if (name && mat) return `${name} · ${mat}`;
+  if (name) return name;
+  if (mat) return `Mat. ${mat}`;
+  return 'Alumno (sin nombre en listado)';
+}
 
 type SchoolOption = { id: string; name: string };
 
@@ -250,7 +268,7 @@ export function CircuitTodayPage() {
       )}
       <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
         <label className="min-w-[12rem] flex-1 text-sm text-slate-700 dark:text-slate-200">
-          Buscar (nombre o matrícula)
+          Buscar por alumno (nombre o matrícula)
           <input
             type="search"
             value={searchInput}
@@ -262,7 +280,7 @@ export function CircuitTodayPage() {
                 void loadToday({ silent: true });
               }
             }}
-            placeholder="Ej. García o matrícula"
+            placeholder="Nombre del alumno o matrícula"
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
         </label>
@@ -324,12 +342,11 @@ export function CircuitTodayPage() {
                 className="flex flex-col gap-1 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-brand-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-500/50 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="font-medium text-slate-900 dark:text-slate-100">
-                    {CIRCUIT_STATUS_LABEL[r.status] ?? r.status}
-                  </p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{studentLine(r)}</p>
                   <p className="text-sm text-slate-600 dark:text-slate-300">
+                    {CIRCUIT_STATUS_LABEL[r.status] ?? r.status} ·{' '}
                     {PICKUP_METHOD_LABEL[r.pickupMethod] ?? r.pickupMethod} ·{' '}
-                    {new Date(r.requestTime).toLocaleString('es')}
+                    {formatCircuitRequestTime(r.requestTime)}
                   </p>
                 </div>
                 <span className="text-sm font-medium text-brand-700">Ver detalle →</span>

@@ -286,7 +286,7 @@ export function ImportExportPage() {
 
       <Panel
         title="Plantillas para importar (Excel y CSV)"
-        description="Use estos archivos como base: complételos con los datos y luego cárguelos al sistema."
+        description="Use estos archivos como base: complételos con los datos y luego cárguelos al sistema. Las plantillas .xlsx incluyen el mismo estilo de tabla que las exportaciones; el CSV es texto delimitado (UTF-8 y separador para abrir columnas en Excel)."
       >
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
           <label className="text-sm text-slate-700">
