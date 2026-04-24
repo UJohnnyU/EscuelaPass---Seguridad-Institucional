@@ -15,6 +15,11 @@ export class CreateStudentDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(30)
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
   @MaxLength(50)
   matricula?: string;
 

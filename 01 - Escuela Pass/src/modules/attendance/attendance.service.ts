@@ -378,8 +378,28 @@ export class AttendanceService {
 
     const childrenPayload = await Promise.all(
       children.map(async (s) => {
-        const su = await this.studentsRepository.manager.query<{ full_name: string; matricula: string }[]>(
-          `SELECT u.full_name, st.matricula FROM students st LEFT JOIN users u ON u.id = st.user_id WHERE st.id = $1 LIMIT 1`,
+        const su = await this.studentsRepository.manager.query<
+          {
+            full_name: string;
+            matricula: string;
+            avatar_path: string | null;
+            group_name: string | null;
+            group_grade: string | null;
+            group_school_year: string | null;
+          }[]
+        >(
+          `SELECT
+             u.full_name,
+             st.matricula,
+             u.avatar_path,
+             g.name AS group_name,
+             g.grade AS group_grade,
+             g.school_year AS group_school_year
+           FROM students st
+           LEFT JOIN users u ON u.id = st.user_id
+           LEFT JOIN groups g ON g.id = st.group_id
+           WHERE st.id = $1
+           LIMIT 1`,
           [s.id]
         );
         const recs = recentRows.filter((r) => r.studentId === s.id);
@@ -393,6 +413,12 @@ export class AttendanceService {
           studentId: s.id,
           studentName: su[0]?.full_name ?? '',
           matricula: su[0]?.matricula ?? '',
+          avatarUrl: su[0]?.avatar_path ?? null,
+          group: {
+            name: su[0]?.group_name ?? null,
+            grade: su[0]?.group_grade ?? null,
+            schoolYear: su[0]?.group_school_year ?? null
+          },
           records: recs.map((r) => ({
             attendanceDate: r.attendanceDate,
             status: r.status,

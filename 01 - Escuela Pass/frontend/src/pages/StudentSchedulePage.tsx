@@ -130,6 +130,7 @@ export function StudentSchedulePage() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [openSlotId, setOpenSlotId] = useState<string | null>(null);
+  const [openCalendarEventId, setOpenCalendarEventId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!alumno && !docente) return;
@@ -349,6 +350,14 @@ export function StudentSchedulePage() {
       })
       .sort((a, b) => a.visitDatetime.localeCompare(b.visitDatetime));
   }, [visits, from, to]);
+  const meetingsById = useMemo(
+    () => new Map(meetingsThisWeek.map((m) => [String(m.id), m] as const)),
+    [meetingsThisWeek]
+  );
+  const visitsById = useMemo(
+    () => new Map(visitsThisWeek.map((v) => [String(v.id), v] as const)),
+    [visitsThisWeek]
+  );
 
   async function downloadPdf() {
     if (!schedule?.groupId) return;
@@ -451,7 +460,11 @@ export function StudentSchedulePage() {
           events={weekEvents}
           days={weekDays}
           onSelect={(id) => {
-            if (id.startsWith('meeting-') || id.startsWith('visit-')) return;
+            if (id.startsWith('meeting-') || id.startsWith('visit-')) {
+              setOpenCalendarEventId(id);
+              return;
+            }
+            setOpenCalendarEventId(null);
             setOpenSlotId(id);
           }}
           emptyLabel={
@@ -514,6 +527,80 @@ export function StudentSchedulePage() {
                     <dd className="mt-0.5 text-slate-900">{(slot as TeacherSelfSlot).groupName ?? '—'}</dd>
                   </div>
                 ) : null}
+              </dl>
+            ) : null}
+          </DetailModal>
+        );
+      })()}
+      {(() => {
+        if (!openCalendarEventId) return null;
+        const isMeeting = openCalendarEventId.startsWith('meeting-');
+        const rawId = openCalendarEventId.replace(/^meeting-|^visit-/, '');
+        const meeting = isMeeting ? meetingsById.get(rawId) ?? null : null;
+        const visit = !isMeeting ? visitsById.get(rawId) ?? null : null;
+        const when = meeting ? meetingWhenIso(meeting as MeetingRow & Record<string, unknown>) : visit?.visitDatetime ?? null;
+        const title = meeting
+          ? meeting.title ?? meeting.topic ?? 'Reunión'
+          : visit
+            ? visit.title
+            : 'Evento';
+        return (
+          <DetailModal
+            open={Boolean(meeting || visit)}
+            title={isMeeting ? `Reunión: ${title}` : `Visita: ${title}`}
+            subtitle={
+              when
+                ? new Date(when).toLocaleString('es', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                : undefined
+            }
+            onClose={() => setOpenCalendarEventId(null)}
+          >
+            {meeting ? (
+              <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Estado</dt>
+                  <dd className="mt-0.5 text-slate-900">{meeting.status ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Modalidad</dt>
+                  <dd className="mt-0.5 text-slate-900">
+                    {meeting.modality === 'VIRTUAL' ? 'Virtual' : meeting.modality === 'PRESENCIAL' ? 'Presencial' : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Duración</dt>
+                  <dd className="mt-0.5 text-slate-900">{meeting.durationMinutes ?? 30} min</dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Detalle</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-slate-900">{meeting.purpose ?? 'Sin detalle adicional.'}</dd>
+                </div>
+              </dl>
+            ) : visit ? (
+              <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Invitado</dt>
+                  <dd className="mt-0.5 text-slate-900">{visit.visitorName || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Estado</dt>
+                  <dd className="mt-0.5 text-slate-900">{visit.status || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Duración</dt>
+                  <dd className="mt-0.5 text-slate-900">{visit.durationMinutes ?? 60} min</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Lugar</dt>
+                  <dd className="mt-0.5 text-slate-900">{visit.location ?? 'No especificado'}</dd>
+                </div>
               </dl>
             ) : null}
           </DetailModal>

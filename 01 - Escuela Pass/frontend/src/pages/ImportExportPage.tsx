@@ -32,7 +32,6 @@ type ImportHistoryRow = {
   errorCount: number;
   dryRun: boolean;
 };
-type TemplateFormat = 'xlsx' | 'csv';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -78,7 +77,6 @@ export function ImportExportPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<ImportSummary | null>(null);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
-  const [templateFormat, setTemplateFormat] = useState<TemplateFormat>('xlsx');
 
   const schoolFilterOptions = useMemo(
     () => [
@@ -228,12 +226,12 @@ export function ImportExportPage() {
       return;
     }
     if (!uploadFile) {
-      setErr('Seleccione un archivo .xlsx o .csv.');
+      setErr('Seleccione un archivo .xlsx.');
       return;
     }
     const ext = uploadFile.name.toLowerCase();
-    if (!ext.endsWith('.xlsx') && !ext.endsWith('.csv')) {
-      setErr('Formato no soportado. Use .xlsx o .csv.');
+    if (!ext.endsWith('.xlsx')) {
+      setErr('Formato no soportado. Use .xlsx.');
       return;
     }
     const effectiveDryRun = forceExecute ? false : dryRun;
@@ -285,21 +283,10 @@ export function ImportExportPage() {
       {ok && <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{ok}</div>}
 
       <Panel
-        title="Plantillas para importar (Excel y CSV)"
-        description="Use estos archivos como base: complételos con los datos y luego cárguelos al sistema. Las plantillas .xlsx incluyen el mismo estilo de tabla que las exportaciones; el CSV es texto delimitado (UTF-8 y separador para abrir columnas en Excel)."
+        title="Plantillas para importar (Excel)"
+        description="Use estos archivos como base: complételos con los datos y luego cárguelos al sistema. Todas las plantillas oficiales están estandarizadas en formato .xlsx."
       >
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-          <label className="text-sm text-slate-700">
-            Formato preferido
-            <select
-              className="ml-3 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              value={templateFormat}
-              onChange={(e) => setTemplateFormat(e.target.value as TemplateFormat)}
-            >
-              <option value="xlsx">Excel (.xlsx)</option>
-              <option value="csv">CSV (.csv)</option>
-            </select>
-          </label>
           {platformAdmin ? (
             <div className="min-w-0 sm:min-w-[12rem] max-w-md flex-1">
               <label className="block text-xs font-medium uppercase text-slate-500">
@@ -322,75 +309,65 @@ export function ImportExportPage() {
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/students.${templateFormat}${
-                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
-                }`,
-                `plantilla-alumnos.${templateFormat}`
+                `/api/v1/school/import/templates/students.xlsx${templateExcelSchoolQuery}`,
+                'plantilla-alumnos.xlsx'
               )
             }
             className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
-            {`Plantilla estudiantes (.${templateFormat})`}
+            Plantilla estudiantes (.xlsx)
           </button>
           <button
             type="button"
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/students-to-groups.${templateFormat}${
-                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
-                }`,
-                `plantilla-asignacion-grupos.${templateFormat}`
+                `/api/v1/school/import/templates/students-to-groups.xlsx${templateExcelSchoolQuery}`,
+                'plantilla-asignacion-grupos.xlsx'
               )
             }
             className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
-            {`Plantilla asignación a grupos (.${templateFormat})`}
+            Plantilla asignación a grupos (.xlsx)
           </button>
           <button
             type="button"
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/groups.${templateFormat}${
-                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
-                }`,
-                `plantilla-grupos.${templateFormat}`
+                `/api/v1/school/import/templates/groups.xlsx${templateExcelSchoolQuery}`,
+                'plantilla-grupos.xlsx'
               )
             }
             className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
-            {`Plantilla grupos (.${templateFormat})`}
+            Plantilla grupos (.xlsx)
           </button>
           <button
             type="button"
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/teachers.${templateFormat}${
-                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
-                }`,
-                `plantilla-docentes.${templateFormat}`
+                `/api/v1/school/import/templates/teachers.xlsx${templateExcelSchoolQuery}`,
+                'plantilla-docentes.xlsx'
               )
             }
             className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
-            {`Plantilla docentes (.${templateFormat})`}
+            Plantilla docentes (.xlsx)
           </button>
           <button
             type="button"
             disabled={loading}
             onClick={() =>
               void downloadTemplate(
-                `/api/v1/school/import/templates/teacher-assignments.${templateFormat}${
-                  templateFormat === 'xlsx' ? templateExcelSchoolQuery : ''
-                }`,
-                `plantilla-asignaciones-docentes.${templateFormat}`
+                `/api/v1/school/import/templates/teacher-assignments.xlsx${templateExcelSchoolQuery}`,
+                'plantilla-asignaciones-docentes.xlsx'
               )
             }
             className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
-            {`Plantilla asignaciones docente–grupo (.${templateFormat})`}
+            Plantilla asignaciones docente–grupo (.xlsx)
           </button>
         </div>
         <p className="mt-4 text-xs text-slate-500">
@@ -402,7 +379,6 @@ export function ImportExportPage() {
               esa escuela, la imagen en la plantilla.
             </>
           ) : null}
-          {' '}En CSV se conserva la estructura de columnas en español (el formato CSV no admite logo embebido).
         </p>
       </Panel>
 
@@ -433,10 +409,10 @@ export function ImportExportPage() {
                 </select>
               </label>
               <label className="text-sm text-slate-700">
-                Archivo (.xlsx o .csv)
+                Archivo (.xlsx)
                 <input
                   type="file"
-                  accept=".xlsx,.csv"
+                  accept=".xlsx"
                   className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                   onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
                 />

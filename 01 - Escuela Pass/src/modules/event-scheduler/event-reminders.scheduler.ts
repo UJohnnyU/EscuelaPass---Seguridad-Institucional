@@ -196,6 +196,15 @@ export class EventRemindersScheduler {
         m.status = MeetingStatus.REALIZADA;
         m.autoFinalizedAt = new Date();
         await this.meetingsRepository.save(m);
+        await this.participantsRepository
+          .createQueryBuilder()
+          .update()
+          .set({ rsvp: MeetingParticipantRsvp.NO_ASISTIO, respondedAt: new Date() })
+          .where('meeting_id = :mid AND rsvp = :pending', {
+            mid: m.id,
+            pending: MeetingParticipantRsvp.PENDIENTE
+          })
+          .execute();
       }
     }
   }

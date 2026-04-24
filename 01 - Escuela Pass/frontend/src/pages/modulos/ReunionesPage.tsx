@@ -8,7 +8,8 @@ import { hasRole, isStaff } from '@/lib/roles';
 
 type Modality = 'PRESENCIAL' | 'VIRTUAL';
 type MeetingStatus = 'PROGRAMADA' | 'REPROGRAMADA' | 'EN_CURSO' | 'REALIZADA' | 'CANCELADA';
-type Rsvp = 'PENDIENTE' | 'ACEPTADA' | 'DECLINADA';
+type Rsvp = 'PENDIENTE' | 'ACEPTADA' | 'DECLINADA' | 'NO_ASISTIO';
+type RsvpEditable = 'PENDIENTE' | 'ACEPTADA' | 'DECLINADA';
 
 type Participant = {
   id: string;
@@ -39,7 +40,7 @@ type Meeting = {
   cancellationReason: string | null;
   previousStartAt: string | null;
   participants: Participant[];
-  counts: { pending: number; accepted: number; declined: number };
+  counts: { pending: number; accepted: number; declined: number; noShow: number };
 };
 
 type GroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
@@ -92,9 +93,22 @@ function rsvpBadgeClass(rsvp: Rsvp): string {
       return 'bg-emerald-100 text-emerald-900 border-emerald-200';
     case 'DECLINADA':
       return 'bg-rose-100 text-rose-900 border-rose-200';
+    case 'NO_ASISTIO':
+      return 'bg-amber-100 text-amber-900 border-amber-200';
     default:
       return 'bg-slate-100 text-slate-800 border-slate-200';
   }
+}
+
+function rsvpLabel(rsvp: Rsvp): string {
+  if (rsvp === 'NO_ASISTIO') return 'NO ASISTIÓ';
+  return rsvp;
+}
+
+function rsvpHint(rsvp: Rsvp): string | undefined {
+  if (rsvp === 'NO_ASISTIO') return 'No respondió antes de finalizar la reunión.';
+  if (rsvp === 'DECLINADA') return 'Marcó que no asistiría.';
+  return undefined;
 }
 
 export function ReunionesPage() {
@@ -118,6 +132,10 @@ export function ReunionesPage() {
     if (typeof window === 'undefined') return '';
     return sessionStorage.getItem(STORAGE_MEETINGS_SCHOOL) ?? '';
   });
+  const selectedSchoolName = useMemo(
+    () => schools.find((s) => s.id === selectedSchoolId)?.name ?? '',
+    [schools, selectedSchoolId]
+  );
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -290,7 +308,7 @@ export function ReunionesPage() {
     }
   };
 
-  const actionRsvp = async (id: string, rsvp: Rsvp) => {
+  const actionRsvp = async (id: string, rsvp: RsvpEditable) => {
     try {
       await api.post(`/api/v1/meetings/${id}/rsvp`, { rsvp });
       setMsg('Respuesta registrada.');
@@ -342,6 +360,7 @@ export function ReunionesPage() {
           role={user?.role ?? ''}
           schoolId={platformAdmin ? selectedSchoolId : undefined}
           requireSchoolSelection={platformAdmin}
+          targetSchoolName={platformAdmin ? selectedSchoolName : undefined}
         />
       )}
 
@@ -389,8 +408,9 @@ export function ReunionesPage() {
                           {myPart && !isOrganizer && (
                             <span
                               className={`rounded-full border px-2 py-0.5 text-xs font-medium ${rsvpBadgeClass(myPart.rsvp)}`}
+                              title={rsvpHint(myPart.rsvp)}
                             >
-                              {myPart.rsvp}
+                              {rsvpLabel(myPart.rsvp)}
                             </span>
                           )}
                         </div>
@@ -401,7 +421,7 @@ export function ReunionesPage() {
                         {m.modality === 'PRESENCIAL' && m.location ? ` · ${m.location}` : ''}
                         {' · '}
                         {m.participants.length} participantes · {m.counts.accepted} aceptadas ·{' '}
-                        {m.counts.declined} declinadas
+                        {m.counts.declined} declinadas · {m.counts.noShow} no asistieron
                       </span>
                     </button>
                   </li>
@@ -526,7 +546,7 @@ function MeetingDetailView({
           </span>
           {detail.status !== 'REALIZADA' ? (
             <span className="text-xs text-slate-600">
-              Aceptadas: {detail.counts.accepted} · Pendientes: {detail.counts.pending} · Declinadas: {detail.counts.declined}
+              Aceptadas: {detail.counts.accepted} · Pendientes: {detail.counts.pending} · Declinadas: {detail.counts.declined} · No asistieron: {detail.counts.noShow}
             </span>
           ) : (
             <span className="text-xs text-slate-600">Solo se muestran asistentes confirmados (ACEPTADA).</span>
@@ -540,8 +560,9 @@ function MeetingDetailView({
               </span>
               <span
                 className={`rounded-full border px-2 py-0.5 text-xs font-medium ${rsvpBadgeClass(p.rsvp)}`}
+                title={rsvpHint(p.rsvp)}
               >
-                {p.rsvp}
+                {rsvpLabel(p.rsvp)}
               </span>
             </li>
           ))}
@@ -574,7 +595,7 @@ function MeetingActions({
   onReschedule: () => void;
   onInProgress: () => void;
   onRealized: () => void;
-  onRsvp: (rsvp: Rsvp) => void;
+  onRsvp: (rsvp: RsvpEditable) => void;
 }) {
   const canAct = detail.status !== 'CANCELADA' && detail.status !== 'REALIZADA';
   if (!canAct) return null;
@@ -607,12 +628,14 @@ function CreateMeetingPanel({
   onCreated,
   role,
   schoolId,
-  requireSchoolSelection
+  requireSchoolSelection,
+  targetSchoolName
 }: {
   onCreated: () => Promise<void> | void;
   role: string;
   schoolId?: string;
   requireSchoolSelection?: boolean;
+  targetSchoolName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -746,6 +769,12 @@ function CreateMeetingPanel({
               {err}
             </div>
           )}
+          {requireSchoolSelection && targetSchoolName ? (
+            <div className="rounded border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900 sm:col-span-2 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-100">
+              <span className="font-medium">Institución destino:</span>{' '}
+              <span className="font-semibold">{targetSchoolName}</span>
+            </div>
+          ) : null}
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Título</span>
             <input

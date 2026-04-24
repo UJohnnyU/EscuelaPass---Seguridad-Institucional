@@ -13,6 +13,11 @@ export class CreateParentDto {
   @MaxLength(255)
   fullName!: string;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(30)
+  phone?: string;
+
   @IsBoolean()
   @IsOptional()
   canAccessCampus?: boolean;

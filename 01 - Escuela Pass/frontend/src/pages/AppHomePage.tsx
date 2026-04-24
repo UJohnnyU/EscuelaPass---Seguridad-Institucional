@@ -59,22 +59,24 @@ function Card({
     rose: 'border-rose-200 bg-rose-50/30 dark:border-rose-400/40 dark:bg-rose-900/30'
   };
   return (
-    <section className={`flex flex-col rounded-2xl border p-5 shadow-sm ${accents[accent ?? 'slate']}`}>
-      <header className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-base font-semibold text-slate-900">{title}</h2>
-          {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
+    <section className={`flex min-w-0 flex-col rounded-2xl border p-5 shadow-sm ${accents[accent ?? 'slate']}`}>
+      <header className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+        <div className="min-w-0">
+          <h2 className="break-words font-serif text-base font-semibold leading-tight text-slate-900">{title}</h2>
+          {subtitle ? (
+            <p className="mt-0.5 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">{subtitle}</p>
+          ) : null}
         </div>
         {to ? (
           <Link
             to={to}
-            className="shrink-0 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:border-slate-400"
+            className="self-start rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:border-slate-400 sm:shrink-0"
           >
             {ctaLabel ?? 'Abrir'}
           </Link>
         ) : null}
       </header>
-      <div className="flex-1 text-sm text-slate-700">{children}</div>
+      <div className="min-w-0 flex-1 text-sm text-slate-700">{children}</div>
     </section>
   );
 }
@@ -319,8 +321,10 @@ type ChildAttendanceSummary = {
   studentId: string;
   studentName: string;
   matricula?: string;
+  avatarUrl?: string | null;
+  group?: { name?: string | null; grade?: string | null; schoolYear?: string | null };
   records?: Array<{ status: string; attendanceDate: string }>;
-  summary?: { PRESENTE?: number; AUSENTE?: number; RETARDO?: number };
+  summary?: { presente?: number; ausente?: number; retardo?: number; total?: number };
 };
 
 type Debt = {
@@ -400,6 +404,22 @@ function meetingStatusLabel(st?: string | null) {
   return st ?? '—';
 }
 
+function attendanceStatusLabel(status?: string | null) {
+  const normalized = String(status ?? '').toUpperCase();
+  if (normalized === 'PRESENTE') return 'Presente';
+  if (normalized === 'RETARDO') return 'Retardo';
+  if (normalized === 'AUSENTE') return 'Ausente';
+  return 'Sin registro';
+}
+
+function attendanceStatusClass(status?: string | null) {
+  const normalized = String(status ?? '').toUpperCase();
+  if (normalized === 'PRESENTE') return 'bg-emerald-100 text-emerald-800';
+  if (normalized === 'RETARDO') return 'bg-amber-100 text-amber-900';
+  if (normalized === 'AUSENTE') return 'bg-rose-100 text-rose-900';
+  return 'bg-slate-100 text-slate-700';
+}
+
 function HomePadre() {
   const [children, setChildren] = useState<ChildAttendanceSummary[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -411,11 +431,12 @@ function HomePadre() {
   const [openGrade, setOpenGrade] = useState<ParentActivity | null>(null);
   const [openMeeting, setOpenMeeting] = useState<Meeting | null>(null);
   const [openNote, setOpenNote] = useState<ParentAttentionNote | null>(null);
+  const [openChildAttendance, setOpenChildAttendance] = useState<ChildAttendanceSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       try {
         const [att, deb, mts, notif, gr, notes] = await Promise.all([
           api.get('/api/v1/attendance/parent/my-children').catch(() => ({ data: { children: [] } })),
@@ -436,13 +457,17 @@ function HomePadre() {
       } catch (e) {
         if (!cancelled) setErr(getUserFacingMessage(e));
       }
-    })();
+    };
+    void load();
+    const timer = window.setInterval(() => {
+      void load();
+    }, 20000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, []);
 
-  const pendingDebts = useMemo(() => debts.filter((d) => (d.status ?? 'PENDIENTE') !== 'PAGADO'), [debts]);
   const debtStatusInfo = (d: Debt) => {
     const st = (d.status ?? '').toUpperCase();
     const due = d.dueDate ? new Date(d.dueDate) : null;
@@ -460,6 +485,22 @@ function HomePadre() {
     }
     return { label: 'Pendiente', cls: 'bg-amber-100 text-amber-900', overdue: false };
   };
+  const debtBuckets = useMemo(() => {
+    const pagados: Debt[] = [];
+    const pendientes: Debt[] = [];
+    const vencidos: Debt[] = [];
+    for (const debt of debts) {
+      const info = debtStatusInfo(debt);
+      if (info.label === 'Pagado') {
+        pagados.push(debt);
+      } else if (info.overdue) {
+        vencidos.push(debt);
+      } else {
+        pendientes.push(debt);
+      }
+    }
+    return { pagados, pendientes, vencidos };
+  }, [debts]);
   const upcomingMeetings = useMemo(() => {
     const now = new Date().toISOString();
     return meetings
@@ -483,6 +524,16 @@ function HomePadre() {
         .slice(0, 5),
     [attentionNotes]
   );
+  const childrenCurrentAttendance = useMemo(
+    () =>
+      children
+        .map((c) => {
+          const latest = [...(c.records ?? [])].sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate))[0];
+          return { ...c, currentStatus: latest?.status ?? null, currentAttendanceDate: latest?.attendanceDate ?? null };
+        })
+        .sort((a, b) => a.studentName.localeCompare(b.studentName)),
+    [children]
+  );
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -492,67 +543,168 @@ function HomePadre() {
         </div>
       ) : null}
 
-      <Card title="Mis hijos — últimos 30 días" to="/app/modulos/academico" accent="emerald">
-        {children.length === 0 ? (
+      <Card title="Mis hijos — estado actual de asistencia" to="/app/modulos/academico" accent="emerald">
+        {childrenCurrentAttendance.length === 0 ? (
           <p className="text-slate-500">No tiene hijos vinculados a su cuenta.</p>
         ) : (
           <ul className="space-y-3">
-            {children.slice(0, 3).map((c) => {
-              const s = c.summary ?? {};
-              const total = (s.PRESENTE ?? 0) + (s.AUSENTE ?? 0) + (s.RETARDO ?? 0);
-              const attPct = total > 0 ? Math.round(((s.PRESENTE ?? 0) * 100) / total) : 0;
+            {childrenCurrentAttendance.slice(0, 4).map((c) => {
               return (
-                <li key={c.studentId} className="rounded-lg bg-white px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate font-medium text-slate-900">{c.studentName}</p>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                      {attPct}% asistencia
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Presentes {s.PRESENTE ?? 0} · Faltas {s.AUSENTE ?? 0} · Retardos {s.RETARDO ?? 0}
-                  </p>
+                <li key={c.studentId}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenChildAttendance(c)}
+                    className="w-full rounded-lg bg-white px-3 py-2 text-left transition hover:bg-slate-50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate font-medium text-slate-900">{c.studentName}</p>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${attendanceStatusClass(c.currentStatus)}`}
+                      >
+                        {attendanceStatusLabel(c.currentStatus)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {c.matricula ? `Matrícula ${c.matricula} · ` : ''}
+                      {c.currentAttendanceDate
+                        ? `Actualizado: ${formatISO(c.currentAttendanceDate, {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          })}`
+                        : 'Aún no hay asistencia registrada'}
+                    </p>
+                  </button>
                 </li>
               );
             })}
           </ul>
         )}
       </Card>
-
-      <Card title="Pagos pendientes" to="/app/modulos/finanzas" accent="amber">
-        {pendingDebts.length === 0 ? (
-          <p className="text-slate-500">Sin pagos pendientes.</p>
-        ) : (
-          <ul className="space-y-2">
-            {pendingDebts.slice(0, 4).map((d) => (
-              <li key={d.id}>
-                <button
-                  type="button"
-                  onClick={() => setOpenDebt(d)}
-                  className="flex w-full items-center justify-between rounded-lg bg-white px-3 py-2 text-left text-sm transition hover:bg-slate-50"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-medium text-slate-900">{d.conceptName ?? d.concept ?? 'Concepto'}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${debtStatusInfo(d).cls}`}>
-                        {debtStatusInfo(d).label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Vence {formatISO(d.dueDate, { day: '2-digit', month: 'short' })}
-                    </p>
-                    {debtStatusInfo(d).overdue ? (
-                      <p className="mt-1 text-xs text-amber-800">
-                        Este pago está vencido. Si requiere generarlo nuevamente, comuníquese con la institución.
-                      </p>
-                    ) : null}
+      <DetailModal
+        open={openChildAttendance !== null}
+        title={openChildAttendance?.studentName ?? 'Asistencia del alumno'}
+        subtitle={openChildAttendance?.matricula ? `Matrícula: ${openChildAttendance.matricula}` : undefined}
+        badge={
+          openChildAttendance ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${attendanceStatusClass(
+                [...(openChildAttendance.records ?? [])].sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate))[0]
+                  ?.status
+              )}`}
+            >
+              {attendanceStatusLabel(
+                [...(openChildAttendance.records ?? [])].sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate))[0]
+                  ?.status
+              )}
+            </span>
+          ) : null
+        }
+        onClose={() => setOpenChildAttendance(null)}
+        footer={
+          <Link
+            to="/app/modulos/academico"
+            onClick={() => setOpenChildAttendance(null)}
+            className="rounded-lg border border-brand-800 bg-white px-4 py-2 text-sm font-medium text-brand-900 hover:bg-slate-50"
+          >
+            Ver asistencia completa
+          </Link>
+        }
+      >
+        {openChildAttendance ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-200">
+                {publicAssetUrl(openChildAttendance.avatarUrl ?? null) ? (
+                  <img
+                    src={publicAssetUrl(openChildAttendance.avatarUrl ?? null) ?? undefined}
+                    alt={openChildAttendance.studentName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-600">
+                    {firstName(openChildAttendance.studentName).slice(0, 2).toUpperCase() || 'AL'}
                   </div>
-                  <span className="shrink-0 font-semibold text-amber-700">${Number(d.amount ?? 0).toFixed(2)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-medium text-slate-900">{openChildAttendance.studentName}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {openChildAttendance.group?.name ? `${openChildAttendance.group.name} · ` : ''}
+                  {openChildAttendance.group?.grade ? `${openChildAttendance.group.grade} · ` : ''}
+                  {openChildAttendance.group?.schoolYear ?? 'Sin grupo asignado'}
+                </p>
+              </div>
+            </div>
+            {openChildAttendance.records && openChildAttendance.records.length > 0 ? (
+              <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+                {[...openChildAttendance.records]
+                  .sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate))
+                  .slice(0, 5)
+                  .map((r, idx) => (
+                    <li key={`${r.attendanceDate}-${idx}`} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <span className="text-slate-700">
+                        {formatISO(r.attendanceDate, { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${attendanceStatusClass(r.status)}`}>
+                        {attendanceStatusLabel(r.status)}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500">Aún no hay asistencias registradas para este alumno.</p>
+            )}
+          </div>
+        ) : null}
+      </DetailModal>
+
+      <Card title="Mis pagos" to="/app/modulos/finanzas" accent="amber">
+        {debts.length === 0 ? <p className="text-slate-500">Sin registros de pagos.</p> : null}
+        <div className="space-y-3">
+          {[
+            { key: 'pendientes', title: 'Pendientes', rows: debtBuckets.pendientes },
+            { key: 'vencidos', title: 'Vencidos', rows: debtBuckets.vencidos },
+            { key: 'pagados', title: 'Pagados', rows: debtBuckets.pagados }
+          ].map((section) => (
+            <div key={section.key} className="rounded-lg border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">{section.title}</p>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                  {section.rows.length}
+                </span>
+              </div>
+              {section.rows.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-slate-500">No hay pagos en esta categoría.</p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {section.rows.slice(0, 6).map((d) => (
+                    <li key={d.id}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenDebt(d)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition hover:bg-slate-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-medium text-slate-900">{d.conceptName ?? d.concept ?? 'Concepto'}</p>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${debtStatusInfo(d).cls}`}>
+                              {debtStatusInfo(d).label}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            Vence {formatISO(d.dueDate, { day: '2-digit', month: 'short' })}
+                          </p>
+                        </div>
+                        <span className="shrink-0 font-semibold text-amber-700">${Number(d.amount ?? 0).toFixed(2)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
       </Card>
       <DetailModal
         open={openDebt !== null}
@@ -1537,7 +1689,7 @@ export function AppHomePage() {
   const first = firstName(user?.fullName ?? '');
 
   return (
-    <div className="mx-auto max-w-6xl animate-fade-in">
+    <div className="mx-auto max-w-6xl min-w-0 overflow-x-hidden animate-fade-in">
       <header className="flex items-center gap-4">
         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-900">
           {avatarSrc ? (

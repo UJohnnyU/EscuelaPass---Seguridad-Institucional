@@ -36,7 +36,7 @@ type ParticipantRow = MeetingParticipantEntity & {
 type MeetingRow = MeetingEntity & {
   organizerName: string | null;
   participants: ParticipantRow[];
-  counts: { pending: number; accepted: number; declined: number };
+  counts: { pending: number; accepted: number; declined: number; noShow: number };
 };
 
 @Injectable()
@@ -65,13 +65,12 @@ export class MeetingsService {
 
     const organizer = await this.usersRepository.findOne({ where: { id: userId } });
     if (!organizer) throw new ForbiddenException('Organizador no encontrado');
-    if (!organizer.schoolId) {
-      throw new BadRequestException('Organizador sin instituci?n asignada');
-    }
-
     let schoolId = organizer.schoolId;
-    if (role === UserRole.ADMIN && schoolIdParam?.trim()) {
-      const sid = schoolIdParam.trim();
+    if (role === UserRole.ADMIN) {
+      const sid = schoolIdParam?.trim() ?? '';
+      if (!sid) {
+        throw new BadRequestException('Admin debe elegir una institución');
+      }
       const schoolRows = await this.dataSource.query<{ id: string }[]>(
         `SELECT id FROM schools WHERE id = $1 LIMIT 1`,
         [sid]
@@ -80,6 +79,8 @@ export class MeetingsService {
         throw new BadRequestException('Institución no encontrada');
       }
       schoolId = sid;
+    } else if (!schoolId) {
+      throw new BadRequestException('Organizador sin institución asignada');
     }
     if (!schoolId) throw new BadRequestException('Debe indicar una institución válida');
     const invitees = dto.invitees ?? [];
@@ -297,6 +298,15 @@ export class MeetingsService {
       meeting.status = MeetingStatus.EN_CURSO;
     } else if (dto.action === 'REALIZED') {
       meeting.status = MeetingStatus.REALIZADA;
+      await this.participantsRepository
+        .createQueryBuilder()
+        .update()
+        .set({ rsvp: MeetingParticipantRsvp.NO_ASISTIO, respondedAt: new Date() })
+        .where('meeting_id = :mid AND rsvp = :pending', {
+          mid: meeting.id,
+          pending: MeetingParticipantRsvp.PENDIENTE
+        })
+        .execute();
     }
     await this.meetingsRepository.save(meeting);
     return this.getDetail(meeting.id, userId, role);
@@ -455,7 +465,8 @@ export class MeetingsService {
       const counts = {
         pending: list.filter((x) => x.rsvp === MeetingParticipantRsvp.PENDIENTE).length,
         accepted: list.filter((x) => x.rsvp === MeetingParticipantRsvp.ACEPTADA).length,
-        declined: list.filter((x) => x.rsvp === MeetingParticipantRsvp.DECLINADA).length
+        declined: list.filter((x) => x.rsvp === MeetingParticipantRsvp.DECLINADA).length,
+        noShow: list.filter((x) => x.rsvp === MeetingParticipantRsvp.NO_ASISTIO).length
       };
       const organizerName = userMap.get(m.organizerUserId)?.fullName ?? null;
       return { ...m, organizerName, participants: list, counts };

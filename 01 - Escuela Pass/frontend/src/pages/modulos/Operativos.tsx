@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { Link, Navigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { publicAssetUrl } from '@/lib/asset-url';
 import { emitNotificationRead } from '@/lib/notifications-sync';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
@@ -27,7 +28,23 @@ import {
 } from '@/components/WeekScheduleGrid';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isPlatformAdmin, isStaff } from '@/lib/roles';
+import { uploadReportEvidence } from '@/lib/uploads-api';
 import axios from 'axios';
+
+function parseReportEvidence(message?: string | null): { cleanMessage: string; evidenceUrls: string[] } {
+  const raw = String(message ?? '');
+  const evidenceUrls = Array.from(
+    new Set(
+      (raw.match(/\/uploads\/report-evidence\/[^\s)]+/g) ?? [])
+        .map((u) => u.replace(/[.,;]+$/g, '').trim())
+        .filter(Boolean)
+    )
+  );
+  const cleanMessage = raw
+    .replace(/\n?\n?Evidencias:\n(?:\d+\.\s*\/uploads\/report-evidence\/[^\n]+\n?)*/g, '')
+    .trim();
+  return { cleanMessage: cleanMessage || raw.trim(), evidenceUrls };
+}
 
 type TeacherGroupRow = { id: string; name: string; grade: string | null; schoolYear: string };
 type TeacherAttendanceStudentRow = { studentId: string; matricula: string; fullName: string };
@@ -1507,6 +1524,7 @@ export function AdministracionPage() {
   const [reportType, setReportType] = useState<'ERROR' | 'SUGERENCIA' | 'PETICION' | 'OTRO'>('ERROR');
   const [reportSubject, setReportSubject] = useState('');
   const [reportMessage, setReportMessage] = useState('');
+  const [reportFiles, setReportFiles] = useState<File[]>([]);
   const [sendingReport, setSendingReport] = useState(false);
   const [reportOk, setReportOk] = useState<string | null>(null);
   const [adminReports, setAdminReports] = useState<AdminReportItem[]>([]);
@@ -1635,29 +1653,36 @@ export function AdministracionPage() {
     };
   }, [platformAdmin, adminReportTypeFilter, adminReportStatusFilter, adminReportQuery, adminReportUnreadOnly, scopedSchoolId]);
 
+  const loadMyAdminReports = useCallback(async () => {
+    if (!administrativo) return;
+    setMyAdminReportsLoading(true);
+    try {
+      const { data } = await api.get<{ data: AdminReportItem[] }>('/api/v1/notifications/admin-reports/mine', {
+        params: { limit: 30 }
+      });
+      setMyAdminReports(Array.isArray(data?.data) ? data.data : []);
+    } catch (e) {
+      setMyAdminReports([]);
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setMyAdminReportsLoading(false);
+    }
+  }, [administrativo]);
+
   useEffect(() => {
     if (!administrativo) return;
     let cancelled = false;
     (async () => {
-      setMyAdminReportsLoading(true);
-      try {
-        const { data } = await api.get<{ data: AdminReportItem[] }>('/api/v1/notifications/admin-reports/mine', {
-          params: { limit: 30 }
-        });
-        if (!cancelled) setMyAdminReports(Array.isArray(data?.data) ? data.data : []);
-      } catch (e) {
-        if (!cancelled) {
-          setMyAdminReports([]);
-          setErr(getUserFacingMessage(e));
-        }
-      } finally {
-        if (!cancelled) setMyAdminReportsLoading(false);
-      }
+      await loadMyAdminReports();
     })();
+    const timer = window.setInterval(() => {
+      if (!cancelled) void loadMyAdminReports();
+    }, 20000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
-  }, [administrativo]);
+  }, [administrativo, loadMyAdminReports]);
 
   const markAdminReportRead = async (id: string) => {
     try {
@@ -1701,6 +1726,7 @@ export function AdministracionPage() {
       });
       setCommentDraft('');
       await loadActiveComments(reportId);
+      if (administrativo) await loadMyAdminReports();
     } catch (e) {
       setErr(getUserFacingMessage(e));
     } finally {
@@ -2039,7 +2065,33 @@ export function AdministracionPage() {
                         </button>
                       </div>
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-slate-700">{r.message}</p>
+                    {(() => {
+                      const parsed = parseReportEvidence(r.message);
+                      return (
+                        <>
+                          <p className="mt-2 whitespace-pre-wrap text-slate-700">{parsed.cleanMessage}</p>
+                          {parsed.evidenceUrls.length > 0 ? (
+                            <div className="mt-2">
+                              <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Evidencias</p>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {parsed.evidenceUrls.map((u, idx) => {
+                                  const href = publicAssetUrl(u);
+                                  return href ? (
+                                    <a key={`${u}-${idx}`} href={href} target="_blank" rel="noreferrer">
+                                      <img
+                                        src={href}
+                                        alt={`Evidencia ${idx + 1}`}
+                                        className="h-20 w-20 rounded border border-slate-200 object-cover"
+                                      />
+                                    </a>
+                                  ) : null;
+                                })}
+                              </div>
+                            </div>
+                          ) : null}
+                        </>
+                      );
+                    })()}
                     {activeReportId === r.id ? (
                       <div className="mt-3 rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
                         {activeCommentsLoading ? (
@@ -2111,15 +2163,23 @@ export function AdministracionPage() {
                   setErr(null);
                   setReportOk(null);
                   try {
+                    const evidenceUrls: string[] = [];
+                    for (const file of reportFiles.slice(0, 5)) {
+                      const uploaded = await uploadReportEvidence(file);
+                      if (uploaded?.evidenceUrl) evidenceUrls.push(uploaded.evidenceUrl);
+                    }
                     await api.post('/api/v1/notifications/admin-reports', {
                       type: reportType,
                       subject: reportSubject.trim(),
-                      message: reportMessage.trim()
+                      message: reportMessage.trim(),
+                      evidenceUrls
                     });
                     setReportOk('Reporte enviado al equipo administrador.');
                     setReportSubject('');
                     setReportMessage('');
                     setReportType('ERROR');
+                    setReportFiles([]);
+                    await loadMyAdminReports();
                   } catch (eSubmit) {
                     setErr(getUserFacingMessage(eSubmit));
                   } finally {
@@ -2167,6 +2227,36 @@ export function AdministracionPage() {
                   disabled={sendingReport}
                 />
               </label>
+              <label className="block text-sm text-slate-700">
+                Capturas (opcional, hasta 5)
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? []).slice(0, 5);
+                    setReportFiles(selected);
+                  }}
+                  disabled={sendingReport}
+                />
+                {reportFiles.length > 0 ? (
+                  <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                    {reportFiles.map((f, idx) => (
+                      <li key={`${f.name}-${idx}`} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{f.name}</span>
+                        <button
+                          type="button"
+                          className="text-red-700 underline"
+                          onClick={() => setReportFiles((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          Quitar
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </label>
               {reportOk ? <p className="text-sm text-emerald-800">{reportOk}</p> : null}
               <div className="flex justify-end">
                 <button
@@ -2194,7 +2284,33 @@ export function AdministracionPage() {
                       <p className="mt-0.5 text-xs text-slate-500">
                         {new Date(r.createdAt).toLocaleString('es')} · Estado: {r.status}
                       </p>
-                      <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{r.message}</p>
+                      {(() => {
+                        const parsed = parseReportEvidence(r.message);
+                        return (
+                          <>
+                            <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{parsed.cleanMessage}</p>
+                            {parsed.evidenceUrls.length > 0 ? (
+                              <div className="mt-2">
+                                <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Evidencias</p>
+                                <div className="mt-1 flex flex-wrap gap-2">
+                                  {parsed.evidenceUrls.map((u, idx) => {
+                                    const href = publicAssetUrl(u);
+                                    return href ? (
+                                      <a key={`${u}-${idx}`} href={href} target="_blank" rel="noreferrer">
+                                        <img
+                                          src={href}
+                                          alt={`Evidencia ${idx + 1}`}
+                                          className="h-16 w-16 rounded border border-slate-200 object-cover"
+                                        />
+                                      </a>
+                                    ) : null;
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                       <button
                         type="button"
                         className="mt-2 text-xs font-medium text-brand-800 underline"

@@ -34,6 +34,7 @@ function headerInitials(fullName: string) {
 export function AppShell() {
   const { user, logout } = useAuth();
   const role = user?.role;
+  const canReportProblem = role !== 'ADMIN';
   const avatarSrc = publicAssetUrl(user?.avatarUrl ?? null);
   const navItems = SIDEBAR_NAV.filter((item) => navVisibleForRole(item, role));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -111,16 +112,18 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 pb-3">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
-            onClick={() => setReportOpen(true)}
-          >
-            <span aria-hidden="true" className="text-red-400">▲</span>
-            Reportar problema
-          </button>
-        </div>
+        {canReportProblem ? (
+          <div className="px-3 pb-3">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
+              onClick={() => setReportOpen(true)}
+            >
+              <span aria-hidden="true" className="text-red-400">▲</span>
+              Reportar problema
+            </button>
+          </div>
+        ) : null}
         <div className="border-t border-slate-800 p-4 text-xs text-slate-500">
           Uso autorizado de la institución
         </div>
@@ -197,19 +200,21 @@ export function AppShell() {
                   </NavLink>
                 ))}
               </nav>
-              <div className="px-3 pb-3">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
-                  onClick={() => {
-                    setReportOpen(true);
-                    closeMobileMenu();
-                  }}
-                >
-                  <span aria-hidden="true" className="text-red-400">▲</span>
-                  Reportar problema
-                </button>
-              </div>
+              {canReportProblem ? (
+                <div className="px-3 pb-3">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
+                    onClick={() => {
+                      setReportOpen(true);
+                      closeMobileMenu();
+                    }}
+                  >
+                    <span aria-hidden="true" className="text-red-400">▲</span>
+                    Reportar problema
+                  </button>
+                </div>
+              ) : null}
               <div className="border-t border-slate-800 p-4 text-xs text-slate-500">Uso autorizado de la institución</div>
             </aside>
           </div>
@@ -258,7 +263,7 @@ export function AppShell() {
           su perfil.
         </footer>
       </div>
-      {reportOpen ? (
+      {reportOpen && canReportProblem ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
           <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-3">

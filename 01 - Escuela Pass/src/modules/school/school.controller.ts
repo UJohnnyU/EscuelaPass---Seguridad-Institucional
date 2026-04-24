@@ -34,6 +34,7 @@ import { UpdateGroupDto } from './dto/update-group.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
+import { UpdateParentDto } from './dto/update-parent.dto';
 import { SchoolService } from './school.service';
 
 type JwtUser = { userId: string; email: string; role: UserRole; schoolId?: string | null };
@@ -200,6 +201,14 @@ export class SchoolController {
     return this.schoolService.updateStudent(id, dto, this.scopeSchool(req.user));
   }
 
+  @Delete('students/:id')
+  removeStudent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.removeStudent(id, this.scopeSchool(req.user));
+  }
+
   @Get('teachers')
   listTeachers(
     @Query('schoolId') schoolIdFilter: string | undefined,
@@ -241,6 +250,14 @@ export class SchoolController {
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.schoolService.updateTeacher(id, dto, this.scopeSchool(req.user));
+  }
+
+  @Delete('teachers/:id')
+  removeTeacher(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.removeTeacher(id, this.scopeSchool(req.user));
   }
 
   @Get('teacher-assignments')
@@ -292,6 +309,23 @@ export class SchoolController {
   @Post('parents')
   createParent(@Body() dto: CreateParentDto, @Req() req: Request & { user: JwtUser }) {
     return this.schoolService.createParent(dto, this.scopeSchool(req.user));
+  }
+
+  @Patch('parents/:id')
+  updateParent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateParentDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.updateParent(id, dto, this.scopeSchool(req.user));
+  }
+
+  @Delete('parents/:id')
+  removeParent(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.removeParent(id, this.scopeSchool(req.user));
   }
 
   @Get('student-parent-links')
@@ -449,11 +483,10 @@ export class SchoolController {
     @Query('dryRun') dryRun: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
-    if (!file?.buffer) throw new BadRequestException('Envía archivo .xlsx o .csv en el campo "file"');
+    if (!file?.buffer) throw new BadRequestException('Envía archivo .xlsx en el campo "file"');
     return this.schoolService.importAny(
       kind,
       file.buffer,
-      file.originalname ?? '',
       dryRun === 'true',
       this.scopeSchool(req.user)
     );
@@ -527,51 +560,6 @@ export class SchoolController {
     return new StreamableFile(buffer, {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       disposition: 'attachment; filename="plantilla-asignacion-grupos.xlsx"'
-    });
-  }
-
-  @Get('import/templates/groups.csv')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  templateGroupsCsv() {
-    return new StreamableFile(this.schoolService.buildTemplateGroupsCsvBuffer(), {
-      type: 'text/csv; charset=utf-8',
-      disposition: 'attachment; filename="plantilla-grupos.csv"'
-    });
-  }
-
-  @Get('import/templates/students.csv')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  templateStudentsCsv() {
-    return new StreamableFile(this.schoolService.buildTemplateStudentsCsvBuffer(), {
-      type: 'text/csv; charset=utf-8',
-      disposition: 'attachment; filename="plantilla-alumnos.csv"'
-    });
-  }
-
-  @Get('import/templates/teachers.csv')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  templateTeachersCsv() {
-    return new StreamableFile(this.schoolService.buildTemplateTeachersCsvBuffer(), {
-      type: 'text/csv; charset=utf-8',
-      disposition: 'attachment; filename="plantilla-docentes.csv"'
-    });
-  }
-
-  @Get('import/templates/teacher-assignments.csv')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  templateTeacherAssignmentsCsv() {
-    return new StreamableFile(this.schoolService.buildTemplateTeacherAssignmentsCsvBuffer(), {
-      type: 'text/csv; charset=utf-8',
-      disposition: 'attachment; filename="plantilla-asignaciones-docentes.csv"'
-    });
-  }
-
-  @Get('import/templates/students-to-groups.csv')
-  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
-  templateStudentsToGroupsCsv() {
-    return new StreamableFile(this.schoolService.buildStudentsToGroupsTemplateCsvBuffer(), {
-      type: 'text/csv; charset=utf-8',
-      disposition: 'attachment; filename="plantilla-asignacion-grupos.csv"'
     });
   }
 

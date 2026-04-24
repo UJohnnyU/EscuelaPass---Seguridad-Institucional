@@ -10,7 +10,8 @@ import {
 export enum MeetingParticipantRsvp {
   PENDIENTE = 'PENDIENTE',
   ACEPTADA = 'ACEPTADA',
-  DECLINADA = 'DECLINADA'
+  DECLINADA = 'DECLINADA',
+  NO_ASISTIO = 'NO_ASISTIO'
 }
 
 @Entity({ name: 'meeting_participants' })

@@ -35,9 +35,10 @@ import { UpdateGroupDto } from './dto/update-group.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
+import { UpdateParentDto } from './dto/update-parent.dto';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 
-type CsvImportResult = {
+type ImportCreateResult = {
   totalRows: number;
   created: number;
   errors: Array<{ row: number; message: string }>;
@@ -357,6 +358,11 @@ export class SchoolService {
     return this.requireTeacherSchoolId(teacherId);
   }
 
+  private async schoolIdForParentPatch(parentId: string, scopeSchoolId?: string | null): Promise<string> {
+    if (scopeSchoolId?.trim()) return scopeSchoolId.trim();
+    return this.requireParentSchoolId(parentId);
+  }
+
   private async resolveSchoolIdForAssignTeacher(
     dto: AssignTeacherGroupDto,
     scopeSchoolId?: string | null
@@ -536,6 +542,7 @@ export class SchoolService {
         's.canLeaveAlone AS "canLeaveAlone"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.phone AS phone',
         'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
@@ -566,6 +573,7 @@ export class SchoolService {
         'u.id AS "userId"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.phone AS phone',
         'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
@@ -585,7 +593,7 @@ export class SchoolService {
     let finalMatricula = requestedMatricula || '';
     if (requestedMatricula) {
       const matTaken = await this.studentsRepository.findOne({ where: { matricula: requestedMatricula, schoolId } });
-      if (matTaken) throw new ConflictException('La matrícula ya existe');
+    if (matTaken) throw new ConflictException('La matrícula ya existe');
     } else {
       finalMatricula = await this.generateNextStudentMatricula(schoolId);
     }
@@ -601,6 +609,7 @@ export class SchoolService {
       passwordHash,
       role: UserRole.ALUMNO,
       fullName: dto.fullName,
+      phone: dto.phone?.trim() || null,
       canAccessCampus: dto.canAccessCampus ?? false,
       status: true,
       schoolId
@@ -683,7 +692,22 @@ export class SchoolService {
     }
     if (dto.canLeaveAlone !== undefined) patch.canLeaveAlone = dto.canLeaveAlone;
     if (Object.keys(patch).length) await this.studentsRepository.update({ id }, patch);
+    const student = await this.studentsRepository.findOne({ where: { id } });
+    if (!student) throw new NotFoundException('Estudiante no encontrado');
+    const userPatch: Partial<UserEntity> = {};
+    if (dto.fullName !== undefined) userPatch.fullName = dto.fullName;
+    if (dto.phone !== undefined) userPatch.phone = dto.phone?.trim() || null;
+    if (dto.canAccessCampus !== undefined) userPatch.canAccessCampus = dto.canAccessCampus;
+    if (Object.keys(userPatch).length) await this.usersRepository.update({ id: student.userId }, userPatch);
     return this.getStudent(id, schoolId);
+  }
+
+  async removeStudent(id: string, scopeSchoolId?: string | null) {
+    const row = await this.getStudent(id, scopeSchoolId);
+    await this.studentParentsRepository.delete({ studentId: id });
+    await this.studentsRepository.delete({ id });
+    await this.usersRepository.delete({ id: row.userId });
+    return { message: 'Alumno eliminado', id };
   }
 
   // --- Docentes ---
@@ -697,6 +721,7 @@ export class SchoolService {
         't.employeeNumber AS "employeeNumber"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.phone AS phone',
         'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
@@ -726,6 +751,7 @@ export class SchoolService {
         'u.id AS "userId"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.phone AS phone',
         'u.avatarPath AS "avatarUrl"',
         'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
@@ -751,6 +777,7 @@ export class SchoolService {
       passwordHash,
       role: UserRole.DOCENTE,
       fullName: dto.fullName,
+      phone: dto.phone?.trim() || null,
       canAccessCampus: dto.canAccessCampus ?? false,
       status: true,
       schoolId
@@ -797,10 +824,20 @@ export class SchoolService {
 
     const userPatch: Partial<UserEntity> = {};
     if (dto.fullName !== undefined) userPatch.fullName = dto.fullName;
+    if (dto.phone !== undefined) userPatch.phone = dto.phone?.trim() || null;
     if (dto.canAccessCampus !== undefined) userPatch.canAccessCampus = dto.canAccessCampus;
     if (Object.keys(userPatch).length) await this.usersRepository.update({ id: t.userId }, userPatch);
 
     return this.getTeacher(id, schoolId);
+  }
+
+  async removeTeacher(id: string, scopeSchoolId?: string | null) {
+    const row = await this.getTeacher(id, scopeSchoolId);
+    await this.teacherGroupsRepository.delete({ teacherId: id });
+    await this.teacherSubjectsRepository.delete({ teacherId: id });
+    await this.teachersRepository.delete({ id });
+    await this.usersRepository.delete({ id: row.userId });
+    return { message: 'Docente eliminado', id };
   }
 
   async listTeacherSubjects(teacherId?: string, scopeSchoolId?: string | null) {
@@ -844,7 +881,7 @@ export class SchoolService {
     const group = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
     if (!group) throw new NotFoundException('Grupo no encontrado');
     const sub = await this.subjectsRepository.findOne({ where: { id: dto.subjectId, schoolId } });
-    if (!sub) throw new NotFoundException('Materia no encontrada');
+      if (!sub) throw new NotFoundException('Materia no encontrada');
 
     const existing = await this.teacherGroupsRepository.findOne({
       where: {
@@ -891,6 +928,7 @@ export class SchoolService {
         'p.isPrimaryContact AS "isPrimaryContact"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.phone AS phone',
         'u.id AS "userId"',
         'u.avatarPath AS "avatarUrl"',
         'u.status AS "userStatus"'
@@ -915,6 +953,7 @@ export class SchoolService {
         'p.isPrimaryContact AS "isPrimaryContact"',
         'u.email AS email',
         'u.fullName AS "fullName"',
+        'u.phone AS phone',
         'u.id AS "userId"',
         'u.avatarPath AS "avatarUrl"',
         'u.status AS "userStatus"'
@@ -936,6 +975,7 @@ export class SchoolService {
       passwordHash,
       role: UserRole.PADRE,
       fullName: dto.fullName,
+      phone: dto.phone?.trim() || null,
       canAccessCampus: dto.canAccessCampus ?? false,
       status: true,
       schoolId
@@ -947,6 +987,31 @@ export class SchoolService {
     });
     const saved = await this.parentsRepository.save(parent);
     return this.getParent(saved.id, schoolId);
+  }
+
+  async updateParent(id: string, dto: UpdateParentDto, scopeSchoolId?: string | null) {
+    const schoolId = await this.schoolIdForParentPatch(id, scopeSchoolId);
+    const row = await this.getParent(id, schoolId);
+    const parent = await this.parentsRepository.findOne({ where: { id } });
+    if (!parent) throw new NotFoundException('Padre/tutor no encontrado');
+    if (dto.isPrimaryContact !== undefined) {
+      parent.isPrimaryContact = dto.isPrimaryContact;
+      await this.parentsRepository.save(parent);
+    }
+    const userPatch: Partial<UserEntity> = {};
+    if (dto.fullName !== undefined) userPatch.fullName = dto.fullName;
+    if (dto.phone !== undefined) userPatch.phone = dto.phone?.trim() || null;
+    if (dto.canAccessCampus !== undefined) userPatch.canAccessCampus = dto.canAccessCampus;
+    if (Object.keys(userPatch).length) await this.usersRepository.update({ id: row.userId }, userPatch);
+    return this.getParent(id, schoolId);
+  }
+
+  async removeParent(id: string, scopeSchoolId?: string | null) {
+    const row = await this.getParent(id, scopeSchoolId);
+    await this.studentParentsRepository.delete({ parentId: id });
+    await this.parentsRepository.delete({ id });
+    await this.usersRepository.delete({ id: row.userId });
+    return { message: 'Padre/tutor eliminado', id };
   }
 
   async listStudentParentLinks(
@@ -1013,27 +1078,26 @@ export class SchoolService {
     return { message: 'Vínculo eliminado', id: linkId };
   }
 
-  // --- Cargas masivas Excel (.xlsx), primera hoja, fila 1 = encabezados (mismos nombres que antes en CSV) ---
+  // --- Cargas masivas Excel (.xlsx), primera hoja con encabezados ---
 
   async importAny(
     kind: string,
     buffer: Buffer,
-    originalFilename: string,
     dryRun = false,
     scopeSchoolId?: string | null
   ) {
     const normalized = String(kind ?? '').trim().toLowerCase() as ImportKind;
     switch (normalized) {
       case 'groups':
-        return this.importGroupsFile(buffer, originalFilename, dryRun, scopeSchoolId);
+        return this.importGroupsFile(buffer, dryRun, scopeSchoolId);
       case 'students':
-        return this.importStudentsFile(buffer, originalFilename, dryRun, scopeSchoolId);
+        return this.importStudentsFile(buffer, dryRun, scopeSchoolId);
       case 'teachers':
-        return this.importTeachersFile(buffer, originalFilename, dryRun, scopeSchoolId);
+        return this.importTeachersFile(buffer, dryRun, scopeSchoolId);
       case 'teacher-assignments':
-        return this.importTeacherAssignmentsFile(buffer, originalFilename, dryRun, scopeSchoolId);
+        return this.importTeacherAssignmentsFile(buffer, dryRun, scopeSchoolId);
       case 'students-to-groups':
-        return this.importStudentsToGroupsFile(buffer, originalFilename, dryRun, scopeSchoolId);
+        return this.importStudentsToGroupsFile(buffer, dryRun, scopeSchoolId);
       default:
         throw new BadRequestException(
           'Tipo de importación inválido. Usa: groups, students, teachers, teacher-assignments, students-to-groups'
@@ -1043,12 +1107,11 @@ export class SchoolService {
 
   async importGroupsFile(
     buffer: Buffer,
-    originalFilename: string,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    const rows = await this.parseRowsFromFile(buffer, originalFilename);
-    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+  ): Promise<ImportCreateResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
       const row = rows[i];
@@ -1073,12 +1136,11 @@ export class SchoolService {
 
   async importStudentsFile(
     buffer: Buffer,
-    originalFilename: string,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    const rows = await this.parseRowsFromFile(buffer, originalFilename);
-    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+  ): Promise<ImportCreateResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
       const row = rows[i];
@@ -1104,12 +1166,11 @@ export class SchoolService {
 
   async importTeachersFile(
     buffer: Buffer,
-    originalFilename: string,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    const rows = await this.parseRowsFromFile(buffer, originalFilename);
-    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+  ): Promise<ImportCreateResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
       const row = rows[i];
@@ -1133,12 +1194,11 @@ export class SchoolService {
 
   async importTeacherAssignmentsFile(
     buffer: Buffer,
-    originalFilename: string,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    const rows = await this.parseRowsFromFile(buffer, originalFilename);
-    const result: CsvImportResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+  ): Promise<ImportCreateResult> {
+    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
       const line = i + 2;
       const row = rows[i];
@@ -1162,15 +1222,9 @@ export class SchoolService {
 
   async importStudentsToGroupsFile(
     buffer: Buffer,
-    originalFilename: string,
     dryRun = false,
     scopeSchoolId?: string | null
   ): Promise<XlsxAssignResult> {
-    const isCsv = this.isCsvFilename(originalFilename);
-    if (isCsv) {
-      const rows = this.parseCsvRows(buffer);
-      return this.importStudentsToGroupsFromFlatRows(rows, dryRun, scopeSchoolId);
-    }
     return this.importStudentsToGroupsFromXlsx(buffer, dryRun, scopeSchoolId);
   }
 
@@ -1178,24 +1232,24 @@ export class SchoolService {
     buffer: Buffer,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    return this.importGroupsFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
+  ): Promise<ImportCreateResult> {
+    return this.importGroupsFile(buffer, dryRun, scopeSchoolId);
   }
 
   async importStudentsXlsx(
     buffer: Buffer,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    return this.importStudentsFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
+  ): Promise<ImportCreateResult> {
+    return this.importStudentsFile(buffer, dryRun, scopeSchoolId);
   }
 
   async importTeachersXlsx(
     buffer: Buffer,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    return this.importTeachersFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
+  ): Promise<ImportCreateResult> {
+    return this.importTeachersFile(buffer, dryRun, scopeSchoolId);
   }
 
   /**
@@ -1297,8 +1351,8 @@ export class SchoolService {
     buffer: Buffer,
     dryRun = false,
     scopeSchoolId?: string | null
-  ): Promise<CsvImportResult> {
-    return this.importTeacherAssignmentsFile(buffer, 'upload.xlsx', dryRun, scopeSchoolId);
+  ): Promise<ImportCreateResult> {
+    return this.importTeacherAssignmentsFile(buffer, dryRun, scopeSchoolId);
   }
 
   async getImportHistory(limit = 20, scopeSchoolId?: string | null) {
@@ -1439,67 +1493,6 @@ export class SchoolService {
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
-  buildTemplateGroupsCsv(): string {
-    return this.toCsv(
-      ['nombre', 'grado', 'turno', 'anio_escolar', 'aula', 'cupo'],
-      [['1A', '1', 'Mañana', '2026-2027', 'A-101', '30']]
-    );
-  }
-
-  buildTemplateStudentsCsv(): string {
-    return this.toCsv(
-      ['correo', 'contrasena', 'nombre_completo', 'matricula', 'id_grupo', 'acceso_al_campus', 'puede_salir_solo'],
-      [['alumno.nuevo@escuelapass.local', 'Alumno123*', 'Alumno Nuevo', 'MAT-1001', '', 'false', 'false']]
-    );
-  }
-
-  /** CSV con BOM y `sep=,` para que Excel (p. ej. regionalización con `;`) abra columnas alineadas. */
-  buildTemplateGroupsCsvBuffer(): Buffer {
-    return this.wrapCsvForExcelDownload(this.buildTemplateGroupsCsv());
-  }
-
-  buildTemplateStudentsCsvBuffer(): Buffer {
-    return this.wrapCsvForExcelDownload(this.buildTemplateStudentsCsv());
-  }
-
-  buildTemplateTeachersCsvBuffer(): Buffer {
-    return this.wrapCsvForExcelDownload(this.buildTemplateTeachersCsv());
-  }
-
-  buildTemplateTeacherAssignmentsCsvBuffer(): Buffer {
-    return this.wrapCsvForExcelDownload(this.buildTemplateTeacherAssignmentsCsv());
-  }
-
-  buildStudentsToGroupsTemplateCsvBuffer(): Buffer {
-    return this.wrapCsvForExcelDownload(this.buildStudentsToGroupsTemplateCsv());
-  }
-
-  private wrapCsvForExcelDownload(csvBody: string): Buffer {
-    const normalized = csvBody.replace(/\r?\n/g, '\r\n');
-    return Buffer.from(`\uFEFFsep=,\r\n${normalized}`, 'utf-8');
-  }
-
-  buildTemplateTeachersCsv(): string {
-    return this.toCsv(
-      ['correo', 'contrasena', 'nombre_completo', 'numero_empleado', 'acceso_al_campus'],
-      [['docente.nuevo@escuelapass.local', 'Docente123*', 'Docente Nuevo', 'EMP-1001', 'true']]
-    );
-  }
-
-  buildTemplateTeacherAssignmentsCsv(): string {
-    return this.toCsv(
-      ['id_docente', 'id_grupo', 'id_asignatura', 'es_docente_principal', 'puede_autorizar_salidas'],
-      [['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '', 'true', 'false']]
-    );
-  }
-
-  buildStudentsToGroupsTemplateCsv(): string {
-    return this.toCsv(
-      ['matricula', 'id_grupo', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'],
-      [['ALUMNO-0001', '', '1A', '1', 'Mañana', '2026-2027']]
-    );
-  }
-
   private mapExcelHeaderToField(raw: string): string | null {
     const k = this.normalizeHeaderToken(raw);
     const map: Record<string, string> = {
@@ -1635,115 +1628,6 @@ export class SchoolService {
     return rows;
   }
 
-  private async parseRowsFromFile(buffer: Buffer, originalFilename: string): Promise<Array<Record<string, string>>> {
-    if (this.isCsvFilename(originalFilename)) {
-      return this.parseCsvRows(buffer);
-    }
-    return this.parseXlsxFirstSheetToRows(buffer);
-  }
-
-  private isCsvFilename(originalFilename: string): boolean {
-    return originalFilename.toLowerCase().endsWith('.csv');
-  }
-
-  private parseCsvRows(buffer: Buffer): Array<Record<string, string>> {
-    const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
-    let lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    while (lines.length > 0 && /^sep=/i.test(lines[0].trim())) {
-      lines = lines.slice(1);
-    }
-    if (lines.length === 0) throw new BadRequestException('CSV vacío');
-    const headers = this.parseCsvLine(lines[0]).map((h) => h.trim());
-    if (headers.length === 0 || headers.every((h) => !h)) {
-      throw new BadRequestException('La primera fila del CSV debe contener encabezados');
-    }
-    const rows: Array<Record<string, string>> = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = this.parseCsvLine(lines[i]);
-      const row: Record<string, string> = {};
-      for (let j = 0; j < headers.length; j++) {
-        row[this.canonicalImportHeader(headers[j])] = (values[j] ?? '').trim();
-      }
-      if (Object.values(row).some((v) => v.length > 0)) rows.push(row);
-    }
-    return rows;
-  }
-
-  private parseCsvLine(line: string): string[] {
-    const cells: string[] = [];
-    let cur = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        const next = line[i + 1];
-        if (inQuotes && next === '"') {
-          cur += '"';
-          i += 1;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === ',' && !inQuotes) {
-        cells.push(cur);
-        cur = '';
-      } else {
-        cur += ch;
-      }
-    }
-    cells.push(cur);
-    return cells;
-  }
-
-  private toCsv(headers: string[], rows: string[][]): string {
-    const esc = (value: string) => {
-      const v = value ?? '';
-      if (v.includes('"') || v.includes(',') || v.includes('\n') || v.includes('\r')) {
-        return `"${v.replace(/"/g, '""')}"`;
-      }
-      return v;
-    };
-    const lines = [headers.map(esc).join(','), ...rows.map((r) => r.map((v) => esc(v ?? '')).join(','))];
-    return lines.join('\r\n');
-  }
-
-  private async importStudentsToGroupsFromFlatRows(
-    rows: Array<Record<string, string>>,
-    dryRun: boolean,
-    scopeSchoolId?: string | null
-  ): Promise<XlsxAssignResult> {
-    const result: XlsxAssignResult = {
-      totalRows: rows.length,
-      updated: 0,
-      errors: [],
-      dryRun
-    };
-    for (let i = 0; i < rows.length; i++) {
-      const line = i + 2;
-      const fields = rows[i];
-      const matricula = fields.matricula?.trim();
-      if (!matricula) {
-        result.errors.push({ row: line, message: 'Campo obligatorio faltante: matricula' });
-        continue;
-      }
-      try {
-        const group = await this.resolveGroupForExcelRow(fields, line, scopeSchoolId);
-        const student = await this.studentsRepository.findOne({
-          where: scopeSchoolId ? { matricula, schoolId: scopeSchoolId } : { matricula }
-        });
-        if (!student) {
-          throw new Error(`No existe alumno con matrícula ${matricula}`);
-        }
-        if (!dryRun) {
-          await this.studentsRepository.update({ id: student.id }, { groupId: group.id });
-        }
-        result.updated += 1;
-      } catch (error) {
-        result.errors.push({ row: line, message: this.errorMessage(error) });
-      }
-    }
-    await this.pushImportLog('students-to-groups-xlsx', result, scopeSchoolId ?? null);
-    return result;
-  }
 
   private required(row: Record<string, string>, key: string) {
     const value = row[key]?.trim();
@@ -1796,7 +1680,7 @@ export class SchoolService {
       | 'teachers'
       | 'teacher-assignments'
       | 'students-to-groups-xlsx',
-    result: CsvImportResult | XlsxAssignResult,
+    result: ImportCreateResult | XlsxAssignResult,
     schoolId: string | null
   ) {
     const createdCount = 'created' in result ? result.created : result.updated;

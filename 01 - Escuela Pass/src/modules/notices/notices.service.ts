@@ -99,7 +99,9 @@ export class NoticesService {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
     const qb = this.noticesRepository.createQueryBuilder('n').orderBy('n.createdAt', 'DESC');
-    if (role === UserRole.DOCENTE && createdByUserId) {
+    if (role === UserRole.ADMIN && createdByUserId) {
+      qb.andWhere('n.created_by = :uid', { uid: createdByUserId });
+    } else if (role === UserRole.DOCENTE && createdByUserId) {
       qb.andWhere('n.created_by = :uid', { uid: createdByUserId });
     }
     if (role === UserRole.ADMIN && schoolIdParam) {

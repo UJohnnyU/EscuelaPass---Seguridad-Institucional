@@ -8,7 +8,7 @@ import {
   OnModuleInit
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import {
   CircuitRequestEntity,
   CircuitStatus,
@@ -21,6 +21,7 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
+import { NotificationEntity } from '../../database/entities/notification.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
@@ -72,6 +73,10 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(TeacherGroupEntity)
     private readonly teacherGroupsRepository: Repository<TeacherGroupEntity>,
+    @InjectRepository(NotificationEntity)
+    private readonly notificationsRepository: Repository<NotificationEntity>,
+    @InjectRepository(UserEntity)
+    private readonly usersRepository: Repository<UserEntity>,
     private readonly fcmService: FcmService,
     private readonly settingsService: SettingsService,
     private readonly departureConsentService: DepartureConsentService
@@ -228,11 +233,55 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       teacherSignal: null
     });
     const saved = await this.circuitRepository.save(request);
+    await this.notifyTeachersOnNewCircuitRequest(saved, student, parent);
     return {
       message: 'Solicitud de circuito creada',
       requestId: saved.id,
       status: saved.status
     };
+  }
+
+  private async notifyTeachersOnNewCircuitRequest(
+    request: CircuitRequestEntity,
+    student: StudentEntity,
+    parent: ParentEntity
+  ): Promise<void> {
+    if (!student.groupId) return;
+    const teacherLinks = await this.teacherGroupsRepository.find({ where: { groupId: student.groupId } });
+    if (teacherLinks.length === 0) return;
+    const teacherIds = [...new Set(teacherLinks.map((t) => t.teacherId))];
+    const teachers = await this.teachersRepository.find({ where: { id: In(teacherIds) } });
+    const teacherUserIds = [...new Set(teachers.map((t) => t.userId).filter(Boolean))];
+    if (teacherUserIds.length === 0) return;
+
+    const parentUser = await this.usersRepository.findOne({ where: { id: parent.userId } });
+    const studentName = await this.studentDisplayName(student.id);
+    const parentName = parentUser?.fullName?.trim() || 'un padre/tutor';
+    const title = `Nueva solicitud de recogida: ${studentName}`;
+    const body = `${parentName} inició una solicitud de circuito. Revise Circuito del día para atenderla.`;
+
+    const rows = teacherUserIds.map((userId) =>
+      this.notificationsRepository.create({
+        userId,
+        title,
+        message: body,
+        deliveryStatus: 'SENT'
+      })
+    );
+    await this.notificationsRepository.save(rows);
+
+    for (const userId of teacherUserIds) {
+      void this.fcmService
+        .sendPushToUser(userId, title, body, {
+          type: 'circuit',
+          route: '/app/circuito/hoy',
+          circuitRequestId: request.id,
+          status: request.status
+        })
+        .catch((err: unknown) => {
+          this.logger.warn(`Push circuito a docente no enviado: ${String(err)}`);
+        });
+    }
   }
 
   private async studentDisplayName(studentId: string): Promise<string> {
@@ -443,11 +492,15 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       .innerJoin(StudentEntity, 'st', 'st.id = cr.student_id')
       .innerJoin(GroupEntity, 'g', 'g.id = st.group_id')
       .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
+      .innerJoin(ParentEntity, 'p', 'p.id = cr.requested_by_parent_id')
+      .innerJoin(UserEntity, 'pu', 'pu.id = p.user_id')
       .where(`to_char(cr.request_time AT TIME ZONE 'UTC', 'YYYY-MM-DD') = :today`, { today });
 
     const q = searchQ?.trim();
     if (q) {
-      qb.andWhere('(su.full_name ILIKE :pat OR st.matricula ILIKE :pat)', { pat: `%${q}%` });
+      qb.andWhere('(su.full_name ILIKE :pat OR st.matricula ILIKE :pat OR pu.full_name ILIKE :pat)', {
+        pat: `%${q}%`
+      });
     }
 
     if (role === UserRole.ADMIN) {
@@ -513,7 +566,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     if (q) {
       idx += 1;
       params.push(`%${q}%`);
-      where.push(`(su.full_name ILIKE $${idx} OR st.matricula ILIKE $${idx})`);
+      where.push(`(su.full_name ILIKE $${idx} OR st.matricula ILIKE $${idx} OR pu.full_name ILIKE $${idx})`);
     }
 
     if (role === UserRole.ADMIN) {
@@ -552,6 +605,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       INNER JOIN students st ON st.id = cr.student_id
       INNER JOIN groups g ON g.id = st.group_id
       INNER JOIN users su ON su.id = st.user_id
+      INNER JOIN parents p ON p.id = cr.requested_by_parent_id
+      INNER JOIN users pu ON pu.id = p.user_id
       WHERE ${where.join(' AND ')}
       ORDER BY cr.request_time DESC
       LIMIT $2

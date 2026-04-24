@@ -7,6 +7,8 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
+import { NotificationEntity } from '../../database/entities/notification.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { FcmModule } from '../fcm/fcm.module';
 import { DepartureConsentModule } from '../departure-consent/departure-consent.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -25,7 +27,9 @@ import { CircuitService } from './circuit.service';
       ParentEntity,
       VehicleEntity,
       TeacherEntity,
-      TeacherGroupEntity
+      TeacherGroupEntity,
+      NotificationEntity,
+      UserEntity
     ])
   ],
   controllers: [CircuitController],

@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DetailModal } from '@/components/DetailModal';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -27,6 +28,7 @@ type StudentRow = {
   groupId: string | null;
   fullName: string;
   email: string;
+  phone?: string | null;
   avatarUrl?: string | null;
 };
 
@@ -36,6 +38,7 @@ type TeacherRow = {
   employeeNumber: string;
   fullName: string;
   email: string;
+  phone?: string | null;
   avatarUrl?: string | null;
 };
 
@@ -62,6 +65,7 @@ type ParentRow = {
   userId: string;
   fullName: string;
   email: string;
+  phone?: string | null;
   isPrimaryContact: boolean;
   avatarUrl?: string | null;
 };
@@ -87,8 +91,17 @@ type AssignmentRow = {
 };
 
 type PendingDelete =
+  | { kind: 'group'; id: string; label: string }
+  | { kind: 'student'; id: string; label: string }
+  | { kind: 'teacher'; id: string; label: string }
+  | { kind: 'parent'; id: string; label: string }
   | { kind: 'assignment'; id: string; label: string }
   | { kind: 'link'; id: string; label: string };
+
+type EditTarget =
+  | { kind: 'student'; row: StudentRow }
+  | { kind: 'teacher'; row: TeacherRow }
+  | { kind: 'parent'; row: ParentRow };
 
 function rosterInitials(fullName: string): string {
   const n = fullName.trim();
@@ -186,11 +199,13 @@ export function SchoolRosterPage() {
   const [sName, setSName] = useState('');
   const [sMat, setSMat] = useState('');
   const [sGroup, setSGroup] = useState('');
+  const [sPhone, setSPhone] = useState('');
 
   const [tEmail, setTEmail] = useState('');
   const [tPass, setTPass] = useState('');
   const [tName, setTName] = useState('');
   const [tNum, setTNum] = useState('');
+  const [tPhone, setTPhone] = useState('');
   const [tSubjectIds, setTSubjectIds] = useState<string[]>([]);
   const [tSubjectQuery, setTSubjectQuery] = useState('');
 
@@ -208,6 +223,7 @@ export function SchoolRosterPage() {
   const [pEmail, setPEmail] = useState('');
   const [pPass, setPPass] = useState('');
   const [pName, setPName] = useState('');
+  const [pPhone, setPPhone] = useState('');
   const [pPrimary, setPPrimary] = useState(false);
 
   const [lStudent, setLStudent] = useState('');
@@ -219,6 +235,12 @@ export function SchoolRosterPage() {
   const [uploadingAvatarUserId, setUploadingAvatarUserId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [confirmDeleting, setConfirmDeleting] = useState(false);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editMatricula, setEditMatricula] = useState('');
+  const [editEmployeeNumber, setEditEmployeeNumber] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const schoolQuery = useMemo(() => {
     if (platformAdmin && selectedSchoolId) return { schoolId: selectedSchoolId };
@@ -491,6 +513,7 @@ export function SchoolRosterPage() {
         password: sPass,
         fullName: sName.trim()
       };
+      if (sPhone.trim()) body.phone = sPhone.trim();
       if (sMat.trim()) body.matricula = sMat.trim();
       if (sGroup) body.groupId = sGroup;
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
@@ -498,6 +521,7 @@ export function SchoolRosterPage() {
       setSEmail('');
       setSPass('');
       setSName('');
+      setSPhone('');
       setSMat('');
       setSGroup('');
       setMessage('Alumno registrado.');
@@ -541,12 +565,14 @@ export function SchoolRosterPage() {
         employeeNumber: tNum.trim(),
         subjectIds: tSubjectIds
       };
+      if (tPhone.trim()) body.phone = tPhone.trim();
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/teachers', body);
       setTEmail('');
       setTPass('');
       setTName('');
       setTNum('');
+      setTPhone('');
       setTSubjectIds([]);
       setTSubjectQuery('');
       setMessage('Docente registrado.');
@@ -630,11 +656,13 @@ export function SchoolRosterPage() {
         fullName: pName.trim(),
         isPrimaryContact: pPrimary
       };
+      if (pPhone.trim()) body.phone = pPhone.trim();
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/parents', body);
       setPEmail('');
       setPPass('');
       setPName('');
+      setPPhone('');
       setPPrimary(false);
       setMessage('Perfil de padre/tutor creado.');
       await refreshAll();
@@ -686,12 +714,117 @@ export function SchoolRosterPage() {
     try {
       if (pendingDelete.kind === 'assignment') {
         await onRemoveAssignment(pendingDelete.id);
-      } else {
+      } else if (pendingDelete.kind === 'link') {
         await onUnlink(pendingDelete.id);
+      } else if (pendingDelete.kind === 'group') {
+        await api.delete(`/api/v1/school/groups/${pendingDelete.id}`);
+        setMessage('Grupo eliminado.');
+        await refreshAll();
+      } else if (pendingDelete.kind === 'student') {
+        await api.delete(`/api/v1/school/students/${pendingDelete.id}`);
+        setMessage('Alumno eliminado.');
+        await refreshAll();
+      } else if (pendingDelete.kind === 'teacher') {
+        await api.delete(`/api/v1/school/teachers/${pendingDelete.id}`);
+        setMessage('Docente eliminado.');
+        await refreshAll();
+      } else if (pendingDelete.kind === 'parent') {
+        await api.delete(`/api/v1/school/parents/${pendingDelete.id}`);
+        setMessage('Padre/tutor eliminado.');
+        await refreshAll();
       }
       setPendingDelete(null);
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo eliminar el registro.'));
     } finally {
       setConfirmDeleting(false);
+    }
+  }
+
+  function onEditStudent(r: StudentRow) {
+    setEditTarget({ kind: 'student', row: r });
+    setEditName(r.fullName);
+    setEditPhone(r.phone ?? '');
+    setEditMatricula(r.matricula);
+    setEditEmployeeNumber('');
+  }
+
+  function onEditTeacher(r: TeacherRow) {
+    setEditTarget({ kind: 'teacher', row: r });
+    setEditName(r.fullName);
+    setEditPhone(r.phone ?? '');
+    setEditMatricula('');
+    setEditEmployeeNumber(r.employeeNumber);
+  }
+
+  function onEditParent(r: ParentRow) {
+    setEditTarget({ kind: 'parent', row: r });
+    setEditName(r.fullName);
+    setEditPhone(r.phone ?? '');
+    setEditMatricula('');
+    setEditEmployeeNumber('');
+  }
+
+  function closeEditModal() {
+    if (savingEdit) return;
+    setEditTarget(null);
+    setEditName('');
+    setEditPhone('');
+    setEditMatricula('');
+    setEditEmployeeNumber('');
+  }
+
+  async function onSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    const nextName = editName.trim();
+    if (!nextName) {
+      setError('El nombre completo es obligatorio.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    setSavingEdit(true);
+    try {
+      if (editTarget.kind === 'student') {
+        const nextMat = editMatricula.trim();
+        if (!nextMat) {
+          setError('La matrícula es obligatoria.');
+          setSavingEdit(false);
+          return;
+        }
+        await api.patch(`/api/v1/school/students/${editTarget.row.id}`, {
+          fullName: nextName,
+          phone: editPhone.trim() || null,
+          matricula: nextMat
+        });
+        setMessage('Alumno actualizado.');
+      } else if (editTarget.kind === 'teacher') {
+        const nextEmployee = editEmployeeNumber.trim();
+        if (!nextEmployee) {
+          setError('El número de empleado es obligatorio.');
+          setSavingEdit(false);
+          return;
+        }
+        await api.patch(`/api/v1/school/teachers/${editTarget.row.id}`, {
+          fullName: nextName,
+          phone: editPhone.trim() || null,
+          employeeNumber: nextEmployee
+        });
+        setMessage('Docente actualizado.');
+      } else {
+        await api.patch(`/api/v1/school/parents/${editTarget.row.id}`, {
+          fullName: nextName,
+          phone: editPhone.trim() || null
+        });
+        setMessage('Padre/tutor actualizado.');
+      }
+      await refreshAll();
+      closeEditModal();
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo actualizar el registro.'));
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -832,6 +965,7 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">Turno</th>
                 <th className="py-2 pr-4 font-medium">Ciclo</th>
                 <th className="py-2 font-medium">Aula</th>
+                <th className="py-2 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -842,6 +976,15 @@ export function SchoolRosterPage() {
                   <td className="py-2 pr-4">{shiftLabel(r.shift)}</td>
                   <td className="py-2 pr-4">{r.schoolYear}</td>
                   <td className="py-2">{r.classroom ?? '—'}</td>
+                  <td className="py-2">
+                    <button
+                      type="button"
+                      className="text-xs text-red-700 underline"
+                      onClick={() => setPendingDelete({ kind: 'group', id: r.id, label: `${r.name} (${r.schoolYear})` })}
+                    >
+                      Eliminar
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -881,6 +1024,15 @@ export function SchoolRosterPage() {
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={sName}
               onChange={(e) => setSName(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-slate-700">Celular (opcional)</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={sPhone}
+              onChange={(e) => setSPhone(e.target.value)}
+              placeholder="Ej. +52 555 123 4567"
             />
           </label>
           <label className="text-sm">
@@ -928,7 +1080,9 @@ export function SchoolRosterPage() {
                 <th className="w-28 py-2 pr-2 font-medium">Foto</th>
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">Matrícula</th>
+                <th className="py-2 pr-4 font-medium">Celular</th>
                 <th className="min-w-[14rem] py-2 font-medium">Grupo</th>
+                <th className="py-2 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -945,6 +1099,7 @@ export function SchoolRosterPage() {
                   </td>
                   <td className="py-2 pr-4 align-middle">{r.fullName}</td>
                   <td className="py-2 pr-4 align-middle">{r.matricula}</td>
+                  <td className="py-2 pr-4 align-middle">{r.phone?.trim() ? r.phone : '—'}</td>
                   <td className="py-2 align-middle">
                     {(() => {
                       const selectableGroups = groupCapacityRows.filter(
@@ -971,6 +1126,20 @@ export function SchoolRosterPage() {
                     </select>
                       );
                     })()}
+                  </td>
+                  <td className="py-2 align-middle">
+                    <div className="flex gap-2">
+                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditStudent(r)}>
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-red-700 underline"
+                        onClick={() => setPendingDelete({ kind: 'student', id: r.id, label: r.fullName })}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1092,6 +1261,16 @@ export function SchoolRosterPage() {
             />
           </label>
           <label className="text-sm sm:col-span-2">
+            <span className="text-slate-700">Celular</span>
+            <input
+              required
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={tPhone}
+              onChange={(e) => setTPhone(e.target.value)}
+              placeholder="Ej. +52 555 123 4567"
+            />
+          </label>
+          <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Asignaturas del docente (una o varias)</span>
             <input
               type="text"
@@ -1172,7 +1351,9 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">No. empleado</th>
                 <th className="py-2 pr-4 font-medium">Asignaturas</th>
+                <th className="py-2 pr-4 font-medium">Celular</th>
                 <th className="py-2 font-medium">Correo</th>
+                <th className="py-2 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -1196,7 +1377,22 @@ export function SchoolRosterPage() {
                           .join(', ')
                       : '—'}
                   </td>
+                  <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
                   <td className="py-2">{r.email}</td>
+                  <td className="py-2">
+                    <div className="flex gap-2">
+                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditTeacher(r)}>
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-red-700 underline"
+                        onClick={() => setPendingDelete({ kind: 'teacher', id: r.id, label: r.fullName })}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1431,6 +1627,16 @@ export function SchoolRosterPage() {
               onChange={(e) => setPName(e.target.value)}
             />
           </label>
+          <label className="text-sm">
+            <span className="text-slate-700">Celular</span>
+            <input
+              required
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={pPhone}
+              onChange={(e) => setPPhone(e.target.value)}
+              placeholder="Ej. +52 555 123 4567"
+            />
+          </label>
           <label className="mt-4 flex items-center gap-2 text-sm sm:col-span-1">
             <input type="checkbox" checked={pPrimary} onChange={(e) => setPPrimary(e.target.checked)} />
             Contacto principal
@@ -1451,7 +1657,9 @@ export function SchoolRosterPage() {
                 <th className="w-28 py-2 pr-2 font-medium">Foto</th>
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">Correo</th>
+                <th className="py-2 pr-4 font-medium">Celular</th>
                 <th className="py-2 font-medium">Principal</th>
+                <th className="py-2 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -1468,7 +1676,22 @@ export function SchoolRosterPage() {
                   </td>
                   <td className="py-2 pr-4">{r.fullName}</td>
                   <td className="py-2 pr-4">{r.email}</td>
+                  <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
                   <td className="py-2">{r.isPrimaryContact ? 'Sí' : '—'}</td>
+                  <td className="py-2">
+                    <div className="flex gap-2">
+                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditParent(r)}>
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-red-700 underline"
+                        onClick={() => setPendingDelete({ kind: 'parent', id: r.id, label: r.fullName })}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1567,7 +1790,13 @@ export function SchoolRosterPage() {
       </section>
       <ConfirmDialog
         open={pendingDelete !== null}
-        title={pendingDelete?.kind === 'assignment' ? 'Quitar asignación docente' : 'Quitar vínculo familia-alumno'}
+        title={
+          pendingDelete?.kind === 'assignment'
+            ? 'Quitar asignación docente'
+            : pendingDelete?.kind === 'link'
+              ? 'Quitar vínculo familia-alumno'
+              : 'Eliminar registro'
+        }
         description={
           pendingDelete
             ? `Esta acción eliminará "${pendingDelete.label}". Puede afectar la operación diaria y no se puede deshacer fácilmente.`
@@ -1578,6 +1807,81 @@ export function SchoolRosterPage() {
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => void onConfirmDelete()}
       />
+      <DetailModal
+        open={editTarget !== null}
+        title={
+          editTarget?.kind === 'student'
+            ? 'Editar alumno'
+            : editTarget?.kind === 'teacher'
+              ? 'Editar docente'
+              : 'Editar padre/tutor'
+        }
+        subtitle={editTarget?.row.email ?? ''}
+        onClose={closeEditModal}
+        footer={
+          <>
+            <button
+              type="button"
+              className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              onClick={closeEditModal}
+              disabled={savingEdit}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="roster-edit-form"
+              className="rounded bg-brand-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+              disabled={savingEdit}
+            >
+              {savingEdit ? 'Guardando…' : 'Guardar cambios'}
+            </button>
+          </>
+        }
+      >
+        <form id="roster-edit-form" className="space-y-3" onSubmit={onSaveEdit}>
+          <label className="block text-sm">
+            <span className="text-slate-700">Nombre completo</span>
+            <input
+              required
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={editName}
+              onChange={(ev) => setEditName(ev.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-700">Celular (opcional)</span>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={editPhone}
+              onChange={(ev) => setEditPhone(ev.target.value)}
+              placeholder="Ej. +52 555 123 4567"
+            />
+          </label>
+          {editTarget?.kind === 'student' ? (
+            <label className="block text-sm">
+              <span className="text-slate-700">Matrícula</span>
+              <input
+                required
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={editMatricula}
+                onChange={(ev) => setEditMatricula(ev.target.value)}
+              />
+            </label>
+          ) : null}
+          {editTarget?.kind === 'teacher' ? (
+            <label className="block text-sm">
+              <span className="text-slate-700">Número de empleado</span>
+              <input
+                required
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={editEmployeeNumber}
+                onChange={(ev) => setEditEmployeeNumber(ev.target.value)}
+              />
+            </label>
+          ) : null}
+        </form>
+      </DetailModal>
     </div>
   );
 }

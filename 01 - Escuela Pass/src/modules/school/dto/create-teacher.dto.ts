@@ -25,6 +25,11 @@ export class CreateTeacherDto {
   fullName!: string;
 
   @IsString()
+  @IsOptional()
+  @MaxLength(30)
+  phone?: string;
+
+  @IsString()
   @MaxLength(50)
   employeeNumber!: string;
 

@@ -350,7 +350,7 @@ export class ExternalVisitsService {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new ForbiddenException('Usuario no encontrado');
     if (role === UserRole.ADMIN) {
-      const sid = schoolIdParam?.trim() || user.schoolId || '';
+      const sid = schoolIdParam?.trim() || '';
       if (!sid) throw new BadRequestException('Admin debe elegir una escuela');
       const schoolRows = await this.dataSource.query<{ id: string }[]>(
         `SELECT id FROM schools WHERE id = $1 LIMIT 1`,

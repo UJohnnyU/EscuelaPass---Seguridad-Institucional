@@ -1,11 +1,6 @@
 import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class UpdateTeacherDto {
-  @IsString()
-  @IsOptional()
-  @MaxLength(50)
-  employeeNumber?: string;
-
+export class UpdateParentDto {
   @IsString()
   @IsOptional()
   @MaxLength(255)
@@ -19,4 +14,8 @@ export class UpdateTeacherDto {
   @IsBoolean()
   @IsOptional()
   canAccessCampus?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isPrimaryContact?: boolean;
 }
