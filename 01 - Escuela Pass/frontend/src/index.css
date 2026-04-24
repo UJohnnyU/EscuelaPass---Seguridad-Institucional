@@ -4,10 +4,13 @@
 
 @layer base {
   html {
-    @apply antialiased text-slate-900;
+    @apply antialiased text-slate-900 overflow-x-hidden;
   }
   body {
-    @apply min-h-screen bg-slate-100 text-slate-900;
+    @apply min-h-screen bg-slate-100 text-slate-900 overflow-x-hidden;
+  }
+  #root {
+    @apply overflow-x-hidden;
   }
   .dark html {
     @apply text-slate-100;
@@ -174,6 +177,22 @@
   .dark .hover\:bg-sky-100:hover,
   .dark .hover\:bg-blue-100:hover {
     background-color: rgba(30, 64, 175, 0.42);
+  }
+
+  /* Hint visual para tablas/listas con scroll horizontal en móvil. */
+  @media (max-width: 768px) {
+    .overflow-x-auto {
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      box-shadow:
+        inset 12px 0 10px -12px rgba(15, 23, 42, 0.25),
+        inset -12px 0 10px -12px rgba(15, 23, 42, 0.25);
+    }
+    .dark .overflow-x-auto {
+      box-shadow:
+        inset 12px 0 10px -12px rgba(148, 163, 184, 0.35),
+        inset -12px 0 10px -12px rgba(148, 163, 184, 0.35);
+    }
   }
 
   @media (prefers-reduced-motion: no-preference) {

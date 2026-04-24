@@ -94,7 +94,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-100 text-slate-900">
+    <div className="flex min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-slate-100 lg:flex">
         <div className="border-b border-slate-800 px-4 py-5">
           <Link to="/app" className="block font-serif text-lg font-semibold tracking-tight text-white">
@@ -126,7 +126,7 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-hidden">
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center gap-3">
             <button
@@ -247,8 +247,8 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-8 lg:px-10">
-          <div className="mx-auto w-full max-w-6xl [&>*]:mx-auto [&>*]:w-full">
+        <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-8 lg:px-10">
+          <div className="mx-auto w-full max-w-6xl min-w-0 [&>*]:mx-auto [&>*]:min-w-0 [&>*]:w-full">
             <Outlet />
           </div>
         </main>

@@ -699,7 +699,7 @@ export function FinanzasStaffTools() {
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onAssignDebt}>
           <label className="text-sm">
             <span className="text-slate-700">Alumno</span>
-            <div className="mt-1 min-w-[14rem]">
+            <div className="mt-1 min-w-0 sm:min-w-[14rem]">
               <SmartSelect
                 loadOptions={loadStudentOptions}
                 value={asStudent}
@@ -710,7 +710,7 @@ export function FinanzasStaffTools() {
           </label>
           <label className="text-sm">
             <span className="text-slate-700">Concepto</span>
-            <div className="mt-1 min-w-[12rem]">
+            <div className="mt-1 min-w-0 sm:min-w-[12rem]">
               <SmartSelect
                 options={conceptOptions}
                 value={asConcept}
@@ -742,7 +742,7 @@ export function FinanzasStaffTools() {
               onChange={(e) => setAsDue(e.target.value)}
             />
           </label>
-          <label className="text-sm min-w-[10rem] flex-1">
+          <label className="text-sm min-w-0 sm:min-w-[10rem] flex-1">
             <span className="text-slate-700">Nota (opcional)</span>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"

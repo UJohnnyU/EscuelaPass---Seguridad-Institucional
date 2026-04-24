@@ -1274,7 +1274,7 @@ function HomePlatformAdmin() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5 overflow-x-hidden">
       {err ? (
         <div className="rounded border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{err}</div>
       ) : null}
@@ -1380,10 +1380,10 @@ function HomePlatformAdmin() {
           {circuitByDay.length === 0 ? (
             <p className="text-slate-500">Sin datos disponibles.</p>
           ) : (
-            <div className="mt-1 overflow-x-auto">
+            <div className="mt-1 max-w-full overflow-x-auto">
               <div
-                className="flex h-40 items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800"
-                style={{ minWidth: `${Math.max(520, circuitByDay.length * 42)}px` }}
+                className="flex h-40 min-w-full items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800"
+                style={{ width: `${Math.max(320, circuitByDay.length * 32)}px` }}
               >
                 {circuitByDay.map((d) => {
                   const total = Number(d.total ?? 0);

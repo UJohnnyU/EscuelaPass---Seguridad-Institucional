@@ -301,7 +301,7 @@ export function ImportExportPage() {
             </select>
           </label>
           {platformAdmin ? (
-            <div className="min-w-[12rem] max-w-md flex-1">
+            <div className="min-w-0 sm:min-w-[12rem] max-w-md flex-1">
               <label className="block text-xs font-medium uppercase text-slate-500">
                 Institución (cabecera y logo en Excel)
               </label>

@@ -388,48 +388,48 @@ export function InstitutionPage() {
           </div>
           {canEditLocationAndLogo && (
             <>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <h3 className="text-sm font-semibold text-slate-900">Ubicación institucional</h3>
-                <p className="mt-1 text-xs text-slate-500">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ubicación institucional</h3>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Coordenadas utilizadas en mapa y documentos oficiales.
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="text-sm">
-                    <span className="text-slate-700">Latitud</span>
+                    <span className="text-slate-700 dark:text-slate-300">Latitud</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       value={form.latitude ?? ''}
                       disabled={!isEditing}
                       onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900 outline-none ring-brand-500/30 focus:ring-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       placeholder="18.48610000"
                     />
                   </label>
                   <label className="text-sm">
-                    <span className="text-slate-700">Longitud</span>
+                    <span className="text-slate-700 dark:text-slate-300">Longitud</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       value={form.longitude ?? ''}
                       disabled={!isEditing}
                       onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900 outline-none ring-brand-500/30 focus:ring-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       placeholder="-69.93120000"
                     />
                   </label>
                 </div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <h3 className="text-sm font-semibold text-slate-900">Logo institucional</h3>
-                <p className="mt-1 text-xs text-slate-500">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Logo institucional</h3>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Imagen oficial para portada, informes y documentos.
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <label
-                    className={`rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 ${
+                    className={`rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 ${
                       isEditing && !uploadingLogo && selectedSchoolId
-                        ? 'cursor-pointer hover:bg-slate-50'
+                        ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800'
                         : 'cursor-not-allowed opacity-60'
                     }`}
                   >
@@ -446,7 +446,7 @@ export function InstitutionPage() {
                       }}
                     />
                   </label>
-                  <span className="text-xs text-slate-500">Formatos: JPG, PNG o WEBP.</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Formatos: JPG, PNG o WEBP.</span>
                 </div>
               </div>
             </>

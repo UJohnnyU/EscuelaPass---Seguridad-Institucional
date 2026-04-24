@@ -234,7 +234,7 @@ export function CircuitTodayPage() {
       )}
       {isAdmin && (
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-          <label className="flex min-w-[14rem] flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+          <label className="flex min-w-0 sm:min-w-[14rem] flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
             Institución
             <div className="mt-0.5">
               <SmartSelect
@@ -267,7 +267,7 @@ export function CircuitTodayPage() {
         </div>
       )}
       <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-        <label className="min-w-[12rem] flex-1 text-sm text-slate-700 dark:text-slate-200">
+        <label className="min-w-0 sm:min-w-[12rem] flex-1 text-sm text-slate-700 dark:text-slate-200">
           Buscar por alumno (nombre o matrícula)
           <input
             type="search"

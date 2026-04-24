@@ -1159,7 +1159,7 @@ export function AcademicoPage() {
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex min-w-0 sm:min-w-[12rem] flex-1 flex-col gap-1 text-sm text-slate-700">
                     Grupo
                     <div className="mt-0.5">
                       <SmartSelect
@@ -1191,7 +1191,7 @@ export function AcademicoPage() {
                       onChange={(e) => setAttendanceRefDate(e.target.value)}
                     />
                   </label>
-                  <label className="flex min-w-[12rem] max-w-md flex-1 flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex min-w-0 sm:min-w-[12rem] max-w-md flex-1 flex-col gap-1 text-sm text-slate-700">
                     Estudiante
                     <div className="mt-0.5">
                       <SmartSelect
@@ -1369,7 +1369,7 @@ export function AcademicoPage() {
                     onChange={(e) => setDocenteSuspendDate(e.target.value)}
                   />
                 </label>
-                <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700">
+                <label className="flex min-w-0 sm:min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700">
                   Motivo (opcional)
                   <input
                     type="text"
@@ -1727,6 +1727,47 @@ export function AdministracionPage() {
     { label: 'Pagos pendientes', value: summary?.payments?.pendingDebts ?? repAtt?.totalPending ?? 0 }
   ];
   const topActions = audit.slice(0, 8);
+  const auditEntityLabel: Record<string, string> = {
+    institution: 'Institución',
+    settings: 'Configuración',
+    circuit: 'Circuito'
+  };
+  const auditActionLabel: Record<string, string> = {
+    'settings.updated': 'Perfil institucional actualizado',
+    'circuit.updated': 'Configuración del circuito actualizada'
+  };
+  const groupedTopActions = useMemo(() => {
+    const buckets = new Map<
+      string,
+      { action?: string; entityType?: string | null; count: number; latestAt?: string }
+    >();
+    for (const item of topActions) {
+      const dateKey = item.createdAt ? new Date(item.createdAt).toISOString().slice(0, 10) : 'sin-fecha';
+      const key = `${dateKey}|${item.action ?? 'x'}|${item.entityType ?? 'x'}`;
+      const prev = buckets.get(key);
+      if (!prev) {
+        buckets.set(key, {
+          action: item.action,
+          entityType: item.entityType,
+          count: 1,
+          latestAt: item.createdAt
+        });
+      } else {
+        const latestAt =
+          prev.latestAt && item.createdAt
+            ? new Date(item.createdAt).getTime() > new Date(prev.latestAt).getTime()
+              ? item.createdAt
+              : prev.latestAt
+            : prev.latestAt ?? item.createdAt;
+        buckets.set(key, { ...prev, count: prev.count + 1, latestAt });
+      }
+    }
+    return Array.from(buckets.values()).sort((a, b) => {
+      const ta = a.latestAt ? new Date(a.latestAt).getTime() : 0;
+      const tb = b.latestAt ? new Date(b.latestAt).getTime() : 0;
+      return tb - ta;
+    });
+  }, [topActions]);
   const latestPayments = (repAtt?.latest ?? []).slice(0, 5);
   const schoolNameById = new Map(schools.map((s) => [s.id, s.name]));
   const circuitStatusLabel: Record<string, string> = {
@@ -1855,16 +1896,19 @@ export function AdministracionPage() {
             </div>
           </Panel>
           <Panel title="Actividad reciente del sistema">
-            {topActions.length === 0 ? (
+            {groupedTopActions.length === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-300">Sin actividad reciente para mostrar.</p>
             ) : (
               <ul className="space-y-2">
-                {topActions.map((item, idx) => (
-                  <li key={`${item.createdAt ?? 'x'}-${idx}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
-                    <p className="font-medium text-slate-900 dark:text-slate-100">{item.action ?? 'Acción del sistema'}</p>
+                {groupedTopActions.map((item, idx) => (
+                  <li key={`${item.latestAt ?? 'x'}-${idx}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                    <p className="font-medium text-slate-900 dark:text-slate-100">
+                      {item.action ? (auditActionLabel[item.action] ?? item.action.replaceAll('.', ' · ')) : 'Acción del sistema'}
+                    </p>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {item.entityType ? `${item.entityType} · ` : ''}
-                      {item.createdAt ? new Date(item.createdAt).toLocaleString('es') : 'Reciente'}
+                      {item.entityType ? `${auditEntityLabel[item.entityType] ?? item.entityType} · ` : ''}
+                      {item.latestAt ? new Date(item.latestAt).toLocaleString('es') : 'Reciente'}
+                      {item.count > 1 ? ` · ${item.count} eventos` : ''}
                     </p>
                   </li>
                 ))}
