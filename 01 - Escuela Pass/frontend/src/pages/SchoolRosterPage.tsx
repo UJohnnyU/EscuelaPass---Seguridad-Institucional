@@ -26,6 +26,7 @@ type StudentRow = {
   userId: string;
   matricula: string;
   groupId: string | null;
+  lifecycleStatus?: 'ACTIVO' | 'BAJA' | 'TRASLADO' | 'EGRESADO';
   fullName: string;
   email: string;
   phone?: string | null;
@@ -36,6 +37,7 @@ type TeacherRow = {
   id: string;
   userId: string;
   employeeNumber: string;
+  lifecycleStatus?: 'ACTIVO' | 'BAJA' | 'TRASLADO' | 'EGRESADO';
   fullName: string;
   email: string;
   phone?: string | null;
@@ -88,6 +90,21 @@ type AssignmentRow = {
   subjectId: string | null;
   isMainTeacher: boolean;
   canAuthorizeDepartures: boolean;
+};
+
+type LifecycleEventRow = {
+  id: string;
+  entityType: 'student' | 'teacher';
+  personId: string;
+  personName: string;
+  schoolId: string;
+  fromStatus: string;
+  toStatus: string;
+  reason: string;
+  effectiveDate: string;
+  changedByUserId: string;
+  changedByName: string;
+  createdAt: string;
 };
 
 type PendingDelete =
@@ -163,6 +180,14 @@ function shiftLabel(shift: string): string {
   return shift;
 }
 
+function lifecycleLabel(v?: string): string {
+  if (v === 'ACTIVO') return 'Activo';
+  if (v === 'BAJA') return 'Baja';
+  if (v === 'TRASLADO') return 'Traslado';
+  if (v === 'EGRESADO') return 'Egresado';
+  return 'Activo';
+}
+
 export function SchoolRosterPage() {
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
@@ -181,6 +206,7 @@ export function SchoolRosterPage() {
   const [parents, setParents] = useState<ParentRow[]>([]);
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
+  const [lifecycleEvents, setLifecycleEvents] = useState<LifecycleEventRow[]>([]);
   const [nextMatriculaHint, setNextMatriculaHint] = useState<string>('');
 
   const [loading, setLoading] = useState(true);
@@ -240,7 +266,11 @@ export function SchoolRosterPage() {
   const [editPhone, setEditPhone] = useState('');
   const [editMatricula, setEditMatricula] = useState('');
   const [editEmployeeNumber, setEditEmployeeNumber] = useState('');
+  const [editLifecycleStatus, setEditLifecycleStatus] = useState<'ACTIVO' | 'BAJA' | 'TRASLADO' | 'EGRESADO'>('ACTIVO');
+  const [editLifecycleReason, setEditLifecycleReason] = useState('');
+  const [editLifecycleEffectiveDate, setEditLifecycleEffectiveDate] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [downloadingLifecycleCsv, setDownloadingLifecycleCsv] = useState(false);
 
   const schoolQuery = useMemo(() => {
     if (platformAdmin && selectedSchoolId) return { schoolId: selectedSchoolId };
@@ -386,7 +416,7 @@ export function SchoolRosterPage() {
     if (!canLoad) return;
     setError(null);
     try {
-      const [g, st, te, pa, asg, lk, sub, tsub, nextMat] = await Promise.all([
+      const [g, st, te, pa, asg, lk, sub, tsub, nextMat, lifecycle] = await Promise.all([
         api.get<GroupRow[]>('/api/v1/school/groups', { params: schoolQuery }),
         api.get<StudentRow[]>('/api/v1/school/students', { params: schoolQuery }),
         api.get<TeacherRow[]>('/api/v1/school/teachers', { params: schoolQuery }),
@@ -395,7 +425,10 @@ export function SchoolRosterPage() {
         api.get<LinkRow[]>('/api/v1/school/student-parent-links', { params: schoolQuery }),
         api.get<SubjectRow[]>('/api/v1/school/subjects', { params: schoolQuery }),
         api.get<TeacherSubjectRow[]>('/api/v1/school/teacher-subjects', { params: schoolQuery }),
-        api.get<{ matricula: string }>('/api/v1/school/students/next-matricula', { params: schoolQuery })
+        api.get<{ matricula: string }>('/api/v1/school/students/next-matricula', { params: schoolQuery }),
+        api.get<LifecycleEventRow[]>('/api/v1/school/lifecycle-events', {
+          params: { ...(schoolQuery ?? {}), limit: 120 }
+        })
       ]);
       setGroups(Array.isArray(g.data) ? g.data : []);
       setStudents(Array.isArray(st.data) ? st.data : []);
@@ -406,10 +439,36 @@ export function SchoolRosterPage() {
       setSubjects(Array.isArray(sub.data) ? sub.data : []);
       setTeacherSubjects(Array.isArray(tsub.data) ? tsub.data : []);
       setNextMatriculaHint(typeof nextMat.data?.matricula === 'string' ? nextMat.data.matricula : '');
+      setLifecycleEvents(Array.isArray(lifecycle.data) ? lifecycle.data : []);
     } catch (e) {
       setError(getUserFacingMessage(e, 'No se pudieron cargar los datos de la escuela.'));
     }
   }, [canLoad, schoolQuery]);
+
+  async function onDownloadLifecycleCsv() {
+    setDownloadingLifecycleCsv(true);
+    setError(null);
+    try {
+      const res = await api.get('/api/v1/school/lifecycle-events/export.csv', {
+        params: { ...(schoolQuery ?? {}), limit: 3000 },
+        responseType: 'blob'
+      });
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' });
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = 'lifecycle-events.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+      setMessage('Export CSV de auditoría lifecycle descargado.');
+    } catch (e) {
+      setError(getUserFacingMessage(e, 'No se pudo exportar la auditoría lifecycle.'));
+    } finally {
+      setDownloadingLifecycleCsv(false);
+    }
+  }
 
   async function onUserAvatarFile(userId: string, file: File) {
     setUploadingAvatarUserId(userId);
@@ -747,6 +806,9 @@ export function SchoolRosterPage() {
     setEditPhone(r.phone ?? '');
     setEditMatricula(r.matricula);
     setEditEmployeeNumber('');
+    setEditLifecycleStatus(r.lifecycleStatus ?? 'ACTIVO');
+    setEditLifecycleReason('');
+    setEditLifecycleEffectiveDate('');
   }
 
   function onEditTeacher(r: TeacherRow) {
@@ -755,6 +817,9 @@ export function SchoolRosterPage() {
     setEditPhone(r.phone ?? '');
     setEditMatricula('');
     setEditEmployeeNumber(r.employeeNumber);
+    setEditLifecycleStatus(r.lifecycleStatus ?? 'ACTIVO');
+    setEditLifecycleReason('');
+    setEditLifecycleEffectiveDate('');
   }
 
   function onEditParent(r: ParentRow) {
@@ -763,6 +828,9 @@ export function SchoolRosterPage() {
     setEditPhone(r.phone ?? '');
     setEditMatricula('');
     setEditEmployeeNumber('');
+    setEditLifecycleStatus('ACTIVO');
+    setEditLifecycleReason('');
+    setEditLifecycleEffectiveDate('');
   }
 
   function closeEditModal() {
@@ -772,6 +840,9 @@ export function SchoolRosterPage() {
     setEditPhone('');
     setEditMatricula('');
     setEditEmployeeNumber('');
+    setEditLifecycleStatus('ACTIVO');
+    setEditLifecycleReason('');
+    setEditLifecycleEffectiveDate('');
   }
 
   async function onSaveEdit(e: FormEvent) {
@@ -798,6 +869,20 @@ export function SchoolRosterPage() {
           phone: editPhone.trim() || null,
           matricula: nextMat
         });
+        const prevLifecycle = editTarget.row.lifecycleStatus ?? 'ACTIVO';
+        if (editLifecycleStatus !== prevLifecycle) {
+          const reason = editLifecycleReason.trim();
+          if (!reason) {
+            setError('Para cambiar el estado de vida debe indicar un motivo.');
+            setSavingEdit(false);
+            return;
+          }
+          await api.post(`/api/v1/school/students/${editTarget.row.id}/lifecycle-transition`, {
+            toStatus: editLifecycleStatus,
+            reason,
+            effectiveDate: editLifecycleEffectiveDate || undefined
+          });
+        }
         setMessage('Alumno actualizado.');
       } else if (editTarget.kind === 'teacher') {
         const nextEmployee = editEmployeeNumber.trim();
@@ -811,6 +896,20 @@ export function SchoolRosterPage() {
           phone: editPhone.trim() || null,
           employeeNumber: nextEmployee
         });
+        const prevLifecycle = editTarget.row.lifecycleStatus ?? 'ACTIVO';
+        if (editLifecycleStatus !== prevLifecycle) {
+          const reason = editLifecycleReason.trim();
+          if (!reason) {
+            setError('Para cambiar el estado de vida debe indicar un motivo.');
+            setSavingEdit(false);
+            return;
+          }
+          await api.post(`/api/v1/school/teachers/${editTarget.row.id}/lifecycle-transition`, {
+            toStatus: editLifecycleStatus,
+            reason,
+            effectiveDate: editLifecycleEffectiveDate || undefined
+          });
+        }
         setMessage('Docente actualizado.');
       } else {
         await api.patch(`/api/v1/school/parents/${editTarget.row.id}`, {
@@ -887,6 +986,56 @@ export function SchoolRosterPage() {
           {error}
         </p>
       )}
+
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Auditoría lifecycle</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Historial consolidado de bajas, traslados, egresos y reactivaciones de alumnos y docentes.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+            onClick={() => void onDownloadLifecycleCsv()}
+            disabled={downloadingLifecycleCsv}
+          >
+            {downloadingLifecycleCsv ? 'Descargando…' : 'Exportar CSV'}
+          </button>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-600">
+                <th className="py-2 pr-4 font-medium">Fecha</th>
+                <th className="py-2 pr-4 font-medium">Tipo</th>
+                <th className="py-2 pr-4 font-medium">Persona</th>
+                <th className="py-2 pr-4 font-medium">Transición</th>
+                <th className="py-2 pr-4 font-medium">Motivo</th>
+                <th className="py-2 font-medium">Responsable</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lifecycleEvents.map((row) => (
+                <tr key={row.id} className="border-b border-slate-100">
+                  <td className="py-2 pr-4">{new Date(row.createdAt).toLocaleString()}</td>
+                  <td className="py-2 pr-4">{row.entityType === 'student' ? 'Alumno' : 'Docente'}</td>
+                  <td className="py-2 pr-4">{row.personName}</td>
+                  <td className="py-2 pr-4">
+                    {lifecycleLabel(row.fromStatus)} {'->'} {lifecycleLabel(row.toStatus)}
+                  </td>
+                  <td className="py-2 pr-4">{row.reason}</td>
+                  <td className="py-2">{row.changedByName}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {lifecycleEvents.length === 0 ? (
+            <p className="mt-2 text-slate-500">Sin eventos lifecycle para esta escuela.</p>
+          ) : null}
+        </div>
+      </section>
 
       <section className="mt-10 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Grupos</h2>
@@ -1081,6 +1230,7 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">Matrícula</th>
                 <th className="py-2 pr-4 font-medium">Celular</th>
+                <th className="py-2 pr-4 font-medium">Estado</th>
                 <th className="min-w-[14rem] py-2 font-medium">Grupo</th>
                 <th className="py-2 font-medium">Acciones</th>
               </tr>
@@ -1100,6 +1250,7 @@ export function SchoolRosterPage() {
                   <td className="py-2 pr-4 align-middle">{r.fullName}</td>
                   <td className="py-2 pr-4 align-middle">{r.matricula}</td>
                   <td className="py-2 pr-4 align-middle">{r.phone?.trim() ? r.phone : '—'}</td>
+                  <td className="py-2 pr-4 align-middle">{lifecycleLabel(r.lifecycleStatus)}</td>
                   <td className="py-2 align-middle">
                     {(() => {
                       const selectableGroups = groupCapacityRows.filter(
@@ -1352,6 +1503,7 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">No. empleado</th>
                 <th className="py-2 pr-4 font-medium">Asignaturas</th>
                 <th className="py-2 pr-4 font-medium">Celular</th>
+                <th className="py-2 pr-4 font-medium">Estado</th>
                 <th className="py-2 font-medium">Correo</th>
                 <th className="py-2 font-medium">Acciones</th>
               </tr>
@@ -1378,6 +1530,7 @@ export function SchoolRosterPage() {
                       : '—'}
                   </td>
                   <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
+                  <td className="py-2 pr-4">{lifecycleLabel(r.lifecycleStatus)}</td>
                   <td className="py-2">{r.email}</td>
                   <td className="py-2">
                     <div className="flex gap-2">
@@ -1879,6 +2032,44 @@ export function SchoolRosterPage() {
                 onChange={(ev) => setEditEmployeeNumber(ev.target.value)}
               />
             </label>
+          ) : null}
+          {editTarget?.kind === 'student' || editTarget?.kind === 'teacher' ? (
+            <>
+              <label className="block text-sm">
+                <span className="text-slate-700">Estado de vida</span>
+                <select
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                  value={editLifecycleStatus}
+                  onChange={(ev) =>
+                    setEditLifecycleStatus(ev.target.value as 'ACTIVO' | 'BAJA' | 'TRASLADO' | 'EGRESADO')
+                  }
+                >
+                  <option value="ACTIVO">Activo</option>
+                  <option value="BAJA">Baja</option>
+                  <option value="TRASLADO">Traslado</option>
+                  <option value="EGRESADO">Egresado</option>
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-700">Motivo de transición (si cambia estado)</span>
+                <textarea
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                  rows={2}
+                  value={editLifecycleReason}
+                  onChange={(ev) => setEditLifecycleReason(ev.target.value)}
+                  placeholder="Ej. Baja administrativa por retiro voluntario"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-700">Fecha efectiva (opcional)</span>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                  value={editLifecycleEffectiveDate}
+                  onChange={(ev) => setEditLifecycleEffectiveDate(ev.target.value)}
+                />
+              </label>
+            </>
           ) : null}
         </form>
       </DetailModal>

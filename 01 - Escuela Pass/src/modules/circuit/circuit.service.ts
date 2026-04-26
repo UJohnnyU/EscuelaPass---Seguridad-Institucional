@@ -17,8 +17,8 @@ import {
 } from '../../database/entities/circuit-request.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
-import { StudentEntity } from '../../database/entities/student.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
@@ -172,6 +172,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   async create(payload: CreateCircuitRequestDto) {
     const student = await this.studentsRepository.findOne({ where: { id: payload.studentId } });
     if (!student) throw new NotFoundException('Estudiante no existe');
+    if (student.lifecycleStatus !== StudentLifecycleStatus.ACTIVO) {
+      throw new BadRequestException('Solo estudiantes ACTIVO pueden usar el circuito de recogida');
+    }
     if (!(await this.settingsService.isCircuitEnabled(student.schoolId))) {
       throw new BadRequestException('El circuito de recogida está deshabilitado por la institución.');
     }
@@ -869,6 +872,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   private async assertTeacherAssignedToGroup(userId: string, groupId: string) {
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para operar en circuito');
+    }
 
     const tg = await this.teacherGroupsRepository.findOne({
       where: { teacherId: teacher.id, groupId }

@@ -5,6 +5,10 @@ export class RegisterAttendanceDto {
   @IsUUID()
   studentId!: string;
 
+  @IsOptional()
+  @IsUUID('4')
+  classSessionId?: string;
+
   @IsEnum(AttendanceStatus)
   status!: AttendanceStatus;
 

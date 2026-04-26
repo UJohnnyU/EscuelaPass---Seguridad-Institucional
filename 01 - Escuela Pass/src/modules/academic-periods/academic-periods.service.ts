@@ -14,6 +14,7 @@ import {
   AcademicPeriodStatus
 } from '../../database/entities/academic-period.entity';
 import { ReportCardType } from '../../database/entities/report-card.entity';
+import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AcademicNotificationsService } from '../academic-notifications/academic-notifications.service';
 import { ActivitiesService } from '../activities/activities.service';
@@ -35,6 +36,25 @@ export type AcademicPeriodListItem = {
   reopenedAt: string | null;
 };
 
+export type AcademicPolicyEffective = {
+  schoolId: string;
+  schoolYear: string;
+  maxGradeScale: string;
+  passingGrade: string;
+  minFailedSubjectsToRepeat: number;
+  periods: Array<{
+    id: string;
+    name: string;
+    orderIndex: number;
+    status: AcademicPeriodStatus;
+    weight: string;
+    startDate: string;
+    endDate: string;
+  }>;
+  totalWeight: string;
+  remainingWeight: string;
+};
+
 @Injectable()
 export class AcademicPeriodsService {
   private readonly logger = new Logger(AcademicPeriodsService.name);
@@ -44,6 +64,8 @@ export class AcademicPeriodsService {
     private readonly dataSource: DataSource,
     @InjectRepository(AcademicPeriodEntity)
     private readonly periodsRepository: Repository<AcademicPeriodEntity>,
+    @InjectRepository(SchoolEntity)
+    private readonly schoolsRepository: Repository<SchoolEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
     private readonly activitiesService: ActivitiesService,
@@ -104,6 +126,72 @@ export class AcademicPeriodsService {
     qb.orderBy('p.school_year', 'DESC').addOrderBy('p.order_index', 'ASC');
     const rows = await qb.getMany();
     return rows.map((r) => this.rowToDto(r));
+  }
+
+  async getEffectivePolicy(
+    userId: string,
+    role: UserRole,
+    filters: { schoolId?: string; schoolYear?: string }
+  ): Promise<AcademicPolicyEffective> {
+    const schoolId = await this.resolveSchoolIdForUser(userId, role, filters.schoolId);
+    const school = await this.schoolsRepository.findOne({ where: { id: schoolId } });
+    if (!school) throw new NotFoundException('Escuela no encontrada');
+
+    const qb = this.periodsRepository
+      .createQueryBuilder('p')
+      .where('p.school_id = :sid', { sid: schoolId });
+    if (filters.schoolYear?.trim()) {
+      qb.andWhere('p.school_year = :sy', { sy: filters.schoolYear.trim() });
+    } else {
+      // Año preferido: ACTIVO > PLANEADO > más reciente.
+      qb.orderBy(
+        `CASE
+           WHEN p.status = '${AcademicPeriodStatus.ACTIVE}' THEN 0
+           WHEN p.status = '${AcademicPeriodStatus.PLANNED}' THEN 1
+           ELSE 2
+         END`,
+        'ASC'
+      ).addOrderBy('p.school_year', 'DESC').addOrderBy('p.order_index', 'ASC');
+      const hinted = await qb.getMany();
+      const targetYear = hinted[0]?.schoolYear;
+      if (!targetYear) {
+        return {
+          schoolId,
+          schoolYear: filters.schoolYear?.trim() || new Date().getFullYear().toString(),
+          maxGradeScale: school.maxGradeScale ?? '100.00',
+          passingGrade: school.passingGrade ?? '0.00',
+          minFailedSubjectsToRepeat: school.minFailedSubjectsToRepeat ?? 3,
+          periods: [],
+          totalWeight: '0.00',
+          remainingWeight: '100.00'
+        };
+      }
+      return this.getEffectivePolicy(userId, role, { schoolId, schoolYear: targetYear });
+    }
+
+    qb.orderBy('p.order_index', 'ASC');
+    const periods = await qb.getMany();
+    const totalWeight = periods.reduce((acc, p) => acc + (Number(p.weight) || 0), 0);
+    const remaining = Math.max(0, 100 - totalWeight);
+
+    return {
+      schoolId,
+      schoolYear: filters.schoolYear?.trim() || '',
+      maxGradeScale: school.maxGradeScale ?? '100.00',
+      passingGrade: school.passingGrade ?? '0.00',
+      minFailedSubjectsToRepeat: school.minFailedSubjectsToRepeat ?? 3,
+      periods: periods.map((p) => ({
+        id: p.id,
+        name: p.name,
+        orderIndex: p.orderIndex,
+        status: p.status,
+        weight: p.weight,
+        startDate: p.startDate,
+        endDate: p.endDate
+      })),
+      totalWeight: totalWeight.toFixed(2),
+      remainingWeight: remaining.toFixed(2)
+    };
   }
 
   async listForRoleVisible(

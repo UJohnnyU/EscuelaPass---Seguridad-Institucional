@@ -2,6 +2,10 @@ import { IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } fro
 
 export class UpdateScheduleSlotDto {
   @IsOptional()
+  @IsUUID('4')
+  groupId?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(6)

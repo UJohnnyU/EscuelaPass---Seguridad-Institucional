@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
+import { ClassSessionEntity } from '../../database/entities/class-session.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
@@ -15,6 +16,7 @@ import { AttendanceService } from './attendance.service';
     SchoolCalendarModule,
     TypeOrmModule.forFeature([
       AttendanceRecordEntity,
+      ClassSessionEntity,
       StudentEntity,
       TeacherEntity,
       ParentEntity

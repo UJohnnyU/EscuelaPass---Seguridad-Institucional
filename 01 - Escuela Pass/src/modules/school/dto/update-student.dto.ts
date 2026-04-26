@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { StudentLifecycleStatus } from '../../../database/entities/student.entity';
 
 export class UpdateStudentDto {
   @IsUUID()
@@ -27,4 +28,8 @@ export class UpdateStudentDto {
   @IsBoolean()
   @IsOptional()
   canAccessCampus?: boolean;
+
+  @IsEnum(StudentLifecycleStatus)
+  @IsOptional()
+  lifecycleStatus?: StudentLifecycleStatus;
 }

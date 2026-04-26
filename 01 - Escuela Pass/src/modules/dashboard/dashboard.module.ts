@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccessEventEntity } from '../../database/entities/access-event.entity';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { CircuitRequestEntity } from '../../database/entities/circuit-request.entity';
+import { DebtAdjustmentEntity } from '../../database/entities/debt-adjustment.entity';
 import { DebtEntity } from '../../database/entities/debt.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
@@ -28,6 +29,7 @@ import { DashboardService } from './dashboard.service';
     TypeOrmModule.forFeature([
       AttendanceRecordEntity,
       DebtEntity,
+      DebtAdjustmentEntity,
       CircuitRequestEntity,
       AccessEventEntity,
       StudentEntity,

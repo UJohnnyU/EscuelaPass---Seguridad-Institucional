@@ -6,7 +6,7 @@ import { Repository } from 'typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { resolveUploadFile } from '../../lib/uploads-path';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
@@ -375,6 +375,9 @@ export class ExportsService {
 
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para exportar datos de grupo');
+    }
 
     const rows = await this.teachersRepository.manager.query<{ ok: boolean }[]>(
       `SELECT EXISTS (

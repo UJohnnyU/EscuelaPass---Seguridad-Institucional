@@ -11,6 +11,7 @@ import { UserEntity } from '../../database/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { FcmModule } from '../fcm/fcm.module';
 import { NotificationsController } from './notifications.controller';
+import { NoticesRemindersScheduler } from './notices-reminders.scheduler';
 import { NoticesController } from './notices.controller';
 import { NoticesService } from './notices.service';
 
@@ -30,7 +31,7 @@ import { NoticesService } from './notices.service';
     ])
   ],
   controllers: [NoticesController, NotificationsController],
-  providers: [NoticesService],
+  providers: [NoticesService, NoticesRemindersScheduler],
   exports: [NoticesService]
 })
 export class NoticesModule {}

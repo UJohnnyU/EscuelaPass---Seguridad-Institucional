@@ -8,12 +8,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AdministrativeStaffEntity } from '../../database/entities/administrative-staff.entity';
+import { DebtAdjustmentActionType, DebtAdjustmentEntity } from '../../database/entities/debt-adjustment.entity';
 import { DebtEntity, PaymentStatus } from '../../database/entities/debt.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { PaymentConceptEntity } from '../../database/entities/payment-concept.entity';
 import { PaymentRecordEntity } from '../../database/entities/payment-record.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
-import { StudentEntity } from '../../database/entities/student.entity';
+import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { FcmService } from '../fcm/fcm.service';
 import { CreateConceptDto } from './dto/create-concept.dto';
@@ -46,6 +47,8 @@ export class PaymentsService {
     private readonly conceptsRepository: Repository<PaymentConceptEntity>,
     @InjectRepository(DebtEntity)
     private readonly debtsRepository: Repository<DebtEntity>,
+    @InjectRepository(DebtAdjustmentEntity)
+    private readonly debtAdjustmentsRepository: Repository<DebtAdjustmentEntity>,
     @InjectRepository(PaymentRecordEntity)
     private readonly paymentsRepository: Repository<PaymentRecordEntity>,
     @InjectRepository(StudentEntity)
@@ -166,6 +169,9 @@ export class PaymentsService {
   async createDebt(dto: CreateDebtDto, userId: string, role: UserRole) {
     const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
+    if (student.lifecycleStatus !== StudentLifecycleStatus.ACTIVO) {
+      throw new BadRequestException('Solo se pueden registrar deudas para estudiantes ACTIVO');
+    }
     if (role === UserRole.ADMINISTRATIVO) {
       await this.assertAdministrativeCanAccessStudent(userId, dto.studentId);
     }
@@ -532,6 +538,173 @@ export class PaymentsService {
     return { message: 'Comprobante rechazado; se notificó a la familia.', debtId: debt.id };
   }
 
+  async listDebtAdjustments(
+    page = 1,
+    limit = 50,
+    userId?: string,
+    role?: UserRole,
+    schoolId?: string
+  ) {
+    const take = Math.min(Math.max(limit, 1), 200);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const qb = this.debtAdjustmentsRepository
+      .createQueryBuilder('da')
+      .innerJoin('debts', 'd', 'd.id = da.debt_id')
+      .innerJoin('students', 's', 's.id = d.student_id')
+      .innerJoin('users', 'su', 'su.id = s.user_id')
+      .leftJoin('users', 'cu', 'cu.id = da.changed_by_user_id')
+      .select([
+        'da.id AS id',
+        'da.debt_id AS "debtId"',
+        'da.school_id AS "schoolId"',
+        'da.action_type AS "actionType"',
+        'da.previous_amount::text AS "previousAmount"',
+        'da.delta_amount::text AS "deltaAmount"',
+        'da.next_amount::text AS "nextAmount"',
+        'da.reason AS reason',
+        'da.policy_cycle_date AS "policyCycleDate"',
+        'da.changed_by_user_id AS "changedByUserId"',
+        'da.metadata AS metadata',
+        'da.created_at AS "createdAt"',
+        'su.full_name AS "studentName"',
+        's.matricula AS matricula',
+        'cu.full_name AS "changedByName"'
+      ])
+      .orderBy('da.created_at', 'DESC')
+      .skip(skip)
+      .take(take);
+    if (role === UserRole.ADMINISTRATIVO && userId) {
+      qb.innerJoin('users', 'au', 'au.id = :uid', { uid: userId }).andWhere('au.school_id = da.school_id');
+    } else if (schoolId?.trim()) {
+      qb.andWhere('da.school_id = :sid', { sid: schoolId.trim() });
+    }
+    const countQb = qb.clone();
+    const total = await countQb.getCount();
+    const data = await qb.getRawMany();
+    return {
+      data,
+      meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
+    };
+  }
+
+  async runDebtPolicies(changedByUserId?: string | null) {
+    const rows = await this.debtsRepository
+      .createQueryBuilder('d')
+      .innerJoin('students', 's', 's.id = d.student_id')
+      .innerJoin('users', 'su', 'su.id = s.user_id')
+      .select([
+        'd.id AS id',
+        'd.student_id AS "studentId"',
+        'd.amount::text AS amount',
+        'd.due_date AS "dueDate"',
+        'd.status AS status',
+        'su.school_id AS "schoolId"'
+      ])
+      .where('d.status IN (:...statuses)', {
+        statuses: [PaymentStatus.PENDIENTE, PaymentStatus.VENCIDO]
+      })
+      .getRawMany<{
+        id: string;
+        studentId: string;
+        amount: string;
+        dueDate: string;
+        status: PaymentStatus;
+        schoolId: string | null;
+      }>();
+    const today = new Date().toISOString().slice(0, 10);
+    let markedOverdue = 0;
+    let lateFeeApplied = 0;
+    for (const row of rows) {
+      if (!row.schoolId) continue;
+      const dueDateYmd =
+        typeof row.dueDate === 'string'
+          ? row.dueDate.slice(0, 10)
+          : new Date(row.dueDate as unknown as Date).toISOString().slice(0, 10);
+      if (dueDateYmd >= today) continue;
+      if (row.status !== PaymentStatus.VENCIDO) {
+        await this.debtsRepository.update({ id: row.id }, { status: PaymentStatus.VENCIDO });
+        await this.appendDebtAdjustment({
+          debtId: row.id,
+          schoolId: row.schoolId,
+          actionType: DebtAdjustmentActionType.STATUS_CHANGE,
+          previousAmount: row.amount,
+          deltaAmount: '0',
+          nextAmount: row.amount,
+          reason: 'Marcada como vencida por política automática',
+          changedByUserId: changedByUserId ?? null,
+          policyCycleDate: today,
+          metadata: { fromStatus: row.status, toStatus: PaymentStatus.VENCIDO }
+        });
+        markedOverdue += 1;
+      }
+      const existingLateFee = await this.debtAdjustmentsRepository.findOne({
+        where: { debtId: row.id, actionType: DebtAdjustmentActionType.LATE_FEE }
+      });
+      if (existingLateFee) continue;
+      const prev = Number.parseFloat(row.amount);
+      if (Number.isNaN(prev) || prev <= 0) continue;
+      const fee = Number((prev * 0.05).toFixed(2));
+      if (fee <= 0) continue;
+      const next = Number((prev + fee).toFixed(2));
+      await this.debtsRepository.update({ id: row.id }, { amount: next.toFixed(2), status: PaymentStatus.VENCIDO });
+      await this.appendDebtAdjustment({
+        debtId: row.id,
+        schoolId: row.schoolId,
+        actionType: DebtAdjustmentActionType.LATE_FEE,
+        previousAmount: prev.toFixed(2),
+        deltaAmount: fee.toFixed(2),
+        nextAmount: next.toFixed(2),
+        reason: 'Recargo automático por mora (5%)',
+        changedByUserId: changedByUserId ?? null,
+        policyCycleDate: today,
+        metadata: { percent: 5 }
+      });
+      lateFeeApplied += 1;
+    }
+    return { checked: rows.length, markedOverdue, lateFeeApplied };
+  }
+
+  async applyArrangement(debtId: string, userId: string, role: UserRole, dto: { discountPercent: number; reason: string }) {
+    if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO) {
+      throw new ForbiddenException('Solo personal autorizado puede aplicar convenios');
+    }
+    const debt = await this.debtsRepository.findOne({ where: { id: debtId } });
+    if (!debt) throw new NotFoundException('Deuda no encontrada');
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessStudent(userId, debt.studentId);
+    }
+    const percent = Number(dto.discountPercent);
+    if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+      throw new BadRequestException('El porcentaje de descuento debe estar entre 0 y 100');
+    }
+    const prev = Number.parseFloat(debt.amount);
+    if (Number.isNaN(prev) || prev <= 0) {
+      throw new BadRequestException('Monto de deuda inválido para aplicar convenio');
+    }
+    const discount = Number(((prev * percent) / 100).toFixed(2));
+    const next = Number(Math.max(0, prev - discount).toFixed(2));
+    debt.amount = next.toFixed(2);
+    if (debt.status === PaymentStatus.VENCIDO) {
+      debt.status = PaymentStatus.PENDIENTE;
+    }
+    debt.notes = dto.reason.trim();
+    await this.debtsRepository.save(debt);
+    const schoolId = await this.resolveSchoolIdForDebt(debt.id);
+    await this.appendDebtAdjustment({
+      debtId: debt.id,
+      schoolId,
+      actionType: DebtAdjustmentActionType.ARRANGEMENT,
+      previousAmount: prev.toFixed(2),
+      deltaAmount: (-discount).toFixed(2),
+      nextAmount: next.toFixed(2),
+      reason: `Convenio aplicado (${percent.toFixed(2)}%): ${dto.reason.trim()}`,
+      changedByUserId: userId,
+      policyCycleDate: null,
+      metadata: { discountPercent: percent }
+    });
+    return { message: 'Convenio aplicado', debtId: debt.id, previousAmount: prev.toFixed(2), nextAmount: next.toFixed(2) };
+  }
+
   private async studentDisplayNameForPayment(studentId: string): Promise<string> {
     const row = await this.studentsRepository.manager.query<{ full_name: string | null }[]>(
       `SELECT u.full_name FROM students s INNER JOIN users u ON u.id = s.user_id WHERE s.id = $1 LIMIT 1`,
@@ -590,5 +763,47 @@ export class PaymentsService {
     if (!rows[0]?.ok) {
       throw new ForbiddenException('No autorizado en esta institución');
     }
+  }
+
+  private async resolveSchoolIdForDebt(debtId: string): Promise<string> {
+    const rows = await this.debtsRepository.manager.query<{ school_id: string | null }[]>(
+      `SELECT su.school_id
+       FROM debts d
+       INNER JOIN students s ON s.id = d.student_id
+       INNER JOIN users su ON su.id = s.user_id
+       WHERE d.id = $1
+       LIMIT 1`,
+      [debtId]
+    );
+    const schoolId = rows[0]?.school_id?.trim();
+    if (!schoolId) throw new BadRequestException('No se pudo resolver la escuela de la deuda');
+    return schoolId;
+  }
+
+  private async appendDebtAdjustment(payload: {
+    debtId: string;
+    schoolId: string;
+    actionType: DebtAdjustmentActionType;
+    previousAmount: string;
+    deltaAmount: string;
+    nextAmount: string;
+    reason: string;
+    changedByUserId: string | null;
+    policyCycleDate: string | null;
+    metadata?: Record<string, unknown> | null;
+  }) {
+    const row = this.debtAdjustmentsRepository.create({
+      debtId: payload.debtId,
+      schoolId: payload.schoolId,
+      actionType: payload.actionType,
+      previousAmount: payload.previousAmount,
+      deltaAmount: payload.deltaAmount,
+      nextAmount: payload.nextAmount,
+      reason: payload.reason,
+      changedByUserId: payload.changedByUserId,
+      policyCycleDate: payload.policyCycleDate,
+      metadata: payload.metadata ?? null
+    });
+    await this.debtAdjustmentsRepository.save(row);
   }
 }

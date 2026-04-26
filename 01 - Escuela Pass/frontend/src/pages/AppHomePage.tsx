@@ -112,32 +112,6 @@ type Notification = {
   readAt?: string | null;
 };
 
-type HomeAdminApiPayload = {
-  asOf?: string;
-  role?: string;
-  blocks?: {
-    operationalSummary?: {
-      entities?: {
-        students?: number;
-        teachers?: number;
-        groups?: number;
-        usersActive?: number;
-        usersByRole?: Record<string, number>;
-      };
-      attendanceToday?: { total?: number; byStatus?: Record<string, number> };
-      payments?: { pendingDebts?: number; overdueDebts?: number; pendingWithVoucher?: number };
-      circuitToday?: { total?: number; byStatus?: Record<string, number> };
-      accessToday?: { total?: number; byType?: Record<string, number> };
-    };
-    panel?: {
-      window?: { label?: string; startDate?: string; endDate?: string };
-      circuits?: { byDay?: Array<{ date: string; total: number }> };
-      visits?: { pendingApproval?: number };
-    };
-    meetings?: unknown;
-  };
-};
-
 type OperationalSummary = {
   entities?: {
     students?: number;

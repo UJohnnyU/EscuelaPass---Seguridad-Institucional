@@ -13,8 +13,8 @@ import {
 import { ActivityEntity, ActivityStatus } from '../../database/entities/activity.entity';
 import { ActivityGradeEntity } from '../../database/entities/activity-grade.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
-import { StudentEntity } from '../../database/entities/student.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { AcademicNotificationsService } from '../academic-notifications/academic-notifications.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
@@ -229,6 +229,19 @@ export class ActivitiesService {
     return row;
   }
 
+  private async assertActivityPeriodOpenForMutation(activity: ActivityEntity): Promise<void> {
+    if (!activity.periodId) return;
+    const period = await this.periodsRepository.findOne({ where: { id: activity.periodId } });
+    if (!period) {
+      throw new NotFoundException('Periodo académico de la actividad no encontrado');
+    }
+    if (period.status === AcademicPeriodStatus.CLOSED) {
+      throw new BadRequestException(
+        'El periodo está cerrado. No se permiten cambios en actividades o calificaciones.'
+      );
+    }
+  }
+
   private async assertCanManageActivity(
     activity: ActivityEntity,
     userId: string,
@@ -350,6 +363,7 @@ export class ActivitiesService {
   ): Promise<ActivityEntity> {
     const activity = await this.loadActivityOrFail(id);
     await this.assertCanManageActivity(activity, userId, role);
+    await this.assertActivityPeriodOpenForMutation(activity);
     if (activity.status !== ActivityStatus.OPEN) {
       throw new BadRequestException('No se puede editar una actividad cerrada. Reábrela primero.');
     }
@@ -401,6 +415,7 @@ export class ActivitiesService {
   async remove(id: string, userId: string, role: UserRole): Promise<{ ok: true }> {
     const activity = await this.loadActivityOrFail(id);
     await this.assertCanManageActivity(activity, userId, role);
+    await this.assertActivityPeriodOpenForMutation(activity);
     const count = await this.activityGradesRepository.count({ where: { activityId: id } });
     if (count > 0 && role === UserRole.DOCENTE) {
       throw new BadRequestException(
@@ -418,6 +433,7 @@ export class ActivitiesService {
   async close(id: string, userId: string, role: UserRole): Promise<ActivityEntity> {
     const activity = await this.loadActivityOrFail(id);
     await this.assertCanManageActivity(activity, userId, role);
+    await this.assertActivityPeriodOpenForMutation(activity);
     if (activity.status === ActivityStatus.CLOSED) return activity;
 
     const saved = await this.dataSource.transaction(async (mgr) => {
@@ -488,6 +504,7 @@ export class ActivitiesService {
   async reopen(id: string, userId: string, role: UserRole): Promise<ActivityEntity> {
     const activity = await this.loadActivityOrFail(id);
     await this.assertCanManageActivity(activity, userId, role);
+    await this.assertActivityPeriodOpenForMutation(activity);
     if (activity.status === ActivityStatus.OPEN) return activity;
     activity.status = ActivityStatus.OPEN;
     activity.reopenedAt = new Date();
@@ -715,6 +732,7 @@ export class ActivitiesService {
   ): Promise<{ ok: true; count: number }> {
     const activity = await this.loadActivityOrFail(id);
     await this.assertCanManageActivity(activity, userId, role);
+    await this.assertActivityPeriodOpenForMutation(activity);
     if (activity.status !== ActivityStatus.OPEN) {
       throw new BadRequestException(
         'La actividad está cerrada. Reábrela para modificar las calificaciones.'
@@ -743,6 +761,9 @@ export class ActivitiesService {
         if (!student) throw new NotFoundException(`Estudiante no encontrado: ${entry.studentId}`);
         if (student.groupId !== activity.groupId) {
           throw new BadRequestException('El estudiante no pertenece al grupo de la actividad');
+        }
+        if (student.lifecycleStatus !== StudentLifecycleStatus.ACTIVO) {
+          throw new BadRequestException('No se puede calificar estudiantes con estado distinto a ACTIVO');
         }
 
         const scoreFixed = this.normalizeScoreTo2(entry.score).toFixed(2);
@@ -877,14 +898,23 @@ export class ActivitiesService {
    */
   private async ensureTeacherProfile(userId: string) {
     const existing = await this.teachersRepository.findOne({ where: { userId } });
-    if (existing) return existing;
+    if (existing) {
+      if (existing.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+        throw new ForbiddenException('El docente no está activo para operar actividades');
+      }
+      return existing;
+    }
     const compact = userId.replace(/-/g, '');
     for (let i = 0; i < 20; i++) {
       const suffix = i === 0 ? '' : `-${i}`;
       const placeholder = `SE-${(compact + suffix).slice(0, 44)}`.slice(0, 50);
       const clash = await this.teachersRepository.findOne({ where: { employeeNumber: placeholder } });
       if (clash) continue;
-      const created = this.teachersRepository.create({ userId, employeeNumber: placeholder });
+      const created = this.teachersRepository.create({
+        userId,
+        employeeNumber: placeholder,
+        lifecycleStatus: TeacherLifecycleStatus.ACTIVO
+      });
       try {
         return await this.teachersRepository.save(created);
       } catch {

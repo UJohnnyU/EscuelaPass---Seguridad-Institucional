@@ -8,7 +8,7 @@ import {
 } from '../../database/entities/student-attention-note.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { CreateAttentionNoteDto } from './dto/create-attention-note.dto';
 
@@ -57,6 +57,9 @@ export class AttentionNotesService {
     } else if (role === UserRole.DOCENTE) {
       const teacher = await this.teachersRepository.findOne({ where: { userId } });
       if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+      if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+        throw new ForbiddenException('El docente no está activo para consultar anotaciones');
+      }
 
       const ok = await this.dataSource.query<{ ok: boolean }[]>(
         `SELECT EXISTS (
@@ -186,6 +189,9 @@ export class AttentionNotesService {
     if (!student.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para crear anotaciones');
+    }
     const rows = await this.dataSource.query<{ ok: boolean }[]>(
       `SELECT EXISTS (
         SELECT 1 FROM teacher_groups WHERE teacher_id = $1 AND group_id = $2

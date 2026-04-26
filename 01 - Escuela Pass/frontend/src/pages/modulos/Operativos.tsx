@@ -27,7 +27,7 @@ import {
   WeekScheduleGrid
 } from '@/components/WeekScheduleGrid';
 import { useAuth } from '@/context/useAuth';
-import { hasRole, isAdmin, isPlatformAdmin, isStaff } from '@/lib/roles';
+import { hasRole, isAdmin, isPlatformAdmin } from '@/lib/roles';
 import { uploadReportEvidence } from '@/lib/uploads-api';
 import axios from 'axios';
 
@@ -51,10 +51,20 @@ type TeacherAttendanceStudentRow = { studentId: string; matricula: string; fullN
 type TeacherAttendanceRecordRow = {
   id: string;
   studentId: string;
+  classSessionId?: string | null;
   status: 'PRESENTE' | 'AUSENTE' | 'RETARDO';
   isJustified: boolean | null;
   notes: string | null;
   attendanceDate: string;
+};
+
+type GroupClassSessionRow = {
+  id: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  subjectId?: string | null;
+  room?: string | null;
 };
 
 type DayAttendanceResponse = {
@@ -658,7 +668,6 @@ export function AcademicoPage() {
     days: Array<{ id: string; exceptionDate: string; reason: string | null }>;
   };
   const [att, setAtt] = useState<unknown>(null);
-  const [grades, setGrades] = useState<unknown>(null);
   const [err, setErr] = useState<string | null>(null);
   const [childrenSchedule, setChildrenSchedule] = useState<ParentScheduleChild[] | null>(null);
   const [childrenCalendar, setChildrenCalendar] = useState<ParentCalendarChild[] | null>(null);
@@ -675,6 +684,9 @@ export function AcademicoPage() {
     null
   );
   const [savingAttendanceStudentId, setSavingAttendanceStudentId] = useState<string | null>(null);
+  const [savingAttendanceBulk, setSavingAttendanceBulk] = useState(false);
+  const [attendanceClassSessions, setAttendanceClassSessions] = useState<GroupClassSessionRow[]>([]);
+  const [selectedAttendanceSessionId, setSelectedAttendanceSessionId] = useState('');
   const [docenteGroupCal, setDocenteGroupCal] = useState<DocenteCalRow[]>([]);
   const [docenteSuspendDate, setDocenteSuspendDate] = useState(() => todayISODateLocal());
   const [docenteSuspendReason, setDocenteSuspendReason] = useState('');
@@ -702,6 +714,23 @@ export function AcademicoPage() {
     [teacherGroups]
   );
 
+  const attendanceSessionSelectOptions = useMemo(() => {
+    const opts: SmartSelectOption[] = [{ value: '', label: 'Sin sesión específica (registro por día)' }];
+    const weekday = teacherAttendance?.view === 'day' ? new Date(`${teacherAttendance.date}T12:00:00`).getDay() : null;
+    const rows = weekday === null ? attendanceClassSessions : attendanceClassSessions.filter((s) => s.weekday === weekday);
+    rows
+      .slice()
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      .forEach((s) => {
+        const roomLabel = s.room ? ` · Aula ${s.room}` : '';
+        opts.push({
+          value: s.id,
+          label: `${s.startTime.slice(0, 5)}-${s.endTime.slice(0, 5)}${roomLabel}`
+        });
+      });
+    return opts;
+  }, [attendanceClassSessions, teacherAttendance]);
+
   const attendanceStudentSelectOptions = useMemo(() => {
     const rows = teacherAttendance?.students ?? [];
     const opts: SmartSelectOption[] = [{ value: '', label: 'Todos' }];
@@ -714,6 +743,12 @@ export function AcademicoPage() {
     }
     return opts;
   }, [teacherAttendance?.students]);
+
+  useEffect(() => {
+    if (!selectedAttendanceSessionId) return;
+    const exists = attendanceSessionSelectOptions.some((o) => o.value === selectedAttendanceSessionId);
+    if (!exists) setSelectedAttendanceSessionId('');
+  }, [attendanceSessionSelectOptions, selectedAttendanceSessionId]);
 
   const parentExcuseStudents = useMemo(() => {
     if (!att || typeof att !== 'object') return [] as Array<{ studentId: string; studentName?: string; matricula?: string }>;
@@ -745,9 +780,8 @@ export function AcademicoPage() {
       setErr(null);
       try {
         if (padre) {
-          const [a, g, s, c, childNotifs, alerts, mineNotifs, m] = await Promise.all([
+          const [a, s, c, childNotifs, alerts, mineNotifs, m] = await Promise.all([
             api.get('/api/v1/attendance/parent/my-children'),
-            Promise.resolve({ data: [] as unknown }),
             api.get<{ children: ParentScheduleChild[] }>(
               `/api/v1/schedules/parent/my-children?weekFrom=${encodeURIComponent(from)}&weekTo=${encodeURIComponent(to)}`
             ),
@@ -761,7 +795,6 @@ export function AcademicoPage() {
           ]);
           if (!cancelled) {
             setAtt(a.data);
-            setGrades(g.data);
             setChildrenSchedule(s.data.children ?? []);
             setChildrenCalendar(c.data.children ?? []);
             setChildrenNotifications(childNotifs.data);
@@ -773,7 +806,6 @@ export function AcademicoPage() {
         if (alumno) {
           if (!cancelled) {
             setAtt(null);
-            setGrades(null);
             setChildrenSchedule(null);
             setChildrenCalendar(null);
             setChildrenNotifications(null);
@@ -836,10 +868,31 @@ export function AcademicoPage() {
   useEffect(() => {
     if (!verAsistenciaGrupos || !selectedTeacherGroupId) {
       if (!selectedTeacherGroupId) setTeacherAttendance(null);
+      setAttendanceClassSessions([]);
+      setSelectedAttendanceSessionId('');
       return;
     }
     void loadTeacherAttendance(selectedTeacherGroupId);
   }, [verAsistenciaGrupos, selectedTeacherGroupId, loadTeacherAttendance]);
+
+  useEffect(() => {
+    if (!verAsistenciaGrupos || !selectedTeacherGroupId) {
+      setAttendanceClassSessions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<GroupClassSessionRow[]>(`/api/v1/schedules/groups/${selectedTeacherGroupId}`);
+        if (!cancelled) setAttendanceClassSessions(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setAttendanceClassSessions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [verAsistenciaGrupos, selectedTeacherGroupId]);
 
   useEffect(() => {
     if (!verAsistenciaGrupos || !selectedTeacherGroupId || !teacherAttendance || teacherAttendance.view !== 'day') {
@@ -911,7 +964,8 @@ export function AcademicoPage() {
       const body: Record<string, unknown> = {
         studentId,
         status,
-        isJustified: status === 'AUSENTE' ? Boolean(isJustified) : undefined
+        isJustified: status === 'AUSENTE' ? Boolean(isJustified) : undefined,
+        classSessionId: selectedAttendanceSessionId || undefined
       };
       if (teacherAttendance?.view === 'day') {
         body.attendanceDate = teacherAttendance.date;
@@ -922,6 +976,34 @@ export function AcademicoPage() {
       setErr(getUserFacingMessage(e));
     } finally {
       setSavingAttendanceStudentId(null);
+    }
+  };
+
+  const registerBulkAttendance = async (status: 'PRESENTE' | 'AUSENTE' | 'RETARDO', isJustified?: boolean) => {
+    if (!selectedTeacherGroupId || !teacherAttendance || teacherAttendance.view !== 'day') return;
+    if (!selectedAttendanceSessionId) {
+      setErr('Seleccione una sesión para usar el registro masivo por clase.');
+      return;
+    }
+    if (!teacherAttendance.canEdit || teacherAttendance.nonInstructionalDay) return;
+    try {
+      setErr(null);
+      setSavingAttendanceBulk(true);
+      const entries = teacherAttendance.students.map((s) => ({
+        studentId: s.studentId,
+        status,
+        isJustified: status === 'AUSENTE' ? Boolean(isJustified) : undefined
+      }));
+      await api.post('/api/v1/attendance/register-bulk', {
+        classSessionId: selectedAttendanceSessionId,
+        attendanceDate: teacherAttendance.date,
+        entries
+      });
+      await loadTeacherAttendance(selectedTeacherGroupId);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setSavingAttendanceBulk(false);
     }
   };
 
@@ -1278,9 +1360,42 @@ export function AcademicoPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-sm text-slate-600">
-                      Fecha: <strong>{teacherAttendance.date}</strong>
-                    </p>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <p className="text-sm text-slate-600">
+                        Fecha: <strong>{teacherAttendance.date}</strong>
+                      </p>
+                      <label className="flex min-w-0 sm:min-w-[16rem] flex-1 flex-col gap-1 text-sm text-slate-700">
+                        Sesión (opcional para registro por clase)
+                        <div className="mt-0.5">
+                          <SmartSelect
+                            options={attendanceSessionSelectOptions}
+                            value={selectedAttendanceSessionId}
+                            onChange={setSelectedAttendanceSessionId}
+                            placeholder="Sin sesión específica"
+                          />
+                        </div>
+                      </label>
+                      {selectedAttendanceSessionId ? (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={savingAttendanceBulk || !teacherAttendance.canEdit || teacherAttendance.nonInstructionalDay}
+                            onClick={() => void registerBulkAttendance('PRESENTE')}
+                            className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50"
+                          >
+                            {savingAttendanceBulk ? 'Guardando…' : 'Marcar todos presentes'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingAttendanceBulk || !teacherAttendance.canEdit || teacherAttendance.nonInstructionalDay}
+                            onClick={() => void registerBulkAttendance('AUSENTE', false)}
+                            className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50"
+                          >
+                            Marcar todos ausentes
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                     <div className="overflow-x-auto rounded border border-slate-200">
                       <table className="min-w-full border-collapse text-left text-sm">
                         <thead>
@@ -1492,6 +1607,11 @@ export function AdministracionPage() {
     createdByName?: string | null;
     assignedAdminUserId?: string | null;
     assignedAdminName?: string | null;
+    firstResponseAt?: string | null;
+    slaResponseHours?: number;
+    slaResolutionHours?: number;
+    slaResponseStatus?: 'OK' | 'PENDING' | 'BREACHED';
+    slaResolutionStatus?: 'OK' | 'PENDING' | 'BREACHED';
   };
   type AdminReportComment = {
     id: string;
@@ -1510,10 +1630,48 @@ export function AdministracionPage() {
     circuitToday?: { total?: number; byStatus?: Record<string, number> };
     accessToday?: { total?: number; byType?: Record<string, number> };
   };
+  type ActionableKpis = {
+    date: string;
+    alerts: Array<{
+      key: string;
+      title: string;
+      metric: number;
+      unit: string;
+      severity: 'high' | 'medium' | 'low';
+      action: string;
+      owner: string;
+    }>;
+  };
   type PaymentsPendingReport = { totalPending?: number; pendingWithVoucher?: number; latest?: Array<{ dueDate?: string; amount?: string | number }> };
   type CircuitTodayReport = { total?: number; byStatus?: Record<string, number>; data?: Array<{ requestTime?: string; status?: string }> };
   type AuditLogItem = { action?: string; createdAt?: string; entityType?: string | null };
+  type AdminReportsSlaSummary = {
+    total: number;
+    pending: number;
+    inProgress: number;
+    resolved: number;
+    responseBreached: number;
+    resolutionBreached: number;
+    avgResponseHours: number | null;
+    avgResolutionHours: number | null;
+    responseSlaHours: number;
+    resolutionSlaHours: number;
+  };
+  type CriticalNoticeReceiptRow = {
+    noticeId: string;
+    title: string;
+    createdAt: string;
+    totalRecipients: number;
+    readCount: number;
+    unreadCount: number;
+    readRate: number;
+  };
+  type CriticalNoticeReceiptPayload = {
+    data: CriticalNoticeReceiptRow[];
+    summary?: { totalRecipients?: number; read?: number; unread?: number };
+  };
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [actionableKpis, setActionableKpis] = useState<ActionableKpis | null>(null);
   const [audit, setAudit] = useState<AuditLogItem[]>([]);
   const [calendar, setCalendar] = useState<unknown>(null);
   const [repAtt, setRepAtt] = useState<PaymentsPendingReport | null>(null);
@@ -1540,6 +1698,14 @@ export function AdministracionPage() {
   const [sendingComment, setSendingComment] = useState(false);
   const [myAdminReports, setMyAdminReports] = useState<AdminReportItem[]>([]);
   const [myAdminReportsLoading, setMyAdminReportsLoading] = useState(false);
+  const [adminSlaSummary, setAdminSlaSummary] = useState<AdminReportsSlaSummary | null>(null);
+  const [criticalReceipts, setCriticalReceipts] = useState<CriticalNoticeReceiptRow[]>([]);
+  const [criticalReceiptsSummary, setCriticalReceiptsSummary] = useState<{ totalRecipients: number; read: number; unread: number }>({
+    totalRecipients: 0,
+    read: 0,
+    unread: 0
+  });
+  const [runningCriticalReminders, setRunningCriticalReminders] = useState(false);
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
   const docente = user?.role === 'DOCENTE';
@@ -1574,10 +1740,14 @@ export function AdministracionPage() {
           const s = await api.get<DashboardSummary>('/api/v1/dashboard/summary', {
             params: { schoolId: scopedSchoolId }
           });
+          const kpi = await api.get<ActionableKpis>('/api/v1/dashboard/actionable-kpis', {
+            params: { schoolId: scopedSchoolId }
+          });
           const a = await api.get('/api/v1/audit/logs?limit=30');
           const cal = await api.get('/api/v1/calendar/non-instructional-days');
           if (!cancelled) {
             setSummary(s.data);
+            setActionableKpis(kpi.data);
             setAudit(Array.isArray(a.data) ? a.data : []);
             setCalendar(cal.data);
           }
@@ -1585,15 +1755,20 @@ export function AdministracionPage() {
           const s = await api.get<DashboardSummary>('/api/v1/dashboard/summary', {
             params: { schoolId: institSchoolId }
           });
+          const kpi = await api.get<ActionableKpis>('/api/v1/dashboard/actionable-kpis', {
+            params: { schoolId: institSchoolId }
+          });
           const cal = await api.get('/api/v1/calendar/non-instructional-days');
           if (!cancelled) {
             setSummary(s.data);
+            setActionableKpis(kpi.data);
             setAudit([]);
             setCalendar(cal.data);
           }
         } else if (administrativo && !institSchoolId) {
           if (!cancelled) {
             setSummary(null);
+            setActionableKpis(null);
             setAudit([]);
             setCalendar(null);
           }
@@ -1652,6 +1827,63 @@ export function AdministracionPage() {
       cancelled = true;
     };
   }, [platformAdmin, adminReportTypeFilter, adminReportStatusFilter, adminReportQuery, adminReportUnreadOnly, scopedSchoolId]);
+
+  useEffect(() => {
+    if (!platformAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ data: sla }, { data: receipts }] = await Promise.all([
+          api.get<AdminReportsSlaSummary>('/api/v1/notifications/admin-reports/sla-summary', {
+            params: { schoolId: scopedSchoolId }
+          }),
+          api.get<CriticalNoticeReceiptPayload>('/api/v1/notices/critical/read-receipts', {
+            params: { schoolId: scopedSchoolId, limit: 12 }
+          })
+        ]);
+        if (cancelled) return;
+        setAdminSlaSummary(sla ?? null);
+        setCriticalReceipts(Array.isArray(receipts?.data) ? receipts.data : []);
+        setCriticalReceiptsSummary({
+          totalRecipients: Number(receipts?.summary?.totalRecipients ?? 0),
+          read: Number(receipts?.summary?.read ?? 0),
+          unread: Number(receipts?.summary?.unread ?? 0)
+        });
+      } catch {
+        if (cancelled) return;
+        setAdminSlaSummary(null);
+        setCriticalReceipts([]);
+        setCriticalReceiptsSummary({ totalRecipients: 0, read: 0, unread: 0 });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [platformAdmin, scopedSchoolId]);
+
+  const runCriticalRemindersNow = async () => {
+    setRunningCriticalReminders(true);
+    setErr(null);
+    try {
+      await api.post('/api/v1/notifications/admin-reports/sla-reminders/run', null, {
+        params: { schoolId: scopedSchoolId }
+      });
+      const { data: receipts } = await api.get<CriticalNoticeReceiptPayload>('/api/v1/notices/critical/read-receipts', {
+        params: { schoolId: scopedSchoolId, limit: 12 }
+      });
+      setCriticalReceipts(Array.isArray(receipts?.data) ? receipts.data : []);
+      setCriticalReceiptsSummary({
+        totalRecipients: Number(receipts?.summary?.totalRecipients ?? 0),
+        read: Number(receipts?.summary?.read ?? 0),
+        unread: Number(receipts?.summary?.unread ?? 0)
+      });
+      setReportOk('Recordatorios de lectura crítica ejecutados.');
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setRunningCriticalReminders(false);
+    }
+  };
 
   const loadMyAdminReports = useCallback(async () => {
     if (!administrativo) return;
@@ -1762,7 +1994,7 @@ export function AdministracionPage() {
     'settings.updated': 'Perfil institucional actualizado',
     'circuit.updated': 'Configuración del circuito actualizada'
   };
-  const groupedTopActions = useMemo(() => {
+  const groupedTopActions = (() => {
     const buckets = new Map<
       string,
       { action?: string; entityType?: string | null; count: number; latestAt?: string }
@@ -1793,7 +2025,7 @@ export function AdministracionPage() {
       const tb = b.latestAt ? new Date(b.latestAt).getTime() : 0;
       return tb - ta;
     });
-  }, [topActions]);
+  })();
   const latestPayments = (repAtt?.latest ?? []).slice(0, 5);
   const schoolNameById = new Map(schools.map((s) => [s.id, s.name]));
   const circuitStatusLabel: Record<string, string> = {
@@ -1853,9 +2085,115 @@ export function AdministracionPage() {
       {platformAdmin && (
         <>
           <Panel
+            title="SLA de reportes internos"
+            description="Seguimiento del tiempo de primera respuesta y resolución del canal administrativo."
+          >
+            {((adminSlaSummary?.responseBreached ?? 0) > 0 || (adminSlaSummary?.resolutionBreached ?? 0) > 0) && (
+              <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Alerta SLA: hay reportes fuera de tiempo objetivo. Priorizar respuesta y cierre.
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Total reportes</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{adminSlaSummary?.total ?? 0}</p>
+              </article>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Brecha primera respuesta</p>
+                <p className="mt-1 text-xl font-semibold text-amber-700">{adminSlaSummary?.responseBreached ?? 0}</p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Semáforo: {(adminSlaSummary?.responseBreached ?? 0) === 0 ? 'Verde' : 'Rojo'}
+                </p>
+              </article>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Brecha resolución</p>
+                <p className="mt-1 text-xl font-semibold text-red-700">{adminSlaSummary?.resolutionBreached ?? 0}</p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Semáforo: {(adminSlaSummary?.resolutionBreached ?? 0) === 0 ? 'Verde' : 'Rojo'}
+                </p>
+              </article>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Promedio respuesta / resolución</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {(adminSlaSummary?.avgResponseHours ?? 0).toFixed(1)}h / {(adminSlaSummary?.avgResolutionHours ?? 0).toFixed(1)}h
+                </p>
+              </article>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Objetivo SLA: primera respuesta {'<='} {adminSlaSummary?.responseSlaHours ?? 24}h y resolución {'<='}{' '}
+              {adminSlaSummary?.resolutionSlaHours ?? 72}h.
+            </p>
+          </Panel>
+
+          <Panel
+            title="Acuse de lectura en comunicados críticos"
+            description="Seguimiento de avisos importantes emitidos y su tasa de lectura."
+          >
+            <div className="mb-3 flex items-center justify-end">
+              <button
+                type="button"
+                className="rounded bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                disabled={runningCriticalReminders}
+                onClick={() => void runCriticalRemindersNow()}
+              >
+                {runningCriticalReminders ? 'Ejecutando…' : 'Enviar recordatorios ahora'}
+              </button>
+            </div>
+            <div className="mb-3 grid gap-3 sm:grid-cols-3">
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Destinatarios</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{criticalReceiptsSummary.totalRecipients}</p>
+              </article>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Leídos</p>
+                <p className="mt-1 text-xl font-semibold text-emerald-700">{criticalReceiptsSummary.read}</p>
+              </article>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Pendientes</p>
+                <p className="mt-1 text-xl font-semibold text-amber-700">{criticalReceiptsSummary.unread}</p>
+              </article>
+            </div>
+            {criticalReceipts.length === 0 ? (
+              <p className="text-sm text-slate-600 dark:text-slate-300">No hay comunicados críticos emitidos recientemente.</p>
+            ) : (
+              <ul className="space-y-2">
+                {criticalReceipts.map((row) => (
+                  <li key={row.noticeId} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <p className="font-medium text-slate-900">{row.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {new Date(row.createdAt).toLocaleString('es')} · Leídos {row.readCount}/{row.totalRecipients} ({row.readRate}%)
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel
             title="Tablero ejecutivo"
             description="Visión profesional para seguimiento diario y toma de decisiones operativas."
           >
+            {(actionableKpis?.alerts?.length ?? 0) > 0 ? (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Alertas KPI accionables</p>
+                <ul className="mt-2 space-y-2">
+                  {actionableKpis!.alerts.map((a) => (
+                    <li key={a.key} className="rounded border border-amber-200 bg-white px-3 py-2 text-xs">
+                      <p className="font-semibold text-slate-900">
+                        {a.title}: {a.metric}
+                        {a.unit}
+                      </p>
+                      <p className="mt-1 text-slate-700">Acción: {a.action}</p>
+                      <p className="mt-1 text-slate-500">Responsable: {a.owner}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                Sin alertas críticas: los KPI operativos están dentro del rango esperado.
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <label className="text-sm text-slate-700 dark:text-slate-300 lg:col-span-2">
                 Alcance del tablero
@@ -2035,6 +2373,10 @@ export function AdministracionPage() {
                           {new Date(r.createdAt).toLocaleString('es')}
                           {r.createdByName ? ` · ${r.createdByName}` : ''}
                           {r.schoolId ? ` · ${schoolNameById.get(r.schoolId) ?? 'Institución'}` : ''}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          SLA respuesta: {r.slaResponseStatus ?? 'PENDING'} ({(r.slaResponseHours ?? 0).toFixed(1)}h) · SLA resolución:{' '}
+                          {r.slaResolutionStatus ?? 'PENDING'} ({(r.slaResolutionHours ?? 0).toFixed(1)}h)
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

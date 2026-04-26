@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { TeacherLifecycleStatus } from '../../../database/entities/teacher.entity';
 
 export class UpdateTeacherDto {
   @IsString()
@@ -19,4 +20,8 @@ export class UpdateTeacherDto {
   @IsBoolean()
   @IsOptional()
   canAccessCampus?: boolean;
+
+  @IsEnum(TeacherLifecycleStatus)
+  @IsOptional()
+  lifecycleStatus?: TeacherLifecycleStatus;
 }

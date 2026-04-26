@@ -24,6 +24,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { RejectVoucherDto } from './dto/reject-voucher.dto';
+import { ApplyArrangementDto } from './dto/apply-arrangement.dto';
 import { UpdateConceptDto } from './dto/update-concept.dto';
 import { UploadVoucherDto } from './dto/upload-voucher.dto';
 import { voucherMulterOptions } from './multer-voucher.config';
@@ -111,6 +112,25 @@ export class PaymentsController {
     return this.paymentsService.listDebtsForAdmin(st, p, l, req.user.userId, req.user.role);
   }
 
+  @Get('debts/adjustments')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  listDebtAdjustments(
+    @Query('page') page: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('schoolId') schoolId: string | undefined,
+    @Req() req: { user: { userId: string; role: UserRole } }
+  ) {
+    const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
+    const l = Math.min(200, Math.max(1, Number.parseInt(limit ?? '50', 10) || 50));
+    return this.paymentsService.listDebtAdjustments(p, l, req.user.userId, req.user.role, schoolId);
+  }
+
+  @Post('debts/policies/run')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  runDebtPolicies(@Req() req: { user: { userId: string; role: UserRole } }) {
+    return this.paymentsService.runDebtPolicies(req.user.userId);
+  }
+
   @Post('debts/:debtId/voucher')
   @Roles(UserRole.PADRE)
   uploadVoucher(
@@ -169,5 +189,15 @@ export class PaymentsController {
     @Req() req: { user: { userId: string; role: UserRole } }
   ) {
     return this.paymentsService.rejectVoucher(debtId, req.user.userId, req.user.role, dto);
+  }
+
+  @Post('debts/:debtId/arrangement')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  applyArrangement(
+    @Param('debtId', new ParseUUIDPipe({ version: '4' })) debtId: string,
+    @Body() dto: ApplyArrangementDto,
+    @Req() req: { user: { userId: string; role: UserRole } }
+  ) {
+    return this.paymentsService.applyArrangement(debtId, req.user.userId, req.user.role, dto);
   }
 }

@@ -10,6 +10,7 @@ import { AccessEventEntity } from '../database/entities/access-event.entity';
 import { AdministrativeStaffEntity } from '../database/entities/administrative-staff.entity';
 import { CircuitRequestEntity } from '../database/entities/circuit-request.entity';
 import { GroupEntity } from '../database/entities/group.entity';
+import { ClassSessionEntity } from '../database/entities/class-session.entity';
 import { ClassScheduleSlotEntity } from '../database/entities/class-schedule-slot.entity';
 import { ImportJobEntity } from '../database/entities/import-job.entity';
 import { MeetingEntity } from '../database/entities/meeting.entity';
@@ -20,10 +21,12 @@ import { ExternalVisitStudentEntity } from '../database/entities/external-visit-
 import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
+import { DebtAdjustmentEntity } from '../database/entities/debt-adjustment.entity';
 import { ReportCardEntity } from '../database/entities/report-card.entity';
 import { ReportCardSubjectEntity } from '../database/entities/report-card-subject.entity';
 import { SubjectEntity } from '../database/entities/subject.entity';
 import { TeacherGroupEntity } from '../database/entities/teacher-group.entity';
+import { TeacherLifecycleEventEntity } from '../database/entities/teacher-lifecycle-event.entity';
 import { TeacherSubjectEntity } from '../database/entities/teacher-subject.entity';
 import { PaymentConceptEntity } from '../database/entities/payment-concept.entity';
 import { PaymentRecordEntity } from '../database/entities/payment-record.entity';
@@ -34,6 +37,7 @@ import { InstitutionSettingEntity } from '../database/entities/institution-setti
 import { SchoolNonInstructionalDayEntity } from '../database/entities/school-non-instructional-day.entity';
 import { StudentDepartureConsentEntity } from '../database/entities/student-departure-consent.entity';
 import { StudentAttentionNoteEntity } from '../database/entities/student-attention-note.entity';
+import { StudentLifecycleEventEntity } from '../database/entities/student-lifecycle-event.entity';
 import { StudentParentEntity } from '../database/entities/student-parent.entity';
 import { StudentEntity } from '../database/entities/student.entity';
 import { TeacherEntity } from '../database/entities/teacher.entity';
@@ -59,8 +63,10 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
   const entities = [
       UserEntity,
       StudentEntity,
+      StudentLifecycleEventEntity,
       StudentParentEntity,
       TeacherEntity,
+      TeacherLifecycleEventEntity,
       ParentEntity,
       AdministrativeStaffEntity,
       AccessCredentialEntity,
@@ -75,6 +81,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       NotificationEntity,
       PaymentConceptEntity,
       DebtEntity,
+      DebtAdjustmentEntity,
       PaymentRecordEntity,
       AttendanceRecordEntity,
       AcademicPeriodEntity,
@@ -95,6 +102,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       MeetingEntity,
       MeetingParticipantEntity,
       ClassScheduleSlotEntity,
+      ClassSessionEntity,
       UserFcmTokenEntity,
       SchoolNonInstructionalDayEntity,
       InstitutionSettingEntity,

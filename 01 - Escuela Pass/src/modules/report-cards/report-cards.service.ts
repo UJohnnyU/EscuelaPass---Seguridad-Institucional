@@ -97,6 +97,7 @@ export class ReportCardsService {
       if (!school) throw new NotFoundException('Escuela no encontrada');
 
       const passingGrade = Number(school.passingGrade) || 0;
+      const schoolMaxScale = Number(school.maxGradeScale) || 100;
 
       const studentsRaw = await em.query<
         {
@@ -114,16 +115,15 @@ export class ReportCardsService {
            st.group_id,
            a.subject_id,
            COALESCE(NULLIF(TRIM(a.subject_name), ''), 'Materia') AS subject_name,
-           COUNT(DISTINCT a.id)::text AS activity_count,
-           COUNT(DISTINCT CASE WHEN ag.id IS NOT NULL THEN a.id END)::text AS graded_count,
+           COUNT(DISTINCT CASE WHEN a.status = 'CLOSED' THEN a.id END)::text AS activity_count,
+           COUNT(DISTINCT CASE WHEN a.status = 'CLOSED' AND ag.id IS NOT NULL THEN a.id END)::text AS graded_count,
            CASE
-             WHEN SUM(CASE WHEN a.status = 'CLOSED' THEN 1 ELSE 0 END) = 0 THEN NULL
-             ELSE AVG(
-               CASE
-                 WHEN a.status = 'CLOSED'
-                   THEN COALESCE(ag.score, 0)
-                 ELSE NULL
-               END
+             WHEN SUM(CASE WHEN a.status = 'CLOSED' THEN a.max_score ELSE 0 END) = 0 THEN NULL
+             ELSE (
+               (
+                 SUM(CASE WHEN a.status = 'CLOSED' THEN COALESCE(ag.score, 0) ELSE 0 END)
+                 / NULLIF(SUM(CASE WHEN a.status = 'CLOSED' THEN a.max_score ELSE 0 END), 0)
+               ) * $3
              )::text
            END AS avg_score
          FROM activities a
@@ -132,7 +132,7 @@ export class ReportCardsService {
          LEFT JOIN activity_grades ag ON ag.activity_id = a.id AND ag.student_id = st.id
          WHERE a.period_id = $1 AND g.school_id = $2
          GROUP BY st.id, st.group_id, a.subject_id, a.subject_name`,
-        [periodId, period.schoolId]
+        [periodId, period.schoolId, schoolMaxScale]
       );
 
       const byStudent = new Map<

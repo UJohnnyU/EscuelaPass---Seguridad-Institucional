@@ -35,6 +35,8 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
+import { TransitionStudentLifecycleDto } from './dto/transition-student-lifecycle.dto';
+import { TransitionTeacherLifecycleDto } from './dto/transition-teacher-lifecycle.dto';
 import { SchoolService } from './school.service';
 
 type JwtUser = { userId: string; email: string; role: UserRole; schoolId?: string | null };
@@ -64,6 +66,13 @@ export class SchoolController {
     const n = parseInt(limitRaw, 10);
     if (Number.isNaN(n)) return undefined;
     return Math.min(Math.max(n, 1), 100);
+  }
+
+  private parseAuditLimit(limitRaw: string | undefined): number {
+    if (!limitRaw?.trim()) return 200;
+    const n = parseInt(limitRaw, 10);
+    if (Number.isNaN(n)) return 200;
+    return Math.min(Math.max(n, 1), 5000);
   }
 
   @Get('groups')
@@ -209,6 +218,28 @@ export class SchoolController {
     return this.schoolService.removeStudent(id, this.scopeSchool(req.user));
   }
 
+  @Post('students/:id/lifecycle-transition')
+  transitionStudentLifecycle(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: TransitionStudentLifecycleDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.transitionStudentLifecycle(
+      id,
+      dto,
+      req.user.userId,
+      this.scopeSchool(req.user)
+    );
+  }
+
+  @Get('students/:id/lifecycle-history')
+  listStudentLifecycleHistory(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.listStudentLifecycleHistory(id, this.scopeSchool(req.user));
+  }
+
   @Get('teachers')
   listTeachers(
     @Query('schoolId') schoolIdFilter: string | undefined,
@@ -258,6 +289,72 @@ export class SchoolController {
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.schoolService.removeTeacher(id, this.scopeSchool(req.user));
+  }
+
+  @Post('teachers/:id/lifecycle-transition')
+  transitionTeacherLifecycle(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: TransitionTeacherLifecycleDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.transitionTeacherLifecycle(
+      id,
+      dto,
+      req.user.userId,
+      this.scopeSchool(req.user)
+    );
+  }
+
+  @Get('teachers/:id/lifecycle-history')
+  listTeacherLifecycleHistory(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.listTeacherLifecycleHistory(id, this.scopeSchool(req.user));
+  }
+
+  @Get('lifecycle-events')
+  listLifecycleEvents(
+    @Query('entityType') entityTypeRaw: string | undefined,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const entityType =
+      entityTypeRaw === 'student' || entityTypeRaw === 'teacher' || entityTypeRaw === 'all'
+        ? entityTypeRaw
+        : 'all';
+    return this.schoolService.listLifecycleEvents(this.scopeSchool(req.user), {
+      entityType,
+      from,
+      to,
+      limit: this.parseAuditLimit(limitRaw)
+    });
+  }
+
+  @Get('lifecycle-events/export.csv')
+  async exportLifecycleEventsCsv(
+    @Query('entityType') entityTypeRaw: string | undefined,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const entityType =
+      entityTypeRaw === 'student' || entityTypeRaw === 'teacher' || entityTypeRaw === 'all'
+        ? entityTypeRaw
+        : 'all';
+    const buffer = await this.schoolService.exportLifecycleEventsCsv(this.scopeSchool(req.user), {
+      entityType,
+      from,
+      to,
+      limit: this.parseAuditLimit(limitRaw)
+    });
+    return new StreamableFile(buffer, {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="lifecycle-events.csv"'
+    });
   }
 
   @Get('teacher-assignments')

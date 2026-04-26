@@ -23,6 +23,16 @@ type Period = {
   reopenedAt?: string | null;
 };
 
+type EffectivePolicy = {
+  schoolId: string;
+  schoolYear: string;
+  maxGradeScale: string;
+  passingGrade: string;
+  minFailedSubjectsToRepeat: number;
+  totalWeight: string;
+  remainingWeight: string;
+};
+
 type NewForm = {
   schoolYear: string;
   name: string;
@@ -34,6 +44,14 @@ type NewForm = {
 
 const emptyForm = (): NewForm => ({
   schoolYear: '',
+  name: '',
+  orderIndex: '',
+  startDate: '',
+  endDate: '',
+  weight: ''
+});
+
+const emptyEditForm = () => ({
   name: '',
   orderIndex: '',
   startDate: '',
@@ -64,6 +82,9 @@ export function PeriodosAcademicosPage() {
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [form, setForm] = useState<NewForm>(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(emptyEditForm);
+  const [policy, setPolicy] = useState<EffectivePolicy | null>(null);
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -100,10 +121,22 @@ export function PeriodosAcademicosPage() {
     }
   }, [platformAdmin, schoolId]);
 
+  const loadPolicy = useCallback(async () => {
+    try {
+      const params: Record<string, string> = {};
+      if (platformAdmin && schoolId) params.schoolId = schoolId;
+      const { data } = await api.get<EffectivePolicy>('/api/v1/academic-periods/policy/effective', { params });
+      setPolicy(data ?? null);
+    } catch {
+      setPolicy(null);
+    }
+  }, [platformAdmin, schoolId]);
+
   useEffect(() => {
     if (platformAdmin && !schoolId) return;
     void loadPeriods();
-  }, [loadPeriods, platformAdmin, schoolId]);
+    void loadPolicy();
+  }, [loadPeriods, loadPolicy, platformAdmin, schoolId]);
 
   const yearOptions = useMemo(() => {
     const set = new Set(periods.map((p) => p.schoolYear));
@@ -232,6 +265,65 @@ export function PeriodosAcademicosPage() {
     }
   };
 
+  const startEdit = (p: Period) => {
+    setErr(null);
+    setOk(null);
+    setEditingId(p.id);
+    setEditForm({
+      name: p.name,
+      orderIndex: String(p.orderIndex),
+      startDate: p.startDate,
+      endDate: p.endDate,
+      weight: String(Number(p.weight))
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm(emptyEditForm());
+  };
+
+  const saveEdit = async (id: string) => {
+    setErr(null);
+    setOk(null);
+    const name = editForm.name.trim();
+    const order = Number(editForm.orderIndex);
+    const weight = Number(editForm.weight.replace(',', '.'));
+    if (!name) {
+      setErr('El nombre del periodo es obligatorio.');
+      return;
+    }
+    if (!Number.isInteger(order) || order < 1 || order > 20) {
+      setErr('El orden debe ser un entero entre 1 y 20.');
+      return;
+    }
+    if (!Number.isFinite(weight) || weight < 0 || weight > 100) {
+      setErr('El peso debe estar entre 0 y 100.');
+      return;
+    }
+    if (!editForm.startDate || !editForm.endDate) {
+      setErr('Indique fechas de inicio y fin.');
+      return;
+    }
+    setBusyId(id);
+    try {
+      await api.patch(`/api/v1/academic-periods/${id}`, {
+        name,
+        orderIndex: order,
+        startDate: editForm.startDate,
+        endDate: editForm.endDate,
+        weight
+      });
+      setOk('Periodo actualizado.');
+      cancelEdit();
+      await loadPeriods();
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="max-w-5xl animate-fade-in space-y-6">
       <div>
@@ -268,6 +360,22 @@ export function PeriodosAcademicosPage() {
       )}
 
       <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+        {policy ? (
+          <div className="mb-4 rounded border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900">
+            <p className="font-semibold">
+              Política académica efectiva · ciclo {policy.schoolYear}
+            </p>
+            <p className="mt-1">
+              Escala máxima: <strong>{policy.maxGradeScale}</strong> · Nota mínima aprobatoria:{' '}
+              <strong>{policy.passingGrade}</strong> · Reprueba con <strong>{policy.minFailedSubjectsToRepeat}</strong>{' '}
+              o más materias reprobadas.
+            </p>
+            <p className="mt-1">
+              Peso total definido: <strong>{policy.totalWeight}%</strong> · Peso restante:{' '}
+              <strong>{policy.remainingWeight}%</strong>
+            </p>
+          </div>
+        ) : null}
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Nuevo periodo</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="block text-sm">
@@ -381,67 +489,148 @@ export function PeriodosAcademicosPage() {
                       .map((p) => {
                         const autoCloseYear = reopenAutoCloseDeadlineYear(p);
                         return (
-                        <li key={p.id} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-900">
-                              #{p.orderIndex} · {p.name}
-                              <span className="ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium">
-                                <StatusBadge status={p.status} />
-                              </span>
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {p.startDate} → {p.endDate} · Peso {parseFloat(p.weight)}%{' '}
-                              {p.closedAt ? `· Cerrado ${new Date(p.closedAt).toLocaleDateString('es')}` : ''}
-                            </p>
-                            {p.status === 'ACTIVE' && autoCloseYear != null ? (
-                              <p className="mt-1 text-xs font-medium text-amber-800">
-                                Reabierto: cierre manual antes del 1 de enero de {autoCloseYear} (si no, cierre
-                                automático).
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {p.status === 'PLANNED' && (
-                              <button
-                                type="button"
-                                onClick={() => void activatePeriod(p.id)}
-                                disabled={busyId === p.id}
-                                className="rounded border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
-                              >
-                                Activar
-                              </button>
-                            )}
-                            {p.status === 'ACTIVE' && (
-                              <button
-                                type="button"
-                                onClick={() => void closePeriod(p.id)}
-                                disabled={busyId === p.id}
-                                className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-                              >
-                                Cerrar periodo
-                              </button>
-                            )}
-                            {p.status === 'CLOSED' && canReopenClosedPeriodThisCalendarYear(p) && (
-                              <button
-                                type="button"
-                                onClick={() => void reopenPeriod(p.id)}
-                                disabled={busyId === p.id}
-                                className="rounded border border-amber-600 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-60"
-                              >
-                                Reabrir (mismo año)
-                              </button>
-                            )}
-                            {p.status !== 'CLOSED' && (
-                              <button
-                                type="button"
-                                onClick={() => void removePeriod(p.id)}
-                                disabled={busyId === p.id}
-                                className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50 disabled:opacity-60"
-                              >
-                                Eliminar
-                              </button>
-                            )}
-                          </div>
+                        <li key={p.id} className="flex flex-col gap-3 px-4 py-3">
+                          {editingId === p.id ? (
+                            <>
+                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                <label className="text-xs">
+                                  <span className="text-slate-600">Nombre</span>
+                                  <input
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                                  />
+                                </label>
+                                <label className="text-xs">
+                                  <span className="text-slate-600">Orden</span>
+                                  <input
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                    inputMode="numeric"
+                                    value={editForm.orderIndex}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, orderIndex: e.target.value }))}
+                                  />
+                                </label>
+                                <label className="text-xs">
+                                  <span className="text-slate-600">Inicio</span>
+                                  <input
+                                    type="date"
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                    value={editForm.startDate}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, startDate: e.target.value }))}
+                                  />
+                                </label>
+                                <label className="text-xs">
+                                  <span className="text-slate-600">Fin</span>
+                                  <input
+                                    type="date"
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                    value={editForm.endDate}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, endDate: e.target.value }))}
+                                  />
+                                </label>
+                                <label className="text-xs">
+                                  <span className="text-slate-600">Peso (%)</span>
+                                  <input
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                    inputMode="decimal"
+                                    value={editForm.weight}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value }))}
+                                  />
+                                </label>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void saveEdit(p.id)}
+                                  disabled={busyId === p.id}
+                                  className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                >
+                                  Guardar cambios
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEdit}
+                                  disabled={busyId === p.id}
+                                  className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-900">
+                                  #{p.orderIndex} · {p.name}
+                                  <span className="ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium">
+                                    <StatusBadge status={p.status} />
+                                  </span>
+                                </p>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  {p.startDate} → {p.endDate} · Peso {parseFloat(p.weight)}%{' '}
+                                  {p.closedAt ? `· Cerrado ${new Date(p.closedAt).toLocaleDateString('es')}` : ''}
+                                </p>
+                                {p.status === 'ACTIVE' && autoCloseYear != null ? (
+                                  <p className="mt-1 text-xs font-medium text-amber-800">
+                                    Reabierto: cierre manual antes del 1 de enero de {autoCloseYear} (si no, cierre
+                                    automático).
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {p.status !== 'CLOSED' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(p)}
+                                    disabled={busyId === p.id}
+                                    className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                                  >
+                                    Editar
+                                  </button>
+                                )}
+                                {p.status === 'PLANNED' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void activatePeriod(p.id)}
+                                    disabled={busyId === p.id}
+                                    className="rounded border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                                  >
+                                    Activar
+                                  </button>
+                                )}
+                                {p.status === 'ACTIVE' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void closePeriod(p.id)}
+                                    disabled={busyId === p.id}
+                                    className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                  >
+                                    Cerrar periodo
+                                  </button>
+                                )}
+                                {p.status === 'CLOSED' && canReopenClosedPeriodThisCalendarYear(p) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void reopenPeriod(p.id)}
+                                    disabled={busyId === p.id}
+                                    className="rounded border border-amber-600 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-60"
+                                  >
+                                    Reabrir (mismo año)
+                                  </button>
+                                )}
+                                {p.status !== 'CLOSED' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void removePeriod(p.id)}
+                                    disabled={busyId === p.id}
+                                    className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50 disabled:opacity-60"
+                                  >
+                                    Eliminar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </li>
                         );
                       })}

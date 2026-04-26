@@ -36,6 +36,20 @@ type DebtAdminRow = {
 };
 
 type DebtsResponse = { data: DebtAdminRow[]; meta?: { total: number; page: number; limit: number } };
+type DebtAdjustmentRow = {
+  id: string;
+  debtId: string;
+  actionType: 'LATE_FEE' | 'ARRANGEMENT' | 'MANUAL_ADJUSTMENT' | 'STATUS_CHANGE';
+  previousAmount: string;
+  deltaAmount: string;
+  nextAmount: string;
+  reason: string;
+  createdAt: string;
+  studentName?: string;
+  matricula?: string;
+  changedByName?: string | null;
+};
+type DebtAdjustmentsResponse = { data: DebtAdjustmentRow[]; meta?: { total: number; page: number; limit: number } };
 
 type DebtObligationsTab =
   | 'todos'
@@ -66,6 +80,7 @@ export function FinanzasStaffTools() {
   const [concepts, setConcepts] = useState<PaymentConcept[]>([]);
   const [debts, setDebts] = useState<DebtAdminRow[]>([]);
   const [students, setStudents] = useState<StudentOpt[]>([]);
+  const [adjustments, setAdjustments] = useState<DebtAdjustmentRow[]>([]);
   const [includeInactive, setIncludeInactive] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -160,6 +175,14 @@ export function FinanzasStaffTools() {
     setDebts(Array.isArray(rows) ? rows : []);
   }, []);
 
+  const refreshAdjustments = useCallback(async () => {
+    const { data } = await api.get<DebtAdjustmentsResponse>('/api/v1/payments/debts/adjustments', {
+      params: { page: 1, limit: 80 }
+    });
+    const rows = data && typeof data === 'object' && 'data' in data ? data.data : [];
+    setAdjustments(Array.isArray(rows) ? rows : []);
+  }, []);
+
   const refreshStudents = useCallback(async () => {
     if (!schoolOk) {
       setStudents([]);
@@ -172,11 +195,11 @@ export function FinanzasStaffTools() {
   const loadAll = useCallback(async () => {
     setError(null);
     try {
-      await Promise.all([refreshConcepts(), refreshDebts(), refreshStudents()]);
+      await Promise.all([refreshConcepts(), refreshDebts(), refreshStudents(), refreshAdjustments()]);
     } catch (e) {
       setError(getUserFacingMessage(e, 'No se pudieron cargar los datos de finanzas.'));
     }
-  }, [refreshConcepts, refreshDebts, refreshStudents]);
+  }, [refreshConcepts, refreshDebts, refreshStudents, refreshAdjustments]);
 
   useEffect(() => {
     let cancelled = false;
@@ -352,6 +375,46 @@ export function FinanzasStaffTools() {
       setError(getUserFacingMessage(err, 'No se pudo registrar el rechazo.'));
     } finally {
       setRejectBusy(false);
+    }
+  }
+
+  async function runDebtPoliciesNow() {
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const { data } = await api.post<{ markedOverdue: number; lateFeeApplied: number; checked: number }>(
+        '/api/v1/payments/debts/policies/run',
+        {}
+      );
+      setMessage(
+        `Políticas aplicadas. Revisadas: ${data?.checked ?? 0}. Marcadas vencidas: ${data?.markedOverdue ?? 0}. Recargos: ${data?.lateFeeApplied ?? 0}.`
+      );
+      await Promise.all([refreshDebts(), refreshAdjustments()]);
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudieron aplicar las políticas de cartera.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function applyArrangement(debtId: string) {
+    const reason = window.prompt('Motivo del convenio (obligatorio):', 'Convenio administrativo');
+    if (!reason || reason.trim().length < 5) return;
+    setDebtActionBusy(debtId);
+    setMessage(null);
+    setError(null);
+    try {
+      await api.post(`/api/v1/payments/debts/${debtId}/arrangement`, {
+        discountPercent: 10,
+        reason: reason.trim()
+      });
+      setMessage('Convenio aplicado (10%).');
+      await Promise.all([refreshDebts(), refreshAdjustments()]);
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo aplicar el convenio.'));
+    } finally {
+      setDebtActionBusy(null);
     }
   }
 
@@ -771,6 +834,14 @@ export function FinanzasStaffTools() {
           Esta tabla se actualiza sola cada pocos segundos.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void runDebtPoliciesNow()}
+            disabled={saving}
+            className="rounded border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+          >
+            {saving ? 'Aplicando…' : 'Aplicar políticas (mora/recargo)'}
+          </button>
           {(
             [
               ['comprobantes', 'Comprobantes a revisar'] as const,
@@ -883,7 +954,18 @@ export function FinanzasStaffTools() {
                           </button>
                         </div>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center">
+                          {(d.status === 'VENCIDO' || d.status === 'PENDIENTE' || d.status === 'COMPROBANTE_RECHAZADO') && (
+                            <button
+                              type="button"
+                              disabled={debtActionBusy === d.id}
+                              onClick={() => void applyArrangement(d.id)}
+                              className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
+                            >
+                              {debtActionBusy === d.id ? '…' : 'Aplicar convenio 10%'}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -894,6 +976,44 @@ export function FinanzasStaffTools() {
           {debtsFiltered.length === 0 && (
             <p className="mt-2 text-slate-500">No hay filas en esta vista.</p>
           )}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Bitácora de ajustes y conciliación</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Registro trazable de recargos por mora, convenios y cambios automáticos de estado en cartera.
+        </p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-600">
+                <th className="py-2 pr-3 font-medium">Fecha</th>
+                <th className="py-2 pr-3 font-medium">Alumno</th>
+                <th className="py-2 pr-3 font-medium">Tipo</th>
+                <th className="py-2 pr-3 font-medium">Antes</th>
+                <th className="py-2 pr-3 font-medium">Delta</th>
+                <th className="py-2 pr-3 font-medium">Después</th>
+                <th className="py-2 font-medium">Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adjustments.map((a) => (
+                <tr key={a.id} className="border-b border-slate-100">
+                  <td className="py-2 pr-3">{a.createdAt ? new Date(a.createdAt).toLocaleString('es') : '—'}</td>
+                  <td className="py-2 pr-3">
+                    {a.studentName ? `${a.studentName}${a.matricula ? ` (${a.matricula})` : ''}` : '—'}
+                  </td>
+                  <td className="py-2 pr-3">{a.actionType}</td>
+                  <td className="py-2 pr-3">{moneyEs(a.previousAmount)}</td>
+                  <td className="py-2 pr-3">{moneyEs(a.deltaAmount)}</td>
+                  <td className="py-2 pr-3">{moneyEs(a.nextAmount)}</td>
+                  <td className="py-2">{a.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {adjustments.length === 0 && <p className="mt-2 text-slate-500">Sin ajustes registrados por ahora.</p>}
         </div>
       </section>
 

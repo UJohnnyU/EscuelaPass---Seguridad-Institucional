@@ -14,6 +14,7 @@ import {
   CircuitStatus
 } from '../../database/entities/circuit-request.entity';
 import { DebtEntity, PaymentStatus } from '../../database/entities/debt.entity';
+import { DebtAdjustmentEntity } from '../../database/entities/debt-adjustment.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
@@ -40,6 +41,8 @@ export class DashboardService {
     private readonly attendanceRepository: Repository<AttendanceRecordEntity>,
     @InjectRepository(DebtEntity)
     private readonly debtsRepository: Repository<DebtEntity>,
+    @InjectRepository(DebtAdjustmentEntity)
+    private readonly debtAdjustmentsRepository: Repository<DebtAdjustmentEntity>,
     @InjectRepository(CircuitRequestEntity)
     private readonly circuitRepository: Repository<CircuitRequestEntity>,
     @InjectRepository(AccessEventEntity)
@@ -425,6 +428,110 @@ export class DashboardService {
         byDay: circuitByDay,
         byGroup: circuitByGroup
       }
+    };
+  }
+
+  async actionableKpis(dateStr?: string, schoolId?: string) {
+    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const sid = schoolId?.trim() || undefined;
+    const summary = await this.summary(date, sid);
+
+    const pendingDebts = summary.payments.pendingDebts ?? 0;
+    const overdueDebts = summary.payments.overdueDebts ?? 0;
+    const pendingWithVoucher = summary.payments.pendingWithVoucher ?? 0;
+    const attendanceTotal = summary.attendanceToday.total ?? 0;
+    const attendanceAbsent = summary.attendanceToday.byStatus?.[AttendanceStatus.AUSENTE] ?? 0;
+    const circuitTotal = summary.circuitToday.total ?? 0;
+    const circuitPending =
+      (summary.circuitToday.byStatus?.[CircuitStatus.PENDIENTE] ?? 0) +
+      (summary.circuitToday.byStatus?.[CircuitStatus.PADRE_EN_CAMINO] ?? 0);
+
+    const adjustmentsQb = this.debtAdjustmentsRepository
+      .createQueryBuilder('da')
+      .where('DATE(da.created_at) = :date', { date });
+    if (sid) adjustmentsQb.andWhere('da.school_id = :sid', { sid });
+    const financeAdjustmentsToday = await adjustmentsQb.getCount();
+
+    const alerts: Array<{
+      key: string;
+      title: string;
+      metric: number;
+      unit: string;
+      severity: 'high' | 'medium' | 'low';
+      action: string;
+      owner: string;
+    }> = [];
+
+    if (overdueDebts > 0) {
+      alerts.push({
+        key: 'overdue_debts',
+        title: 'Cartera vencida pendiente',
+        metric: overdueDebts,
+        unit: 'deudas',
+        severity: overdueDebts >= 10 ? 'high' : 'medium',
+        action: 'Ejecutar política de cartera y aplicar convenios prioritarios',
+        owner: 'Finanzas / Administrativo'
+      });
+    }
+    if (pendingWithVoucher > 0) {
+      alerts.push({
+        key: 'voucher_review',
+        title: 'Comprobantes por verificar',
+        metric: pendingWithVoucher,
+        unit: 'comprobantes',
+        severity: pendingWithVoucher >= 8 ? 'high' : 'medium',
+        action: 'Revisar comprobantes y cerrar validación hoy',
+        owner: 'Finanzas / Administrativo'
+      });
+    }
+    if (attendanceTotal > 0 && attendanceAbsent / attendanceTotal >= 0.2) {
+      alerts.push({
+        key: 'attendance_absence',
+        title: 'Ausentismo alto',
+        metric: Number(((attendanceAbsent / attendanceTotal) * 100).toFixed(1)),
+        unit: '%',
+        severity: 'medium',
+        action: 'Activar seguimiento de asistencia con docentes y familias',
+        owner: 'Coordinación Académica'
+      });
+    }
+    if (circuitTotal > 0 && circuitPending / circuitTotal >= 0.35) {
+      alerts.push({
+        key: 'circuit_pending',
+        title: 'Circuitos sin cierre oportuno',
+        metric: circuitPending,
+        unit: 'solicitudes',
+        severity: 'medium',
+        action: 'Priorizar cierres de recogida y confirmaciones de entrega',
+        owner: 'Control de Acceso / Administrativo'
+      });
+    }
+    if (financeAdjustmentsToday > 0) {
+      alerts.push({
+        key: 'finance_adjustments',
+        title: 'Ajustes financieros del día',
+        metric: financeAdjustmentsToday,
+        unit: 'ajustes',
+        severity: financeAdjustmentsToday >= 15 ? 'medium' : 'low',
+        action: 'Revisar bitácora de conciliación y justificar ajustes críticos',
+        owner: 'Finanzas / Auditoría interna'
+      });
+    }
+
+    return {
+      date,
+      schoolId: sid ?? null,
+      snapshot: {
+        pendingDebts,
+        overdueDebts,
+        pendingWithVoucher,
+        attendanceTotal,
+        attendanceAbsent,
+        circuitTotal,
+        circuitPending,
+        financeAdjustmentsToday
+      },
+      alerts
     };
   }
 }

@@ -58,6 +58,15 @@ export class NotificationsController {
     });
   }
 
+  @Get('admin-reports/sla-summary')
+  @Roles(UserRole.ADMIN)
+  adminReportsSlaSummary(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId: string | undefined
+  ) {
+    return this.noticesService.getAdminReportsSlaSummary(req.user.userId, schoolId?.trim() || undefined);
+  }
+
   @Get('admin-reports/mine')
   listMyAdminReports(
     @Req() req: Request & { user: JwtUser },
@@ -77,6 +86,14 @@ export class NotificationsController {
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.noticesService.updateAdminReportStatus(id, req.user.userId, dto.status, req.user.role);
+  }
+
+  @Post('admin-reports/sla-reminders/run')
+  @Roles(UserRole.ADMIN)
+  runSlaReadReminders(@Req() req: Request & { user: JwtUser }, @Query('schoolId') schoolId: string | undefined) {
+    return this.noticesService.sendCriticalReadReminders({
+      schoolId: schoolId?.trim() || undefined
+    });
   }
 
   @Get('admin-reports/:id/comments')

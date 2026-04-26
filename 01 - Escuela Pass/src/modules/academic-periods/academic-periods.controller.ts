@@ -56,6 +56,20 @@ export class AcademicPeriodsController {
     });
   }
 
+  @Get('policy/effective')
+  @Header('Cache-Control', 'no-store, must-revalidate')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  effectivePolicy(
+    @Req() req: Request & { user: JwtUser },
+    @Query('schoolId') schoolId?: string,
+    @Query('schoolYear') schoolYear?: string
+  ) {
+    return this.service.getEffectivePolicy(req.user.userId, req.user.role, {
+      schoolId: schoolId || undefined,
+      schoolYear: schoolYear || undefined
+    });
+  }
+
   @Post()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   create(@Body() dto: CreateAcademicPeriodDto, @Req() req: Request & { user: JwtUser }) {

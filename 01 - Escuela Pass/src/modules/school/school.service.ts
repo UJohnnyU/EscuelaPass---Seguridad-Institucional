@@ -18,11 +18,13 @@ import { ParentEntity } from '../../database/entities/parent.entity';
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { ShiftType } from '../../database/entities/shift-type.enum';
 import { StudentParentEntity } from '../../database/entities/student-parent.entity';
-import { StudentEntity } from '../../database/entities/student.entity';
+import { StudentLifecycleEventEntity } from '../../database/entities/student-lifecycle-event.entity';
+import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { SubjectEntity } from '../../database/entities/subject.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
 import { TeacherSubjectEntity } from '../../database/entities/teacher-subject.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { TeacherLifecycleEventEntity } from '../../database/entities/teacher-lifecycle-event.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AssignTeacherGroupDto } from './dto/assign-teacher-group.dto';
 import { CreateGroupDto } from './dto/create-group.dto';
@@ -36,6 +38,8 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
+import { TransitionStudentLifecycleDto } from './dto/transition-student-lifecycle.dto';
+import { TransitionTeacherLifecycleDto } from './dto/transition-teacher-lifecycle.dto';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 
 type ImportCreateResult = {
@@ -53,6 +57,21 @@ type XlsxAssignResult = {
 };
 
 type ImportKind = 'groups' | 'students' | 'teachers' | 'teacher-assignments' | 'students-to-groups';
+type LifecycleEntityType = 'student' | 'teacher';
+type LifecycleEventListItem = {
+  id: string;
+  entityType: LifecycleEntityType;
+  personId: string;
+  personName: string;
+  schoolId: string;
+  fromStatus: string;
+  toStatus: string;
+  reason: string;
+  effectiveDate: string;
+  changedByUserId: string;
+  changedByName: string;
+  createdAt: string;
+};
 
 @Injectable()
 export class SchoolService {
@@ -79,6 +98,10 @@ export class SchoolService {
     private readonly parentsRepository: Repository<ParentEntity>,
     @InjectRepository(StudentParentEntity)
     private readonly studentParentsRepository: Repository<StudentParentEntity>,
+    @InjectRepository(StudentLifecycleEventEntity)
+    private readonly studentLifecycleEventsRepository: Repository<StudentLifecycleEventEntity>,
+    @InjectRepository(TeacherLifecycleEventEntity)
+    private readonly teacherLifecycleEventsRepository: Repository<TeacherLifecycleEventEntity>,
     private readonly settingsService: SettingsService
   ) {}
 
@@ -319,7 +342,7 @@ export class SchoolService {
     const row = await this.studentsRepository
       .createQueryBuilder('s')
       .innerJoin(UserEntity, 'u', 'u.id = s.userId')
-      .select('u.school_id', 'schoolId')
+      .select('COALESCE(u.school_id, s.school_id)', 'schoolId')
       .where('s.id = :id', { id: studentId })
       .getRawOne<{ schoolId: string | null }>();
     if (!row?.schoolId) throw new NotFoundException('Estudiante no encontrado');
@@ -350,7 +373,7 @@ export class SchoolService {
 
   private async schoolIdForStudentPatch(studentId: string, scopeSchoolId?: string | null): Promise<string> {
     if (scopeSchoolId?.trim()) return scopeSchoolId.trim();
-    return this.requireStudentSchoolId(studentId);
+    return (await this.requireStudentSchoolId(studentId).catch(() => '')) || '';
   }
 
   private async schoolIdForTeacherPatch(teacherId: string, scopeSchoolId?: string | null): Promise<string> {
@@ -540,6 +563,7 @@ export class SchoolService {
         's.matricula AS matricula',
         's.groupId AS "groupId"',
         's.canLeaveAlone AS "canLeaveAlone"',
+        's.lifecycleStatus AS "lifecycleStatus"',
         'u.email AS email',
         'u.fullName AS "fullName"',
         'u.phone AS phone',
@@ -570,6 +594,7 @@ export class SchoolService {
         's.matricula AS matricula',
         's.groupId AS "groupId"',
         's.canLeaveAlone AS "canLeaveAlone"',
+        's.lifecycleStatus AS "lifecycleStatus"',
         'u.id AS "userId"',
         'u.email AS email',
         'u.fullName AS "fullName"',
@@ -621,7 +646,8 @@ export class SchoolService {
       matricula: finalMatricula,
       schoolId,
       groupId: dto.groupId ?? null,
-      canLeaveAlone: dto.canLeaveAlone ?? false
+      canLeaveAlone: dto.canLeaveAlone ?? false,
+      lifecycleStatus: StudentLifecycleStatus.ACTIVO
     });
     const savedStudent = await this.studentsRepository.save(student);
     return this.getStudent(savedStudent.id, schoolId);
@@ -676,12 +702,143 @@ export class SchoolService {
     return 'ALUMNO';
   }
 
+  private todayIsoDate(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private assertStudentLifecycleTransitionAllowed(
+    from: StudentLifecycleStatus,
+    to: StudentLifecycleStatus
+  ): void {
+    const allowed: Record<StudentLifecycleStatus, StudentLifecycleStatus[]> = {
+      [StudentLifecycleStatus.ACTIVO]: [
+        StudentLifecycleStatus.BAJA,
+        StudentLifecycleStatus.TRASLADO,
+        StudentLifecycleStatus.EGRESADO
+      ],
+      [StudentLifecycleStatus.BAJA]: [StudentLifecycleStatus.ACTIVO, StudentLifecycleStatus.TRASLADO],
+      [StudentLifecycleStatus.TRASLADO]: [StudentLifecycleStatus.ACTIVO, StudentLifecycleStatus.BAJA],
+      [StudentLifecycleStatus.EGRESADO]: []
+    };
+    if (!allowed[from].includes(to)) {
+      throw new BadRequestException(`Transición no permitida de ${from} a ${to}`);
+    }
+  }
+
+  private assertTeacherLifecycleTransitionAllowed(
+    from: TeacherLifecycleStatus,
+    to: TeacherLifecycleStatus
+  ): void {
+    const allowed: Record<TeacherLifecycleStatus, TeacherLifecycleStatus[]> = {
+      [TeacherLifecycleStatus.ACTIVO]: [
+        TeacherLifecycleStatus.BAJA,
+        TeacherLifecycleStatus.TRASLADO,
+        TeacherLifecycleStatus.EGRESADO
+      ],
+      [TeacherLifecycleStatus.BAJA]: [TeacherLifecycleStatus.ACTIVO, TeacherLifecycleStatus.TRASLADO],
+      [TeacherLifecycleStatus.TRASLADO]: [TeacherLifecycleStatus.ACTIVO, TeacherLifecycleStatus.BAJA],
+      [TeacherLifecycleStatus.EGRESADO]: []
+    };
+    if (!allowed[from].includes(to)) {
+      throw new BadRequestException(`Transición no permitida de ${from} a ${to}`);
+    }
+  }
+
+  private async appendStudentLifecycleEvent(input: {
+    studentId: string;
+    schoolId: string;
+    fromStatus: StudentLifecycleStatus;
+    toStatus: StudentLifecycleStatus;
+    reason: string;
+    effectiveDate?: string;
+    changedByUserId: string;
+  }): Promise<void> {
+    if (!input.schoolId?.trim()) return;
+    if (input.fromStatus === input.toStatus) return;
+    const reason = input.reason.trim();
+    if (!reason) return;
+    await this.studentLifecycleEventsRepository.save(
+      this.studentLifecycleEventsRepository.create({
+        studentId: input.studentId,
+        schoolId: input.schoolId,
+        fromStatus: input.fromStatus,
+        toStatus: input.toStatus,
+        reason,
+        effectiveDate: (input.effectiveDate?.slice(0, 10) ?? this.todayIsoDate()),
+        changedByUserId: input.changedByUserId
+      })
+    );
+  }
+
+  private async applyStudentLifecycleEffects(
+    student: StudentEntity,
+    nextStatus: StudentLifecycleStatus
+  ): Promise<void> {
+    if (nextStatus === StudentLifecycleStatus.ACTIVO) {
+      await this.usersRepository.update({ id: student.userId }, { status: true });
+      return;
+    }
+    await this.studentsRepository.update(
+      { id: student.id },
+      {
+        groupId: null,
+        canLeaveAlone: false
+      }
+    );
+    await this.usersRepository.update({ id: student.userId }, { status: false, canAccessCampus: false });
+  }
+
+  private async appendTeacherLifecycleEvent(input: {
+    teacherId: string;
+    schoolId: string;
+    fromStatus: TeacherLifecycleStatus;
+    toStatus: TeacherLifecycleStatus;
+    reason: string;
+    effectiveDate?: string;
+    changedByUserId: string;
+  }): Promise<void> {
+    if (input.fromStatus === input.toStatus) return;
+    const reason = input.reason.trim();
+    if (!reason) return;
+    await this.teacherLifecycleEventsRepository.save(
+      this.teacherLifecycleEventsRepository.create({
+        teacherId: input.teacherId,
+        schoolId: input.schoolId,
+        fromStatus: input.fromStatus,
+        toStatus: input.toStatus,
+        reason,
+        effectiveDate: input.effectiveDate?.slice(0, 10) ?? this.todayIsoDate(),
+        changedByUserId: input.changedByUserId
+      })
+    );
+  }
+
+  private async applyTeacherLifecycleEffects(
+    teacher: TeacherEntity,
+    nextStatus: TeacherLifecycleStatus
+  ): Promise<void> {
+    if (nextStatus === TeacherLifecycleStatus.ACTIVO) {
+      await this.usersRepository.update({ id: teacher.userId }, { status: true });
+      return;
+    }
+    await this.usersRepository.update({ id: teacher.userId }, { status: false, canAccessCampus: false });
+  }
+
   async updateStudent(id: string, dto: UpdateStudentDto, scopeSchoolId?: string | null) {
     const schoolId = await this.schoolIdForStudentPatch(id, scopeSchoolId);
     await this.getStudent(id, schoolId);
+    const current = await this.studentsRepository.findOne({ where: { id } });
+    if (!current) throw new NotFoundException('Estudiante no encontrado');
     if (dto.groupId !== undefined && dto.groupId !== null) {
       const g = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
       if (!g) throw new NotFoundException('Grupo no encontrado');
+    }
+    if (
+      dto.groupId !== undefined &&
+      dto.groupId !== null &&
+      current.lifecycleStatus !== StudentLifecycleStatus.ACTIVO
+    ) {
+      throw new BadRequestException('Solo estudiantes ACTIVO pueden asignarse a un grupo');
     }
     const patch: Partial<StudentEntity> = {};
     if (dto.groupId !== undefined) patch.groupId = dto.groupId;
@@ -691,6 +848,9 @@ export class SchoolService {
       patch.matricula = dto.matricula;
     }
     if (dto.canLeaveAlone !== undefined) patch.canLeaveAlone = dto.canLeaveAlone;
+    if (dto.lifecycleStatus !== undefined) {
+      patch.lifecycleStatus = dto.lifecycleStatus;
+    }
     if (Object.keys(patch).length) await this.studentsRepository.update({ id }, patch);
     const student = await this.studentsRepository.findOne({ where: { id } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
@@ -699,7 +859,62 @@ export class SchoolService {
     if (dto.phone !== undefined) userPatch.phone = dto.phone?.trim() || null;
     if (dto.canAccessCampus !== undefined) userPatch.canAccessCampus = dto.canAccessCampus;
     if (Object.keys(userPatch).length) await this.usersRepository.update({ id: student.userId }, userPatch);
+    if (dto.lifecycleStatus !== undefined && dto.lifecycleStatus !== current.lifecycleStatus) {
+      await this.applyStudentLifecycleEffects(student, dto.lifecycleStatus);
+    }
     return this.getStudent(id, schoolId);
+  }
+
+  async transitionStudentLifecycle(
+    studentId: string,
+    dto: TransitionStudentLifecycleDto,
+    changedByUserId: string,
+    scopeSchoolId?: string | null
+  ) {
+    const scopedSchoolId = scopeSchoolId?.trim() ?? null;
+    if (!dto.reason.trim()) {
+      throw new BadRequestException('El motivo de la transición es obligatorio');
+    }
+    const student = await this.studentsRepository.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Estudiante no encontrado');
+    if (scopedSchoolId && student.schoolId !== scopedSchoolId) {
+      throw new NotFoundException('Estudiante no encontrado');
+    }
+    const schoolId = scopedSchoolId ?? student.schoolId ?? '';
+    if (student.lifecycleStatus === dto.toStatus) {
+      throw new BadRequestException('El estudiante ya tiene ese estado de vida');
+    }
+    this.assertStudentLifecycleTransitionAllowed(student.lifecycleStatus, dto.toStatus);
+    await this.studentsRepository.update({ id: student.id }, { lifecycleStatus: dto.toStatus });
+    const updated = await this.studentsRepository.findOne({ where: { id: student.id } });
+    if (!updated) throw new NotFoundException('Estudiante no encontrado');
+    await this.applyStudentLifecycleEffects(updated, dto.toStatus);
+    await this.appendStudentLifecycleEvent({
+      studentId: student.id,
+      schoolId: student.schoolId ?? schoolId,
+      fromStatus: student.lifecycleStatus,
+      toStatus: dto.toStatus,
+      reason: dto.reason,
+      effectiveDate: dto.effectiveDate,
+      changedByUserId
+    });
+    return this.getStudent(studentId, scopedSchoolId ?? undefined);
+  }
+
+  async listStudentLifecycleHistory(studentId: string, scopeSchoolId?: string | null) {
+    const scopedSchoolId = scopeSchoolId?.trim() ?? null;
+    const student = await this.studentsRepository.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Estudiante no encontrado');
+    if (scopedSchoolId && student.schoolId !== scopedSchoolId) {
+      throw new NotFoundException('Estudiante no encontrado');
+    }
+    const schoolId = scopedSchoolId ?? student.schoolId ?? '';
+    const eventSchoolId = (student.schoolId ?? schoolId)?.trim();
+    if (!eventSchoolId) return [];
+    return this.studentLifecycleEventsRepository.find({
+      where: { studentId, schoolId: eventSchoolId },
+      order: { createdAt: 'DESC' }
+    });
   }
 
   async removeStudent(id: string, scopeSchoolId?: string | null) {
@@ -719,6 +934,7 @@ export class SchoolService {
         't.id AS id',
         'u.id AS "userId"',
         't.employeeNumber AS "employeeNumber"',
+        't.lifecycleStatus AS "lifecycleStatus"',
         'u.email AS email',
         'u.fullName AS "fullName"',
         'u.phone AS phone',
@@ -748,6 +964,7 @@ export class SchoolService {
       .select([
         't.id AS id',
         't.employeeNumber AS "employeeNumber"',
+        't.lifecycleStatus AS "lifecycleStatus"',
         'u.id AS "userId"',
         'u.email AS email',
         'u.fullName AS "fullName"',
@@ -786,7 +1003,8 @@ export class SchoolService {
 
     const teacher = this.teachersRepository.create({
       userId: savedUser.id,
-      employeeNumber: dto.employeeNumber
+      employeeNumber: dto.employeeNumber,
+      lifecycleStatus: TeacherLifecycleStatus.ACTIVO
     });
     const saved = await this.teachersRepository.save(teacher);
     const requestedSubjectIds = Array.from(new Set(dto.subjectIds ?? []));
@@ -821,6 +1039,11 @@ export class SchoolService {
       t.employeeNumber = dto.employeeNumber;
       await this.teachersRepository.save(t);
     }
+    if (dto.lifecycleStatus !== undefined && dto.lifecycleStatus !== t.lifecycleStatus) {
+      t.lifecycleStatus = dto.lifecycleStatus;
+      await this.teachersRepository.save(t);
+      await this.applyTeacherLifecycleEffects(t, dto.lifecycleStatus);
+    }
 
     const userPatch: Partial<UserEntity> = {};
     if (dto.fullName !== undefined) userPatch.fullName = dto.fullName;
@@ -829,6 +1052,179 @@ export class SchoolService {
     if (Object.keys(userPatch).length) await this.usersRepository.update({ id: t.userId }, userPatch);
 
     return this.getTeacher(id, schoolId);
+  }
+
+  async transitionTeacherLifecycle(
+    teacherId: string,
+    dto: TransitionTeacherLifecycleDto,
+    changedByUserId: string,
+    scopeSchoolId?: string | null
+  ) {
+    const schoolId = await this.schoolIdForTeacherPatch(teacherId, scopeSchoolId);
+    if (!dto.reason.trim()) {
+      throw new BadRequestException('El motivo de la transición es obligatorio');
+    }
+    const teacher = await this.teachersRepository.findOne({ where: { id: teacherId } });
+    if (!teacher) throw new NotFoundException('Docente no encontrado');
+    const user = await this.usersRepository.findOne({ where: { id: teacher.userId } });
+    if (!user || user.schoolId !== schoolId) throw new NotFoundException('Docente no encontrado');
+    if (teacher.lifecycleStatus === dto.toStatus) {
+      throw new BadRequestException('El docente ya tiene ese estado de vida');
+    }
+    this.assertTeacherLifecycleTransitionAllowed(teacher.lifecycleStatus, dto.toStatus);
+    const prevStatus = teacher.lifecycleStatus;
+    teacher.lifecycleStatus = dto.toStatus;
+    const saved = await this.teachersRepository.save(teacher);
+    await this.applyTeacherLifecycleEffects(saved, dto.toStatus);
+    await this.appendTeacherLifecycleEvent({
+      teacherId: saved.id,
+      schoolId,
+      fromStatus: prevStatus,
+      toStatus: dto.toStatus,
+      reason: dto.reason,
+      effectiveDate: dto.effectiveDate,
+      changedByUserId
+    });
+    return this.getTeacher(teacherId, schoolId);
+  }
+
+  async listTeacherLifecycleHistory(teacherId: string, scopeSchoolId?: string | null) {
+    const schoolId = await this.schoolIdForTeacherPatch(teacherId, scopeSchoolId);
+    await this.getTeacher(teacherId, schoolId);
+    return this.teacherLifecycleEventsRepository.find({
+      where: { teacherId, schoolId },
+      order: { createdAt: 'DESC' }
+    });
+  }
+
+  async listLifecycleEvents(
+    scopeSchoolId?: string | null,
+    filters?: {
+      entityType?: 'student' | 'teacher' | 'all';
+      from?: string;
+      to?: string;
+      limit?: number;
+    }
+  ): Promise<LifecycleEventListItem[]> {
+    const entityType = filters?.entityType ?? 'all';
+    const from = filters?.from?.trim();
+    const to = filters?.to?.trim();
+    const limit = Math.min(Math.max(filters?.limit ?? 100, 1), 1000);
+    const allRows: LifecycleEventListItem[] = [];
+
+    if (entityType === 'all' || entityType === 'student') {
+      const qb = this.studentLifecycleEventsRepository
+        .createQueryBuilder('ev')
+        .innerJoin(StudentEntity, 'st', 'st.id = ev.student_id')
+        .innerJoin(UserEntity, 'person', 'person.id = st.user_id')
+        .leftJoin(UserEntity, 'changedBy', 'changedBy.id = ev.changed_by_user_id')
+        .select([
+          'ev.id AS id',
+          "'student' AS \"entityType\"",
+          'ev.studentId AS "personId"',
+          'person.fullName AS "personName"',
+          'ev.schoolId AS "schoolId"',
+          'ev.fromStatus AS "fromStatus"',
+          'ev.toStatus AS "toStatus"',
+          'ev.reason AS reason',
+          'ev.effectiveDate AS "effectiveDate"',
+          'ev.changedByUserId AS "changedByUserId"',
+          `COALESCE(changedBy.fullName, ev.changedByUserId::text) AS "changedByName"`,
+          'ev.createdAt AS "createdAt"'
+        ])
+        .orderBy('ev.createdAt', 'DESC')
+        .limit(limit);
+      if (scopeSchoolId) qb.andWhere('ev.school_id = :schoolId', { schoolId: scopeSchoolId });
+      if (from) qb.andWhere('ev.created_at >= :fromDate', { fromDate: from });
+      if (to) qb.andWhere('ev.created_at <= :toDate', { toDate: to });
+      const rows = await qb.getRawMany<LifecycleEventListItem>();
+      allRows.push(...rows);
+    }
+
+    if (entityType === 'all' || entityType === 'teacher') {
+      const qb = this.teacherLifecycleEventsRepository
+        .createQueryBuilder('ev')
+        .innerJoin(TeacherEntity, 'te', 'te.id = ev.teacher_id')
+        .innerJoin(UserEntity, 'person', 'person.id = te.user_id')
+        .leftJoin(UserEntity, 'changedBy', 'changedBy.id = ev.changed_by_user_id')
+        .select([
+          'ev.id AS id',
+          "'teacher' AS \"entityType\"",
+          'ev.teacherId AS "personId"',
+          'person.fullName AS "personName"',
+          'ev.schoolId AS "schoolId"',
+          'ev.fromStatus AS "fromStatus"',
+          'ev.toStatus AS "toStatus"',
+          'ev.reason AS reason',
+          'ev.effectiveDate AS "effectiveDate"',
+          'ev.changedByUserId AS "changedByUserId"',
+          `COALESCE(changedBy.fullName, ev.changedByUserId::text) AS "changedByName"`,
+          'ev.createdAt AS "createdAt"'
+        ])
+        .orderBy('ev.createdAt', 'DESC')
+        .limit(limit);
+      if (scopeSchoolId) qb.andWhere('ev.school_id = :schoolId', { schoolId: scopeSchoolId });
+      if (from) qb.andWhere('ev.created_at >= :fromDate', { fromDate: from });
+      if (to) qb.andWhere('ev.created_at <= :toDate', { toDate: to });
+      const rows = await qb.getRawMany<LifecycleEventListItem>();
+      allRows.push(...rows);
+    }
+
+    return allRows
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+      .slice(0, limit);
+  }
+
+  async exportLifecycleEventsCsv(
+    scopeSchoolId?: string | null,
+    filters?: {
+      entityType?: 'student' | 'teacher' | 'all';
+      from?: string;
+      to?: string;
+      limit?: number;
+    }
+  ): Promise<Buffer> {
+    const rows = await this.listLifecycleEvents(scopeSchoolId, {
+      ...filters,
+      limit: Math.min(Math.max(filters?.limit ?? 2000, 1), 5000)
+    });
+    const escapeCsv = (v: unknown) => {
+      const text = String(v ?? '');
+      const escaped = text.replace(/"/g, '""');
+      return `"${escaped}"`;
+    };
+    const header = [
+      'tipo_entidad',
+      'persona_id',
+      'persona_nombre',
+      'estado_origen',
+      'estado_destino',
+      'motivo',
+      'fecha_efectiva',
+      'cambiado_por_id',
+      'cambiado_por_nombre',
+      'fecha_evento'
+    ];
+    const lines = [header.map(escapeCsv).join(',')];
+    for (const row of rows) {
+      lines.push(
+        [
+          row.entityType,
+          row.personId,
+          row.personName,
+          row.fromStatus,
+          row.toStatus,
+          row.reason,
+          row.effectiveDate,
+          row.changedByUserId,
+          row.changedByName,
+          row.createdAt
+        ]
+          .map(escapeCsv)
+          .join(',')
+      );
+    }
+    return Buffer.from(lines.join('\n'), 'utf8');
   }
 
   async removeTeacher(id: string, scopeSchoolId?: string | null) {

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdministrativeStaffEntity } from '../../database/entities/administrative-staff.entity';
+import { DebtAdjustmentEntity } from '../../database/entities/debt-adjustment.entity';
 import { DebtEntity } from '../../database/entities/debt.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { PaymentConceptEntity } from '../../database/entities/payment-concept.entity';
@@ -10,6 +11,7 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { AuthModule } from '../auth/auth.module';
 import { FcmModule } from '../fcm/fcm.module';
 import { PaymentsController } from './payments.controller';
+import { PaymentsPoliciesScheduler } from './payments-policies.scheduler';
 import { PaymentsService } from './payments.service';
 
 @Module({
@@ -19,6 +21,7 @@ import { PaymentsService } from './payments.service';
     TypeOrmModule.forFeature([
       PaymentConceptEntity,
       DebtEntity,
+      DebtAdjustmentEntity,
       PaymentRecordEntity,
       StudentEntity,
       ParentEntity,
@@ -27,6 +30,6 @@ import { PaymentsService } from './payments.service';
     ])
   ],
   controllers: [PaymentsController],
-  providers: [PaymentsService]
+  providers: [PaymentsService, PaymentsPoliciesScheduler]
 })
 export class PaymentsModule {}

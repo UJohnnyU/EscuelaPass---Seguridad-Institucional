@@ -6,7 +6,7 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, IsNull, Repository } from 'typeorm';
 import { AdminReportCommentEntity } from '../../database/entities/admin-report-comment.entity';
 import { AdminReportEntity, AdminReportStatus, AdminReportType } from '../../database/entities/admin-report.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
@@ -460,12 +460,13 @@ export class NoticesService {
       ? await this.usersRepository.find({ where: userIds.map((id) => ({ id })), select: ['id', 'fullName', 'email'] })
       : [];
     const userMap = new Map(users.map((u) => [u.id, u]));
-    const data = items.map((r) => ({
+    const dataWithNames = items.map((r) => ({
       ...r,
       createdByName: userMap.get(r.createdByUserId)?.fullName ?? userMap.get(r.createdByUserId)?.email ?? 'Usuario',
       assignedAdminName:
         (r.assignedAdminUserId && (userMap.get(r.assignedAdminUserId)?.fullName ?? userMap.get(r.assignedAdminUserId)?.email)) || null
     }));
+    const data = await this.enrichReportsWithSla(dataWithNames);
     return {
       data,
       meta: { total, page: Math.max(opts.page, 1), limit: take, pages: Math.ceil(total / take) }
@@ -477,16 +478,193 @@ export class NoticesService {
     if (!user) throw new ForbiddenException('Usuario no encontrado');
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
-    const [data, total] = await this.adminReportsRepository.findAndCount({
+    const [rows, total] = await this.adminReportsRepository.findAndCount({
       where: { createdByUserId: userId },
       order: { createdAt: 'DESC' },
       skip,
       take
     });
+    const data = await this.enrichReportsWithSla(rows);
     return {
       data,
       meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) }
     };
+  }
+
+  async getAdminReportsSlaSummary(adminUserId: string, schoolId?: string) {
+    const admin = await this.usersRepository.findOne({
+      where: { id: adminUserId },
+      select: ['id', 'schoolId', 'role']
+    });
+    if (!admin || admin.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Solo el equipo administrador puede consultar SLA');
+    }
+    const qb = this.adminReportsRepository.createQueryBuilder('r').orderBy('r.created_at', 'DESC').take(500);
+    if (admin.schoolId) qb.where('r.school_id = :sid', { sid: admin.schoolId });
+    if (schoolId?.trim()) qb.andWhere('r.school_id = :sidFilter', { sidFilter: schoolId.trim() });
+    const rows = await qb.getMany();
+    const enriched = await this.enrichReportsWithSla(rows);
+    const pending = enriched.filter((r) => r.status === AdminReportStatus.PENDIENTE).length;
+    const inProgress = enriched.filter((r) => r.status === AdminReportStatus.EN_PROCESO).length;
+    const resolved = enriched.filter((r) => r.status === AdminReportStatus.RESUELTO).length;
+    const responseBreached = enriched.filter((r) => r.slaResponseStatus === 'BREACHED').length;
+    const resolutionBreached = enriched.filter((r) => r.slaResolutionStatus === 'BREACHED').length;
+    const responseHours = enriched.map((r) => r.slaResponseHours).filter((n): n is number => typeof n === 'number');
+    const resolutionHours = enriched.map((r) => r.slaResolutionHours).filter((n): n is number => typeof n === 'number');
+    const avg = (values: number[]) =>
+      values.length > 0 ? Number((values.reduce((acc, v) => acc + v, 0) / values.length).toFixed(1)) : null;
+    return {
+      total: enriched.length,
+      pending,
+      inProgress,
+      resolved,
+      responseBreached,
+      resolutionBreached,
+      avgResponseHours: avg(responseHours),
+      avgResolutionHours: avg(resolutionHours),
+      responseSlaHours: 24,
+      resolutionSlaHours: 72
+    };
+  }
+
+  async listCriticalNoticeReadReceipts(
+    createdByUserId: string,
+    role: UserRole,
+    opts?: { page?: number; limit?: number; schoolId?: string }
+  ) {
+    const page = Math.max(1, opts?.page ?? 1);
+    const take = Math.min(Math.max(opts?.limit ?? 20, 1), 100);
+    const skip = (page - 1) * take;
+    const requestedSchoolId = opts?.schoolId?.trim() || undefined;
+
+    const currentUser = await this.usersRepository.findOne({
+      where: { id: createdByUserId },
+      select: ['id', 'schoolId', 'role']
+    });
+    if (!currentUser) throw new ForbiddenException('Usuario no encontrado');
+
+    const qb = this.noticesRepository
+      .createQueryBuilder('n')
+      .where('n.is_important = true')
+      .andWhere('n.created_by = :createdBy', { createdBy: createdByUserId })
+      .orderBy('n.created_at', 'DESC');
+    if (role === UserRole.ADMIN && requestedSchoolId) {
+      const schoolUsers = await this.usersRepository.find({
+        where: { schoolId: requestedSchoolId },
+        select: ['id']
+      });
+      const ids = schoolUsers.map((u) => u.id);
+      if (ids.length === 0) {
+        return { data: [], meta: { total: 0, page, limit: take, pages: 0 }, summary: { totalRecipients: 0, read: 0, unread: 0 } };
+      }
+      qb.andWhere('n.created_by IN (:...ids)', { ids });
+    } else if (role === UserRole.ADMINISTRATIVO) {
+      if (!currentUser.schoolId) throw new ForbiddenException('Usuario sin escuela asignada');
+      const schoolUsers = await this.usersRepository.find({
+        where: { schoolId: currentUser.schoolId },
+        select: ['id']
+      });
+      const ids = schoolUsers.map((u) => u.id);
+      if (ids.length > 0) qb.andWhere('n.created_by IN (:...ids)', { ids });
+    }
+
+    const [notices, total] = await qb.skip(skip).take(take).getManyAndCount();
+    if (notices.length === 0) {
+      return { data: [], meta: { total, page, limit: take, pages: Math.ceil(total / take) }, summary: { totalRecipients: 0, read: 0, unread: 0 } };
+    }
+    const noticeIds = notices.map((n) => n.id);
+    const raw = await this.notificationsRepository
+      .createQueryBuilder('nf')
+      .select('nf.noticeId', 'noticeId')
+      .addSelect('COUNT(*)::int', 'total')
+      .addSelect("COUNT(*) FILTER (WHERE nf.read_at IS NOT NULL)::int", 'read')
+      .where('nf.notice_id IN (:...ids)', { ids: noticeIds })
+      .groupBy('nf.notice_id')
+      .getRawMany<{ noticeId: string; total: number; read: number }>();
+    const byNotice = new Map(raw.map((r) => [r.noticeId, { total: Number(r.total), read: Number(r.read) }]));
+    const data = notices.map((n) => {
+      const agg = byNotice.get(n.id) ?? { total: 0, read: 0 };
+      const unread = Math.max(0, agg.total - agg.read);
+      return {
+        noticeId: n.id,
+        title: n.title,
+        createdAt: n.createdAt,
+        totalRecipients: agg.total,
+        readCount: agg.read,
+        unreadCount: unread,
+        readRate: agg.total > 0 ? Number(((agg.read / agg.total) * 100).toFixed(1)) : 0
+      };
+    });
+    const summary = data.reduce(
+      (acc, row) => ({
+        totalRecipients: acc.totalRecipients + row.totalRecipients,
+        read: acc.read + row.readCount,
+        unread: acc.unread + row.unreadCount
+      }),
+      { totalRecipients: 0, read: 0, unread: 0 }
+    );
+    return {
+      data,
+      meta: { total, page, limit: take, pages: Math.ceil(total / take) },
+      summary
+    };
+  }
+
+  async sendCriticalReadReminders(opts?: { schoolId?: string; minHoursSinceNotice?: number; maxNotices?: number }) {
+    const minHours = Math.max(1, opts?.minHoursSinceNotice ?? 6);
+    const maxNotices = Math.min(Math.max(opts?.maxNotices ?? 30, 1), 200);
+    const since = new Date(Date.now() - minHours * 60 * 60 * 1000);
+    const noticesQb = this.noticesRepository
+      .createQueryBuilder('n')
+      .where('n.is_important = true')
+      .andWhere('n.created_at <= :since', { since: since.toISOString() })
+      .orderBy('n.created_at', 'DESC')
+      .take(maxNotices);
+    if (opts?.schoolId?.trim()) {
+      const users = await this.usersRepository.find({
+        where: { schoolId: opts.schoolId.trim() },
+        select: ['id']
+      });
+      const ids = users.map((u) => u.id);
+      if (ids.length === 0) return { noticesChecked: 0, remindersCreated: 0 };
+      noticesQb.andWhere('n.created_by IN (:...ids)', { ids });
+    }
+    const notices = await noticesQb.getMany();
+    if (notices.length === 0) return { noticesChecked: 0, remindersCreated: 0 };
+    let remindersCreated = 0;
+    for (const notice of notices) {
+      const unreadRows = await this.notificationsRepository.find({
+        where: { noticeId: notice.id, readAt: IsNull() },
+        select: ['id', 'userId']
+      });
+      if (unreadRows.length === 0) continue;
+      const userIds = [...new Set(unreadRows.map((r) => r.userId))];
+      const alreadyReminded = await this.notificationsRepository
+        .createQueryBuilder('nf')
+        .select('nf.userId', 'userId')
+        .where('nf.user_id IN (:...uids)', { uids: userIds })
+        .andWhere('nf.title = :title', { title: `[Recordatorio lectura] ${notice.title}` })
+        .andWhere('nf.message LIKE :msg', { msg: `%Notice ID: ${notice.id}%` })
+        .getRawMany<{ userId: string }>();
+      const remindedSet = new Set(alreadyReminded.map((r) => r.userId));
+      const pendingUsers = userIds.filter((id) => !remindedSet.has(id));
+      if (pendingUsers.length === 0) continue;
+      const toCreate = pendingUsers.map((userId) =>
+        this.notificationsRepository.create({
+          userId,
+          noticeId: notice.id,
+          title: `[Recordatorio lectura] ${notice.title}`,
+          message: `Tienes un comunicado crítico pendiente de lectura. Notice ID: ${notice.id}`,
+          deliveryStatus: 'SENT'
+        })
+      );
+      const saved = await this.notificationsRepository.save(toCreate);
+      remindersCreated += saved.length;
+      void this.fcmService.sendPushForNotifications(saved).catch((err: unknown) => {
+        this.logger.warn(`Push FCM de recordatorio crítico no enviado: ${String(err)}`);
+      });
+    }
+    return { noticesChecked: notices.length, remindersCreated };
   }
 
   async updateAdminReportStatus(id: string, adminUserId: string, status: AdminReportStatus, role: UserRole) {
@@ -517,6 +695,63 @@ export class NoticesService {
       })
     );
     return saved;
+  }
+
+  private async enrichReportsWithSla<T extends AdminReportEntity>(rows: T[]) {
+    if (rows.length === 0) return rows as Array<T & Record<string, unknown>>;
+    const reportIds = rows.map((r) => r.id);
+    const firstAdminComments = await this.adminReportCommentsRepository
+      .createQueryBuilder('c')
+      .innerJoin(UserEntity, 'u', 'u.id = c.user_id')
+      .select('c.reportId', 'reportId')
+      .addSelect('MIN(c.created_at)', 'firstAdminCommentAt')
+      .where('c.report_id IN (:...ids)', { ids: reportIds })
+      .andWhere('u.role = :role', { role: UserRole.ADMIN })
+      .groupBy('c.report_id')
+      .getRawMany<{ reportId: string; firstAdminCommentAt: string | null }>();
+    const firstCommentMap = new Map(firstAdminComments.map((r) => [r.reportId, r.firstAdminCommentAt]));
+    const nowMs = Date.now();
+    const responseSlaMs = 24 * 60 * 60 * 1000;
+    const resolutionSlaMs = 72 * 60 * 60 * 1000;
+    return rows.map((r) => {
+      const createdMs = new Date(r.createdAt).getTime();
+      const resolvedMs = r.resolvedAt ? new Date(r.resolvedAt).getTime() : null;
+      const firstCommentAt = firstCommentMap.get(r.id);
+      const firstResponseMs =
+        firstCommentAt != null
+          ? new Date(firstCommentAt).getTime()
+          : r.status !== AdminReportStatus.PENDIENTE
+            ? new Date(r.updatedAt).getTime()
+            : null;
+      const responseRefMs = firstResponseMs ?? nowMs;
+      const resolutionRefMs = resolvedMs ?? nowMs;
+      const responseElapsedMs = Math.max(0, responseRefMs - createdMs);
+      const resolutionElapsedMs = Math.max(0, resolutionRefMs - createdMs);
+      const slaResponseStatus =
+        firstResponseMs == null
+          ? responseElapsedMs > responseSlaMs
+            ? 'BREACHED'
+            : 'PENDING'
+          : responseElapsedMs > responseSlaMs
+            ? 'BREACHED'
+            : 'OK';
+      const slaResolutionStatus =
+        r.status === AdminReportStatus.RESUELTO
+          ? resolutionElapsedMs > resolutionSlaMs
+            ? 'BREACHED'
+            : 'OK'
+          : resolutionElapsedMs > resolutionSlaMs
+            ? 'BREACHED'
+            : 'PENDING';
+      return {
+        ...r,
+        firstResponseAt: firstResponseMs ? new Date(firstResponseMs).toISOString() : null,
+        slaResponseHours: Number((responseElapsedMs / (1000 * 60 * 60)).toFixed(1)),
+        slaResolutionHours: Number((resolutionElapsedMs / (1000 * 60 * 60)).toFixed(1)),
+        slaResponseStatus,
+        slaResolutionStatus
+      };
+    });
   }
 
   async listAdminReportComments(reportId: string, userId: string, role: UserRole) {

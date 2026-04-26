@@ -14,7 +14,7 @@ import {
 } from '../../database/entities/external-visit.entity';
 import { ExternalVisitGroupEntity } from '../../database/entities/external-visit-group.entity';
 import { ExternalVisitStudentEntity } from '../../database/entities/external-visit-student.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AudienceResolverService } from '../events-core/audience-resolver.service';
 import { EventNotificationsService } from '../events-core/event-notifications.service';
@@ -404,6 +404,9 @@ export class ExternalVisitsService {
     }
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para gestionar visitas');
+    }
     if (groupIds.length > 0) {
       const rows = await this.dataSource.query<{ cnt: string }[]>(
         `SELECT COUNT(*)::text AS cnt FROM teacher_groups

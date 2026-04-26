@@ -85,22 +85,26 @@ export class SchedulesController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  create(@Body() dto: CreateScheduleSlotDto) {
-    return this.schedulesService.create(dto);
+  create(@Req() req: Request & { user: JwtUser }, @Body() dto: CreateScheduleSlotDto) {
+    return this.schedulesService.create(req.user.userId, req.user.role, dto);
   }
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   update(
+    @Req() req: Request & { user: JwtUser },
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdateScheduleSlotDto
   ) {
-    return this.schedulesService.update(id, dto);
+    return this.schedulesService.update(req.user.userId, req.user.role, id, dto);
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.schedulesService.remove(id);
+  remove(
+    @Req() req: Request & { user: JwtUser },
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string
+  ) {
+    return this.schedulesService.remove(req.user.userId, req.user.role, id);
   }
 }

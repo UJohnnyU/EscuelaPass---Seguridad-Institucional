@@ -6,8 +6,8 @@ import {
   PickupRequestEntity,
   PickupRequestStatus
 } from '../../database/entities/pickup-request.entity';
-import { StudentEntity } from '../../database/entities/student.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { CreatePickupRequestDto } from './dto/create-pickup-request.dto';
 import { UpdatePickupRequestStatusDto } from './dto/update-pickup-request-status.dto';
@@ -70,6 +70,9 @@ export class PickupRequestsService {
     }
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para gestionar solicitudes');
+    }
 
     return this.requestsRepository
       .createQueryBuilder('vr')
@@ -119,6 +122,9 @@ export class PickupRequestsService {
   private async assertParentLinkedToStudent(parentId: string, studentId: string) {
     const student = await this.studentsRepository.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
+    if (student.lifecycleStatus !== StudentLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El estudiante no está activo para solicitudes de recogida');
+    }
 
     const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
       `SELECT EXISTS (

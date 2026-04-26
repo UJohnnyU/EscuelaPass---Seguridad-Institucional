@@ -11,6 +11,7 @@ import { AcademicSchedulerModule } from './modules/academic-scheduler/academic-s
 import { AccessModule } from './modules/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CircuitModule } from './modules/circuit/circuit.module';
+import { ClassSessionsModule } from './modules/class-sessions/class-sessions.module';
 import { NoticesModule } from './modules/notices/notices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { HealthModule } from './modules/health/health.module';
@@ -60,6 +61,7 @@ import { MailModule } from './modules/mail/mail.module';
     AuthModule,
     AccessModule,
     CircuitModule,
+    ClassSessionsModule,
     NoticesModule,
     PaymentsModule,
     AttendanceModule,

@@ -16,7 +16,7 @@ import {
   MeetingParticipantEntity,
   MeetingParticipantRsvp
 } from '../../database/entities/meeting-participant.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AudienceResolverService } from '../events-core/audience-resolver.service';
 import { EventNotificationsService } from '../events-core/event-notifications.service';
@@ -385,6 +385,9 @@ export class MeetingsService {
   private async assertTeacherOwnsGroups(userId: string, groupIds: string[]): Promise<void> {
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para gestionar reuniones');
+    }
     const rows = await this.dataSource.query<{ cnt: string }[]>(
       `SELECT COUNT(*)::text AS cnt FROM teacher_groups
        WHERE teacher_id = $1 AND group_id = ANY($2::uuid[])`,

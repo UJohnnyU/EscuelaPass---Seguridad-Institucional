@@ -80,7 +80,6 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | undefined;
 
     async function refresh() {
       try {
@@ -95,7 +94,7 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
 
     void refresh();
     const tickMs = 5000;
-    timer = setInterval(() => {
+    const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       void refresh();
     }, tickMs);

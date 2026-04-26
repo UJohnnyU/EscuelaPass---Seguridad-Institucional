@@ -1,5 +1,12 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
+export enum TeacherLifecycleStatus {
+  ACTIVO = 'ACTIVO',
+  BAJA = 'BAJA',
+  TRASLADO = 'TRASLADO',
+  EGRESADO = 'EGRESADO'
+}
+
 @Entity({ name: 'teachers' })
 export class TeacherEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -10,4 +17,7 @@ export class TeacherEntity {
 
   @Column({ name: 'employee_number', type: 'varchar', length: 50, unique: true })
   employeeNumber!: string;
+
+  @Column({ name: 'lifecycle_status', type: 'varchar', length: 16, default: TeacherLifecycleStatus.ACTIVO })
+  lifecycleStatus!: TeacherLifecycleStatus;
 }

@@ -1,5 +1,12 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
+export enum StudentLifecycleStatus {
+  ACTIVO = 'ACTIVO',
+  BAJA = 'BAJA',
+  TRASLADO = 'TRASLADO',
+  EGRESADO = 'EGRESADO'
+}
+
 @Entity({ name: 'students' })
 export class StudentEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -19,4 +26,7 @@ export class StudentEntity {
 
   @Column({ name: 'can_leave_alone', type: 'boolean', default: false })
   canLeaveAlone!: boolean;
+
+  @Column({ name: 'lifecycle_status', type: 'varchar', length: 16, default: StudentLifecycleStatus.ACTIVO })
+  lifecycleStatus!: StudentLifecycleStatus;
 }

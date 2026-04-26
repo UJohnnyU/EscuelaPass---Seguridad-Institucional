@@ -48,4 +48,21 @@ export class DashboardController {
     }
     return this.dashboardService.adminPanel(date, windowDays, scope);
   }
+
+  @Get('actionable-kpis')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  actionableKpis(
+    @Req() req: Request & { user: JwtUser },
+    @Query('date') date: string | undefined,
+    @Query('schoolId') schoolId: string | undefined
+  ) {
+    let sid = schoolId?.trim() || undefined;
+    if (req.user.role === UserRole.ADMINISTRATIVO) {
+      const mine = req.user.schoolId?.trim() || undefined;
+      if (!mine) throw new ForbiddenException('Usuario sin escuela asignada');
+      if (sid && sid !== mine) throw new ForbiddenException('No autorizado a consultar otra institución');
+      sid = mine;
+    }
+    return this.dashboardService.actionableKpis(date, sid);
+  }
 }

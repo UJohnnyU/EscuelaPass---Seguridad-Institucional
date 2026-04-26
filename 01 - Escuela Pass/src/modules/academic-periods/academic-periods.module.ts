@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AcademicPeriodEntity } from '../../database/entities/academic-period.entity';
+import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AcademicNotificationsModule } from '../academic-notifications/academic-notifications.module';
 import { ActivitiesModule } from '../activities/activities.module';
@@ -15,7 +16,7 @@ import { AcademicPeriodsService } from './academic-periods.service';
     AcademicNotificationsModule,
     ActivitiesModule,
     ReportCardsModule,
-    TypeOrmModule.forFeature([AcademicPeriodEntity, UserEntity])
+    TypeOrmModule.forFeature([AcademicPeriodEntity, SchoolEntity, UserEntity])
   ],
   controllers: [AcademicPeriodsController],
   providers: [AcademicPeriodsService],

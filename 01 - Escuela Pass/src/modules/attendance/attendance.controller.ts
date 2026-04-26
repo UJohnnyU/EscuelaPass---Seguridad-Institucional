@@ -21,6 +21,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { AttendanceService } from './attendance.service';
 import { ParentExcuseDto } from './dto/parent-excuse.dto';
 import { RegisterAttendanceDto } from './dto/register-attendance.dto';
+import { RegisterBulkAttendanceDto } from './dto/register-bulk-attendance.dto';
 import { excuseMulterOptions } from './multer-excuse.config';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
@@ -34,6 +35,12 @@ export class AttendanceController {
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   register(@Body() dto: RegisterAttendanceDto, @Req() req: Request & { user: JwtUser }) {
     return this.attendanceService.register(dto, req.user.userId, req.user.role);
+  }
+
+  @Post('register-bulk')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  registerBulk(@Body() dto: RegisterBulkAttendanceDto, @Req() req: Request & { user: JwtUser }) {
+    return this.attendanceService.registerBulkBySession(dto, req.user.userId, req.user.role);
   }
 
   @Get('groups/:groupId')

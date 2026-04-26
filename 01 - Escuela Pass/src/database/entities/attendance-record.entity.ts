@@ -17,6 +17,10 @@ export class AttendanceRecordEntity {
   @Column({ name: 'group_id', type: 'uuid', nullable: true })
   groupId!: string | null;
 
+  /** Sesión académica asociada cuando la asistencia se captura por clase. */
+  @Column({ name: 'class_session_id', type: 'uuid', nullable: true })
+  classSessionId!: string | null;
+
   @Column({ name: 'attendance_date', type: 'date' })
   attendanceDate!: string;
 

@@ -5,13 +5,15 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AttendanceRecordEntity, AttendanceStatus } from '../../database/entities/attendance-record.entity';
+import { ClassSessionEntity } from '../../database/entities/class-session.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
-import { StudentEntity } from '../../database/entities/student.entity';
-import { TeacherEntity } from '../../database/entities/teacher.entity';
+import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
+import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { RegisterAttendanceDto } from './dto/register-attendance.dto';
+import { RegisterBulkAttendanceDto } from './dto/register-bulk-attendance.dto';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 import { todayLocalISODate } from '../../common/local-date';
 
@@ -54,6 +56,8 @@ export class AttendanceService {
   constructor(
     @InjectRepository(AttendanceRecordEntity)
     private readonly attendanceRepository: Repository<AttendanceRecordEntity>,
+    @InjectRepository(ClassSessionEntity)
+    private readonly classSessionsRepository: Repository<ClassSessionEntity>,
     @InjectRepository(StudentEntity)
     private readonly studentsRepository: Repository<StudentEntity>,
     @InjectRepository(TeacherEntity)
@@ -91,6 +95,9 @@ export class AttendanceService {
   async register(dto: RegisterAttendanceDto, registeredByUserId: string, role: UserRole) {
     const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');
+    if (student.lifecycleStatus !== StudentLifecycleStatus.ACTIVO) {
+      throw new BadRequestException('Solo puede registrar asistencia de estudiantes en estado ACTIVO');
+    }
 
     const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayLocalISODate();
     const today = todayLocalISODate();
@@ -104,6 +111,13 @@ export class AttendanceService {
     }
 
     await this.assertCanRegisterForStudent(registeredByUserId, role, student);
+    const classSessionId = await this.validateClassSessionForAttendance(
+      student,
+      dateStr,
+      dto.classSessionId,
+      registeredByUserId,
+      role
+    );
     const cal = await this.schoolCalendarService.getNonInstructionalForDate(
       dateStr,
       student.groupId ?? null
@@ -119,6 +133,7 @@ export class AttendanceService {
       existing.notes = dto.notes ?? null;
       existing.registeredBy = registeredByUserId;
       existing.groupId = student.groupId ?? null;
+      existing.classSessionId = classSessionId;
       const saved = await this.attendanceRepository.save(existing);
       await this.setJustificationForRecord(saved.id, dto.status, dto.isJustified);
       return saved;
@@ -127,6 +142,7 @@ export class AttendanceService {
     const row = this.attendanceRepository.create({
       studentId: student.id,
       groupId: student.groupId ?? null,
+      classSessionId,
       attendanceDate: dateStr,
       status: dto.status,
       notes: dto.notes ?? null,
@@ -135,6 +151,85 @@ export class AttendanceService {
     const saved = await this.attendanceRepository.save(row);
     await this.setJustificationForRecord(saved.id, dto.status, dto.isJustified);
     return saved;
+  }
+
+  /**
+   * Registra asistencia de varios alumnos en una sola petición, vinculada a una sesión académica.
+   */
+  async registerBulkBySession(dto: RegisterBulkAttendanceDto, registeredByUserId: string, role: UserRole) {
+    const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayLocalISODate();
+    const today = todayLocalISODate();
+    if (
+      (role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO) &&
+      dateStr !== today
+    ) {
+      throw new ForbiddenException(
+        'Solo puede modificar asistencias del día actual (no días anteriores ni posteriores).'
+      );
+    }
+
+    const session = await this.classSessionsRepository.findOne({
+      where: { id: dto.classSessionId.trim() }
+    });
+    if (!session?.isActive) {
+      throw new BadRequestException('Sesion academica no encontrada o inactiva');
+    }
+
+    const [y, m, d] = dateStr.split('-').map((x) => Number.parseInt(x, 10));
+    const localDay = new Date(y, m - 1, d).getDay();
+    if (localDay !== session.weekday) {
+      throw new BadRequestException('La fecha de asistencia no coincide con el dia de la sesion academica');
+    }
+
+    await this.assertCanRegisterForClassSession(registeredByUserId, role, session);
+
+    const cal = await this.schoolCalendarService.getNonInstructionalForDate(dateStr, session.groupId);
+    this.schoolCalendarService.assertInstructionalDay(cal);
+
+    const studentIds = dto.entries.map((e) => e.studentId);
+    const uniqueIds = [...new Set(studentIds)];
+    if (uniqueIds.length !== studentIds.length) {
+      throw new BadRequestException('Hay estudiantes duplicados en la lista');
+    }
+
+    const students = await this.studentsRepository.find({ where: { id: In(uniqueIds) } });
+    if (students.length !== uniqueIds.length) {
+      throw new NotFoundException('Uno o mas estudiantes no existen');
+    }
+    for (const s of students) {
+      if (s.lifecycleStatus !== StudentLifecycleStatus.ACTIVO) {
+        throw new BadRequestException('El registro masivo solo admite estudiantes en estado ACTIVO');
+      }
+      if (s.groupId !== session.groupId) {
+        throw new BadRequestException('Todos los estudiantes deben pertenecer al grupo de la sesion');
+      }
+      await this.assertCanRegisterForStudent(registeredByUserId, role, s);
+    }
+
+    const records: AttendanceRecordEntity[] = [];
+    for (const entry of dto.entries) {
+      const saved = await this.register(
+        {
+          studentId: entry.studentId,
+          status: entry.status,
+          attendanceDate: dateStr,
+          notes: entry.notes,
+          isJustified: entry.isJustified,
+          classSessionId: dto.classSessionId
+        },
+        registeredByUserId,
+        role
+      );
+      records.push(saved);
+    }
+
+    return {
+      message: 'Asistencias registradas',
+      classSessionId: session.id,
+      attendanceDate: dateStr,
+      count: records.length,
+      records
+    };
   }
 
   async listByGroup(
@@ -189,6 +284,7 @@ export class AttendanceService {
         id: string;
         studentId: string;
         groupId: string | null;
+        classSessionId: string | null;
         attendanceDate: string;
         status: string;
         isJustified: boolean | null;
@@ -201,6 +297,7 @@ export class AttendanceService {
       `SELECT a.id,
               a.student_id AS "studentId",
               a.group_id AS "groupId",
+              a.class_session_id AS "classSessionId",
               a.attendance_date AS "attendanceDate",
               a.status::text AS status,
               (${justExpr}) AS "isJustified",
@@ -277,6 +374,7 @@ export class AttendanceService {
         id: string;
         studentId: string;
         groupId: string | null;
+        classSessionId: string | null;
         attendanceDate: string;
         status: string;
         isJustified: boolean | null;
@@ -289,6 +387,7 @@ export class AttendanceService {
       `SELECT a.id,
               a.student_id AS "studentId",
               a.group_id AS "groupId",
+              a.class_session_id AS "classSessionId",
               a.attendance_date AS "attendanceDate",
               a.status::text AS status,
               (${justExpr}) AS "isJustified",
@@ -478,6 +577,7 @@ export class AttendanceService {
       if (excuseAttachmentPath) {
         existing.excuseAttachmentPath = excuseAttachmentPath;
       }
+      existing.classSessionId = null;
       const saved = await this.attendanceRepository.save(existing);
       await this.setJustificationForRecord(saved.id, 'AUSENTE', true);
       return { message: 'Excusa registrada', id: saved.id };
@@ -486,6 +586,7 @@ export class AttendanceService {
     const row = this.attendanceRepository.create({
       studentId: student.id,
       groupId: student.groupId ?? null,
+      classSessionId: null,
       attendanceDate: dateStr,
       status: AttendanceStatus.AUSENTE,
       notes,
@@ -495,6 +596,73 @@ export class AttendanceService {
     const saved = await this.attendanceRepository.save(row);
     await this.setJustificationForRecord(saved.id, 'AUSENTE', true);
     return { message: 'Excusa registrada', id: saved.id };
+  }
+
+  private async validateClassSessionForAttendance(
+    student: StudentEntity,
+    attendanceDate: string,
+    classSessionId?: string,
+    registeredByUserId?: string,
+    role?: UserRole
+  ): Promise<string | null> {
+    if (!classSessionId?.trim()) return null;
+    if (!student.groupId) {
+      throw new BadRequestException('El estudiante no tiene grupo asignado para vincular sesión');
+    }
+    const session = await this.classSessionsRepository.findOne({ where: { id: classSessionId.trim() } });
+    if (!session || !session.isActive) {
+      throw new BadRequestException('Sesion academica no encontrada o inactiva');
+    }
+    if (session.groupId !== student.groupId) {
+      throw new BadRequestException('La sesion academica no pertenece al grupo del estudiante');
+    }
+    const [y, m, d] = attendanceDate.split('-').map((x) => Number.parseInt(x, 10));
+    const localDay = new Date(y, m - 1, d).getDay();
+    if (localDay !== session.weekday) {
+      throw new BadRequestException('La fecha de asistencia no coincide con el dia de la sesion academica');
+    }
+    if (role === UserRole.DOCENTE && registeredByUserId) {
+      const teacher = await this.teachersRepository.findOne({ where: { userId: registeredByUserId } });
+      if (teacher && teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+        throw new ForbiddenException('El docente no está activo para registrar asistencia');
+      }
+      if (teacher && session.teacherId !== teacher.id) {
+        throw new ForbiddenException('Solo el docente asignado a la sesion puede registrar esta asistencia');
+      }
+    }
+    return session.id;
+  }
+
+  private async assertCanRegisterForClassSession(
+    userId: string,
+    role: UserRole,
+    session: ClassSessionEntity
+  ): Promise<void> {
+    if (role === UserRole.ADMIN) return;
+    if (role === UserRole.ADMINISTRATIVO) {
+      await this.assertAdministrativeCanAccessGroup(userId, session.groupId);
+      return;
+    }
+    if (role !== UserRole.DOCENTE) {
+      throw new ForbiddenException('Solo docente o administracion puede registrar asistencia');
+    }
+    const teacher = await this.teachersRepository.findOne({ where: { userId } });
+    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para registrar asistencia');
+    }
+    if (session.teacherId !== teacher.id) {
+      throw new ForbiddenException('Solo el docente asignado a la sesion puede usar el registro masivo');
+    }
+    const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1 FROM teacher_groups WHERE teacher_id = $1 AND group_id = $2
+      ) AS ok`,
+      [teacher.id, session.groupId]
+    );
+    if (!rows[0]?.ok) {
+      throw new ForbiddenException('No tienes asignacion en el grupo de esta sesion');
+    }
   }
 
   /** Lista hijos vinculados al padre (para circuito, visitas, etc.). */
@@ -531,6 +699,9 @@ export class AttendanceService {
     }
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para consultar asistencia');
+    }
 
     const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
       `SELECT EXISTS (
@@ -554,6 +725,9 @@ export class AttendanceService {
     }
     const teacher = await this.teachersRepository.findOne({ where: { userId } });
     if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para consultar asistencia');
+    }
     const rows = await this.studentsRepository.manager.query<{ ok: boolean }[]>(
       `SELECT EXISTS (
         SELECT 1 FROM teacher_groups WHERE teacher_id = $1 AND group_id = $2

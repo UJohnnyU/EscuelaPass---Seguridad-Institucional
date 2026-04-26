@@ -28,11 +28,22 @@ function sqlWithoutExtensionDeps(sql) {
     .replace(/\buuid_generate_v4\s*\(\s*\)/gi, 'gen_random_uuid()');
 }
 
-async function runSqlFile(client, relativeFile, { stripCreateExtensions = false } = {}) {
+function sqlWithoutConflictTargets(sql) {
+  return sql.replace(/\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING/gi, 'ON CONFLICT DO NOTHING');
+}
+
+async function runSqlFile(
+  client,
+  relativeFile,
+  { stripCreateExtensions = false, stripConflictTargets = false } = {}
+) {
   const filePath = path.resolve(__dirname, '..', relativeFile);
   let sql = fs.readFileSync(filePath, 'utf8');
   if (stripCreateExtensions) {
     sql = sqlWithoutExtensionDeps(sql);
+  }
+  if (stripConflictTargets) {
+    sql = sqlWithoutConflictTargets(sql);
   }
   await client.query(sql);
   // eslint-disable-next-line no-console
@@ -71,11 +82,220 @@ async function main() {
     process.env.E2E_SKIP_EXTENSIONS === '1' || process.env.E2E_STRIP_EXTENSIONS === '1';
 
   try {
+    // Reinicio completo para evitar estado residual entre corridas E2E.
+    await client.query(`
+      DROP SCHEMA IF EXISTS public CASCADE;
+      CREATE SCHEMA public;
+    `);
     // Inicializa esquema y seed en BD de pruebas.
     // Nota: el esquema requiere uuid-ossp y pgcrypto. Si tu usuario no puede crear extensiones,
     // créalas una vez como superusuario en esta BD (o E2E_SKIP_EXTENSIONS=1 en hosts gestionados).
     await runSqlFile(client, 'escuela_pass_schema_v3.sql', { stripCreateExtensions: stripExtensions });
-    await runSqlFile(client, 'scripts/database/seed_dev.sql');
+    // Compatibilidad con esquemas runtime más nuevos: el seed histórico no incluye lat/lng.
+    await client.query(`
+      ALTER TABLE IF EXISTS schools
+        ADD COLUMN IF NOT EXISTS circuit_enabled boolean NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS address varchar(500) NULL,
+        ADD COLUMN IF NOT EXISTS city varchar(120) NULL,
+        ADD COLUMN IF NOT EXISTS phone varchar(80) NULL,
+        ADD COLUMN IF NOT EXISTS email varchar(200) NULL,
+        ADD COLUMN IF NOT EXISTS director_name varchar(200) NULL,
+        ADD COLUMN IF NOT EXISTS student_matricula_prefix varchar(20) NULL,
+        ADD COLUMN IF NOT EXISTS motto varchar(500) NULL,
+        ADD COLUMN IF NOT EXISTS max_grade_scale decimal(5,2) NOT NULL DEFAULT 100,
+        ADD COLUMN IF NOT EXISTS passing_grade decimal(5,2) NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS min_failed_subjects_to_repeat integer NOT NULL DEFAULT 3,
+        ADD COLUMN IF NOT EXISTS logo_path varchar(500) NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS schools
+        ADD COLUMN IF NOT EXISTS latitude numeric(10,8) NULL,
+        ADD COLUMN IF NOT EXISTS longitude numeric(11,8) NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS schools
+        ALTER COLUMN latitude DROP NOT NULL,
+        ALTER COLUMN longitude DROP NOT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS users
+        ADD COLUMN IF NOT EXISTS school_id uuid NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS groups
+        ADD COLUMN IF NOT EXISTS school_id uuid NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS subjects
+        ADD COLUMN IF NOT EXISTS school_id uuid NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS subjects
+        ADD COLUMN IF NOT EXISTS code varchar(40) NULL,
+        ADD COLUMN IF NOT EXISTS education_level varchar(60) NULL,
+        ADD COLUMN IF NOT EXISTS grade_scope varchar(60) NULL,
+        ADD COLUMN IF NOT EXISTS area varchar(120) NULL,
+        ADD COLUMN IF NOT EXISTS description varchar(500) NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS students
+        ADD COLUMN IF NOT EXISTS school_id uuid NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS students
+        ALTER COLUMN school_id DROP NOT NULL;
+    `);
+    await runSqlFile(client, 'scripts/database/seed_dev.sql', { stripConflictTargets: true });
+    await client.query(`
+      INSERT INTO users (email, password_hash, role, full_name, can_access_campus, school_id)
+      SELECT
+        'administrativo@escuelapass.local',
+        crypt('Admin123*', gen_salt('bf')),
+        'ADMINISTRATIVO',
+        'Administrativo Uno',
+        true,
+        s.id
+      FROM schools s
+      WHERE s.code = 'ESCUELA-PRINCIPAL'
+      ON CONFLICT DO NOTHING;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS students
+        ADD COLUMN IF NOT EXISTS lifecycle_status varchar(16) NOT NULL DEFAULT 'ACTIVO';
+      ALTER TABLE IF EXISTS teachers
+        ADD COLUMN IF NOT EXISTS lifecycle_status varchar(16) NOT NULL DEFAULT 'ACTIVO';
+      ALTER TABLE IF EXISTS academic_periods
+        ADD COLUMN IF NOT EXISTS reopened_at timestamptz NULL,
+        ADD COLUMN IF NOT EXISTS reopened_by uuid NULL;
+      ALTER TABLE IF EXISTS attendance_records
+        ADD COLUMN IF NOT EXISTS class_session_id uuid NULL,
+        ADD COLUMN IF NOT EXISTS excuse_attachment_path varchar(500) NULL;
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_lifecycle_events (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id uuid NOT NULL,
+        school_id uuid NULL,
+        from_status varchar(16) NOT NULL,
+        to_status varchar(16) NOT NULL,
+        reason varchar(240) NOT NULL,
+        effective_date date NOT NULL,
+        changed_by_user_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS teacher_lifecycle_events (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        teacher_id uuid NOT NULL,
+        school_id uuid NULL,
+        from_status varchar(16) NOT NULL,
+        to_status varchar(16) NOT NULL,
+        reason varchar(240) NOT NULL,
+        effective_date date NOT NULL,
+        changed_by_user_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS ix_student_lifecycle_events_student ON student_lifecycle_events (student_id);
+      CREATE INDEX IF NOT EXISTS ix_teacher_lifecycle_events_teacher ON teacher_lifecycle_events (teacher_id);
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_reports (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id uuid NOT NULL,
+        created_by_user_id uuid NOT NULL,
+        assigned_admin_user_id uuid NULL,
+        type varchar(16) NOT NULL DEFAULT 'OTRO',
+        subject varchar(160) NOT NULL,
+        message text NOT NULL,
+        status varchar(16) NOT NULL DEFAULT 'PENDIENTE',
+        resolved_by_user_id uuid NULL,
+        resolved_at timestamptz NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS ix_admin_reports_school_status ON admin_reports (school_id, status);
+      CREATE INDEX IF NOT EXISTS ix_admin_reports_created_by ON admin_reports (created_by_user_id);
+
+      CREATE TABLE IF NOT EXISTS admin_report_comments (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        report_id uuid NOT NULL,
+        user_id uuid NOT NULL,
+        message text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS ix_admin_report_comments_report ON admin_report_comments (report_id, created_at);
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS debt_adjustments (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        debt_id uuid NOT NULL,
+        school_id uuid NOT NULL,
+        action_type varchar(32) NOT NULL,
+        previous_amount numeric(10,2) NOT NULL,
+        delta_amount numeric(10,2) NOT NULL,
+        next_amount numeric(10,2) NOT NULL,
+        reason varchar(300) NOT NULL,
+        policy_cycle_date date NULL,
+        changed_by_user_id uuid NULL,
+        metadata jsonb NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS ix_debt_adjustments_debt_created ON debt_adjustments (debt_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_debt_adjustments_school_created ON debt_adjustments (school_id, created_at DESC);
+    `);
+    // Normaliza school_id en datos semilla para compatibilidad con reglas institucionales nuevas.
+    await client.query(`
+      WITH default_school AS (
+        SELECT id FROM schools ORDER BY created_at ASC LIMIT 1
+      )
+      UPDATE users u
+      SET school_id = (SELECT id FROM default_school)
+      WHERE u.school_id IS NULL
+        AND u.role IN ('ADMINISTRATIVO', 'DOCENTE', 'PADRE', 'ALUMNO');
+    `);
+    await client.query(`
+      WITH default_school AS (
+        SELECT id FROM schools ORDER BY created_at ASC LIMIT 1
+      )
+      UPDATE groups g
+      SET school_id = COALESCE(g.school_id, (SELECT id FROM default_school))
+      WHERE g.school_id IS NULL;
+    `);
+    await client.query(`
+      WITH default_school AS (
+        SELECT id FROM schools ORDER BY created_at ASC LIMIT 1
+      )
+      UPDATE subjects s
+      SET school_id = COALESCE(s.school_id, (SELECT id FROM default_school))
+      WHERE s.school_id IS NULL;
+    `);
+    await client.query(`
+      UPDATE subjects
+      SET code = COALESCE(NULLIF(code, ''), upper(substr(regexp_replace(name, '[^a-zA-Z0-9]+', '', 'g'), 1, 8)))
+      WHERE code IS NULL OR code = '';
+    `);
+    await client.query(`
+      WITH default_school AS (
+        SELECT id FROM schools ORDER BY created_at ASC LIMIT 1
+      )
+      INSERT INTO subjects (name, code, school_id)
+      SELECT 'Matemáticas', 'MAT', id FROM default_school
+      ON CONFLICT DO NOTHING;
+    `);
+    await client.query(`
+      WITH default_school AS (
+        SELECT id FROM schools ORDER BY created_at ASC LIMIT 1
+      )
+      UPDATE students s
+      SET school_id = COALESCE(
+        s.school_id,
+        u.school_id,
+        (SELECT g.school_id FROM groups g WHERE g.id = s.group_id),
+        (SELECT id FROM default_school)
+      )
+      FROM users u
+      WHERE u.id = s.user_id
+        AND s.school_id IS NULL;
+    `);
     // Asegura valor de enum por si el esquema antiguo ya tenía circuit_status sin PADRE_EN_CAMINO.
     await client.query(`
       DO $$
@@ -108,7 +328,10 @@ async function main() {
     await client.query(`
       ALTER TABLE circuit_requests
       ADD COLUMN IF NOT EXISTS parent_confirm_deadline_at TIMESTAMPTZ NULL,
-      ADD COLUMN IF NOT EXISTS parent_receipt_confirmed_at TIMESTAMPTZ NULL;
+      ADD COLUMN IF NOT EXISTS parent_receipt_confirmed_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS arrival_snapshot_latitude NUMERIC(10, 8) NULL,
+      ADD COLUMN IF NOT EXISTS arrival_snapshot_longitude NUMERIC(11, 8) NULL,
+      ADD COLUMN IF NOT EXISTS arrival_snapshot_at TIMESTAMPTZ NULL;
     `);
     // eslint-disable-next-line no-console
     console.log('[e2e-db] OK circuit_status.CERRADO_SIN_CONFIRMACION_PADRE + columnas padre');

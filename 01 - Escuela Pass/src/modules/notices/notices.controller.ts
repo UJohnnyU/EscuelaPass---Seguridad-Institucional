@@ -48,4 +48,21 @@ export class NoticesController {
     const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '20', 10) || 20));
     return this.noticesService.list(p, l, req.user.userId, req.user.role, schoolId?.trim() || undefined);
   }
+
+  @Get('critical/read-receipts')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  criticalReadReceipts(
+    @Req() req: Request & { user: JwtUser },
+    @Query('page') page: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('schoolId') schoolId: string | undefined
+  ) {
+    const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
+    const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '20', 10) || 20));
+    return this.noticesService.listCriticalNoticeReadReceipts(req.user.userId, req.user.role, {
+      page: p,
+      limit: l,
+      schoolId: schoolId?.trim() || undefined
+    });
+  }
 }
