@@ -12,9 +12,9 @@ export const CIRCUIT_STATUS_LABEL: Record<string, string> = {
 
 export const PICKUP_METHOD_LABEL: Record<string, string> = {
   VEHICULO_REGISTRADO: 'Vehículo registrado',
-  OTRO_VEHICULO: 'Otro vehículo',
+  OTRO_VEHICULO: 'Otro vehículo o taxi',
   A_PIE: 'A pie',
-  TRANSPORTE_PUBLICO: 'Transporte público',
+  TRANSPORTE_PUBLICO: 'Transporte legado',
   SOLO_CONSENTIMIENTO: 'Solo consentimiento'
 };
 

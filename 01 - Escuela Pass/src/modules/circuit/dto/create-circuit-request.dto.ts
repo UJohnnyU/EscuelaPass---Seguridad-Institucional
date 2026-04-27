@@ -1,4 +1,4 @@
-import { IsIn, IsNumber, IsOptional, IsUUID, Max, Min, ValidateIf } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { PickupMethod, PICKUP_METHOD_CREATE } from '../../../database/entities/circuit-request.entity';
 
 export class CreateCircuitRequestDto {
@@ -23,6 +23,17 @@ export class CreateCircuitRequestDto {
   @ValidateIf((o: CreateCircuitRequestDto) => o.pickupMethod === PickupMethod.VEHICULO_REGISTRADO)
   @IsUUID()
   vehicleId?: string;
+
+  /** Requerido cuando el padre llega en taxi o auto no registrado. */
+  @ValidateIf((o: CreateCircuitRequestDto) => o.pickupMethod === PickupMethod.OTRO_VEHICULO)
+  @IsString()
+  @MaxLength(120)
+  pickupVehicleDescription?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(240)
+  pickupNotes?: string;
 
   @IsNumber()
   @IsOptional()

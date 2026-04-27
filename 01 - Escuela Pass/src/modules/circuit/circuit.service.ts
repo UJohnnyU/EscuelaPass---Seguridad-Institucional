@@ -218,6 +218,10 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     } else if (payload.vehicleId) {
       throw new BadRequestException('vehicleId solo aplica cuando el método es VEHICULO_REGISTRADO');
     }
+    const pickupVehicleDescription = payload.pickupVehicleDescription?.trim() || null;
+    if (payload.pickupMethod === PickupMethod.OTRO_VEHICULO && !pickupVehicleDescription) {
+      throw new BadRequestException('Describe el vehículo o taxi usado para la recogida');
+    }
 
     const initialStatus =
       payload.pickupMethod === PickupMethod.SOLO_CONSENTIMIENTO
@@ -233,6 +237,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       parentGpsLatitude: payload.parentGpsLatitude?.toString() ?? null,
       parentGpsLongitude: payload.parentGpsLongitude?.toString() ?? null,
       vehicleId,
+      pickupVehicleDescription,
+      pickupNotes: payload.pickupNotes?.trim() || null,
       teacherSignal: null
     });
     const saved = await this.circuitRepository.save(request);
@@ -756,6 +762,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       status: req.status,
       pickupMethod: req.pickupMethod,
       vehicleId: req.vehicleId,
+      pickupVehicleDescription: req.pickupVehicleDescription,
+      pickupNotes: req.pickupNotes,
       teacherSignal: req.teacherSignal,
       parentConfirmDeadlineAt: req.parentConfirmDeadlineAt,
       parentReceiptConfirmedAt: req.parentReceiptConfirmedAt,

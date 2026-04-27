@@ -331,7 +331,9 @@ async function main() {
       ADD COLUMN IF NOT EXISTS parent_receipt_confirmed_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS arrival_snapshot_latitude NUMERIC(10, 8) NULL,
       ADD COLUMN IF NOT EXISTS arrival_snapshot_longitude NUMERIC(11, 8) NULL,
-      ADD COLUMN IF NOT EXISTS arrival_snapshot_at TIMESTAMPTZ NULL;
+      ADD COLUMN IF NOT EXISTS arrival_snapshot_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS pickup_vehicle_description VARCHAR(120) NULL,
+      ADD COLUMN IF NOT EXISTS pickup_notes VARCHAR(240) NULL;
     `);
     // eslint-disable-next-line no-console
     console.log('[e2e-db] OK circuit_status.CERRADO_SIN_CONFIRMACION_PADRE + columnas padre');

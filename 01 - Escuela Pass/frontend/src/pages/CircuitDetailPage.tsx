@@ -28,6 +28,8 @@ type CircuitReq = {
   requestTime: string;
   teacherSignal: string | null;
   vehicleId: string | null;
+  pickupVehicleDescription?: string | null;
+  pickupNotes?: string | null;
   parentConfirmDeadlineAt?: string | null;
   parentReceiptConfirmedAt?: string | null;
   arrivalSnapshotAt?: string | null;
@@ -359,6 +361,20 @@ export function CircuitDetailPage() {
           <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Forma de retiro</dt>
           <dd className="mt-1 text-slate-800">{PICKUP_METHOD_LABEL[row.pickupMethod] ?? row.pickupMethod}</dd>
         </div>
+        {row.pickupVehicleDescription && (
+          <div>
+            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              Vehículo no registrado
+            </dt>
+            <dd className="mt-1 text-slate-800">{row.pickupVehicleDescription}</dd>
+          </div>
+        )}
+        {row.pickupNotes && (
+          <div>
+            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Nota familia</dt>
+            <dd className="mt-1 whitespace-pre-line text-slate-800">{row.pickupNotes}</dd>
+          </div>
+        )}
         {row.teacherSignal && (
           <div>
             <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Señal docente</dt>

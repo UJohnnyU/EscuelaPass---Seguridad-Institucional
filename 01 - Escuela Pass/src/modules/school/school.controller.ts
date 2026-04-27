@@ -333,8 +333,8 @@ export class SchoolController {
     });
   }
 
-  @Get('lifecycle-events/export.csv')
-  async exportLifecycleEventsCsv(
+  @Get('lifecycle-events/export.xlsx')
+  async exportLifecycleEventsXlsx(
     @Query('entityType') entityTypeRaw: string | undefined,
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
@@ -345,15 +345,15 @@ export class SchoolController {
       entityTypeRaw === 'student' || entityTypeRaw === 'teacher' || entityTypeRaw === 'all'
         ? entityTypeRaw
         : 'all';
-    const buffer = await this.schoolService.exportLifecycleEventsCsv(this.scopeSchool(req.user), {
+    const buffer = await this.schoolService.exportLifecycleEventsXlsx(this.scopeSchool(req.user), {
       entityType,
       from,
       to,
       limit: this.parseAuditLimit(limitRaw)
     });
     return new StreamableFile(buffer, {
-      type: 'text/csv; charset=utf-8',
-      disposition: 'attachment; filename="lifecycle-events.csv"'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment; filename="lifecycle-events.xlsx"'
     });
   }
 

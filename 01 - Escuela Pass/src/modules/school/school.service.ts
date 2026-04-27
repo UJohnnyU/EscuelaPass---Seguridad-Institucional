@@ -1175,7 +1175,7 @@ export class SchoolService {
       .slice(0, limit);
   }
 
-  async exportLifecycleEventsCsv(
+  async exportLifecycleEventsXlsx(
     scopeSchoolId?: string | null,
     filters?: {
       entityType?: 'student' | 'teacher' | 'all';
@@ -1188,43 +1188,26 @@ export class SchoolService {
       ...filters,
       limit: Math.min(Math.max(filters?.limit ?? 2000, 1), 5000)
     });
-    const escapeCsv = (v: unknown) => {
-      const text = String(v ?? '');
-      const escaped = text.replace(/"/g, '""');
-      return `"${escaped}"`;
-    };
-    const header = [
-      'tipo_entidad',
-      'persona_id',
-      'persona_nombre',
-      'estado_origen',
-      'estado_destino',
-      'motivo',
-      'fecha_efectiva',
-      'cambiado_por_id',
-      'cambiado_por_nombre',
-      'fecha_evento'
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Auditoria lifecycle');
+    ws.columns = [
+      { header: 'tipo_entidad', key: 'entityType', width: 18 },
+      { header: 'persona_id', key: 'personId', width: 38 },
+      { header: 'persona_nombre', key: 'personName', width: 30 },
+      { header: 'estado_origen', key: 'fromStatus', width: 18 },
+      { header: 'estado_destino', key: 'toStatus', width: 18 },
+      { header: 'motivo', key: 'reason', width: 42 },
+      { header: 'fecha_efectiva', key: 'effectiveDate', width: 18 },
+      { header: 'cambiado_por_id', key: 'changedByUserId', width: 38 },
+      { header: 'cambiado_por_nombre', key: 'changedByName', width: 30 },
+      { header: 'fecha_evento', key: 'createdAt', width: 24 }
     ];
-    const lines = [header.map(escapeCsv).join(',')];
-    for (const row of rows) {
-      lines.push(
-        [
-          row.entityType,
-          row.personId,
-          row.personName,
-          row.fromStatus,
-          row.toStatus,
-          row.reason,
-          row.effectiveDate,
-          row.changedByUserId,
-          row.changedByName,
-          row.createdAt
-        ]
-          .map(escapeCsv)
-          .join(',')
-      );
-    }
-    return Buffer.from(lines.join('\n'), 'utf8');
+    ws.getRow(1).font = { bold: true };
+    for (const row of rows) ws.addRow(row);
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    ws.autoFilter = { from: 'A1', to: 'J1' };
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
 
   async removeTeacher(id: string, scopeSchoolId?: string | null) {

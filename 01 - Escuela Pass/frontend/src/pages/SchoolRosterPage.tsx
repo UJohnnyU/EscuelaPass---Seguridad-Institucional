@@ -92,6 +92,28 @@ type AssignmentRow = {
   canAuthorizeDepartures: boolean;
 };
 
+type AcademicPeriodRow = {
+  id: string;
+  schoolId: string;
+  schoolYear: string;
+  name: string;
+  status: 'PLANNED' | 'ACTIVE' | 'CLOSED';
+  orderIndex: number;
+};
+
+type ClassSessionRow = {
+  id: string;
+  academicPeriodId: string;
+  groupId: string;
+  subjectId: string;
+  teacherId: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  isActive: boolean;
+};
+
 type LifecycleEventRow = {
   id: string;
   entityType: 'student' | 'teacher';
@@ -238,6 +260,14 @@ export function SchoolRosterPage() {
   const [aTeacher, setATeacher] = useState('');
   const [aGroup, setAGroup] = useState('');
   const [aSubject, setASubject] = useState('');
+  const [aCreateSession, setACreateSession] = useState(true);
+  const [aPeriod, setAPeriod] = useState('');
+  const [aWeekday, setAWeekday] = useState('1');
+  const [aStartTime, setAStartTime] = useState('08:00');
+  const [aEndTime, setAEndTime] = useState('09:00');
+  const [aRoom, setARoom] = useState('');
+  const [periods, setPeriods] = useState<AcademicPeriodRow[]>([]);
+  const [classSessions, setClassSessions] = useState<ClassSessionRow[]>([]);
 
   const [subCode, setSubCode] = useState('');
   const [subName, setSubName] = useState('');
@@ -360,6 +390,25 @@ export function SchoolRosterPage() {
       label: `${r.subjectCode} · ${r.subjectName}`
     }));
   }, [aTeacher, subjectOptions, teacherSubjectByTeacher]);
+  const periodOptions = useMemo(
+    () =>
+      periods.map((p) => ({
+        value: p.id,
+        label: `${p.name} · ${p.schoolYear}${p.status === 'ACTIVE' ? ' · activo' : ''}`
+      })),
+    [periods]
+  );
+  const assignmentHasActiveSession = useMemo(
+    () =>
+      classSessions.some(
+        (s) =>
+          s.isActive &&
+          s.teacherId === aTeacher &&
+          s.groupId === aGroup &&
+          s.subjectId === aSubject
+      ),
+    [aGroup, aSubject, aTeacher, classSessions]
+  );
   const loadStudentOptions = useCallback(
     async (q: string, signal: AbortSignal) => {
       if (!canLoad) return [];
@@ -416,7 +465,7 @@ export function SchoolRosterPage() {
     if (!canLoad) return;
     setError(null);
     try {
-      const [g, st, te, pa, asg, lk, sub, tsub, nextMat, lifecycle] = await Promise.all([
+      const [g, st, te, pa, asg, lk, sub, tsub, nextMat, lifecycle, periodsRes, sessionsRes] = await Promise.all([
         api.get<GroupRow[]>('/api/v1/school/groups', { params: schoolQuery }),
         api.get<StudentRow[]>('/api/v1/school/students', { params: schoolQuery }),
         api.get<TeacherRow[]>('/api/v1/school/teachers', { params: schoolQuery }),
@@ -428,7 +477,9 @@ export function SchoolRosterPage() {
         api.get<{ matricula: string }>('/api/v1/school/students/next-matricula', { params: schoolQuery }),
         api.get<LifecycleEventRow[]>('/api/v1/school/lifecycle-events', {
           params: { ...(schoolQuery ?? {}), limit: 120 }
-        })
+        }),
+        api.get<AcademicPeriodRow[]>('/api/v1/academic-periods', { params: schoolQuery }),
+        api.get<ClassSessionRow[]>('/api/v1/class-sessions', { params: schoolQuery })
       ]);
       setGroups(Array.isArray(g.data) ? g.data : []);
       setStudents(Array.isArray(st.data) ? st.data : []);
@@ -440,29 +491,35 @@ export function SchoolRosterPage() {
       setTeacherSubjects(Array.isArray(tsub.data) ? tsub.data : []);
       setNextMatriculaHint(typeof nextMat.data?.matricula === 'string' ? nextMat.data.matricula : '');
       setLifecycleEvents(Array.isArray(lifecycle.data) ? lifecycle.data : []);
+      const periodRows = Array.isArray(periodsRes.data) ? periodsRes.data : [];
+      setPeriods(periodRows);
+      setClassSessions(Array.isArray(sessionsRes.data) ? sessionsRes.data : []);
+      setAPeriod((prev) => prev || periodRows.find((p) => p.status === 'ACTIVE')?.id || periodRows[0]?.id || '');
     } catch (e) {
       setError(getUserFacingMessage(e, 'No se pudieron cargar los datos de la escuela.'));
     }
   }, [canLoad, schoolQuery]);
 
-  async function onDownloadLifecycleCsv() {
+  async function onDownloadLifecycleXlsx() {
     setDownloadingLifecycleCsv(true);
     setError(null);
     try {
-      const res = await api.get('/api/v1/school/lifecycle-events/export.csv', {
+      const res = await api.get('/api/v1/school/lifecycle-events/export.xlsx', {
         params: { ...(schoolQuery ?? {}), limit: 3000 },
         responseType: 'blob'
       });
-      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' });
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
       const href = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = href;
-      link.download = 'lifecycle-events.csv';
+      link.download = 'lifecycle-events.xlsx';
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(href);
-      setMessage('Export CSV de auditoría lifecycle descargado.');
+      setMessage('Export XLSX de auditoría lifecycle descargado.');
     } catch (e) {
       setError(getUserFacingMessage(e, 'No se pudo exportar la auditoría lifecycle.'));
     } finally {
@@ -682,10 +739,27 @@ export function SchoolRosterPage() {
       };
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/teacher-assignments', body);
+      if (aCreateSession) {
+        if (!aPeriod || !aStartTime || !aEndTime) {
+          throw new Error('Para que aparezca en horario indique periodo, día y hora.');
+        }
+        await api.post('/api/v1/class-sessions', {
+          schoolId: platformAdmin && selectedSchoolId ? selectedSchoolId : undefined,
+          academicPeriodId: aPeriod,
+          teacherId: aTeacher,
+          groupId: aGroup,
+          subjectId: aSubject,
+          weekday: Number(aWeekday),
+          startTime: aStartTime,
+          endTime: aEndTime,
+          room: aRoom.trim() || undefined
+        });
+      }
       setATeacher('');
       setAGroup('');
       setASubject('');
-      setMessage('Docente asignado al grupo.');
+      setARoom('');
+      setMessage(aCreateSession ? 'Docente asignado y sesión creada en el horario.' : 'Docente asignado al grupo.');
       await refreshAll();
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo crear la asignación.'));
@@ -998,10 +1072,10 @@ export function SchoolRosterPage() {
           <button
             type="button"
             className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
-            onClick={() => void onDownloadLifecycleCsv()}
+            onClick={() => void onDownloadLifecycleXlsx()}
             disabled={downloadingLifecycleCsv}
           >
-            {downloadingLifecycleCsv ? 'Descargando…' : 'Exportar CSV'}
+            {downloadingLifecycleCsv ? 'Descargando…' : 'Exportar XLSX'}
           </button>
         </div>
         <div className="mt-4 overflow-x-auto">
@@ -1656,6 +1730,10 @@ export function SchoolRosterPage() {
 
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Docentes en grupos</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          En una operación real, asignar docente + grupo + asignatura no basta: debe existir al menos una sesión con día
+          y hora para que aparezca en el horario del alumno y del docente.
+        </p>
         <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onAssignTeacher}>
           <label className="text-sm">
             <span className="text-slate-700">Docente</span>
@@ -1697,12 +1775,93 @@ export function SchoolRosterPage() {
           </label>
           <button
             type="submit"
-            disabled={!aTeacher || !aGroup || !aSubject}
+            disabled={!aTeacher || !aGroup || !aSubject || (aCreateSession && (!aPeriod || !aStartTime || !aEndTime))}
             className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
           >
             Asignar
           </button>
         </form>
+        {aTeacher && aGroup && aSubject && assignmentHasActiveSession ? (
+          <p className="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            Esta relación ya tiene sesión activa en horario. Puede asignar sin crear otra sesión si solo desea permisos
+            de gestión.
+          </p>
+        ) : null}
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <label className="flex items-start gap-2 text-sm text-slate-800">
+            <input
+              type="checkbox"
+              checked={aCreateSession}
+              onChange={(e) => setACreateSession(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-slate-300"
+            />
+            <span>
+              Crear también la sesión de horario para alumnos y docente
+              <span className="block text-xs text-slate-500">
+                Desmarque solo si ya existe un horario o está registrando una asignación administrativa sin clase.
+              </span>
+            </span>
+          </label>
+          {aCreateSession ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-5">
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-700">Periodo</span>
+                <div className="mt-1">
+                  <SmartSelect
+                    options={periodOptions}
+                    value={aPeriod}
+                    onChange={setAPeriod}
+                    placeholder="— Periodo —"
+                    emptyLabel="No hay periodos académicos"
+                  />
+                </div>
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-700">Día</span>
+                <select
+                  value={aWeekday}
+                  onChange={(e) => setAWeekday(e.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                >
+                  <option value="1">Lunes</option>
+                  <option value="2">Martes</option>
+                  <option value="3">Miércoles</option>
+                  <option value="4">Jueves</option>
+                  <option value="5">Viernes</option>
+                  <option value="6">Sábado</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-700">Inicio</span>
+                <input
+                  type="time"
+                  value={aStartTime}
+                  onChange={(e) => setAStartTime(e.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-700">Fin</span>
+                <input
+                  type="time"
+                  value={aEndTime}
+                  onChange={(e) => setAEndTime(e.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-700">Aula (opcional)</span>
+                <input
+                  value={aRoom}
+                  onChange={(e) => setARoom(e.target.value)}
+                  maxLength={80}
+                  placeholder="Ej. A-101"
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
         <div className="mt-6 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>

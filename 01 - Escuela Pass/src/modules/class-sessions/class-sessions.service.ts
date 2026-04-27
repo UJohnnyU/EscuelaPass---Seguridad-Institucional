@@ -228,6 +228,22 @@ export class ClassSessionsService {
     if (period.schoolYear !== group.schoolYear) {
       throw new BadRequestException('Periodo y grupo deben pertenecer al mismo ano lectivo');
     }
+    const assignment = await this.classSessionsRepository.query(
+      `
+      SELECT 1
+      FROM teacher_groups
+      WHERE teacher_id = $1
+        AND group_id = $2
+        AND subject_id = $3
+      LIMIT 1
+      `,
+      [input.teacherId, input.groupId, input.subjectId]
+    );
+    if (!Array.isArray(assignment) || assignment.length === 0) {
+      throw new BadRequestException(
+        'Primero asigne el docente a este grupo y asignatura antes de crear la sesión de horario'
+      );
+    }
   }
 
   private async assertNoTimeConflict(input: {

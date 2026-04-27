@@ -76,6 +76,12 @@ export class CircuitRequestEntity {
   @Column({ name: 'vehicle_id', type: 'uuid', nullable: true })
   vehicleId!: string | null;
 
+  @Column({ name: 'pickup_vehicle_description', type: 'varchar', length: 120, nullable: true })
+  pickupVehicleDescription!: string | null;
+
+  @Column({ name: 'pickup_notes', type: 'varchar', length: 240, nullable: true })
+  pickupNotes!: string | null;
+
   @Column({ name: 'teacher_signal', type: 'varchar', length: 40, nullable: true })
   teacherSignal!: string | null;
 

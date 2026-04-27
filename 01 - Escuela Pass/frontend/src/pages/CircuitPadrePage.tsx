@@ -19,6 +19,8 @@ export function CircuitPadrePage() {
   const [studentId, setStudentId] = useState('');
   const [pickupMethod, setPickupMethod] = useState<(typeof METHODS)[number]>('A_PIE');
   const [vehicleId, setVehicleId] = useState('');
+  const [pickupVehicleDescription, setPickupVehicleDescription] = useState('');
+  const [pickupNotes, setPickupNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +121,16 @@ export function CircuitPadrePage() {
         }
         body.vehicleId = vehicleId;
       }
+      if (pickupMethod === 'OTRO_VEHICULO') {
+        const desc = pickupVehicleDescription.trim();
+        if (!desc) {
+          setError('Describe el vehículo o taxi con el que vas a recoger.');
+          setSubmitting(false);
+          return;
+        }
+        body.pickupVehicleDescription = desc;
+      }
+      if (pickupNotes.trim()) body.pickupNotes = pickupNotes.trim();
       const { data: res } = await api.post<{ requestId: string }>('/api/v1/circuit-requests', body);
       navigate(`/app/circuito/${res.requestId}`, { replace: true });
     } catch (err) {
@@ -271,6 +283,42 @@ export function CircuitPadrePage() {
             )}
           </div>
         )}
+
+        {pickupMethod === 'OTRO_VEHICULO' && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700" htmlFor="pickupVehicleDescription">
+              Descripción del vehículo o taxi
+            </label>
+            <input
+              id="pickupVehicleDescription"
+              value={pickupVehicleDescription}
+              disabled={circuitPickupsLocked}
+              onChange={(e) => setPickupVehicleDescription(e.target.value)}
+              maxLength={120}
+              placeholder="Ej. taxi blanco placas ABC-123, Uber gris, familiar autorizado"
+              className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Esta información ayuda al plantel a validar la entrega cuando no usas un vehículo registrado.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700" htmlFor="pickupNotes">
+            Nota para el plantel (opcional)
+          </label>
+          <textarea
+            id="pickupNotes"
+            value={pickupNotes}
+            disabled={circuitPickupsLocked}
+            onChange={(e) => setPickupNotes(e.target.value)}
+            maxLength={240}
+            rows={3}
+            placeholder="Ej. voy con paraguas azul, recojo por acceso norte, llego en taxi."
+            className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
+          />
+        </div>
 
         {error && (
           <div className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-800" role="alert">
