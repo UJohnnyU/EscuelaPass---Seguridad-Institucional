@@ -1,15 +1,18 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import * as nodemailer from 'nodemailer';
 import { DataSource, Repository } from 'typeorm';
 import { RefreshTokenEntity } from '../../database/entities/refresh-token.entity';
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 export type ProfileContactItem = {
   fullName: string;
@@ -24,6 +27,8 @@ export type ProfileContactSection = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
@@ -350,6 +355,103 @@ export class AuthService {
         schoolLogoUrl
       }
     };
+  }
+
+  /**
+   * Inicia el flujo de recuperación de contraseña. Siempre devuelve 200 para no revelar emails.
+   */
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const MSG = 'Si el correo está registrado, recibirá un enlace para restablecer su contraseña.';
+    const user = await this.usersRepository.findOne({
+      where: { email: dto.email.toLowerCase().trim() }
+    });
+    if (!user) return { message: MSG };
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1_000); // 1 hora
+
+    user.passwordResetToken = token;
+    user.passwordResetExpiresAt = expiresAt;
+    await this.usersRepository.save(user);
+
+    const frontendBase = (process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
+    const resetUrl = `${frontendBase}/restablecer-contrasena?token=${token}`;
+    await this.sendResetEmail(user.email, user.fullName, resetUrl);
+
+    return { message: MSG };
+  }
+
+  /**
+   * Valida el token y actualiza la contraseña.
+   */
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const user = await this.usersRepository.findOne({
+      where: { passwordResetToken: dto.token }
+    });
+    if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+      throw new BadRequestException(
+        'El enlace de restablecimiento no es válido o ha expirado. Solicite uno nuevo.'
+      );
+    }
+    user.passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+    await this.usersRepository.save(user);
+
+    /* Invalidar todos los refresh tokens al cambiar la contraseña. */
+    await this.refreshTokensRepository
+      .createQueryBuilder()
+      .delete()
+      .from(RefreshTokenEntity)
+      .where('user_id = :uid', { uid: user.id })
+      .execute();
+
+    return { message: 'Contraseña actualizada correctamente. Ya puede iniciar sesión.' };
+  }
+
+  private async sendResetEmail(email: string, fullName: string, resetUrl: string): Promise<void> {
+    const host = process.env.SMTP_HOST?.trim();
+    if (!host) {
+      this.logger.warn('SMTP_HOST no configurado; correo de restablecimiento omitido.');
+      return;
+    }
+    const port = Number(process.env.SMTP_PORT ?? 587);
+    const smtpUser = process.env.SMTP_USER?.trim();
+    const smtpPass = process.env.SMTP_PASS?.trim();
+    const from = process.env.SMTP_FROM?.trim() ?? smtpUser ?? 'no-reply@escuelapass.app';
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: smtpUser && smtpPass ? { user: smtpUser, pass: smtpPass } : undefined
+    });
+
+    const html = `
+      <p>Hola, <strong>${fullName}</strong>.</p>
+      <p>Recibimos una solicitud para restablecer la contraseña de su cuenta en <strong>Escuela Pass</strong>.</p>
+      <p>
+        <a href="${resetUrl}" style="background:#1e293b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">
+          Restablecer contraseña
+        </a>
+      </p>
+      <p>Si no solicitó esto, ignore este correo. El enlace expira en 1 hora.</p>
+      <hr>
+      <p style="font-size:12px;color:#64748b">
+        Si el botón no funciona, copie y pegue esta URL en su navegador:<br>${resetUrl}
+      </p>
+    `;
+
+    try {
+      await transporter.sendMail({
+        from,
+        to: email,
+        subject: 'Restablecer contraseña – Escuela Pass',
+        html
+      });
+    } catch (err) {
+      this.logger.error(`Error enviando correo de restablecimiento a ${email}`, err);
+    }
   }
 
   private parseDurationToMs(value: string): number {

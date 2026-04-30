@@ -2,12 +2,13 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { PICKUP_METHOD_LABEL } from '@/lib/circuit-labels';
+import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL } from '@/lib/circuit-labels';
 import { useAuth } from '@/context/useAuth';
 
 type StudentRow = { id: string; matricula: string; fullName: string };
 type ParentStudents = { parentId: string; students: StudentRow[] };
 type Vehicle = { id: string; plate: string; description?: string | null };
+type ActiveCircuit = { id: string; status: string; requestTime: string; studentId: string };
 
 const METHODS = ['VEHICULO_REGISTRADO', 'OTRO_VEHICULO', 'A_PIE', 'SOLO_CONSENTIMIENTO'] as const;
 
@@ -16,7 +17,7 @@ export function CircuitPadrePage() {
   const navigate = useNavigate();
   const [data, setData] = useState<ParentStudents | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [studentId, setStudentId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [pickupMethod, setPickupMethod] = useState<(typeof METHODS)[number]>('A_PIE');
   const [vehicleId, setVehicleId] = useState('');
   const [pickupVehicleDescription, setPickupVehicleDescription] = useState('');
@@ -24,10 +25,9 @@ export function CircuitPadrePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Si hay solicitud abierta, ir directo al seguimiento (evita perder el hilo al volver desde el perfil). */
-  const [activeCircuitId, setActiveCircuitId] = useState<string | null>(null);
+  const [activeCircuits, setActiveCircuits] = useState<ActiveCircuit[]>([]);
   const [consentActive, setConsentActive] = useState<Record<string, boolean>>({});
-  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentSaving, setConsentSaving] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role !== 'PADRE') return;
@@ -37,17 +37,17 @@ export function CircuitPadrePage() {
       setError(null);
       try {
         try {
-          const activeRes = await api.get<{ active: { id: string } | null }>(
-            '/api/v1/circuit-requests/parent/active'
+          const activeRes = await api.get<{ active: ActiveCircuit[] }>(
+            '/api/v1/circuit-requests/parent/active-all'
           );
           if (cancelled) return;
-          if (activeRes.data.active?.id) {
-            setActiveCircuitId(activeRes.data.active.id);
+          if (activeRes.data.active?.length) {
+            setActiveCircuits(activeRes.data.active);
             setLoading(false);
             return;
           }
         } catch {
-          /* Sin redirección: mostrar formulario si el endpoint no existe o falla */
+          /* Compatibilidad: si el endpoint no existe, mostrar formulario */
         }
         const [{ data: ps }, { data: vh }, consentRes] = await Promise.all([
           api.get<ParentStudents>('/api/v1/attendance/parent/my-students'),
@@ -66,7 +66,9 @@ export function CircuitPadrePage() {
           map[c.studentId] = c.autonomousToday;
         }
         setConsentActive(map);
-        if (ps.students.length) setStudentId((prev) => prev || ps.students[0].id);
+        if (ps.students.length) {
+          setSelectedStudentIds(new Set([ps.students[0].id]));
+        }
       } catch (e) {
         if (!cancelled) setError(getUserFacingMessage(e, 'No se pudieron cargar los datos.'));
       } finally {
@@ -78,38 +80,50 @@ export function CircuitPadrePage() {
     };
   }, [user?.role]);
 
-  async function toggleAutonomousConsent(next: boolean) {
-    if (!studentId) return;
-    setConsentSaving(true);
+  function toggleStudent(id: string) {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  async function toggleAutonomousConsent(studentId: string, next: boolean) {
+    setConsentSaving(studentId);
     setError(null);
     try {
-      await api.post('/api/v1/departure-consent/parent/set', {
-        studentId,
-        active: next
-      });
+      await api.post('/api/v1/departure-consent/parent/set', { studentId, active: next });
       setConsentActive((prev) => ({ ...prev, [studentId]: next }));
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo actualizar el permiso de salida.'));
     } finally {
-      setConsentSaving(false);
+      setConsentSaving(null);
     }
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!data?.parentId || !studentId) {
-      setError('Selecciona un estudiante.');
+    if (!data?.parentId || selectedStudentIds.size === 0) {
+      setError('Selecciona al menos un estudiante.');
       return;
     }
-    if (consentActive[studentId]) {
-      setError('Desactive primero “Salida autónoma” para usar el circuito de recogida con seguimiento.');
+    const studentIds = [...selectedStudentIds];
+    const blockedByConsent = studentIds.filter((id) => consentActive[id]);
+    if (blockedByConsent.length) {
+      const names = blockedByConsent
+        .map((id) => data.students.find((s) => s.id === id)?.fullName ?? id)
+        .join(', ');
+      setError(`Desactive "Salida autónoma" antes de crear el circuito para: ${names}`);
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
       const body: Record<string, unknown> = {
-        studentId,
         requestedByParentId: data.parentId,
         pickupMethod
       };
@@ -131,8 +145,42 @@ export function CircuitPadrePage() {
         body.pickupVehicleDescription = desc;
       }
       if (pickupNotes.trim()) body.pickupNotes = pickupNotes.trim();
-      const { data: res } = await api.post<{ requestId: string }>('/api/v1/circuit-requests', body);
-      navigate(`/app/circuito/${res.requestId}`, { replace: true });
+
+      if (studentIds.length === 1) {
+        const { data: res } = await api.post<{ requestId: string }>('/api/v1/circuit-requests', {
+          ...body,
+          studentId: studentIds[0]
+        });
+        navigate(`/app/circuito/${res.requestId}`, { replace: true });
+      } else {
+        const { data: res } = await api.post<{
+          created: Array<{ requestId: string; studentId: string }>;
+          errors: Array<{ studentId: string; reason: string }>;
+        }>('/api/v1/circuit-requests/batch', { ...body, studentIds });
+
+        if (res.errors.length) {
+          const msg = res.errors
+            .map(({ studentId, reason }) => {
+              const name = data.students.find((s) => s.id === studentId)?.fullName ?? studentId;
+              return `${name}: ${reason}`;
+            })
+            .join(' | ');
+          setError(`Algunos circuitos no se crearon: ${msg}`);
+        }
+
+        if (res.created.length === 1) {
+          navigate(`/app/circuito/${res.created[0].requestId}`, { replace: true });
+        } else if (res.created.length > 1) {
+          const newCircuits: ActiveCircuit[] = res.created.map((r) => ({
+            id: r.requestId,
+            status: 'PENDIENTE',
+            requestTime: new Date().toISOString(),
+            studentId: r.studentId
+          }));
+          setData((prev) => prev);
+          setActiveCircuits(newCircuits);
+        }
+      }
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo crear la solicitud.'));
     } finally {
@@ -155,8 +203,41 @@ export function CircuitPadrePage() {
     return <Navigate to="/app/circuito/hoy" replace />;
   }
 
-  if (activeCircuitId) {
-    return <Navigate to={`/app/circuito/${activeCircuitId}`} replace />;
+  if (activeCircuits.length === 1) {
+    return <Navigate to={`/app/circuito/${activeCircuits[0].id}`} replace />;
+  }
+
+  if (activeCircuits.length > 1) {
+    const studentMap = new Map((data?.students ?? []).map((s) => [s.id, s]));
+    return (
+      <div className="max-w-lg animate-slide-up space-y-4">
+        <h1 className="text-2xl font-bold text-slate-900">Circuitos activos hoy</h1>
+        <p className="text-sm text-slate-600">
+          Tienes {activeCircuits.length} solicitudes de recogida abiertas. Sigue el estado de cada una:
+        </p>
+        <ul className="space-y-2">
+          {activeCircuits.map((c) => {
+            const student = studentMap.get(c.studentId);
+            return (
+              <li key={c.id}>
+                <Link
+                  to={`/app/circuito/${c.id}`}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:border-brand-400 hover:bg-brand-50 transition"
+                >
+                  <span className="font-medium text-slate-900">
+                    {student?.fullName ?? c.studentId}
+                    <span className="ml-2 text-xs text-slate-400">{student?.matricula}</span>
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {CIRCUIT_STATUS_LABEL[c.status] ?? c.status} →
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
   }
 
   if (loading) return <p className="text-slate-600">Cargando…</p>;
@@ -172,70 +253,64 @@ export function CircuitPadrePage() {
     );
   }
 
-  /** Con salida autónoma activa no debe cambiarse alumno/método/vehículo hasta desmarcar (ni durante el guardado). */
-  const circuitPickupsLocked = !!consentActive[studentId] || consentSaving;
-  const selectLockedClass = circuitPickupsLocked ? 'cursor-not-allowed opacity-60' : '';
+  const anyConsentLocked = [...selectedStudentIds].some((id) => consentActive[id]);
+  const formLocked = anyConsentLocked || consentSaving !== null;
+  const selectLockedClass = formLocked ? 'cursor-not-allowed opacity-60' : '';
 
   return (
     <div className="max-w-lg animate-slide-up">
       <h1 className="text-2xl font-bold text-slate-900">Nueva solicitud de recogida</h1>
       <p className="mt-1 text-sm text-slate-600">
-        Indique cómo va a recoger a su hijo o hija. Después podrá avisar que va en camino y marcar su llegada desde
-        la misma solicitud.
+        Indique cómo va a recoger a sus hijos. Puede seleccionar uno o varios. Después podrá avisar que va en camino
+        y marcar su llegada desde cada solicitud.
       </p>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-        <p className="text-sm font-medium text-slate-800">Salida autónoma</p>
-        <p className="mt-1 text-xs text-slate-600">
-          Si su hijo o hija puede retirarse solo sin recogida coordinada, active esta opción. Quedará activa todos los
-          días hasta que la desmarque.
-        </p>
-        <label className="mt-3 flex cursor-pointer items-center gap-3">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-slate-300"
-            checked={!!consentActive[studentId]}
-            disabled={consentSaving || !studentId}
-            onChange={(e) => void toggleAutonomousConsent(e.target.checked)}
-          />
-          <span className="text-sm text-slate-800">
-            {consentActive[studentId]
-              ? 'Puede irse solo (sin circuito de recogida) hasta que lo desmarque'
-              : 'Activar permiso de salida autónoma'}
-          </span>
-        </label>
+      <div className="mt-6 space-y-3">
+        <p className="text-sm font-medium text-slate-700">Estudiantes a recoger</p>
+        {data.students.map((s) => {
+          const checked = selectedStudentIds.has(s.id);
+          const consent = consentActive[s.id];
+          const saving = consentSaving === s.id;
+          return (
+            <div
+              key={s.id}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm space-y-2"
+            >
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 accent-brand-600"
+                  checked={checked}
+                  onChange={() => toggleStudent(s.id)}
+                />
+                <span className="text-sm font-medium text-slate-900">
+                  {s.fullName}
+                  <span className="ml-2 text-xs text-slate-500">({s.matricula})</span>
+                </span>
+              </label>
+              <label className="ml-7 flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-slate-300 accent-amber-500"
+                  checked={!!consent}
+                  disabled={saving}
+                  onChange={(ev) => void toggleAutonomousConsent(s.id, ev.target.checked)}
+                />
+                <span className="text-xs text-slate-600">
+                  {consent ? 'Salida autónoma activa (sin circuito)' : 'Activar salida autónoma'}
+                </span>
+              </label>
+              {consent && checked && (
+                <p className="ml-7 text-xs text-amber-800">
+                  Desactive "Salida autónoma" para incluir a este alumno en el circuito.
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {consentActive[studentId] ? (
-        <div
-          className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-          role="status"
-        >
-          Tiene activa la salida autónoma para el alumno seleccionado. Para iniciar una recogida con seguimiento (en
-          camino, llegada, etc.), desactive la casilla arriba.
-        </div>
-      ) : null}
-
-      <form className="mt-8 space-y-4" onSubmit={onSubmit}>
-        <div>
-          <label className="block text-sm font-medium text-slate-700" htmlFor="student">
-            Estudiante
-          </label>
-          <select
-            id="student"
-            value={studentId}
-            disabled={circuitPickupsLocked}
-            onChange={(e) => setStudentId(e.target.value)}
-            className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
-          >
-            {data.students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.fullName} ({s.matricula})
-              </option>
-            ))}
-          </select>
-        </div>
-
+      <form className="mt-6 space-y-4" onSubmit={onSubmit}>
         <div>
           <label className="block text-sm font-medium text-slate-700" htmlFor="method">
             Forma de retiro
@@ -243,7 +318,7 @@ export function CircuitPadrePage() {
           <select
             id="method"
             value={pickupMethod}
-            disabled={circuitPickupsLocked}
+            disabled={formLocked}
             onChange={(e) => setPickupMethod(e.target.value as (typeof METHODS)[number])}
             className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
           >
@@ -263,7 +338,7 @@ export function CircuitPadrePage() {
             <select
               id="vehicle"
               value={vehicleId}
-              disabled={circuitPickupsLocked}
+              disabled={formLocked}
               onChange={(e) => setVehicleId(e.target.value)}
               className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none ring-brand-500/30 focus:ring-2 ${selectLockedClass}`}
             >
@@ -292,7 +367,7 @@ export function CircuitPadrePage() {
             <input
               id="pickupVehicleDescription"
               value={pickupVehicleDescription}
-              disabled={circuitPickupsLocked}
+              disabled={formLocked}
               onChange={(e) => setPickupVehicleDescription(e.target.value)}
               maxLength={120}
               placeholder="Ej. taxi blanco placas ABC-123, Uber gris, familiar autorizado"
@@ -311,7 +386,7 @@ export function CircuitPadrePage() {
           <textarea
             id="pickupNotes"
             value={pickupNotes}
-            disabled={circuitPickupsLocked}
+            disabled={formLocked}
             onChange={(e) => setPickupNotes(e.target.value)}
             maxLength={240}
             rows={3}
@@ -327,10 +402,14 @@ export function CircuitPadrePage() {
         )}
         <button
           type="submit"
-          disabled={submitting || circuitPickupsLocked}
+          disabled={submitting || formLocked || selectedStudentIds.size === 0}
           className="w-full rounded-xl bg-brand-600 py-3 font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
         >
-          {submitting ? 'Enviando…' : 'Crear solicitud'}
+          {submitting
+            ? 'Enviando…'
+            : selectedStudentIds.size > 1
+              ? `Crear ${selectedStudentIds.size} solicitudes`
+              : 'Crear solicitud'}
         </button>
       </form>
     </div>

@@ -36,9 +36,16 @@ export class NonInstructionalSchoolScope1776900000000 implements MigrationInterf
     `);
 
     await queryRunner.query(`
-      ALTER TABLE school_non_instructional_days
-      ADD CONSTRAINT chk_non_instr_global_has_school
-      CHECK (group_id IS NOT NULL OR school_id IS NOT NULL)
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE school_non_instructional_days
+          ADD CONSTRAINT chk_non_instr_global_has_school
+          CHECK (group_id IS NOT NULL OR school_id IS NOT NULL);
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END;
+      END $$;
     `);
   }
 

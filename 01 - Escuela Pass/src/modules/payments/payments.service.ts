@@ -62,10 +62,14 @@ export class PaymentsService {
     private readonly fcmService: FcmService
   ) {}
 
-  async listConcepts(includeInactive = false) {
+  /** Lista conceptos de pago de la escuela indicada y los conceptos globales (school_id IS NULL). */
+  async listConcepts(includeInactive = false, schoolId?: string | null) {
     const qb = this.conceptsRepository.createQueryBuilder('c').orderBy('c.name', 'ASC');
     if (!includeInactive) {
       qb.andWhere('c.is_active = :active', { active: true });
+    }
+    if (schoolId) {
+      qb.andWhere('(c.school_id = :schoolId OR c.school_id IS NULL)', { schoolId });
     }
     return qb.getMany();
   }

@@ -184,6 +184,12 @@ export function LoginPage() {
                   />
                   Recordar correo en este equipo
                 </label>
+                <Link
+                  to="/recuperar-contrasena"
+                  className="shrink-0 text-xs font-medium text-brand-200 underline-offset-2 hover:underline"
+                >
+                  ¿Olvidó su contraseña?
+                </Link>
               </div>
 
               {error && (

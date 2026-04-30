@@ -41,4 +41,10 @@ export class UserEntity {
   /** Ruta pública bajo `/uploads/avatars/…` */
   @Column({ name: 'avatar_path', type: 'varchar', length: 500, nullable: true })
   avatarPath!: string | null;
+
+  @Column({ name: 'password_reset_token', type: 'varchar', length: 128, nullable: true })
+  passwordResetToken!: string | null;
+
+  @Column({ name: 'password_reset_expires_at', type: 'timestamptz', nullable: true })
+  passwordResetExpiresAt!: Date | null;
 }

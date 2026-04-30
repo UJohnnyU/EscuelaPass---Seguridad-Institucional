@@ -37,8 +37,12 @@ export class PaymentsController {
 
   @Get('concepts')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE, UserRole.ALUMNO)
-  listConcepts(@Query('includeInactive') includeInactive: string | undefined) {
-    return this.paymentsService.listConcepts(includeInactive === 'true');
+  listConcepts(
+    @Query('includeInactive') includeInactive: string | undefined,
+    @Req() req: import('express').Request & { user?: { schoolId?: string } }
+  ) {
+    const schoolId = req.user?.schoolId ?? null;
+    return this.paymentsService.listConcepts(includeInactive === 'true', schoolId);
   }
 
   @Post('concepts')

@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CircuitService } from './circuit.service';
+import { CreateBatchCircuitRequestDto } from './dto/create-batch-circuit-request.dto';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateParentCircuitProgressDto } from './dto/update-parent-circuit-progress.dto';
@@ -36,6 +37,13 @@ export class CircuitController {
     return this.circuitService.create(payload);
   }
 
+  /** Crea solicitudes para múltiples hijos en una sola llamada. */
+  @Post('batch')
+  @Roles(UserRole.PADRE, UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  createBatch(@Body() payload: CreateBatchCircuitRequestDto) {
+    return this.circuitService.createBatch(payload);
+  }
+
   @Get('today')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   findToday(
@@ -47,11 +55,18 @@ export class CircuitController {
     return this.circuitService.findToday(req.user.userId, req.user.role, schoolId, q, limit);
   }
 
-  /** Solicitud en curso del padre (si existe); para redirigir al detalle sin pasar por el formulario nuevo. */
+  /** Solicitud en curso del padre (primera activa hoy); para compatibilidad con flujo de un solo hijo. */
   @Get('parent/active')
   @Roles(UserRole.PADRE)
   findParentActive(@Req() req: Request & { user: JwtUser }) {
     return this.circuitService.findActiveForParentUser(req.user.userId).then((active) => ({ active }));
+  }
+
+  /** Todas las solicitudes activas del padre hoy (multi-hijo). */
+  @Get('parent/active-all')
+  @Roles(UserRole.PADRE)
+  findParentActiveAll(@Req() req: Request & { user: JwtUser }) {
+    return this.circuitService.findAllActiveForParentUser(req.user.userId).then((active) => ({ active }));
   }
 
   @Patch(':id/gps')

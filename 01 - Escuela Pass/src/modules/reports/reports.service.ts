@@ -1,9 +1,11 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { AccessEventEntity } from '../../database/entities/access-event.entity';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { CircuitRequestEntity, CircuitStatus } from '../../database/entities/circuit-request.entity';
 import { DebtEntity, PaymentStatus } from '../../database/entities/debt.entity';
+import { PaymentRecordEntity } from '../../database/entities/payment-record.entity';
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
@@ -11,12 +13,16 @@ import { SchoolCalendarService } from '../school-calendar/school-calendar.servic
 @Injectable()
 export class ReportsService {
   constructor(
+    @InjectRepository(AccessEventEntity)
+    private readonly accessEventsRepository: Repository<AccessEventEntity>,
     @InjectRepository(AttendanceRecordEntity)
     private readonly attendanceRepository: Repository<AttendanceRecordEntity>,
     @InjectRepository(TeacherEntity)
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(DebtEntity)
     private readonly debtsRepository: Repository<DebtEntity>,
+    @InjectRepository(PaymentRecordEntity)
+    private readonly paymentsRepository: Repository<PaymentRecordEntity>,
     @InjectRepository(CircuitRequestEntity)
     private readonly circuitRepository: Repository<CircuitRequestEntity>,
     private readonly schoolCalendarService: SchoolCalendarService
@@ -101,6 +107,94 @@ export class ReportsService {
     }, {});
 
     return { date, total: data.length, byStatus, data };
+  }
+
+  /**
+   * RF8: Reporte de eventos de acceso (entradas/salidas) por rango de fechas.
+   * Devuelve el total por día y el desglose por tipo de evento.
+   */
+  async accessRange(schoolId: string | undefined, fromDate: string, toDate: string) {
+    const from = fromDate.slice(0, 10);
+    const to = toDate.slice(0, 10);
+    const sid = schoolId?.trim();
+
+    const qb = this.accessEventsRepository
+      .createQueryBuilder('ae')
+      .where("DATE(ae.event_time AT TIME ZONE 'UTC') BETWEEN :from AND :to", { from, to })
+      .orderBy("DATE(ae.event_time AT TIME ZONE 'UTC')", 'ASC')
+      .addOrderBy('ae.event_time', 'ASC');
+
+    if (sid) {
+      qb.innerJoin('users', 'u', 'u.id = ae.user_id AND u.school_id = :sid', { sid });
+    }
+
+    const events = await qb.getMany();
+
+    const byDay: Record<string, { total: number; ENTRY: number; EXIT: number }> = {};
+    for (const ev of events) {
+      const day = new Date(ev.eventTime).toISOString().slice(0, 10);
+      if (!byDay[day]) byDay[day] = { total: 0, ENTRY: 0, EXIT: 0 };
+      byDay[day].total++;
+      if (ev.eventType in byDay[day]) {
+        (byDay[day] as Record<string, number>)[ev.eventType]++;
+      }
+    }
+
+    return {
+      from,
+      to,
+      totalEvents: events.length,
+      byDay: Object.entries(byDay)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, counts]) => ({ date, ...counts }))
+    };
+  }
+
+  /**
+   * RF8: Resumen financiero de la institución (cobros, deudas pendientes, mora, colección).
+   */
+  async financeSummary(schoolId: string | undefined) {
+    const sid = schoolId?.trim();
+
+    const debtQb = this.debtsRepository.createQueryBuilder('d');
+    if (sid) debtQb.innerJoin('students', 's', 's.id = d.student_id AND s.school_id = :sid', { sid });
+
+    const [totalDebts, pendingDebts, overdueDebts, paidDebts] = await Promise.all([
+      debtQb.clone().getCount(),
+      debtQb.clone().andWhere('d.status = :st', { st: PaymentStatus.PENDIENTE }).getCount(),
+      debtQb.clone()
+        .andWhere('d.status = :st', { st: PaymentStatus.PENDIENTE })
+        .andWhere('d.due_date < NOW()')
+        .getCount(),
+      debtQb.clone().andWhere('d.status = :st', { st: PaymentStatus.PAGADO }).getCount()
+    ]);
+
+    const totalPendingAmount = await debtQb.clone()
+      .andWhere('d.status = :st', { st: PaymentStatus.PENDIENTE })
+      .select('COALESCE(SUM(d.amount), 0)', 'total')
+      .getRawOne<{ total: string }>();
+
+    const totalCollectedQb = this.paymentsRepository.createQueryBuilder('pr');
+    if (sid) {
+      totalCollectedQb.innerJoin('debts', 'd2', 'd2.id = pr.debt_id')
+        .innerJoin('students', 's2', 's2.id = d2.student_id AND s2.school_id = :sid', { sid });
+    }
+    const totalCollected = await totalCollectedQb
+      .select('COALESCE(SUM(pr.amount_paid), 0)', 'total')
+      .getRawOne<{ total: string }>();
+
+    const collectionRate =
+      totalDebts > 0 ? Math.round((paidDebts / totalDebts) * 100) : 0;
+
+    return {
+      totalDebts,
+      pendingDebts,
+      overdueDebts,
+      paidDebts,
+      totalPendingAmount: totalPendingAmount?.total ?? '0',
+      totalCollectedAmount: totalCollected?.total ?? '0',
+      collectionRatePct: collectionRate
+    };
   }
 
   private async assertCanViewGroup(userId: string, role: UserRole, groupId: string) {

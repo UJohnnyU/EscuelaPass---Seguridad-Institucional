@@ -23,6 +23,7 @@ import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { CreateBatchCircuitRequestDto } from './dto/create-batch-circuit-request.dto';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateParentCircuitProgressDto } from './dto/update-parent-circuit-progress.dto';
@@ -167,6 +168,62 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       .getOne();
     if (!row) return null;
     return { id: row.id, status: row.status, requestTime: row.requestTime };
+  }
+
+  /** Devuelve TODAS las solicitudes no terminadas del día para el padre (multi-hijo). */
+  async findAllActiveForParentUser(
+    parentUserId: string
+  ): Promise<Array<{ id: string; status: CircuitStatus; requestTime: Date; studentId: string }>> {
+    const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
+    if (!parent) return [];
+    const today = new Date().toISOString().slice(0, 10);
+    const terminal = [
+      CircuitStatus.ENTREGADO,
+      CircuitStatus.CANCELADO,
+      CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE
+    ];
+    const rows = await this.circuitRepository
+      .createQueryBuilder('cr')
+      .where('cr.requestedByParentId = :pid', { pid: parent.id })
+      .andWhere('DATE(cr.request_time) = :today', { today })
+      .andWhere('cr.status NOT IN (:...terminal)', { terminal })
+      .orderBy('cr.requestTime', 'ASC')
+      .getMany();
+    return rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      requestTime: r.requestTime,
+      studentId: r.studentId
+    }));
+  }
+
+  /** Crea solicitudes de circuito para múltiples hijos en paralelo. */
+  async createBatch(
+    payload: CreateBatchCircuitRequestDto
+  ): Promise<{ created: Array<{ requestId: string; studentId: string; status: CircuitStatus }>; errors: Array<{ studentId: string; reason: string }> }> {
+    const created: Array<{ requestId: string; studentId: string; status: CircuitStatus }> = [];
+    const errors: Array<{ studentId: string; reason: string }> = [];
+
+    for (const studentId of payload.studentIds) {
+      try {
+        const result = await this.create({
+          studentId,
+          requestedByParentId: payload.requestedByParentId,
+          pickupMethod: payload.pickupMethod,
+          vehicleId: payload.vehicleId,
+          pickupVehicleDescription: payload.pickupVehicleDescription,
+          pickupNotes: payload.pickupNotes,
+          parentGpsLatitude: payload.parentGpsLatitude,
+          parentGpsLongitude: payload.parentGpsLongitude
+        });
+        created.push({ requestId: result.requestId, studentId, status: result.status });
+      } catch (err: unknown) {
+        const reason = err instanceof Error ? err.message : String(err);
+        errors.push({ studentId, reason });
+      }
+    }
+
+    return { created, errors };
   }
 
   async create(payload: CreateCircuitRequestDto) {

@@ -5,7 +5,10 @@ export class PaymentConceptEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
+  @Column({ name: 'school_id', type: 'uuid', nullable: true })
+  schoolId!: string | null;
+
+  @Column({ type: 'varchar', length: 100 })
   name!: string;
 
   @Column({ type: 'text', nullable: true })

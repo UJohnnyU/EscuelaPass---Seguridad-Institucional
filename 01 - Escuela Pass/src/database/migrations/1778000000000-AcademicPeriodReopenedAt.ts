@@ -5,7 +5,7 @@ export class AcademicPeriodReopenedAt1778000000000 implements MigrationInterface
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "academic_periods" ADD COLUMN "reopened_at" TIMESTAMP WITH TIME ZONE NULL`
+      `ALTER TABLE "academic_periods" ADD COLUMN IF NOT EXISTS "reopened_at" TIMESTAMP WITH TIME ZONE NULL`
     );
   }
 

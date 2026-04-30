@@ -30,6 +30,9 @@ import { MisCalificacionesPage } from '@/pages/modulos/MisCalificacionesPage';
 import { ReunionesPage } from '@/pages/modulos/ReunionesPage';
 import { VisitasPage } from '@/pages/modulos/VisitasPage';
 import { PeriodosAcademicosPage } from '@/pages/PeriodosAcademicosPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { PickupRequestsPage } from '@/pages/PickupRequestsPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { SchoolRosterPage } from '@/pages/SchoolRosterPage';
 
 function AuthenticatedShell() {
@@ -43,6 +46,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
+        <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
         <Route
           path="/app"
           element={
@@ -119,6 +124,14 @@ export default function App() {
             element={
               <RoleGate allow={['DOCENTE', 'ADMIN', 'ADMINISTRATIVO']}>
                 <AnotacionesDocentePage />
+              </RoleGate>
+            }
+          />
+          <Route
+            path="solicitudes-retiro"
+            element={
+              <RoleGate allow={['PADRE', 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE']}>
+                <PickupRequestsPage />
               </RoleGate>
             }
           />
