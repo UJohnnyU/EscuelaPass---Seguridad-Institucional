@@ -30,6 +30,7 @@ import { CreateStudentDto } from './dto/create-student.dto';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { LinkParentStudentDto } from './dto/link-parent-student.dto';
+import { UpdateStudentParentLinkDto } from './dto/update-student-parent-link.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
@@ -443,6 +444,15 @@ export class SchoolController {
   @Post('student-parent-links')
   linkParentStudent(@Body() dto: LinkParentStudentDto, @Req() req: Request & { user: JwtUser }) {
     return this.schoolService.linkParentStudent(dto, this.scopeSchool(req.user));
+  }
+
+  @Patch('student-parent-links/:id')
+  updateStudentParentLink(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateStudentParentLinkDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.updateStudentParentLink(id, dto, this.scopeSchool(req.user));
   }
 
   @Delete('student-parent-links/:id')

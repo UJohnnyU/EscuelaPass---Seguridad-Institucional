@@ -40,6 +40,7 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
 import { TransitionStudentLifecycleDto } from './dto/transition-student-lifecycle.dto';
 import { TransitionTeacherLifecycleDto } from './dto/transition-teacher-lifecycle.dto';
+import { UpdateStudentParentLinkDto } from './dto/update-student-parent-link.dto';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 
 type ImportCreateResult = {
@@ -1120,19 +1121,19 @@ export class SchoolService {
         .leftJoin(UserEntity, 'changedBy', 'changedBy.id = ev.changed_by_user_id')
         .select([
           'ev.id AS id',
-          "'student' AS \"entityType\"",
-          'ev.studentId AS "personId"',
-          'person.fullName AS "personName"',
-          'ev.schoolId AS "schoolId"',
-          'ev.fromStatus AS "fromStatus"',
-          'ev.toStatus AS "toStatus"',
+          `'student' AS "entityType"`,
+          'ev.student_id AS "personId"',
+          'person.full_name AS "personName"',
+          'ev.school_id AS "schoolId"',
+          'ev.from_status AS "fromStatus"',
+          'ev.to_status AS "toStatus"',
           'ev.reason AS reason',
-          'ev.effectiveDate AS "effectiveDate"',
-          'ev.changedByUserId AS "changedByUserId"',
-          `COALESCE(changedBy.fullName, ev.changedByUserId::text) AS "changedByName"`,
-          'ev.createdAt AS "createdAt"'
+          'ev.effective_date AS "effectiveDate"',
+          'ev.changed_by_user_id AS "changedByUserId"',
+          `COALESCE(changedBy.full_name, ev.changed_by_user_id::text) AS "changedByName"`,
+          'ev.created_at AS "createdAt"'
         ])
-        .orderBy('ev.createdAt', 'DESC')
+        .orderBy('ev.created_at', 'DESC')
         .limit(limit);
       if (scopeSchoolId) qb.andWhere('ev.school_id = :schoolId', { schoolId: scopeSchoolId });
       if (from) qb.andWhere('ev.created_at >= :fromDate', { fromDate: from });
@@ -1149,19 +1150,19 @@ export class SchoolService {
         .leftJoin(UserEntity, 'changedBy', 'changedBy.id = ev.changed_by_user_id')
         .select([
           'ev.id AS id',
-          "'teacher' AS \"entityType\"",
-          'ev.teacherId AS "personId"',
-          'person.fullName AS "personName"',
-          'ev.schoolId AS "schoolId"',
-          'ev.fromStatus AS "fromStatus"',
-          'ev.toStatus AS "toStatus"',
+          `'teacher' AS "entityType"`,
+          'ev.teacher_id AS "personId"',
+          'person.full_name AS "personName"',
+          'ev.school_id AS "schoolId"',
+          'ev.from_status AS "fromStatus"',
+          'ev.to_status AS "toStatus"',
           'ev.reason AS reason',
-          'ev.effectiveDate AS "effectiveDate"',
-          'ev.changedByUserId AS "changedByUserId"',
-          `COALESCE(changedBy.fullName, ev.changedByUserId::text) AS "changedByName"`,
-          'ev.createdAt AS "createdAt"'
+          'ev.effective_date AS "effectiveDate"',
+          'ev.changed_by_user_id AS "changedByUserId"',
+          `COALESCE(changedBy.full_name, ev.changed_by_user_id::text) AS "changedByName"`,
+          'ev.created_at AS "createdAt"'
         ])
-        .orderBy('ev.createdAt', 'DESC')
+        .orderBy('ev.created_at', 'DESC')
         .limit(limit);
       if (scopeSchoolId) qb.andWhere('ev.school_id = :schoolId', { schoolId: scopeSchoolId });
       if (from) qb.andWhere('ev.created_at >= :fromDate', { fromDate: from });
@@ -1443,6 +1444,19 @@ export class SchoolService {
       isPrimary: dto.isPrimary ?? false,
       canPickup: dto.canPickup ?? true
     });
+    return this.studentParentsRepository.save(row);
+  }
+
+  async updateStudentParentLink(linkId: string, dto: UpdateStudentParentLinkDto, scopeSchoolId?: string | null) {
+    const row = await this.studentParentsRepository.findOne({ where: { id: linkId } });
+    if (!row) throw new NotFoundException('Vínculo no encontrado');
+    const stuSch = await this.requireStudentSchoolId(row.studentId);
+    if (scopeSchoolId && stuSch !== scopeSchoolId) {
+      throw new ForbiddenException('No tienes permiso para modificar este vínculo');
+    }
+    if (dto.relationship !== undefined) row.relationship = dto.relationship.trim();
+    if (dto.canPickup !== undefined) row.canPickup = dto.canPickup;
+    if (dto.isPrimary !== undefined) row.isPrimary = dto.isPrimary;
     return this.studentParentsRepository.save(row);
   }
 

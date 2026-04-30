@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -21,6 +21,13 @@ export class VehiclesController {
     return this.vehiclesService.listMine(req.user.userId);
   }
 
+  /** Admin/Administrativo: listar vehículos de un padre por su ID de perfil (parent entity id). */
+  @Get('by-parent/:parentId')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  listByParent(@Param('parentId', new ParseUUIDPipe({ version: '4' })) parentId: string) {
+    return this.vehiclesService.listByParentId(parentId);
+  }
+
   @Post()
   @Roles(UserRole.PADRE)
   create(@Body() dto: CreateVehicleDto, @Req() req: Request & { user: JwtUser }) {
@@ -35,5 +42,32 @@ export class VehiclesController {
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.vehiclesService.update(req.user.userId, id, dto);
+  }
+
+  /** Padre: eliminar uno de sus vehículos. */
+  @Delete(':id')
+  @Roles(UserRole.PADRE)
+  deleteMine(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.vehiclesService.deleteMine(req.user.userId, id);
+  }
+
+  /** Admin/Administrativo: activar/desactivar cualquier vehículo. */
+  @Patch(':id/set-active')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  adminSetActive(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: { isActive: boolean }
+  ) {
+    return this.vehiclesService.adminSetActive(id, body.isActive);
+  }
+
+  /** Admin/Administrativo: eliminar cualquier vehículo. */
+  @Delete(':id/admin')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  adminDelete(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.vehiclesService.adminDelete(id);
   }
 }

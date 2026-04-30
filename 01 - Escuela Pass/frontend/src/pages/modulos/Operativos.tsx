@@ -1684,6 +1684,7 @@ export function AdministracionPage() {
   const [reportMessage, setReportMessage] = useState('');
   const [reportFiles, setReportFiles] = useState<File[]>([]);
   const [sendingReport, setSendingReport] = useState(false);
+  const [reportErr, setReportErr] = useState<string | null>(null);
   const [reportOk, setReportOk] = useState<string | null>(null);
   const [adminReports, setAdminReports] = useState<AdminReportItem[]>([]);
   const [adminReportsLoading, setAdminReportsLoading] = useState(false);
@@ -2492,17 +2493,32 @@ export function AdministracionPage() {
             title="Reportar a administración"
             description="Canal interno para enviar errores, sugerencias o peticiones al equipo administrador."
           >
+            {reportErr ? (
+              <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100">
+                {reportErr}
+              </div>
+            ) : null}
             <form
               className="space-y-3"
               onSubmit={(e: FormEvent) => {
                 e.preventDefault();
-                if (!reportSubject.trim() || !reportMessage.trim()) {
-                  setErr('Complete asunto y detalle para enviar el reporte.');
+                const subj = reportSubject.trim();
+                const msg = reportMessage.trim();
+                if (!subj || !msg) {
+                  setReportErr('Indique asunto y detalle para enviar el reporte.');
+                  return;
+                }
+                if (subj.length < 5) {
+                  setReportErr('El asunto debe tener al menos 5 caracteres.');
+                  return;
+                }
+                if (msg.length < 10) {
+                  setReportErr('El detalle debe tener al menos 10 caracteres.');
                   return;
                 }
                 void (async () => {
                   setSendingReport(true);
-                  setErr(null);
+                  setReportErr(null);
                   setReportOk(null);
                   try {
                     const evidenceUrls: string[] = [];
@@ -2512,10 +2528,11 @@ export function AdministracionPage() {
                     }
                     await api.post('/api/v1/notifications/admin-reports', {
                       type: reportType,
-                      subject: reportSubject.trim(),
-                      message: reportMessage.trim(),
+                      subject: subj,
+                      message: msg,
                       evidenceUrls
                     });
+                    setReportErr(null);
                     setReportOk('Reporte enviado al equipo administrador.');
                     setReportSubject('');
                     setReportMessage('');
@@ -2523,7 +2540,7 @@ export function AdministracionPage() {
                     setReportFiles([]);
                     await loadMyAdminReports();
                   } catch (eSubmit) {
-                    setErr(getUserFacingMessage(eSubmit));
+                    setReportErr(getUserFacingMessage(eSubmit, 'No se pudo enviar el reporte. Intente de nuevo.'));
                   } finally {
                     setSendingReport(false);
                   }
@@ -2551,11 +2568,15 @@ export function AdministracionPage() {
                     type="text"
                     className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                     value={reportSubject}
-                    onChange={(e) => setReportSubject(e.target.value)}
+                    onChange={(e) => {
+                      setReportSubject(e.target.value);
+                      if (reportErr) setReportErr(null);
+                    }}
                     maxLength={160}
                     placeholder="Ej. Error al cerrar periodo académico"
                     disabled={sendingReport}
                   />
+                  <span className="mt-1 block text-xs text-slate-500">Mínimo 5 caracteres.</span>
                 </label>
               </div>
               <label className="block text-sm text-slate-700">
@@ -2563,11 +2584,15 @@ export function AdministracionPage() {
                 <textarea
                   className="mt-1 min-h-[120px] w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={reportMessage}
-                  onChange={(e) => setReportMessage(e.target.value)}
+                  onChange={(e) => {
+                    setReportMessage(e.target.value);
+                    if (reportErr) setReportErr(null);
+                  }}
                   maxLength={4000}
                   placeholder="Describa qué ocurre, en qué pantalla y cómo reproducirlo."
                   disabled={sendingReport}
                 />
+                <span className="mt-1 block text-xs text-slate-500">Mínimo 10 caracteres (se recortan espacios al inicio y al final).</span>
               </label>
               <label className="block text-sm text-slate-700">
                 Capturas (opcional, hasta 5)

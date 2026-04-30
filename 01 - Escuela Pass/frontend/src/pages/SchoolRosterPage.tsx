@@ -19,6 +19,7 @@ type GroupRow = {
   schoolYear: string;
   classroom: string | null;
   capacity: number | null;
+  status?: boolean;
 };
 
 type StudentRow = {
@@ -31,6 +32,9 @@ type StudentRow = {
   email: string;
   phone?: string | null;
   avatarUrl?: string | null;
+  canLeaveAlone?: boolean;
+  canAccessCampus?: boolean;
+  userStatus?: boolean;
 };
 
 type TeacherRow = {
@@ -69,7 +73,21 @@ type ParentRow = {
   email: string;
   phone?: string | null;
   isPrimaryContact: boolean;
+  canAccessCampus?: boolean;
   avatarUrl?: string | null;
+};
+
+type VehicleRow = {
+  id: string;
+  parentId: string;
+  plate: string;
+  description: string | null;
+  brand: string | null;
+  model: string | null;
+  color: string | null;
+  year: number | null;
+  isActive: boolean;
+  createdAt: string;
 };
 
 type LinkRow = {
@@ -140,7 +158,9 @@ type PendingDelete =
 type EditTarget =
   | { kind: 'student'; row: StudentRow }
   | { kind: 'teacher'; row: TeacherRow }
-  | { kind: 'parent'; row: ParentRow };
+  | { kind: 'parent'; row: ParentRow }
+  | { kind: 'group'; row: GroupRow }
+  | { kind: 'link'; row: LinkRow };
 
 function rosterInitials(fullName: string): string {
   const n = fullName.trim();
@@ -248,6 +268,8 @@ export function SchoolRosterPage() {
   const [sMat, setSMat] = useState('');
   const [sGroup, setSGroup] = useState('');
   const [sPhone, setSPhone] = useState('');
+  const [sCanLeaveAlone, setSCanLeaveAlone] = useState(false);
+  const [sCanAccessCampus, setSCanAccessCampus] = useState(false);
 
   const [tEmail, setTEmail] = useState('');
   const [tPass, setTPass] = useState('');
@@ -286,6 +308,7 @@ export function SchoolRosterPage() {
   const [lParent, setLParent] = useState('');
   const [lRel, setLRel] = useState('Padre');
   const [lPickup, setLPickup] = useState(true);
+  const [lIsPrimary, setLIsPrimary] = useState(false);
 
   const [updatingStudentId, setUpdatingStudentId] = useState<string | null>(null);
   const [uploadingAvatarUserId, setUploadingAvatarUserId] = useState<string | null>(null);
@@ -299,8 +322,25 @@ export function SchoolRosterPage() {
   const [editLifecycleStatus, setEditLifecycleStatus] = useState<'ACTIVO' | 'BAJA' | 'TRASLADO' | 'EGRESADO'>('ACTIVO');
   const [editLifecycleReason, setEditLifecycleReason] = useState('');
   const [editLifecycleEffectiveDate, setEditLifecycleEffectiveDate] = useState('');
+  const [editCanLeaveAlone, setEditCanLeaveAlone] = useState(false);
+  const [editCanAccessCampus, setEditCanAccessCampus] = useState(false);
+  const [editIsPrimaryContact, setEditIsPrimaryContact] = useState(false);
+  const [editLinkRel, setEditLinkRel] = useState('');
+  const [editLinkPickup, setEditLinkPickup] = useState(true);
+  const [editLinkIsPrimary, setEditLinkIsPrimary] = useState(false);
+  const [editGName, setEditGName] = useState('');
+  const [editGGrade, setEditGGrade] = useState('');
+  const [editGShift, setEditGShift] = useState('MATUTINO');
+  const [editGYear, setEditGYear] = useState('');
+  const [editGRoom, setEditGRoom] = useState('');
+  const [editGCap, setEditGCap] = useState('');
+  const [editGStatus, setEditGStatus] = useState(true);
   const [savingEdit, setSavingEdit] = useState(false);
   const [downloadingLifecycleCsv, setDownloadingLifecycleCsv] = useState(false);
+  const [parentVehicles, setParentVehicles] = useState<VehicleRow[]>([]);
+  const [vehicleParentId, setVehicleParentId] = useState<string | null>(null);
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [vehicleActionId, setVehicleActionId] = useState<string | null>(null);
 
   const schoolQuery = useMemo(() => {
     if (platformAdmin && selectedSchoolId) return { schoolId: selectedSchoolId };
@@ -627,7 +667,9 @@ export function SchoolRosterPage() {
       const body: Record<string, unknown> = {
         email: sEmail.trim(),
         password: sPass,
-        fullName: sName.trim()
+        fullName: sName.trim(),
+        canLeaveAlone: sCanLeaveAlone,
+        canAccessCampus: sCanAccessCampus
       };
       if (sPhone.trim()) body.phone = sPhone.trim();
       if (sMat.trim()) body.matricula = sMat.trim();
@@ -640,6 +682,8 @@ export function SchoolRosterPage() {
       setSPhone('');
       setSMat('');
       setSGroup('');
+      setSCanLeaveAlone(false);
+      setSCanAccessCampus(false);
       setMessage('Alumno registrado.');
       await refreshNextMatriculaHint();
       await refreshAll();
@@ -814,7 +858,8 @@ export function SchoolRosterPage() {
         studentId: lStudent,
         parentId: lParent,
         relationship: lRel.trim(),
-        canPickup: lPickup
+        canPickup: lPickup,
+        isPrimary: lIsPrimary
       };
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/student-parent-links', body);
@@ -822,6 +867,7 @@ export function SchoolRosterPage() {
       setLParent('');
       setLRel('Padre');
       setLPickup(true);
+      setLIsPrimary(false);
       setMessage('Vínculo familia–alumno registrado.');
       await refreshAll();
     } catch (err) {
@@ -883,6 +929,9 @@ export function SchoolRosterPage() {
     setEditLifecycleStatus(r.lifecycleStatus ?? 'ACTIVO');
     setEditLifecycleReason('');
     setEditLifecycleEffectiveDate('');
+    setEditCanLeaveAlone(r.canLeaveAlone ?? false);
+    setEditCanAccessCampus(r.canAccessCampus ?? false);
+    setEditIsPrimaryContact(false);
   }
 
   function onEditTeacher(r: TeacherRow) {
@@ -894,6 +943,9 @@ export function SchoolRosterPage() {
     setEditLifecycleStatus(r.lifecycleStatus ?? 'ACTIVO');
     setEditLifecycleReason('');
     setEditLifecycleEffectiveDate('');
+    setEditCanLeaveAlone(false);
+    setEditCanAccessCampus(false);
+    setEditIsPrimaryContact(false);
   }
 
   function onEditParent(r: ParentRow) {
@@ -905,6 +957,27 @@ export function SchoolRosterPage() {
     setEditLifecycleStatus('ACTIVO');
     setEditLifecycleReason('');
     setEditLifecycleEffectiveDate('');
+    setEditCanLeaveAlone(false);
+    setEditCanAccessCampus(r.canAccessCampus ?? false);
+    setEditIsPrimaryContact(r.isPrimaryContact);
+  }
+
+  function onEditGroup(r: GroupRow) {
+    setEditTarget({ kind: 'group', row: r });
+    setEditGName(r.name);
+    setEditGGrade(r.grade ?? '');
+    setEditGShift(r.shift);
+    setEditGYear(r.schoolYear);
+    setEditGRoom(r.classroom ?? '');
+    setEditGCap(r.capacity != null ? String(r.capacity) : '');
+    setEditGStatus(r.status !== false);
+  }
+
+  function onEditLink(r: LinkRow) {
+    setEditTarget({ kind: 'link', row: r });
+    setEditLinkRel(r.relationship);
+    setEditLinkPickup(r.canPickup);
+    setEditLinkIsPrimary(r.isPrimary);
   }
 
   function closeEditModal() {
@@ -917,31 +990,67 @@ export function SchoolRosterPage() {
     setEditLifecycleStatus('ACTIVO');
     setEditLifecycleReason('');
     setEditLifecycleEffectiveDate('');
+    setEditCanLeaveAlone(false);
+    setEditCanAccessCampus(false);
+    setEditIsPrimaryContact(false);
+    setEditLinkRel('');
+    setEditLinkPickup(true);
+    setEditLinkIsPrimary(false);
+    setEditGName('');
+    setEditGGrade('');
+    setEditGShift('MATUTINO');
+    setEditGYear('');
+    setEditGRoom('');
+    setEditGCap('');
+    setEditGStatus(true);
   }
 
   async function onSaveEdit(e: FormEvent) {
     e.preventDefault();
     if (!editTarget) return;
-    const nextName = editName.trim();
-    if (!nextName) {
-      setError('El nombre completo es obligatorio.');
-      return;
-    }
     setMessage(null);
     setError(null);
     setSavingEdit(true);
     try {
+      if (editTarget.kind === 'group') {
+        const nm = editGName.trim();
+        if (!nm) { setError('El nombre del grupo es obligatorio.'); setSavingEdit(false); return; }
+        const body: Record<string, unknown> = { name: nm, shift: editGShift, status: editGStatus };
+        if (editGGrade.trim()) body.grade = editGGrade.trim();
+        if (editGYear.trim()) body.schoolYear = editGYear.trim();
+        if (editGRoom.trim()) body.classroom = editGRoom.trim();
+        const cap = Number.parseInt(editGCap, 10);
+        if (!Number.isNaN(cap) && cap > 0) body.capacity = cap;
+        await api.patch(`/api/v1/school/groups/${editTarget.row.id}`, body);
+        setMessage('Grupo actualizado.');
+        await refreshAll();
+        closeEditModal();
+        return;
+      }
+      if (editTarget.kind === 'link') {
+        const rel = editLinkRel.trim();
+        if (!rel) { setError('El parentesco es obligatorio.'); setSavingEdit(false); return; }
+        await api.patch(`/api/v1/school/student-parent-links/${editTarget.row.id}`, {
+          relationship: rel,
+          canPickup: editLinkPickup,
+          isPrimary: editLinkIsPrimary
+        });
+        setMessage('Vínculo actualizado.');
+        await refreshAll();
+        closeEditModal();
+        return;
+      }
+      const nextName = editName.trim();
+      if (!nextName) { setError('El nombre completo es obligatorio.'); setSavingEdit(false); return; }
       if (editTarget.kind === 'student') {
         const nextMat = editMatricula.trim();
-        if (!nextMat) {
-          setError('La matrícula es obligatoria.');
-          setSavingEdit(false);
-          return;
-        }
+        if (!nextMat) { setError('La matrícula es obligatoria.'); setSavingEdit(false); return; }
         await api.patch(`/api/v1/school/students/${editTarget.row.id}`, {
           fullName: nextName,
           phone: editPhone.trim() || null,
-          matricula: nextMat
+          matricula: nextMat,
+          canLeaveAlone: editCanLeaveAlone,
+          canAccessCampus: editCanAccessCampus
         });
         const prevLifecycle = editTarget.row.lifecycleStatus ?? 'ACTIVO';
         if (editLifecycleStatus !== prevLifecycle) {
@@ -960,11 +1069,7 @@ export function SchoolRosterPage() {
         setMessage('Alumno actualizado.');
       } else if (editTarget.kind === 'teacher') {
         const nextEmployee = editEmployeeNumber.trim();
-        if (!nextEmployee) {
-          setError('El número de empleado es obligatorio.');
-          setSavingEdit(false);
-          return;
-        }
+        if (!nextEmployee) { setError('El número de empleado es obligatorio.'); setSavingEdit(false); return; }
         await api.patch(`/api/v1/school/teachers/${editTarget.row.id}`, {
           fullName: nextName,
           phone: editPhone.trim() || null,
@@ -988,7 +1093,9 @@ export function SchoolRosterPage() {
       } else {
         await api.patch(`/api/v1/school/parents/${editTarget.row.id}`, {
           fullName: nextName,
-          phone: editPhone.trim() || null
+          phone: editPhone.trim() || null,
+          isPrimaryContact: editIsPrimaryContact,
+          canAccessCampus: editCanAccessCampus
         });
         setMessage('Padre/tutor actualizado.');
       }
@@ -998,6 +1105,49 @@ export function SchoolRosterPage() {
       setError(getUserFacingMessage(err, 'No se pudo actualizar el registro.'));
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  async function loadParentVehicles(parentId: string) {
+    if (vehicleParentId === parentId) { setVehicleParentId(null); setParentVehicles([]); return; }
+    setLoadingVehicles(true);
+    setVehicleParentId(parentId);
+    try {
+      const { data } = await api.get<VehicleRow[]>(`/api/v1/parents/vehicles/by-parent/${parentId}`);
+      setParentVehicles(Array.isArray(data) ? data : []);
+    } catch {
+      setParentVehicles([]);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  }
+
+  async function onVehicleSetActive(vehicleId: string, isActive: boolean) {
+    setVehicleActionId(vehicleId);
+    try {
+      await api.patch(`/api/v1/parents/vehicles/${vehicleId}/set-active`, { isActive });
+      setMessage(isActive ? 'Vehículo activado.' : 'Vehículo desactivado.');
+      if (vehicleParentId) {
+        const { data } = await api.get<VehicleRow[]>(`/api/v1/parents/vehicles/by-parent/${vehicleParentId}`);
+        setParentVehicles(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo actualizar el vehículo.'));
+    } finally {
+      setVehicleActionId(null);
+    }
+  }
+
+  async function onVehicleDelete(vehicleId: string) {
+    setVehicleActionId(vehicleId);
+    try {
+      await api.delete(`/api/v1/parents/vehicles/${vehicleId}/admin`);
+      setMessage('Vehículo eliminado.');
+      setParentVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo eliminar el vehículo.'));
+    } finally {
+      setVehicleActionId(null);
     }
   }
 
@@ -1187,7 +1337,8 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">Grado</th>
                 <th className="py-2 pr-4 font-medium">Turno</th>
                 <th className="py-2 pr-4 font-medium">Ciclo</th>
-                <th className="py-2 font-medium">Aula</th>
+                <th className="py-2 pr-4 font-medium">Aula</th>
+                <th className="py-2 pr-4 font-medium">Estado</th>
                 <th className="py-2 font-medium">Acciones</th>
               </tr>
             </thead>
@@ -1198,15 +1349,25 @@ export function SchoolRosterPage() {
                   <td className="py-2 pr-4">{r.grade ?? '—'}</td>
                   <td className="py-2 pr-4">{shiftLabel(r.shift)}</td>
                   <td className="py-2 pr-4">{r.schoolYear}</td>
-                  <td className="py-2">{r.classroom ?? '—'}</td>
+                  <td className="py-2 pr-4">{r.classroom ?? '—'}</td>
+                  <td className="py-2 pr-4">
+                    <span className={r.status !== false ? 'text-emerald-700' : 'text-slate-500'}>
+                      {r.status !== false ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
                   <td className="py-2">
-                    <button
-                      type="button"
-                      className="text-xs text-red-700 underline"
-                      onClick={() => setPendingDelete({ kind: 'group', id: r.id, label: `${r.name} (${r.schoolYear})` })}
-                    >
-                      Eliminar
-                    </button>
+                    <div className="flex gap-2">
+                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => onEditGroup(r)}>
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-red-700 underline"
+                        onClick={() => setPendingDelete({ kind: 'group', id: r.id, label: `${r.name} (${r.schoolYear})` })}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1284,6 +1445,14 @@ export function SchoolRosterPage() {
               />
             </div>
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={sCanLeaveAlone} onChange={(e) => setSCanLeaveAlone(e.target.checked)} />
+            Puede salir solo
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={sCanAccessCampus} onChange={(e) => setSCanAccessCampus(e.target.checked)} />
+            Acceso al campus habilitado
+          </label>
           <div className="sm:col-span-2">
             <button
               type="submit"
@@ -1305,6 +1474,8 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">Matrícula</th>
                 <th className="py-2 pr-4 font-medium">Celular</th>
                 <th className="py-2 pr-4 font-medium">Estado</th>
+                <th className="py-2 pr-4 font-medium">Sale solo</th>
+                <th className="py-2 pr-4 font-medium">Acceso</th>
                 <th className="min-w-[14rem] py-2 font-medium">Grupo</th>
                 <th className="py-2 font-medium">Acciones</th>
               </tr>
@@ -1325,6 +1496,8 @@ export function SchoolRosterPage() {
                   <td className="py-2 pr-4 align-middle">{r.matricula}</td>
                   <td className="py-2 pr-4 align-middle">{r.phone?.trim() ? r.phone : '—'}</td>
                   <td className="py-2 pr-4 align-middle">{lifecycleLabel(r.lifecycleStatus)}</td>
+                  <td className="py-2 pr-4 align-middle">{r.canLeaveAlone ? 'Sí' : 'No'}</td>
+                  <td className="py-2 pr-4 align-middle">{r.canAccessCampus ? 'Sí' : 'No'}</td>
                   <td className="py-2 align-middle">
                     {(() => {
                       const selectableGroups = groupCapacityRows.filter(
@@ -1970,41 +2143,109 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">Nombre</th>
                 <th className="py-2 pr-4 font-medium">Correo</th>
                 <th className="py-2 pr-4 font-medium">Celular</th>
-                <th className="py-2 font-medium">Principal</th>
+                <th className="py-2 pr-4 font-medium">Principal</th>
+                <th className="py-2 pr-4 font-medium">Acceso</th>
                 <th className="py-2 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {parents.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100">
-                  <td className="py-2 pr-2 align-middle">
-                    <RosterAvatar
-                      fullName={r.fullName}
-                      avatarUrl={r.avatarUrl}
-                      canUpload={canUploadAvatars}
-                      busy={uploadingAvatarUserId === r.userId}
-                      onPick={(file) => void onUserAvatarFile(r.userId, file)}
-                    />
-                  </td>
-                  <td className="py-2 pr-4">{r.fullName}</td>
-                  <td className="py-2 pr-4">{r.email}</td>
-                  <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
-                  <td className="py-2">{r.isPrimaryContact ? 'Sí' : '—'}</td>
-                  <td className="py-2">
-                    <div className="flex gap-2">
-                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditParent(r)}>
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="text-xs text-red-700 underline"
-                        onClick={() => setPendingDelete({ kind: 'parent', id: r.id, label: r.fullName })}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <>
+                  <tr key={r.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-2 align-middle">
+                      <RosterAvatar
+                        fullName={r.fullName}
+                        avatarUrl={r.avatarUrl}
+                        canUpload={canUploadAvatars}
+                        busy={uploadingAvatarUserId === r.userId}
+                        onPick={(file) => void onUserAvatarFile(r.userId, file)}
+                      />
+                    </td>
+                    <td className="py-2 pr-4">{r.fullName}</td>
+                    <td className="py-2 pr-4">{r.email}</td>
+                    <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
+                    <td className="py-2 pr-4">{r.isPrimaryContact ? 'Sí' : '—'}</td>
+                    <td className="py-2 pr-4">{r.canAccessCampus ? 'Sí' : 'No'}</td>
+                    <td className="py-2">
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditParent(r)}>
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-slate-600 underline"
+                          onClick={() => void loadParentVehicles(r.id)}
+                        >
+                          {vehicleParentId === r.id ? 'Ocultar vehículos' : 'Vehículos'}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-red-700 underline"
+                          onClick={() => setPendingDelete({ kind: 'parent', id: r.id, label: r.fullName })}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {vehicleParentId === r.id && (
+                    <tr key={`${r.id}-vehicles`}>
+                      <td colSpan={7} className="bg-slate-50 px-4 pb-3 pt-2 dark:bg-slate-800/50">
+                        {loadingVehicles ? (
+                          <p className="text-xs text-slate-500">Cargando vehículos…</p>
+                        ) : parentVehicles.length === 0 ? (
+                          <p className="text-xs text-slate-500">Este padre/tutor no tiene vehículos registrados.</p>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-200 text-slate-500">
+                                <th className="py-1 pr-3 font-medium text-left">Placa</th>
+                                <th className="py-1 pr-3 font-medium text-left">Marca / Modelo</th>
+                                <th className="py-1 pr-3 font-medium text-left">Color / Año</th>
+                                <th className="py-1 pr-3 font-medium text-left">Estado</th>
+                                <th className="py-1 font-medium text-left">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {parentVehicles.map((v) => (
+                                <tr key={v.id} className="border-b border-slate-100">
+                                  <td className="py-1 pr-3 font-mono font-semibold">{v.plate}</td>
+                                  <td className="py-1 pr-3">{[v.brand, v.model].filter(Boolean).join(' ') || '—'}</td>
+                                  <td className="py-1 pr-3">{[v.color, v.year ? String(v.year) : null].filter(Boolean).join(', ') || '—'}</td>
+                                  <td className="py-1 pr-3">
+                                    <span className={v.isActive ? 'text-emerald-700' : 'text-red-600'}>
+                                      {v.isActive ? 'Activo' : 'Inactivo'}
+                                    </span>
+                                  </td>
+                                  <td className="py-1">
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={vehicleActionId === v.id}
+                                        className="underline disabled:opacity-50"
+                                        onClick={() => void onVehicleSetActive(v.id, !v.isActive)}
+                                      >
+                                        {v.isActive ? 'Desactivar' : 'Activar'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={vehicleActionId === v.id}
+                                        className="text-red-700 underline disabled:opacity-50"
+                                        onClick={() => void onVehicleDelete(v.id)}
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
@@ -2053,6 +2294,10 @@ export function SchoolRosterPage() {
             <input type="checkbox" checked={lPickup} onChange={(e) => setLPickup(e.target.checked)} />
             Puede recoger
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={lIsPrimary} onChange={(e) => setLIsPrimary(e.target.checked)} />
+            Vínculo principal
+          </label>
           <button
             type="submit"
             className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
@@ -2068,6 +2313,7 @@ export function SchoolRosterPage() {
                 <th className="py-2 pr-4 font-medium">Padre / tutor</th>
                 <th className="py-2 pr-4 font-medium">Parentesco</th>
                 <th className="py-2 pr-4 font-medium">Recogida</th>
+                <th className="py-2 pr-4 font-medium">Principal</th>
                 <th className="py-2 font-medium" />
               </tr>
             </thead>
@@ -2078,20 +2324,30 @@ export function SchoolRosterPage() {
                   <td className="py-2 pr-4">{r.parentFullName}</td>
                   <td className="py-2 pr-4">{r.relationship}</td>
                   <td className="py-2 pr-4">{r.canPickup ? 'Sí' : 'No'}</td>
+                  <td className="py-2 pr-4">{r.isPrimary ? 'Sí' : '—'}</td>
                   <td className="py-2">
-                    <button
-                      type="button"
-                      className="text-sm text-red-700 underline hover:text-red-900"
-                      onClick={() =>
-                        setPendingDelete({
-                          kind: 'link',
-                          id: r.id,
-                          label: `${r.studentFullName} ↔ ${r.parentFullName}`
-                        })
-                      }
-                    >
-                      Quitar vínculo
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="text-xs text-brand-800 underline"
+                        onClick={() => onEditLink(r)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-red-700 underline hover:text-red-900"
+                        onClick={() =>
+                          setPendingDelete({
+                            kind: 'link',
+                            id: r.id,
+                            label: `${r.studentFullName} ↔ ${r.parentFullName}`
+                          })
+                        }
+                      >
+                        Quitar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -2126,9 +2382,19 @@ export function SchoolRosterPage() {
             ? 'Editar alumno'
             : editTarget?.kind === 'teacher'
               ? 'Editar docente'
-              : 'Editar padre/tutor'
+              : editTarget?.kind === 'parent'
+                ? 'Editar padre/tutor'
+                : editTarget?.kind === 'group'
+                  ? 'Editar grupo'
+                  : 'Editar vínculo'
         }
-        subtitle={editTarget?.row.email ?? ''}
+        subtitle={
+          editTarget?.kind === 'link'
+            ? `${editTarget.row.studentFullName} ↔ ${editTarget.row.parentFullName}`
+            : editTarget?.kind === 'group'
+              ? editTarget.row.schoolYear
+              : (editTarget?.row as { email?: string } | undefined)?.email ?? ''
+        }
         onClose={closeEditModal}
         footer={
           <>
@@ -2152,84 +2418,150 @@ export function SchoolRosterPage() {
         }
       >
         <form id="roster-edit-form" className="space-y-3" onSubmit={onSaveEdit}>
-          <label className="block text-sm">
-            <span className="text-slate-700">Nombre completo</span>
-            <input
-              required
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-              value={editName}
-              onChange={(ev) => setEditName(ev.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-slate-700">Celular (opcional)</span>
-            <input
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-              value={editPhone}
-              onChange={(ev) => setEditPhone(ev.target.value)}
-              placeholder="Ej. +52 555 123 4567"
-            />
-          </label>
-          {editTarget?.kind === 'student' ? (
-            <label className="block text-sm">
-              <span className="text-slate-700">Matrícula</span>
-              <input
-                required
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                value={editMatricula}
-                onChange={(ev) => setEditMatricula(ev.target.value)}
-              />
-            </label>
-          ) : null}
-          {editTarget?.kind === 'teacher' ? (
-            <label className="block text-sm">
-              <span className="text-slate-700">Número de empleado</span>
-              <input
-                required
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                value={editEmployeeNumber}
-                onChange={(ev) => setEditEmployeeNumber(ev.target.value)}
-              />
-            </label>
-          ) : null}
-          {editTarget?.kind === 'student' || editTarget?.kind === 'teacher' ? (
+          {editTarget?.kind === 'group' ? (
             <>
               <label className="block text-sm">
-                <span className="text-slate-700">Estado de vida</span>
-                <select
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
-                  value={editLifecycleStatus}
-                  onChange={(ev) =>
-                    setEditLifecycleStatus(ev.target.value as 'ACTIVO' | 'BAJA' | 'TRASLADO' | 'EGRESADO')
-                  }
-                >
-                  <option value="ACTIVO">Activo</option>
-                  <option value="BAJA">Baja</option>
-                  <option value="TRASLADO">Traslado</option>
-                  <option value="EGRESADO">Egresado</option>
+                <span className="text-slate-700">Nombre del grupo</span>
+                <input required className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editGName} onChange={(ev) => setEditGName(ev.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-700">Grado (opcional)</span>
+                <input className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editGGrade} onChange={(ev) => setEditGGrade(ev.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-700">Turno</span>
+                <select className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={editGShift} onChange={(ev) => setEditGShift(ev.target.value)}>
+                  <option value="MATUTINO">Mañana</option>
+                  <option value="VESPERTINO">Tarde</option>
+                  <option value="NOCTURNO">Noche</option>
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="text-slate-700">Motivo de transición (si cambia estado)</span>
-                <textarea
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
-                  rows={2}
-                  value={editLifecycleReason}
-                  onChange={(ev) => setEditLifecycleReason(ev.target.value)}
-                  placeholder="Ej. Baja administrativa por retiro voluntario"
+                <span className="text-slate-700">Ciclo escolar</span>
+                <input className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editGYear} onChange={(ev) => setEditGYear(ev.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-700">Aula (opcional)</span>
+                <input className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editGRoom} onChange={(ev) => setEditGRoom(ev.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-700">Cupo (opcional)</span>
+                <input type="number" min={1} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editGCap} onChange={(ev) => setEditGCap(ev.target.value)} />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editGStatus} onChange={(ev) => setEditGStatus(ev.target.checked)} />
+                Grupo activo
+              </label>
+            </>
+          ) : editTarget?.kind === 'link' ? (
+            <>
+              <label className="block text-sm">
+                <span className="text-slate-700">Parentesco</span>
+                <input required className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editLinkRel} onChange={(ev) => setEditLinkRel(ev.target.value)} />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editLinkPickup} onChange={(ev) => setEditLinkPickup(ev.target.checked)} />
+                Puede recoger al alumno
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editLinkIsPrimary} onChange={(ev) => setEditLinkIsPrimary(ev.target.checked)} />
+                Vínculo principal
+              </label>
+            </>
+          ) : (
+            <>
+              <label className="block text-sm">
+                <span className="text-slate-700">Nombre completo</span>
+                <input
+                  required
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  value={editName}
+                  onChange={(ev) => setEditName(ev.target.value)}
                 />
               </label>
               <label className="block text-sm">
-                <span className="text-slate-700">Fecha efectiva (opcional)</span>
+                <span className="text-slate-700">Celular (opcional)</span>
                 <input
-                  type="date"
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
-                  value={editLifecycleEffectiveDate}
-                  onChange={(ev) => setEditLifecycleEffectiveDate(ev.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  value={editPhone}
+                  onChange={(ev) => setEditPhone(ev.target.value)}
+                  placeholder="Ej. +52 555 123 4567"
                 />
               </label>
+              {editTarget?.kind === 'student' ? (
+                <>
+                  <label className="block text-sm">
+                    <span className="text-slate-700">Matrícula</span>
+                    <input required className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editMatricula} onChange={(ev) => setEditMatricula(ev.target.value)} />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editCanLeaveAlone} onChange={(ev) => setEditCanLeaveAlone(ev.target.checked)} />
+                    Puede salir solo
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editCanAccessCampus} onChange={(ev) => setEditCanAccessCampus(ev.target.checked)} />
+                    Acceso al campus habilitado
+                  </label>
+                </>
+              ) : null}
+              {editTarget?.kind === 'teacher' ? (
+                <label className="block text-sm">
+                  <span className="text-slate-700">Número de empleado</span>
+                  <input required className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editEmployeeNumber} onChange={(ev) => setEditEmployeeNumber(ev.target.value)} />
+                </label>
+              ) : null}
+              {editTarget?.kind === 'parent' ? (
+                <>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editIsPrimaryContact} onChange={(ev) => setEditIsPrimaryContact(ev.target.checked)} />
+                    Contacto principal
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editCanAccessCampus} onChange={(ev) => setEditCanAccessCampus(ev.target.checked)} />
+                    Acceso al campus habilitado
+                  </label>
+                </>
+              ) : null}
+              {editTarget?.kind === 'student' || editTarget?.kind === 'teacher' ? (
+                <>
+                  <label className="block text-sm">
+                    <span className="text-slate-700">Estado de vida</span>
+                    <select
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                      value={editLifecycleStatus}
+                      onChange={(ev) =>
+                        setEditLifecycleStatus(ev.target.value as 'ACTIVO' | 'BAJA' | 'TRASLADO' | 'EGRESADO')
+                      }
+                    >
+                      <option value="ACTIVO">Activo</option>
+                      <option value="BAJA">Baja</option>
+                      <option value="TRASLADO">Traslado</option>
+                      <option value="EGRESADO">Egresado</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-slate-700">Motivo de transición (si cambia estado)</span>
+                    <textarea
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                      rows={2}
+                      value={editLifecycleReason}
+                      onChange={(ev) => setEditLifecycleReason(ev.target.value)}
+                      placeholder="Ej. Baja administrativa por retiro voluntario"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-slate-700">Fecha efectiva (opcional)</span>
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                      value={editLifecycleEffectiveDate}
+                      onChange={(ev) => setEditLifecycleEffectiveDate(ev.target.value)}
+                    />
+                  </label>
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
         </form>
       </DetailModal>
     </div>

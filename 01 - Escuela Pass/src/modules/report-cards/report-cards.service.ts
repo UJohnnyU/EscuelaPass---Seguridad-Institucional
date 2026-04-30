@@ -22,6 +22,28 @@ import { ReportCardSubjectEntity } from '../../database/entities/report-card-sub
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 
+/** Evita 500 si TypeORM/driver devuelve timestamptz como string o valor nulo. */
+function toIsoTimestamp(value: Date | string | null | undefined): string {
+  if (value == null) return new Date().toISOString();
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  const d = new Date(String(value));
+  if (!Number.isNaN(d.getTime())) return d.toISOString();
+  return new Date().toISOString();
+}
+
+function toIsoTimestampOrNull(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  const d = new Date(String(value));
+  if (!Number.isNaN(d.getTime())) return d.toISOString();
+  return null;
+}
+
+function decimalToString(value: string | number | null | undefined): string {
+  if (value == null || value === '') return '0.00';
+  return String(value);
+}
+
 export type ReportCardSummary = {
   id: string;
   studentId: string;
@@ -163,11 +185,11 @@ export class ReportCardsService {
       let published = 0;
 
       for (const [studentId, data] of byStudent) {
+        // Coincide con uq_report_cards_period (student_id, period_id): buscar solo por eso;
+        // si exigimos school_year/school_id y difieren de una fila previa, el INSERT choca y el cierre del periodo devuelve 422.
         let card = await rcRepo.findOne({
           where: {
             studentId,
-            schoolId: period.schoolId,
-            schoolYear: period.schoolYear,
             type: ReportCardType.PERIOD,
             periodId: period.id
           }
@@ -183,6 +205,8 @@ export class ReportCardsService {
             status: ReportCardStatus.DRAFT
           });
         }
+        card.schoolId = period.schoolId;
+        card.schoolYear = period.schoolYear;
 
         let sumAvg = 0;
         let countAvg = 0;
@@ -624,20 +648,20 @@ export class ReportCardsService {
       periodName: period?.name ?? null,
       groupId: meta[0]?.group_id ?? null,
       groupName: meta[0]?.group_name ?? null,
-      overallAverage: card.overallAverage,
+      overallAverage: decimalToString(card.overallAverage as string | number | null | undefined),
       failedSubjectsCount: card.failedSubjectsCount,
       promotionStatus: card.promotionStatus,
       status: card.status,
-      publishedAt: card.publishedAt ? card.publishedAt.toISOString() : null,
-      generatedAt: card.generatedAt.toISOString(),
-      passingGrade: school?.passingGrade ?? '0.00',
-      maxGradeScale: school?.maxGradeScale ?? '100.00',
+      publishedAt: toIsoTimestampOrNull(card.publishedAt as Date | string | null | undefined),
+      generatedAt: toIsoTimestamp(card.generatedAt as Date | string | null | undefined),
+      passingGrade: decimalToString(school?.passingGrade as string | number | null | undefined),
+      maxGradeScale: decimalToString(school?.maxGradeScale as string | number | null | undefined) || '100.00',
       minFailedSubjectsToRepeat: school?.minFailedSubjectsToRepeat ?? 3,
       subjects: subjects.map((s) => ({
         id: s.id,
         subjectId: s.subjectId,
         subjectName: s.subjectName,
-        average: s.average,
+        average: decimalToString(s.average as string | number | null | undefined),
         activityCount: s.activityCount,
         gradedCount: s.gradedCount,
         isPassing: s.isPassing

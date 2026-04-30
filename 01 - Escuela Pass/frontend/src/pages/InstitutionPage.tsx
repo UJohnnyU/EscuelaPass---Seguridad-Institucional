@@ -25,25 +25,6 @@ type Profile = {
 
 type SchoolRow = { id: string; name: string; code: string };
 
-function normalizeProfileForCompare(p: Profile): Record<string, string> {
-  const keys: Array<keyof Profile> = [
-    'name',
-    'address',
-    'city',
-    'phone',
-    'email',
-    'directorName',
-    'motto',
-    'studentMatriculaPrefix',
-    'maxGradeScale',
-    'latitude',
-    'longitude'
-  ];
-  const out: Record<string, string> = {};
-  for (const k of keys) out[k] = String(p[k] ?? '').trim();
-  return out;
-}
-
 export function InstitutionPage() {
   const { user } = useAuth();
   const platformAdmin = isPlatformAdmin(user);
@@ -55,6 +36,8 @@ export function InstitutionPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<Profile>({ name: '' });
   const [isEditing, setIsEditing] = useState(false);
+  /** Evita depender solo de JSON.stringify(profile); el objeto de la API y form podían compartir referencia o diverger en decimales. */
+  const [formDirty, setFormDirty] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -96,6 +79,7 @@ export function InstitutionPage() {
       setLoading(false);
       setProfile(null);
       setForm({ name: '' });
+      setFormDirty(false);
       return;
     }
     let cancelled = false;
@@ -108,8 +92,9 @@ export function InstitutionPage() {
         const { data } = await api.get<Profile>('/api/v1/settings/institution', { params });
         if (!cancelled) {
           setProfile(data);
-          setForm(data);
+          setForm({ ...data });
           setIsEditing(false);
+          setFormDirty(false);
         }
       } catch (e) {
         if (!cancelled) setError(getUserFacingMessage(e, 'No se pudo cargar el perfil institucional.'));
@@ -124,7 +109,7 @@ export function InstitutionPage() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (!canEdit || !isEditing) return;
+    if (!canEdit || !isEditing || !formDirty) return;
     if (platformAdmin && !selectedSchoolId) {
       setError('Seleccione una escuela para guardar.');
       return;
@@ -181,8 +166,9 @@ export function InstitutionPage() {
         user?.role === 'ADMIN' && selectedSchoolId ? { schoolId: selectedSchoolId } : undefined;
       const { data } = await api.patch<Profile>('/api/v1/settings/institution', payload, { params });
       setProfile(data);
-      setForm(data);
+      setForm({ ...data });
       setIsEditing(false);
+      setFormDirty(false);
       setMessage('Cambios guardados correctamente.');
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudieron guardar los cambios.'));
@@ -232,9 +218,6 @@ export function InstitutionPage() {
     );
   }
 
-  const hasUnsavedChanges =
-    !!profile &&
-    JSON.stringify(normalizeProfileForCompare(form)) !== JSON.stringify(normalizeProfileForCompare(profile));
   const logoSrc = profile?.logoUrl ? publicAssetUrl(profile.logoUrl) : null;
 
   return (
@@ -311,8 +294,10 @@ export function InstitutionPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setForm(profile);
+                    if (!profile) return;
+                    setForm({ ...profile });
                     setIsEditing(true);
+                    setFormDirty(false);
                     setMessage(null);
                     setError(null);
                   }}
@@ -324,8 +309,10 @@ export function InstitutionPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setForm(profile);
+                    if (!profile) return;
+                    setForm({ ...profile });
                     setIsEditing(false);
+                    setFormDirty(false);
                     setMessage('Edición cancelada. Se conservaron los datos actuales.');
                     setError(null);
                   }}
@@ -354,7 +341,10 @@ export function InstitutionPage() {
                 id={key}
                 type={type}
                 value={(form as Record<string, string | undefined>)[key] ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                onChange={(e) => {
+                  setFormDirty(true);
+                  setForm((f) => ({ ...f, [key]: e.target.value }));
+                }}
                 disabled={!isEditing}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
               />
@@ -376,7 +366,10 @@ export function InstitutionPage() {
               type="text"
               inputMode="decimal"
               value={form.maxGradeScale ?? '100.00'}
-              onChange={(e) => setForm((f) => ({ ...f, maxGradeScale: e.target.value }))}
+              onChange={(e) => {
+                setFormDirty(true);
+                setForm((f) => ({ ...f, maxGradeScale: e.target.value }));
+              }}
               disabled={!isEditing}
               className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 outline-none ring-brand-500/30 focus:ring-2"
               placeholder="100.00"
@@ -401,7 +394,10 @@ export function InstitutionPage() {
                       inputMode="decimal"
                       value={form.latitude ?? ''}
                       disabled={!isEditing}
-                      onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+                      onChange={(e) => {
+                        setFormDirty(true);
+                        setForm((f) => ({ ...f, latitude: e.target.value }));
+                      }}
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900 outline-none ring-brand-500/30 focus:ring-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       placeholder="18.48610000"
                     />
@@ -413,7 +409,10 @@ export function InstitutionPage() {
                       inputMode="decimal"
                       value={form.longitude ?? ''}
                       disabled={!isEditing}
-                      onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+                      onChange={(e) => {
+                        setFormDirty(true);
+                        setForm((f) => ({ ...f, longitude: e.target.value }));
+                      }}
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900 outline-none ring-brand-500/30 focus:ring-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       placeholder="-69.93120000"
                     />
@@ -463,7 +462,7 @@ export function InstitutionPage() {
           )}
           <button
             type="submit"
-            disabled={saving || !isEditing || !hasUnsavedChanges || (platformAdmin && !selectedSchoolId)}
+            disabled={saving || !isEditing || !formDirty || (platformAdmin && !selectedSchoolId)}
             className="rounded-xl bg-brand-600 px-6 py-2.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
           >
             {saving ? 'Guardando…' : 'Guardar cambios'}

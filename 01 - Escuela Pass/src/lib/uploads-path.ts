@@ -39,9 +39,13 @@ export function resolveUploadFile(publicPath: string | null | undefined): string
   const trimmed = publicPath.trim();
   if (!trimmed || !trimmed.startsWith('/uploads/')) return null;
   const rel = trimmed.replace(/^\/uploads\//, '');
-  const candidates = [join(uploadsRootDir(), rel), join(process.cwd(), 'uploads', rel)];
-  for (const abs of candidates) {
-    if (existsSync(abs)) return abs;
+  try {
+    const candidates = [join(uploadsRootDir(), rel), join(process.cwd(), 'uploads', rel)];
+    for (const abs of candidates) {
+      if (existsSync(abs)) return abs;
+    }
+    return null;
+  } catch {
+    return null;
   }
-  return null;
 }

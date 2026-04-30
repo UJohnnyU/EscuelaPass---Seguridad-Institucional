@@ -29,6 +29,14 @@ export class VehiclesService {
     });
   }
 
+  /** Admin/Administrativo: listar vehículos de un padre por su ID de perfil (parent.id). */
+  async listByParentId(parentId: string) {
+    return this.vehiclesRepository.find({
+      where: { parentId },
+      order: { createdAt: 'DESC' }
+    });
+  }
+
   async create(parentUserId: string, dto: CreateVehicleDto) {
     const parent = await this.getParentOrThrow(parentUserId);
     const row = this.vehiclesRepository.create({
@@ -63,5 +71,30 @@ export class VehiclesService {
     if (dto.year !== undefined) v.year = dto.year ?? null;
     if (dto.isActive !== undefined) v.isActive = dto.isActive;
     return this.vehiclesRepository.save(v);
+  }
+
+  /** Padre: eliminar un vehículo propio. */
+  async deleteMine(parentUserId: string, vehicleId: string) {
+    const parent = await this.getParentOrThrow(parentUserId);
+    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId, parentId: parent.id } });
+    if (!v) throw new NotFoundException('Vehículo no encontrado');
+    await this.vehiclesRepository.delete({ id: vehicleId });
+    return { message: 'Vehículo eliminado', id: vehicleId };
+  }
+
+  /** Admin/Administrativo: desactivar o activar vehículo de cualquier padre. */
+  async adminSetActive(vehicleId: string, isActive: boolean) {
+    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId } });
+    if (!v) throw new NotFoundException('Vehículo no encontrado');
+    v.isActive = isActive;
+    return this.vehiclesRepository.save(v);
+  }
+
+  /** Admin/Administrativo: eliminar vehículo de cualquier padre. */
+  async adminDelete(vehicleId: string) {
+    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId } });
+    if (!v) throw new NotFoundException('Vehículo no encontrado');
+    await this.vehiclesRepository.delete({ id: vehicleId });
+    return { message: 'Vehículo eliminado', id: vehicleId };
   }
 }
