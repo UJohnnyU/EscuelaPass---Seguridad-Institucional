@@ -1,10 +1,11 @@
 /**
- * Aplica esquema + seed_dev + seed_demo_full usando DATABASE_URL (PostgreSQL directo).
- * o, en su defecto, POSTGRES_URL.
- * (local pgAdmin/Docker o nube).
+ * Aplica esquema completo + seed de demostración usando DATABASE_URL (PostgreSQL directo).
  *
- * Orden: escuela_pass_schema_v3.sql → seed_dev.sql → seed_demo_full.sql
- * Solo seed mínimo: DB_SKIP_FULL_SEED=1
+ * Esquema de referencia: escuela_pass_schema_v4.sql  (todas las tablas)
+ * Seed completo:         scripts/seed-full-demo.cjs  (ejecutado por separado via node)
+ *
+ * Este script aplica solo el esquema SQL (DDL idempotente — IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
+ * Para re-sembrar datos use: node scripts/seed-full-demo.cjs
  *
  * Uso: npm run db:apply
  */
@@ -65,21 +66,10 @@ async function main() {
   // Solo si el host no permite CREATE EXTENSION (p. ej. algunos planes): DB_SKIP_EXTENSIONS=1
   const stripExt = process.env.DB_SKIP_EXTENSIONS === '1';
   try {
-    await runSqlFile(client, 'escuela_pass_schema_v3.sql', { stripCreateExtensions: stripExt });
-    // Compat: si existía restricción global por nombre de materia, migrar a unique por escuela.
-    await client.query('ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_name_key');
-    await client.query(
-      'CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_school_name ON subjects(school_id, lower(name))'
-    );
-    await runSqlFile(client, 'scripts/database/seed_dev.sql');
-    if (process.env.DB_SKIP_FULL_SEED === '1') {
-      // eslint-disable-next-line no-console
-      console.log('[db] Seed demo completo omitido (DB_SKIP_FULL_SEED=1).');
-    } else {
-      await runSqlFile(client, 'scripts/database/seed_demo_full.sql');
-    }
+    // Aplicar esquema completo v4 (idempotente — solo DDL, sin datos)
+    await runSqlFile(client, 'escuela_pass_schema_v4.sql', { stripCreateExtensions: stripExt });
     // eslint-disable-next-line no-console
-    console.log('[db] Esquema y seeds aplicados.');
+    console.log('[db] Esquema aplicado. Para poblar datos ejecute: node scripts/seed-full-demo.cjs');
   } finally {
     await client.end();
   }
