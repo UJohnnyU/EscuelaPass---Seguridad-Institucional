@@ -53,6 +53,14 @@ export class ReportCardsController {
     return this.service.listForStudentUser(req.user.userId);
   }
 
+  /** Alias corto: debe declararse antes de `:id` para no caer en ParseUUIDPipe('me'). */
+  @Get('me')
+  @Header('Cache-Control', 'no-store, must-revalidate')
+  @Roles(UserRole.ALUMNO)
+  listForStudentMeAlias(@Req() req: Request & { user: JwtUser }) {
+    return this.service.listForStudentUser(req.user.userId);
+  }
+
   @Get('parent/my-children')
   @Header('Cache-Control', 'no-store, must-revalidate')
   @Roles(UserRole.PADRE)

@@ -163,7 +163,7 @@ function HomeAlumno() {
         const [act, notif, rc] = await Promise.all([
           api.get('/api/v1/activities/student/me').catch(() => ({ data: [] })),
           api.get('/api/v1/notifications/me?limit=6').catch(() => ({ data: [] })),
-          api.get('/api/v1/report-cards/me').catch(() => ({ data: [] }))
+          api.get('/api/v1/report-cards/student/me').catch(() => ({ data: [] }))
         ]);
         if (cancelled) return;
         setActivities(extractArray<StudentActivity>(act.data));
