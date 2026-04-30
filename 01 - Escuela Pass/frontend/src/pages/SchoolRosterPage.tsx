@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DetailModal } from '@/components/DetailModal';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
@@ -2150,8 +2150,8 @@ export function SchoolRosterPage() {
             </thead>
             <tbody>
               {parents.map((r) => (
-                <>
-                  <tr key={r.id} className="border-b border-slate-100">
+                <Fragment key={r.id}>
+                  <tr className="border-b border-slate-100">
                     <td className="py-2 pr-2 align-middle">
                       <RosterAvatar
                         fullName={r.fullName}
@@ -2245,7 +2245,7 @@ export function SchoolRosterPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

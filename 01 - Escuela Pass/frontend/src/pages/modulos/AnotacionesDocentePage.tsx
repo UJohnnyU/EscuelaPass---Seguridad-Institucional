@@ -81,8 +81,19 @@ export function AnotacionesDocentePage() {
         return;
       }
       try {
-        const { data } = await api.get<TeacherGroup>(`/api/v1/school/groups/${gid}`);
-        const g = data;
+        let g: TeacherGroup | undefined;
+        if (platformAdmin) {
+          // ADMIN de plataforma puede usar el endpoint de school (tiene acceso)
+          const { data } = await api.get<TeacherGroup>(`/api/v1/school/groups/${gid}`);
+          g = data;
+        } else {
+          // DOCENTE: usar el endpoint accesible para docentes y encontrar el grupo por ID
+          const { data } = await api.get<TeacherGroup[]>('/api/v1/schedules/me/teacher/groups', {
+            params: { limit: '200' }
+          });
+          g = Array.isArray(data) ? data.find((x) => x.id === gid) : undefined;
+        }
+        if (!g) { setGroupLabelHint(''); return; }
         const schoolName = g.schoolId ? schools.find((s) => s.id === g.schoolId)?.name : undefined;
         const prefix = platformAdmin && schoolName ? `${schoolName} · ` : '';
         setGroupLabelHint(`${prefix}${g.name} · ${g.grade ?? '—'} · ${g.schoolYear ?? '—'}`);

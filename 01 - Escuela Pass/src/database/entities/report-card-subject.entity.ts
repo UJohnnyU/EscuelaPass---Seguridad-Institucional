@@ -1,11 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn
-} from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'report_card_subjects' })
 @Index('uq_report_card_subjects_rc_subject', ['reportCardId', 'subjectId'], { unique: true })
@@ -33,10 +26,4 @@ export class ReportCardSubjectEntity {
 
   @Column({ name: 'is_passing', type: 'boolean', default: false })
   isPassing!: boolean;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
-
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-  updatedAt!: Date;
 }

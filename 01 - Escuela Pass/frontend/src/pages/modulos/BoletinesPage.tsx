@@ -219,7 +219,7 @@ export function BoletinesPage() {
         </section>
       )}
 
-      {isStaff && <BulkDownloadPanel rows={rows} onError={setErr} schoolId={platformAdmin ? selectedSchoolId : ''} />}
+      {isStaff && <BulkDownloadPanel rows={rows} onError={setErr} schoolId={platformAdmin ? selectedSchoolId : ''} platformAdmin={platformAdmin} />}
 
       <div className="flex justify-end">
         <button
@@ -503,11 +503,13 @@ function PromotionBadge({ status }: { status: PromotionStatus }) {
 function BulkDownloadPanel({
   rows,
   onError,
-  schoolId
+  schoolId,
+  platformAdmin
 }: {
   rows: ReportCardSummary[];
   onError: (msg: string | null) => void;
   schoolId?: string;
+  platformAdmin?: boolean;
 }) {
   const [scope, setScope] = useState<'STUDENT' | 'GROUP' | 'ALL'>('ALL');
   const [schoolYear, setSchoolYear] = useState<string>('');
@@ -540,11 +542,17 @@ function BulkDownloadPanel({
     Array<{ id: string; schoolYear: string; name: string }>
   >([]);
   useEffect(() => {
+    // Para el admin de plataforma (ADMIN global), schoolId es obligatorio en el backend.
+    // Si aún no ha seleccionado escuela, postponer la carga.
+    if (platformAdmin && !schoolId) return;
     let cancelled = false;
     (async () => {
       try {
+        const params: Record<string, string> = {};
+        if (schoolId) params.schoolId = schoolId;
         const { data } = await api.get<Array<{ id: string; schoolYear: string; name: string }>>(
-          '/api/v1/academic-periods'
+          '/api/v1/academic-periods',
+          { params }
         );
         if (!cancelled) setAllPeriods(Array.isArray(data) ? data : []);
       } catch {
@@ -554,7 +562,7 @@ function BulkDownloadPanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [platformAdmin, schoolId]);
 
   const yearOptions = useMemo<SmartSelectOption[]>(() => {
     const set = new Set<string>();
