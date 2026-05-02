@@ -86,8 +86,8 @@ const FOOTER_LINKS = [
   {
     heading: 'Contacto',
     links: [
-      { label: '+52 55 5555 5555',       href: 'tel:+525555555555' },
-      { label: 'contacto@institucion.edu', href: 'mailto:contacto@institucion.edu' }
+      { label: '+52 669 199 2906', href: 'tel:+526691992906' },
+      { label: 'clientes.alfanetworks@gmail.com', href: 'mailto:clientes.alfanetworks@gmail.com' }
     ]
   }
 ];
@@ -322,7 +322,9 @@ export function HomePage() {
           </div>
           <div className="mt-14 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <a
-              href="mailto:clientes.alfanetworks@gmail.com?subject=Solicitud%20de%20demostraci%C3%B3n%20Escuela%20Pass"
+              href="https://mail.google.com/mail/?view=cm&fs=1&to=clientes.alfanetworks@gmail.com&su=Solicitud%20de%20demostraci%C3%B3n%20Escuela%20Pass"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex rounded-full bg-brand-600 px-10 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand-900/40 transition hover:bg-brand-500"
             >
               Solicitar una demostración

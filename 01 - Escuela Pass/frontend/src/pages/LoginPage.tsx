@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
 import { BubbleField } from '@/components/login/BubbleField';
 import { API_BASE_URL } from '@/lib/api';
+import logoUrl from '@/assets/landing/logo.png';
 
 const REMEMBER_KEY = 'ep_login_remember_email';
 
@@ -222,8 +223,13 @@ export function LoginPage() {
         {/* Columna marca / bienvenida (desktop) */}
         <div className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-t-[2.5rem] border-t border-white/10 bg-slate-950/55 p-10 backdrop-blur-md lg:flex lg:min-h-screen lg:rounded-none lg:rounded-l-[2.5rem] lg:border-l lg:border-t-0 lg:p-12 xl:p-14">
           <div className="pointer-events-none absolute -right-16 top-8 h-72 w-72 rounded-full bg-brand-500/10 blur-3xl" />
-          <div className="pointer-events-none absolute right-12 top-20 select-none text-[10rem] font-black leading-none text-white/[0.04]">
-            EP
+          <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+            <img
+              src={logoUrl}
+              alt=""
+              aria-hidden
+              className="w-[70%] max-w-[min(70%,28rem)] object-contain opacity-[0.1] sm:opacity-[0.12]"
+            />
           </div>
 
           <div className="relative z-[1] max-w-md">
