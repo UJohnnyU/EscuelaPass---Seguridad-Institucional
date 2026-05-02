@@ -181,7 +181,7 @@ export function HomePage() {
       <section className="relative overflow-x-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-slate-950">
         <div className="pointer-events-none absolute -right-20 top-1/4 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -left-10 bottom-0 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl" />
-        <div className="mx-auto grid min-w-0 max-w-screen-2xl gap-12 px-6 py-16 lg:grid-cols-2 lg:items-center lg:gap-20 lg:px-12 lg:py-28 xl:px-20">
+        <div className="mx-auto grid min-w-0 max-w-screen-2xl gap-10 px-6 py-10 lg:grid-cols-2 lg:items-center lg:gap-16 lg:px-12 lg:py-16 xl:px-20">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-brand-200/70">Software para instituciones educativas</p>
             <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.25rem]">
@@ -209,7 +209,7 @@ export function HomePage() {
           </div>
 
           {/* Phone images with wave-float animation */}
-          <div className="flex min-w-0 items-end justify-center pb-10 lg:justify-end lg:pb-16">
+          <div className="flex min-w-0 items-end justify-center pb-6 lg:justify-end lg:pb-10">
             <div className="flex items-end gap-6 sm:gap-8 md:gap-10">
               {PHONES.map((p, i) => (
                 <div key={p.label} className="relative flex flex-col items-center">
@@ -231,7 +231,9 @@ export function HomePage() {
                       className="w-[140px] origin-bottom scale-x-[1.2] object-contain drop-shadow-2xl sm:w-[168px] lg:w-[188px]"
                     />
                   </div>
-                  <p className="relative z-10 mt-12 text-center text-[10px] text-white/40">{p.label}</p>
+                  <p className="relative z-10 mt-5 text-center text-sm font-bold tracking-tight text-brand-50/95 sm:mt-6 sm:text-base md:text-lg">
+                    {p.label}
+                  </p>
                 </div>
               ))}
             </div>
