@@ -1,5 +1,17 @@
 import { Link } from 'react-router-dom';
 
+import logoUrl from '@/assets/landing/logo.png';
+import phonePadreUrl from '@/assets/landing/phone-padre.png';
+import phoneEstudianteUrl from '@/assets/landing/phone-estudiante.png';
+import phoneDocenteUrl from '@/assets/landing/phone-docente.png';
+import accesosUrl from '@/assets/landing/accesos-plantel.png';
+import salidasUrl from '@/assets/landing/salidas-recogida.png';
+import informacionUrl from '@/assets/landing/informacion-perfil.png';
+import comunicacionUrl from '@/assets/landing/comunicacion-operativa.png';
+import operacionUrl from '@/assets/landing/operacion-diaria.png';
+import criterioUrl from '@/assets/landing/criterio-institucional.png';
+import escalableUrl from '@/assets/landing/escalable-rol.png';
+
 const NAV_LINKS = [
   { href: '#beneficios', label: 'Beneficios' },
   { href: '#plataforma', label: 'La plataforma' },
@@ -11,68 +23,97 @@ const BENEFITS = [
   {
     title: 'Accesos al plantel',
     text: 'Credenciales y registro de entradas y salidas con el flujo que defina la institución, para reducir incertidumbre en portería y horarios críticos.',
-    gradient: 'from-brand-800 to-slate-950'
+    img: accesosUrl
   },
   {
     title: 'Salidas y recogida',
     text: 'Circuito de recogida con coordinación entre familia y aula: estados visibles y cierre acorde a la norma interna del colegio.',
-    gradient: 'from-brand-700 to-slate-950'
+    img: salidasUrl
   },
   {
     title: 'Información por perfil',
     text: 'Cada usuario trabaja con pantallas acordes a su rol: familia, docencia o administración, sin saturar con datos que no corresponden.',
-    gradient: 'from-slate-800 to-slate-950'
+    img: informacionUrl
   },
   {
     title: 'Comunicación operativa',
     text: 'Módulos para avisos y gestión cotidiana en un mismo entorno, alineado a la operación real del plantel.',
-    gradient: 'from-brand-900 to-slate-950'
+    img: comunicacionUrl
   }
 ];
 
 const PLATFORM_PILLARS = [
   {
     title: 'Operación diaria',
-    body: 'Escuela Pass está pensado para el uso recurrente: ingreso al panel, consultas y acciones habituales con mensajes claros y respuesta ante errores comprensible para el usuario final.'
+    body: 'Escuela Pass está pensado para el uso recurrente: ingreso al panel, consultas y acciones habituales con mensajes claros y respuesta ante errores comprensible para el usuario final.',
+    img: operacionUrl
   },
   {
     title: 'Criterio institucional',
-    body: 'Las políticas de privacidad, la normativa interna y las decisiones pedagógicas siguen siendo del colegio; la herramienta las respeta en la medida en que se configuren en el sistema.'
+    body: 'Las políticas de privacidad, la normativa interna y las decisiones pedagógicas siguen siendo del colegio; la herramienta las respeta en la medida en que se configuren en el sistema.',
+    img: criterioUrl
   },
   {
     title: 'Escalable por rol',
-    body: 'Desde la familia que confirma una recogida hasta el personal que supervisa listados o informes autorizados, el alcance de cada cuenta se ajusta a lo que la institución habilite.'
+    body: 'Desde la familia que confirma una recogida hasta el personal que supervisa listados o informes autorizados, el alcance de cada cuenta se ajusta a lo que la institución habilite.',
+    img: escalableUrl
   }
 ];
 
-function PhoneMock({ label }: { label: string }) {
-  return (
-    <div
-      className="relative h-[220px] w-[110px] shrink-0 rounded-[1.75rem] border border-white/25 bg-gradient-to-b from-white/15 to-slate-900/80 p-2 shadow-2xl shadow-brand-950/50 sm:h-[260px] sm:w-[128px]"
-      aria-hidden
-    >
-      <div className="mx-auto h-1 w-8 rounded-full bg-white/30" />
-      <div className="mt-3 space-y-2 rounded-lg bg-slate-950/60 p-2">
-        <div className="h-2 w-3/4 rounded bg-white/20" />
-        <div className="h-2 w-1/2 rounded bg-white/15" />
-        <div className="mt-2 grid grid-cols-3 gap-1">
-          <div className="aspect-square rounded bg-white/10" />
-          <div className="aspect-square rounded bg-white/10" />
-          <div className="aspect-square rounded bg-white/10" />
-        </div>
-        <div className="mt-2 flex items-center justify-center rounded border border-dashed border-brand-400/30 py-6">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-brand-200/80">QR</span>
-        </div>
-      </div>
-      <p className="absolute -bottom-8 left-0 right-0 text-center text-[10px] text-white/40">{label}</p>
-    </div>
-  );
-}
+const PHONES = [
+  { src: phonePadreUrl,      label: 'Padres',     delay: '0s'    },
+  { src: phoneEstudianteUrl, label: 'Estudiantes', delay: '0.6s'  },
+  { src: phoneDocenteUrl,    label: 'Docentes',    delay: '1.2s'  }
+];
 
-function SocialLinks() {
-  const cls = 'text-brand-200/80 transition hover:text-white';
+const FOOTER_LINKS = [
+  {
+    heading: 'Plataforma',
+    links: [
+      { label: 'Beneficios',           href: '#beneficios' },
+      { label: 'La plataforma',         href: '#plataforma' },
+      { label: 'Preguntas frecuentes',  href: '#faq' },
+      { label: 'Acceso a clientes',     href: '/login', isRoute: true }
+    ]
+  },
+  {
+    heading: 'Legal',
+    links: [
+      { label: 'Privacidad', href: '#datos-personales' },
+      { label: 'Términos de uso', href: '#faq' }
+    ]
+  },
+  {
+    heading: 'Contacto',
+    links: [
+      { label: '+52 55 5555 5555',       href: 'tel:+525555555555' },
+      { label: 'contacto@institucion.edu', href: 'mailto:contacto@institucion.edu' }
+    ]
+  }
+];
+
+const WAVE_STYLE = (delay: string) => ({
+  animationName: 'floatWave',
+  animationDuration: '3s',
+  animationTimingFunction: 'ease-in-out',
+  animationIterationCount: 'infinite',
+  animationDelay: delay
+} as React.CSSProperties);
+
+const GLOW_STYLE = (delay: string) => ({
+  animationName: 'glowWave',
+  animationDuration: '3s',
+  animationTimingFunction: 'ease-in-out',
+  animationIterationCount: 'infinite',
+  animationDelay: delay
+} as React.CSSProperties);
+
+import type React from 'react';
+
+function SocialLinks({ className = '' }: { className?: string }) {
+  const cls = 'text-brand-200/70 transition hover:text-white';
   return (
-    <div className="flex items-center gap-4 pt-8">
+    <div className={`flex items-center gap-4 ${className}`}>
       <a href="#" className={cls} aria-label="Facebook">
         <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
           <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -95,9 +136,12 @@ function SocialLinks() {
 export function HomePage() {
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-white">
+
+      {/* ─── Header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 border-b border-brand-900/60 bg-brand-950/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-4 lg:px-12">
-          <Link to="/" className="text-lg font-bold tracking-tight text-white">
+          <Link to="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-white">
+            <img src={logoUrl} alt="" className="h-8 w-auto object-contain" aria-hidden />
             Escuela Pass
           </Link>
           <nav className="hidden items-center gap-5 text-sm font-medium text-brand-100/90 md:flex lg:gap-4">
@@ -133,6 +177,7 @@ export function HomePage() {
         </div>
       </header>
 
+      {/* ─── Hero ───────────────────────────────────────────────────────── */}
       <section className="relative overflow-x-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-slate-950">
         <div className="pointer-events-none absolute -right-20 top-1/4 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -left-10 bottom-0 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl" />
@@ -160,18 +205,38 @@ export function HomePage() {
                 Acceder al panel
               </Link>
             </div>
-            <SocialLinks />
+            <SocialLinks className="pt-8" />
           </div>
-          <div className="flex min-w-0 justify-center px-1 pb-10 lg:justify-end lg:pb-12">
-            <div className="flex max-w-full justify-center gap-4 sm:gap-6 md:gap-8">
-              <PhoneMock label="Perfil" />
-              <PhoneMock label="Grupos" />
-              <PhoneMock label="Credencial" />
+
+          {/* Phone images with wave-float animation */}
+          <div className="flex min-w-0 items-end justify-center pb-10 lg:justify-end lg:pb-16">
+            <div className="flex items-end gap-6 sm:gap-8 md:gap-10">
+              {PHONES.map((p, i) => (
+                <div key={p.label} className="relative flex flex-col items-center">
+                  {/* Glow behind the phone */}
+                  <div
+                    className="absolute inset-x-0 top-6 mx-auto h-[70%] w-[60%] rounded-full bg-white blur-3xl"
+                    style={GLOW_STYLE(p.delay)}
+                  />
+                  <img
+                    src={p.src}
+                    alt={p.label}
+                    className="relative z-10 w-[105px] object-contain drop-shadow-2xl sm:w-[122px] lg:w-[132px]"
+                    style={{
+                      ...WAVE_STYLE(p.delay),
+                      /* stagger vertical start position for natural wave silhouette */
+                      marginBottom: i === 1 ? '20px' : '0px'
+                    }}
+                  />
+                  <p className="relative z-10 mt-12 text-center text-[10px] text-white/40">{p.label}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
+      {/* ─── Benefits ───────────────────────────────────────────────────── */}
       <section id="beneficios" className="scroll-mt-20 border-t border-brand-950 bg-slate-950 py-20">
         <div className="mx-auto max-w-screen-2xl px-6 text-center lg:px-12 xl:px-20">
           <h2 className="mx-auto max-w-3xl text-2xl font-bold leading-snug text-white sm:text-3xl">
@@ -185,10 +250,15 @@ export function HomePage() {
             {BENEFITS.map((b) => (
               <article
                 key={b.title}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-brand-900/60 bg-brand-950/40 text-left shadow-lg transition hover:border-brand-700/50"
+                className="group flex flex-col overflow-hidden rounded-2xl border border-brand-900/60 bg-brand-950/40 text-left shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-brand-700/50 hover:shadow-brand-900/40"
               >
-                <div className={`relative h-36 bg-gradient-to-br ${b.gradient}`}>
-                  <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.06\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-40" />
+                <div className="relative h-44 overflow-hidden">
+                  <img
+                    src={b.img}
+                    alt={b.title}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-brand-950/80 via-brand-950/20 to-transparent" />
                 </div>
                 <div className="flex flex-1 flex-col p-5">
                   <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-brand-100">{b.title}</h3>
@@ -206,6 +276,7 @@ export function HomePage() {
         </div>
       </section>
 
+      {/* ─── Platform ───────────────────────────────────────────────────── */}
       <section id="plataforma" className="scroll-mt-20 border-t border-brand-950 bg-slate-900 py-20">
         <div className="mx-auto max-w-screen-2xl px-6 lg:px-12 xl:px-20">
           <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">Un producto, varios perfiles</h2>
@@ -218,10 +289,20 @@ export function HomePage() {
             {PLATFORM_PILLARS.map((p) => (
               <div
                 key={p.title}
-                className="rounded-2xl border border-brand-800/50 bg-brand-950/50 p-8 shadow-md shadow-brand-950/30"
+                className="group overflow-hidden rounded-2xl border border-brand-800/50 bg-brand-950/50 shadow-md shadow-brand-950/30 transition-all duration-300 hover:-translate-y-1 hover:border-brand-700/50 hover:shadow-lg"
               >
-                <h3 className="text-lg font-semibold text-white">{p.title}</h3>
-                <p className="mt-4 text-sm leading-relaxed text-brand-100/75">{p.body}</p>
+                <div className="relative h-36 overflow-hidden">
+                  <img
+                    src={p.img}
+                    alt={p.title}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-brand-950/80 via-brand-950/20 to-transparent" />
+                </div>
+                <div className="p-8">
+                  <h3 className="text-lg font-semibold text-white">{p.title}</h3>
+                  <p className="mt-4 text-sm leading-relaxed text-brand-100/75">{p.body}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -239,6 +320,7 @@ export function HomePage() {
         </div>
       </section>
 
+      {/* ─── FAQ ────────────────────────────────────────────────────────── */}
       <section id="faq" className="scroll-mt-20 border-t border-brand-950 bg-slate-950 py-16">
         <div className="mx-auto max-w-3xl px-6 lg:px-12">
           <h2 className="text-center text-xl font-bold text-white">Preguntas frecuentes</h2>
@@ -266,6 +348,7 @@ export function HomePage() {
         </div>
       </section>
 
+      {/* ─── Privacy ────────────────────────────────────────────────────── */}
       <section id="datos-personales" className="scroll-mt-20 border-t border-brand-950 bg-slate-900 py-16">
         <div className="mx-auto max-w-3xl px-6 lg:px-12">
           <h2 className="text-xl font-bold text-white">Tratamiento de datos personales</h2>
@@ -281,68 +364,60 @@ export function HomePage() {
         </div>
       </section>
 
-      <footer className="border-t border-brand-900 bg-gradient-to-b from-brand-950 to-slate-950 py-14">
+      {/* ─── Footer ─────────────────────────────────────────────────────── */}
+      <footer className="border-t border-brand-900/60 bg-slate-950 py-16">
         <div className="mx-auto max-w-screen-2xl px-6 lg:px-12 xl:px-20">
-          <p className="text-center text-sm text-brand-100/80">Síganos en las redes de la institución</p>
-          <div className="mt-6 flex justify-center">
-            <SocialLinks />
-          </div>
-          <div className="mt-14 grid gap-10 border-t border-brand-900/60 pt-10 md:grid-cols-3">
-            <div>
-              <p className="text-lg font-bold text-white">Escuela Pass</p>
-              <p className="mt-2 text-sm text-brand-200/70">Operación y seguridad escolar en un entorno unificado.</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-brand-300/60">Enlaces</p>
-              <ul className="mt-4 space-y-2 text-sm text-brand-100/85">
-                <li>
-                  <a href="#beneficios" className="hover:text-white">
-                    Beneficios
-                  </a>
-                </li>
-                <li>
-                  <a href="#plataforma" className="hover:text-white">
-                    La plataforma
-                  </a>
-                </li>
-                <li>
-                  <a href="#faq" className="hover:text-white">
-                    Preguntas frecuentes
-                  </a>
-                </li>
-                <li>
-                  <Link to="/login" className="hover:text-white">
-                    Acceso a clientes
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-brand-300/60">Contacto</p>
-              <p className="mt-4 text-sm text-brand-100/85">
-                <a href="tel:+525555555555" className="hover:text-white">
-                  +52 55 5555 5555
-                </a>
-                <br />
-                <a href="mailto:contacto@institucion.edu" className="hover:text-white">
-                  contacto@institucion.edu
-                </a>
+
+          {/* Main grid: brand + 3 columns */}
+          <div className="grid gap-12 md:grid-cols-[2fr_1fr_1fr_1fr]">
+
+            {/* Brand column */}
+            <div className="flex flex-col gap-5">
+              <Link to="/" className="flex items-center gap-2 text-base font-bold text-white">
+                <img src={logoUrl} alt="" className="h-7 w-auto object-contain" aria-hidden />
+                Escuela Pass
+              </Link>
+              <p className="max-w-xs text-sm leading-relaxed text-brand-200/65">
+                Operación y seguridad escolar en un entorno unificado: accesos, recogida y comunicación para toda la comunidad del plantel.
               </p>
+              <SocialLinks />
             </div>
+
+            {/* Link columns */}
+            {FOOTER_LINKS.map((col) => (
+              <div key={col.heading}>
+                <p className="text-xs font-bold uppercase tracking-wider text-brand-300/60">{col.heading}</p>
+                <ul className="mt-5 space-y-3">
+                  {col.links.map((l) => (
+                    <li key={l.label}>
+                      {'isRoute' in l && l.isRoute ? (
+                        <Link to={l.href} className="text-sm text-brand-100/70 transition-colors hover:text-white">
+                          {l.label}
+                        </Link>
+                      ) : (
+                        <a href={l.href} className="text-sm text-brand-100/70 transition-colors hover:text-white">
+                          {l.label}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-          <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-brand-900/60 pt-8 text-xs text-brand-200/50 sm:flex-row">
+
+          {/* Bottom bar */}
+          <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-brand-900/60 pt-8 text-xs text-brand-200/45 sm:flex-row">
             <span>© {new Date().getFullYear()} Escuela Pass. Todos los derechos reservados.</span>
             <div className="flex gap-6">
-              <a href="#datos-personales" className="hover:text-brand-200">
-                Políticas de privacidad
-              </a>
-              <a href="#faq" className="hover:text-brand-200">
-                Términos de uso
-              </a>
+              <a href="#datos-personales" className="transition-colors hover:text-brand-200">Política de privacidad</a>
+              <a href="#faq" className="transition-colors hover:text-brand-200">Términos de uso</a>
             </div>
           </div>
+
         </div>
       </footer>
+
     </div>
   );
 }

@@ -207,6 +207,16 @@
   }
 }
 
+/* Landing page — phone wave float & glow */
+@keyframes floatWave {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-18px); }
+}
+@keyframes glowWave {
+  0%, 100% { opacity: 0.08; }
+  50%       { opacity: 0.30; }
+}
+
 @keyframes modal-overlay-fade {
   from {
     opacity: 0;
