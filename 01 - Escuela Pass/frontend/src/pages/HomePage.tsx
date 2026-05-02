@@ -140,8 +140,8 @@ export function HomePage() {
       {/* ─── Header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 border-b border-brand-900/60 bg-brand-950/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-4 lg:px-12">
-          <Link to="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-white">
-            <img src={logoUrl} alt="" className="h-8 w-auto object-contain" aria-hidden />
+          <Link to="/" className="flex items-center gap-3 text-lg font-bold tracking-tight text-white md:gap-3.5">
+            <img src={logoUrl} alt="" className="h-11 w-auto object-contain sm:h-12 md:h-[3.25rem]" aria-hidden />
             Escuela Pass
           </Link>
           <nav className="hidden items-center gap-5 text-sm font-medium text-brand-100/90 md:flex lg:gap-4">
@@ -215,19 +215,22 @@ export function HomePage() {
                 <div key={p.label} className="relative flex flex-col items-center">
                   {/* Glow behind the phone */}
                   <div
-                    className="absolute inset-x-0 top-6 mx-auto h-[70%] w-[60%] rounded-full bg-white blur-3xl"
+                    className="absolute inset-x-0 top-6 mx-auto h-[70%] w-[72%] rounded-full bg-white blur-3xl"
                     style={GLOW_STYLE(p.delay)}
                   />
-                  <img
-                    src={p.src}
-                    alt={p.label}
-                    className="relative z-10 w-[105px] object-contain drop-shadow-2xl sm:w-[122px] lg:w-[132px]"
+                  <div
+                    className="relative z-10"
                     style={{
                       ...WAVE_STYLE(p.delay),
-                      /* stagger vertical start position for natural wave silhouette */
                       marginBottom: i === 1 ? '20px' : '0px'
                     }}
-                  />
+                  >
+                    <img
+                      src={p.src}
+                      alt={p.label}
+                      className="w-[140px] origin-bottom scale-x-[1.2] object-contain drop-shadow-2xl sm:w-[168px] lg:w-[188px]"
+                    />
+                  </div>
                   <p className="relative z-10 mt-12 text-center text-[10px] text-white/40">{p.label}</p>
                 </div>
               ))}
@@ -373,8 +376,8 @@ export function HomePage() {
 
             {/* Brand column */}
             <div className="flex flex-col gap-5">
-              <Link to="/" className="flex items-center gap-2 text-base font-bold text-white">
-                <img src={logoUrl} alt="" className="h-7 w-auto object-contain" aria-hidden />
+              <Link to="/" className="flex items-center gap-3 text-base font-bold text-white">
+                <img src={logoUrl} alt="" className="h-10 w-auto object-contain sm:h-11" aria-hidden />
                 Escuela Pass
               </Link>
               <p className="max-w-xs text-sm leading-relaxed text-brand-200/65">
