@@ -198,7 +198,9 @@ export function HomePage() {
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <a
-                href="mailto:contacto@institucion.edu"
+                href="https://wa.me/5216691992906"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-full border-2 border-white/90 bg-transparent px-8 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 Contacto comercial
@@ -320,7 +322,7 @@ export function HomePage() {
           </div>
           <div className="mt-14 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <a
-              href="mailto:contacto@institucion.edu?subject=Informaci%C3%B3n%20Escuela%20Pass"
+              href="mailto:clientes.alfanetworks@gmail.com?subject=Solicitud%20de%20demostraci%C3%B3n%20Escuela%20Pass"
               className="inline-flex rounded-full bg-brand-600 px-10 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand-900/40 transition hover:bg-brand-500"
             >
               Solicitar una demostración
