@@ -139,34 +139,39 @@ export function HomePage() {
 
       {/* ─── Header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 border-b border-brand-900/60 bg-brand-950/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-4 lg:px-12">
-          <Link to="/" className="flex items-center gap-3 text-lg font-bold tracking-tight text-white md:gap-3.5">
+        <div className="mx-auto flex max-w-screen-2xl w-full items-center gap-3 px-6 py-4 lg:px-12 xl:px-20">
+          <Link
+            to="/"
+            className="flex min-w-0 shrink-0 items-center gap-3 text-lg font-bold tracking-tight text-white md:gap-3.5"
+          >
             <img src={logoUrl} alt="" className="h-11 w-auto object-contain sm:h-12 md:h-[3.25rem]" aria-hidden />
             Escuela Pass
           </Link>
-          <nav className="hidden items-center gap-5 text-sm font-medium text-brand-100/90 md:flex lg:gap-4">
+          <nav className="hidden min-w-0 flex-1 items-center justify-center gap-x-1 px-2 text-sm font-medium text-brand-100/90 md:flex lg:gap-x-2">
             {NAV_LINKS.map((n) => (
               <a
                 key={n.href}
                 href={n.href}
-                className="-my-1 rounded-lg px-3 py-2.5 transition hover:bg-white/5 hover:text-white"
+                className="-my-1 shrink-0 rounded-lg px-2.5 py-2.5 transition hover:bg-white/5 hover:text-white lg:px-3"
               >
                 {n.label}
               </a>
             ))}
+          </nav>
+          <div className="ml-auto flex shrink-0 items-center md:ml-0">
             <Link
               to="/login"
-              className="rounded-full border border-brand-400/50 bg-brand-800/50 px-4 py-2 text-white transition hover:bg-brand-700/60"
+              className="hidden rounded-full border border-brand-400/50 bg-brand-800/50 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700/60 md:inline-flex"
             >
               Acceso a clientes
             </Link>
-          </nav>
-          <Link
-            to="/login"
-            className="rounded-full border border-brand-400/50 px-3 py-1.5 text-sm font-semibold text-white md:hidden"
-          >
-            Entrar
-          </Link>
+            <Link
+              to="/login"
+              className="rounded-full border border-brand-400/50 px-3 py-1.5 text-sm font-semibold text-white md:hidden"
+            >
+              Entrar
+            </Link>
+          </div>
         </div>
         <div className="flex gap-4 overflow-x-auto border-t border-brand-900/50 px-6 py-2 text-xs font-medium text-brand-100/85 md:hidden">
           {NAV_LINKS.map((n) => (
@@ -272,12 +277,14 @@ export function HomePage() {
               </article>
             ))}
           </div>
-          <a
-            href="#plataforma"
-            className="mt-12 inline-block text-sm font-semibold text-brand-400 underline-offset-4 hover:text-brand-300 hover:underline"
-          >
-            Cómo encaja en la institución
-          </a>
+          <div className="mt-12 flex justify-center">
+            <a
+              href="#plataforma"
+              className="inline-flex items-center justify-center rounded-full bg-brand-600 px-10 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-brand-900/40 transition hover:bg-brand-500"
+            >
+              Cómo encaja en la institución
+            </a>
+          </div>
         </div>
       </section>
 
@@ -296,13 +303,13 @@ export function HomePage() {
                 key={p.title}
                 className="group overflow-hidden rounded-2xl border border-brand-800/50 bg-brand-950/50 shadow-md shadow-brand-950/30 transition-all duration-300 hover:-translate-y-1 hover:border-brand-700/50 hover:shadow-lg"
               >
-                <div className="relative h-36 overflow-hidden">
+                <div className="relative h-52 overflow-hidden sm:h-56 md:h-60">
                   <img
                     src={p.img}
                     alt={p.title}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-brand-950/80 via-brand-950/20 to-transparent" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-950/50 via-transparent to-transparent" />
                 </div>
                 <div className="p-8">
                   <h3 className="text-lg font-semibold text-white">{p.title}</h3>

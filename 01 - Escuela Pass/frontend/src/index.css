@@ -5,6 +5,7 @@
 @layer base {
   html {
     @apply antialiased text-slate-900 overflow-x-hidden;
+    scroll-behavior: smooth;
   }
   body {
     @apply min-h-screen bg-slate-100 text-slate-900 overflow-x-hidden;
