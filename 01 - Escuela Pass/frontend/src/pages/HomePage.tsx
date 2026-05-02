@@ -96,7 +96,7 @@ export function HomePage() {
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-white">
       <header className="sticky top-0 z-50 border-b border-brand-900/60 bg-brand-950/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 lg:px-6">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-4 lg:px-12">
           <Link to="/" className="text-lg font-bold tracking-tight text-white">
             Escuela Pass
           </Link>
@@ -124,7 +124,7 @@ export function HomePage() {
             Entrar
           </Link>
         </div>
-        <div className="flex gap-4 overflow-x-auto border-t border-brand-900/50 px-4 py-2 text-xs font-medium text-brand-100/85 md:hidden">
+        <div className="flex gap-4 overflow-x-auto border-t border-brand-900/50 px-6 py-2 text-xs font-medium text-brand-100/85 md:hidden">
           {NAV_LINKS.map((n) => (
             <a key={n.href} href={n.href} className="shrink-0 whitespace-nowrap">
               {n.label}
@@ -136,7 +136,7 @@ export function HomePage() {
       <section className="relative overflow-x-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-slate-950">
         <div className="pointer-events-none absolute -right-20 top-1/4 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -left-10 bottom-0 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl" />
-        <div className="mx-auto grid min-w-0 max-w-6xl gap-12 px-4 py-16 lg:grid-cols-2 lg:items-center lg:gap-14 lg:px-6 lg:py-24">
+        <div className="mx-auto grid min-w-0 max-w-screen-2xl gap-12 px-6 py-16 lg:grid-cols-2 lg:items-center lg:gap-20 lg:px-12 lg:py-28 xl:px-20">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-brand-200/70">Software para instituciones educativas</p>
             <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.25rem]">
@@ -162,8 +162,8 @@ export function HomePage() {
             </div>
             <SocialLinks />
           </div>
-          <div className="flex min-w-0 justify-center px-1 pb-10 sm:gap-5 lg:justify-center lg:pb-12">
-            <div className="flex max-w-full justify-center gap-2 sm:gap-4 md:gap-5">
+          <div className="flex min-w-0 justify-center px-1 pb-10 lg:justify-end lg:pb-12">
+            <div className="flex max-w-full justify-center gap-4 sm:gap-6 md:gap-8">
               <PhoneMock label="Perfil" />
               <PhoneMock label="Grupos" />
               <PhoneMock label="Credencial" />
@@ -173,7 +173,7 @@ export function HomePage() {
       </section>
 
       <section id="beneficios" className="scroll-mt-20 border-t border-brand-950 bg-slate-950 py-20">
-        <div className="mx-auto max-w-6xl px-4 text-center lg:px-6">
+        <div className="mx-auto max-w-screen-2xl px-6 text-center lg:px-12 xl:px-20">
           <h2 className="mx-auto max-w-3xl text-2xl font-bold leading-snug text-white sm:text-3xl">
             Beneficios pensados para la operación real del colegio
           </h2>
@@ -207,7 +207,7 @@ export function HomePage() {
       </section>
 
       <section id="plataforma" className="scroll-mt-20 border-t border-brand-950 bg-slate-900 py-20">
-        <div className="mx-auto max-w-6xl px-4 lg:px-6">
+        <div className="mx-auto max-w-screen-2xl px-6 lg:px-12 xl:px-20">
           <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">Un producto, varios perfiles</h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-sm text-brand-100/75">
             Escuela Pass ofrece un conjunto de módulos y pantallas que la institución puede adoptar según su modelo de
@@ -239,38 +239,8 @@ export function HomePage() {
         </div>
       </section>
 
-      <section id="alcance" className="scroll-mt-20 border-t border-brand-950 bg-slate-950 py-16">
-        <div className="mx-auto max-w-5xl px-4 lg:px-6">
-          <h2 className="text-center font-serif text-2xl font-semibold text-white">Qué cubre la solución</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-brand-100/70">
-            Resumen de capacidades habituales; el detalle de licencias y alcance lo acuerda la institución con su proveedor.
-          </p>
-          <div className="mt-10 grid gap-8 md:grid-cols-3">
-            {[
-              {
-                title: 'Circuito de recogida',
-                text: 'Solicitudes y estados de recogida con la lógica que configure el colegio, incluyendo confirmaciones cuando el flujo lo requiera.'
-              },
-              {
-                title: 'Cumplimiento y consultas',
-                text: 'Registros e informes para perfiles autorizados, respetando quién puede ver qué dentro de la organización.'
-              },
-              {
-                title: 'Interfaz para el día a día',
-                text: 'Formulación de mensajes y vistas orientadas a usuarios finales, no a tablas técnicas de explotación.'
-              }
-            ].map((c) => (
-              <div key={c.title} className="rounded-xl border border-brand-900/60 bg-brand-950/30 p-6">
-                <h3 className="font-semibold text-white">{c.title}</h3>
-                <p className="mt-3 text-sm leading-relaxed text-brand-100/70">{c.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="faq" className="scroll-mt-20 border-t border-brand-950 bg-slate-900 py-16">
-        <div className="mx-auto max-w-2xl px-4 lg:px-6">
+      <section id="faq" className="scroll-mt-20 border-t border-brand-950 bg-slate-950 py-16">
+        <div className="mx-auto max-w-3xl px-6 lg:px-12">
           <h2 className="text-center text-xl font-bold text-white">Preguntas frecuentes</h2>
           <dl className="mt-10 space-y-4">
             {[
@@ -296,8 +266,8 @@ export function HomePage() {
         </div>
       </section>
 
-      <section id="datos-personales" className="scroll-mt-20 border-t border-brand-950 bg-slate-950 py-16">
-        <div className="mx-auto max-w-3xl px-4 lg:px-6">
+      <section id="datos-personales" className="scroll-mt-20 border-t border-brand-950 bg-slate-900 py-16">
+        <div className="mx-auto max-w-3xl px-6 lg:px-12">
           <h2 className="text-xl font-bold text-white">Tratamiento de datos personales</h2>
           <p className="mt-4 text-sm leading-relaxed text-brand-100/75">
             El tratamiento de datos personales se rige por la normativa aplicable y por las políticas que la institución
@@ -312,7 +282,7 @@ export function HomePage() {
       </section>
 
       <footer className="border-t border-brand-900 bg-gradient-to-b from-brand-950 to-slate-950 py-14">
-        <div className="mx-auto max-w-6xl px-4 lg:px-6">
+        <div className="mx-auto max-w-screen-2xl px-6 lg:px-12 xl:px-20">
           <p className="text-center text-sm text-brand-100/80">Síganos en las redes de la institución</p>
           <div className="mt-6 flex justify-center">
             <SocialLinks />
