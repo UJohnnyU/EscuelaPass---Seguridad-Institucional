@@ -64,12 +64,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE visit_request_status AS ENUM (
-    'PENDIENTE', 'APROBADA', 'RECHAZADA', 'REALIZADA', 'CANCELADA'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
   CREATE TYPE attention_severity AS ENUM ('LEVE', 'MODERADA', 'GRAVE');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -517,18 +511,6 @@ CREATE TABLE IF NOT EXISTS import_jobs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Visitas al plantel (solicitud del padre)
-CREATE TABLE IF NOT EXISTS visit_requests (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    parent_id UUID NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
-    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    visit_datetime TIMESTAMPTZ NOT NULL,
-    reason TEXT,
-    status visit_request_status NOT NULL DEFAULT 'PENDIENTE',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Visitas externas (administrativos/docentes invitan a visitantes externos)
 CREATE TABLE IF NOT EXISTS external_visits (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -679,8 +661,6 @@ CREATE INDEX IF NOT EXISTS idx_debts_student ON debts(student_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, attendance_date);
 CREATE INDEX IF NOT EXISTS idx_import_jobs_kind_created ON import_jobs(kind, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_visit_requests_parent ON visit_requests(parent_id);
-CREATE INDEX IF NOT EXISTS idx_visit_requests_student ON visit_requests(student_id);
 CREATE INDEX IF NOT EXISTS ix_external_visits_school_datetime ON external_visits(school_id, visit_datetime);
 CREATE INDEX IF NOT EXISTS ix_external_visits_created_by ON external_visits(created_by_user_id);
 CREATE INDEX IF NOT EXISTS ix_external_visits_status ON external_visits(status);

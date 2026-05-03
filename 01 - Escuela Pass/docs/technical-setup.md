@@ -70,7 +70,7 @@ Editar `.env` (o copiar desde `.env.example`):
 
 1. Crear base de datos en PostgreSQL (ej. `escuela_pass`).
 2. Ejecutar en orden:
-   - `escuela_pass_schema_v3.sql` (incluye tablas `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`, `school_non_instructional_days`, `institution_settings`)
+   - `escuela_pass_schema_v3.sql` (incluye tablas `parent_teacher_meetings`, `class_schedule_slots`, `school_non_instructional_days`, `institution_settings`)
    - `scripts/database/seed_dev.sql` (datos de prueba)
 
    Bases ya creadas antes de esta versión: aplicar migraciones TypeORM pendientes (`npm run migration:run`), incluidas `1776000000000-PhaseSchemaCompliance`, `1776100000000-CircuitPadreEnCamino`, u otras pendientes en `src/database/migrations/`, o ejecutar manualmente el SQL equivalente del esquema.
@@ -438,20 +438,11 @@ Retorna KPI agregados para la fecha solicitada (o día actual):
 
 ---
 
-## Visitas, reuniones y horarios
+## Reuniones y horarios
 
-Tablas: `visit_requests`, `parent_teacher_meetings`, `class_schedule_slots`.
+Tablas: `parent_teacher_meetings`, `class_schedule_slots`.
 
-**Visitas al plantel**
-
-| Metodo | Ruta | Rol |
-|--------|------|-----|
-| POST | `/visits` | PADRE (solo hijos en `student_parents`) |
-| GET | `/visits/me` | PADRE |
-| GET | `/visits` | ADMIN, ADMINISTRATIVO (todo); DOCENTE (solicitudes de alumnos de sus grupos) |
-| PATCH | `/visits/:id/status` | ADMIN, ADMINISTRATIVO; DOCENTE con misma regla de grupo |
-
-Estados `status`: `PENDIENTE`, `APROBADA`, `RECHAZADA`, `REALIZADA`, `CANCELADA`. El padre crea en `PENDIENTE`; staff actualiza con `PATCH` (body `{ "status": "APROBADA" }`, etc.).
+Las **visitas externas al plantel** (agenda institucional) usan la tabla `external_visits` y los endpoints bajo `/api/v1/external-visits`.
 
 **Reuniones padre-docente**
 

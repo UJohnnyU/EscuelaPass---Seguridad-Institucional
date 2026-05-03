@@ -18,13 +18,6 @@ export class SchoolEntity {
   @Column({ name: 'circuit_enabled', type: 'boolean', default: true })
   circuitEnabled!: boolean;
 
-  /**
-   * Si es true, solo se puede iniciar el circuito de recogida si existe una solicitud de
-   * retiro anticipado APROBADA para el mismo día (visit_requests).
-   */
-  @Column({ name: 'circuit_requires_early_pickup_approval', type: 'boolean', default: false })
-  circuitRequiresEarlyPickupApproval!: boolean;
-
   @Column({ type: 'varchar', length: 500, nullable: true })
   address!: string | null;
 

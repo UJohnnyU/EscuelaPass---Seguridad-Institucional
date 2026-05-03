@@ -504,52 +504,6 @@ INSERT INTO import_jobs (kind, total_rows, created_count, error_count, dry_run, 
 SELECT 'students', 120, 118, 2, false, '{"row":[45,88],"msg":["email duplicado","grupo inválido"]}'::jsonb
 WHERE NOT EXISTS (SELECT 1 FROM import_jobs WHERE kind = 'students' AND total_rows = 120);
 
--- ---------- Visitas (estados variados) ----------
-INSERT INTO visit_requests (parent_id, student_id, visit_datetime, reason, status)
-SELECT p.id, s.id, NOW() + INTERVAL '3 days', 'Entrega de documentos', 'PENDIENTE'
-FROM parents p
-JOIN users pu ON pu.id = p.user_id
-JOIN students s ON TRUE
-JOIN users su ON su.id = s.user_id
-WHERE pu.email = 'padre1@escuelapass.local' AND su.email = 'alumno1@escuelapass.local'
-  AND NOT EXISTS (SELECT 1 FROM visit_requests v WHERE v.parent_id = p.id AND v.status = 'PENDIENTE' AND v.reason = 'Entrega de documentos');
-
-INSERT INTO visit_requests (parent_id, student_id, visit_datetime, reason, status)
-SELECT p.id, s.id, NOW() - INTERVAL '1 day', 'Entrevista', 'APROBADA'
-FROM parents p
-JOIN users pu ON pu.id = p.user_id
-JOIN students s ON TRUE
-JOIN users su ON su.id = s.user_id
-WHERE pu.email = 'padre2@escuelapass.local' AND su.email = 'alumno2@escuelapass.local'
-  AND NOT EXISTS (SELECT 1 FROM visit_requests v WHERE v.status = 'APROBADA' AND v.parent_id = p.id);
-
-INSERT INTO visit_requests (parent_id, student_id, visit_datetime, reason, status)
-SELECT p.id, s.id, NOW() - INTERVAL '10 days', 'Seguimiento', 'REALIZADA'
-FROM parents p
-JOIN users pu ON pu.id = p.user_id
-JOIN students s ON TRUE
-JOIN users su ON su.id = s.user_id
-WHERE pu.email = 'padre1@escuelapass.local' AND su.email = 'alumno1@escuelapass.local'
-  AND NOT EXISTS (SELECT 1 FROM visit_requests v WHERE v.status = 'REALIZADA');
-
-INSERT INTO visit_requests (parent_id, student_id, visit_datetime, reason, status)
-SELECT p.id, s.id, NOW() + INTERVAL '1 day', 'Cancelada por usuario', 'CANCELADA'
-FROM parents p
-JOIN users pu ON pu.id = p.user_id
-JOIN students s ON TRUE
-JOIN users su ON su.id = s.user_id
-WHERE pu.email = 'padre2@escuelapass.local' AND su.email = 'alumno2@escuelapass.local'
-  AND NOT EXISTS (SELECT 1 FROM visit_requests v WHERE v.status = 'CANCELADA');
-
-INSERT INTO visit_requests (parent_id, student_id, visit_datetime, reason, status)
-SELECT p.id, s.id, NOW() - INTERVAL '2 days', 'Sin cupo', 'RECHAZADA'
-FROM parents p
-JOIN users pu ON pu.id = p.user_id
-JOIN students s ON TRUE
-JOIN users su ON su.id = s.user_id
-WHERE pu.email = 'padre1@escuelapass.local' AND su.email = 'alumno1@escuelapass.local'
-  AND NOT EXISTS (SELECT 1 FROM visit_requests v WHERE v.status = 'RECHAZADA');
-
 -- ---------- Reuniones padre–docente ----------
 INSERT INTO parent_teacher_meetings (parent_id, teacher_id, student_id, meeting_datetime, duration_minutes, topic, notes, status)
 SELECT pr.id, t.id, s.id, NOW() + INTERVAL '5 days', 45, 'Rendimiento académico', NULL, 'PENDIENTE'

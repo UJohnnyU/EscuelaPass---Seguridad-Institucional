@@ -8,7 +8,7 @@
  *   • Por colegio: 10 docentes, 10 estudiantes, ~18 padres, 2 administrativos,
  *     3 grupos, 5 materias, periodos académicos, asistencia 30 días,
  *     actividades, calificaciones, deudas, pagos, avisos, reuniones,
- *     visitas, solicitudes de retiro, anotaciones, reportes admin, circuitos.
+ *     visitas, anotaciones, reportes admin, circuitos.
  *
  * Contraseña de todos los usuarios: Escuela2026!
  *
@@ -955,25 +955,6 @@ async function populateSchool(client, schoolDef, si, hash, policyId, globalAdmin
     if (vd.scope === 'GROUPS') {
       await q(client, `INSERT INTO external_visit_groups (visit_id, group_id) VALUES ($1,$2)`, [vid, groups[2].id]);
     }
-  }
-
-  // 22. Solicitudes de retiro anticipado (visit_requests)
-  const pickupStatuses = ['APROBADA', 'PENDIENTE', 'RECHAZADA', 'REALIZADA', 'PENDIENTE'];
-  for (let i = 0; i < Math.min(5, parents.length); i++) {
-    const p = parents[i];
-    const st = students[p.studentIdx];
-    if (!st) continue;
-    const pickup_dt = new Date();
-    pickup_dt.setDate(pickup_dt.getDate() - rndInt(1, 10));
-    pickup_dt.setHours(11, 30, 0, 0);
-    await q(client, `
-      INSERT INTO visit_requests (parent_id, student_id, visit_datetime, reason, status)
-      VALUES ($1,$2,$3,$4,$5)
-    `, [
-      p.id, st.id, pickup_dt.toISOString(),
-      rnd(['Cita médica', 'Diligencia familiar urgente', 'Consulta odontológica', 'Evento familiar']),
-      pickupStatuses[i]
-    ]);
   }
 
   // 23. Anotaciones de atención al estudiante

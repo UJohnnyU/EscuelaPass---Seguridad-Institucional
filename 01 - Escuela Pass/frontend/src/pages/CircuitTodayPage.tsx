@@ -53,7 +53,6 @@ export function CircuitTodayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [circuitEnabled, setCircuitEnabled] = useState<boolean>(true);
-  const [requiresEarlyPickupApproval, setRequiresEarlyPickupApproval] = useState(false);
   const [savingCircuit, setSavingCircuit] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
@@ -150,18 +149,13 @@ export function CircuitTodayPage() {
         if (isAdmin && selectedSchoolId) {
           params.schoolId = selectedSchoolId;
         }
-        const { data } = await api.get<{ enabled: boolean; requiresEarlyPickupApproval?: boolean }>(
-          '/api/v1/settings/circuit',
-          { params }
-        );
+        const { data } = await api.get<{ enabled: boolean }>('/api/v1/settings/circuit', { params });
         if (!cancelled) {
           setCircuitEnabled(Boolean(data?.enabled));
-          setRequiresEarlyPickupApproval(Boolean(data?.requiresEarlyPickupApproval));
         }
       } catch {
         if (!cancelled) {
           setCircuitEnabled(true);
-          setRequiresEarlyPickupApproval(false);
         }
       }
     })();
@@ -189,7 +183,7 @@ export function CircuitTodayPage() {
     [schools]
   );
 
-  async function patchCircuit(updates: { enabled?: boolean; requiresEarlyPickupApproval?: boolean }) {
+  async function patchCircuit(updates: { enabled?: boolean }) {
     if (!canManageCircuit) return;
     if (isAdmin && !selectedSchoolId) return;
     setSavingCircuit(true);
@@ -199,16 +193,9 @@ export function CircuitTodayPage() {
       if (isAdmin && selectedSchoolId) {
         params.schoolId = selectedSchoolId;
       }
-      const { data } = await api.patch<{ enabled: boolean; requiresEarlyPickupApproval?: boolean }>(
-        '/api/v1/settings/circuit',
-        updates,
-        { params }
-      );
+      const { data } = await api.patch<{ enabled: boolean }>('/api/v1/settings/circuit', updates, { params });
       if (updates.enabled !== undefined) {
         setCircuitEnabled(Boolean(data?.enabled));
-      }
-      if (updates.requiresEarlyPickupApproval !== undefined) {
-        setRequiresEarlyPickupApproval(Boolean(data?.requiresEarlyPickupApproval));
       }
     } catch (e) {
       setError(getUserFacingMessage(e, 'No se pudo actualizar la configuración del circuito.'));
@@ -333,36 +320,11 @@ export function CircuitTodayPage() {
             <button
               type="button"
               disabled={savingCircuit || (isAdmin && !selectedSchoolId)}
-              onClick={() =>
-                void patchCircuit({ enabled: !circuitEnabled, requiresEarlyPickupApproval })
-              }
+              onClick={() => void patchCircuit({ enabled: !circuitEnabled })}
               className="rounded bg-brand-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 disabled:opacity-60"
             >
               {circuitEnabled ? 'Desactivar circuito' : 'Activar circuito'}
             </button>
-          </div>
-          <div className="flex flex-wrap items-start gap-3 border-t border-slate-100 pt-3 dark:border-slate-700">
-            <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 rounded border-slate-300 accent-brand-600"
-                checked={requiresEarlyPickupApproval}
-                disabled={savingCircuit || (isAdmin && !selectedSchoolId)}
-                onChange={(e) =>
-                  void patchCircuit({
-                    enabled: circuitEnabled,
-                    requiresEarlyPickupApproval: e.target.checked
-                  })
-                }
-              />
-              <span>
-                <span className="font-medium">Exigir retiro anticipado aprobado</span>
-                <span className="mt-0.5 block text-xs font-normal text-slate-500 dark:text-slate-400">
-                  Solo se podrá iniciar el circuito de recogida (vehículo o a pie) si existe una solicitud en «Retiro
-                  anticipado» aprobada para el mismo día. No aplica a «Solo consentimiento».
-                </span>
-              </span>
-            </label>
           </div>
         </div>
       )}

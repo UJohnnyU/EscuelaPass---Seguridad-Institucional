@@ -500,9 +500,9 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500) NULL`);
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS student_matricula_prefix VARCHAR(20) NULL`);
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS circuit_enabled BOOLEAN NOT NULL DEFAULT true`);
-    await runner.query(
-      `ALTER TABLE schools ADD COLUMN IF NOT EXISTS circuit_requires_early_pickup_approval BOOLEAN NOT NULL DEFAULT false`
-    );
+    await runner.query(`ALTER TABLE schools DROP COLUMN IF EXISTS circuit_requires_early_pickup_approval`);
+    await runner.query(`DROP TABLE IF EXISTS visit_requests CASCADE`);
+    await runner.query(`DROP TYPE IF EXISTS visit_request_status`);
     await runner.query(`ALTER TABLE circuit_requests ADD COLUMN IF NOT EXISTS pickup_vehicle_description varchar(120) NULL`);
     await runner.query(`ALTER TABLE circuit_requests ADD COLUMN IF NOT EXISTS pickup_notes varchar(240) NULL`);
 

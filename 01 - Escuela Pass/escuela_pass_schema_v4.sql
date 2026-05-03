@@ -53,10 +53,6 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TYPE consent_type AS ENUM ('SALIDA_SOLO', 'SALIDA_CON_OTRA_PERSONA');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $$ BEGIN CREATE TYPE visit_request_status AS ENUM (
-  'PENDIENTE', 'APROBADA', 'RECHAZADA', 'REALIZADA', 'CANCELADA'
-); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 DO $$ BEGIN CREATE TYPE attention_severity AS ENUM ('LEVE', 'MODERADA', 'GRAVE');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -711,22 +707,6 @@ CREATE INDEX IF NOT EXISTS ix_student_lifecycle_events_student
   ON student_lifecycle_events (student_id);
 CREATE INDEX IF NOT EXISTS ix_student_lifecycle_events_school_created
   ON student_lifecycle_events (school_id, created_at DESC);
-
--- ──────────────────────────────────────────────
--- SOLICITUDES DE RETIRO ANTICIPADO
--- ──────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS visit_requests (
-  id             UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
-  parent_id      UUID                NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
-  student_id     UUID                NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  visit_datetime TIMESTAMPTZ         NOT NULL,
-  reason         TEXT,
-  status         visit_request_status NOT NULL DEFAULT 'PENDIENTE',
-  created_at     TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
-  updated_at     TIMESTAMPTZ          NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_visit_requests_parent  ON visit_requests (parent_id);
-CREATE INDEX IF NOT EXISTS idx_visit_requests_student ON visit_requests (student_id);
 
 -- ──────────────────────────────────────────────
 -- VISITAS EXTERNAS AL PLANTEL

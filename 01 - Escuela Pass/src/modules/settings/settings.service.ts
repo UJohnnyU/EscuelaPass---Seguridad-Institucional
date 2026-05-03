@@ -236,45 +236,38 @@ export class SettingsService {
   async getCircuitSetting(
     user: JwtLike,
     querySchoolId?: string
-  ): Promise<{ enabled: boolean; requiresEarlyPickupApproval: boolean }> {
+  ): Promise<{ enabled: boolean }> {
     const schoolId = await this.resolveSchoolIdForCircuit(user, querySchoolId);
     const school = await this.schoolsRepository.findOne({
       where: { id: schoolId },
-      select: ['id', 'circuitEnabled', 'circuitRequiresEarlyPickupApproval']
+      select: ['id', 'circuitEnabled']
     });
     if (!school) throw new NotFoundException('Escuela no encontrada');
     return {
-      enabled: school.circuitEnabled !== false,
-      requiresEarlyPickupApproval: school.circuitRequiresEarlyPickupApproval === true
+      enabled: school.circuitEnabled !== false
     };
   }
 
   async setCircuitSettings(
     user: JwtLike,
-    dto: { enabled?: boolean; requiresEarlyPickupApproval?: boolean },
+    dto: { enabled?: boolean },
     querySchoolId?: string
-  ): Promise<{ enabled: boolean; requiresEarlyPickupApproval: boolean }> {
+  ): Promise<{ enabled: boolean }> {
     if (user.role !== UserRole.ADMIN && user.role !== UserRole.ADMINISTRATIVO) {
       throw new ForbiddenException('No autorizado para cambiar el estado del circuito');
     }
 
-    if (dto.enabled === undefined && dto.requiresEarlyPickupApproval === undefined) {
-      throw new BadRequestException('Indique al menos un valor: enabled o requiresEarlyPickupApproval.');
+    if (dto.enabled === undefined) {
+      throw new BadRequestException('Indique el valor enabled.');
     }
 
     const schoolId = await this.resolveSchoolIdForCircuit(user, querySchoolId);
     const school = await this.schoolsRepository.findOne({ where: { id: schoolId } });
     if (!school) throw new NotFoundException('Escuela no encontrada');
-    if (dto.enabled !== undefined) {
-      school.circuitEnabled = Boolean(dto.enabled);
-    }
-    if (dto.requiresEarlyPickupApproval !== undefined) {
-      school.circuitRequiresEarlyPickupApproval = Boolean(dto.requiresEarlyPickupApproval);
-    }
+    school.circuitEnabled = Boolean(dto.enabled);
     await this.schoolsRepository.save(school);
     return {
-      enabled: school.circuitEnabled !== false,
-      requiresEarlyPickupApproval: school.circuitRequiresEarlyPickupApproval === true
+      enabled: school.circuitEnabled !== false
     };
   }
 }

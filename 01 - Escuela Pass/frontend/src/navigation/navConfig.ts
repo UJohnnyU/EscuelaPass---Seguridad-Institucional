@@ -27,8 +27,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { to: '/app/importaciones', label: 'Importar y exportar', roles: ['ADMIN', 'ADMINISTRATIVO'] },
   { to: '/app/acceso/escaner', label: 'Escáner de acceso', roles: ['ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] },
   { to: '/app/circuito', label: 'Circuito (familia)', roles: ['PADRE'] },
-  { to: '/app/circuito/hoy', label: 'Circuito del día', roles: ['DOCENTE', 'ADMIN', 'ADMINISTRATIVO'] },
-  { to: '/app/solicitudes-retiro', label: 'Retiro anticipado', roles: ['PADRE', 'ADMIN', 'ADMINISTRATIVO', 'DOCENTE'] }
+  { to: '/app/circuito/hoy', label: 'Circuito del día', roles: ['DOCENTE', 'ADMIN', 'ADMINISTRATIVO'] }
 ];
 
 /** Visibilidad por rol real: ADMIN ya no ve automáticamente todas las entradas (evita pantallas vacías o solo informativas). */

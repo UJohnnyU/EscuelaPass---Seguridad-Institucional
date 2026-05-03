@@ -22,7 +22,6 @@ export type AdminPanelPayload = {
   referenceDate: string;
   window: { startDate: string; endDate: string; label: string };
   summary: PanelSummary;
-  visits: { pendingApproval: number };
   circuits: {
     byDay: Array<{ date: string; total: number; byStatus: Record<string, number> }>;
     byGroup: Array<{
@@ -186,7 +185,7 @@ export function AdminDashboardPanel() {
 
       {summary && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <KpiCard
               title="Recogidas de hoy"
               value={summary.circuitToday.total}
@@ -205,12 +204,6 @@ export function AdminDashboardPanel() {
               }
             />
             <KpiCard title="Accesos del día" value={summary.accessToday.total} hint="Ingresos al plantel registrados" />
-            <KpiCard
-              title="Visitas por aprobar"
-              value={data?.visits.pendingApproval ?? 0}
-              tone="amber"
-              hint="Solicitudes a la espera de respuesta"
-            />
             <KpiCard
               title="Comunidad"
               value={summary.entities.students}

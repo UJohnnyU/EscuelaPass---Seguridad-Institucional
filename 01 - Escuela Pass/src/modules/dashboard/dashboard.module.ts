@@ -9,7 +9,6 @@ import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity } from '../../database/entities/user.entity';
-import { PickupRequestEntity } from '../../database/entities/pickup-request.entity';
 import { ActivitiesModule } from '../activities/activities.module';
 import { AuthModule } from '../auth/auth.module';
 import { MeetingsModule } from '../meetings/meetings.module';
@@ -35,8 +34,7 @@ import { DashboardService } from './dashboard.service';
       StudentEntity,
       TeacherEntity,
       GroupEntity,
-      UserEntity,
-      PickupRequestEntity
+      UserEntity
     ])
   ],
   controllers: [DashboardController, DashboardsController],

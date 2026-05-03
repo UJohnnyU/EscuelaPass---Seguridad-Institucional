@@ -11,7 +11,6 @@ import { NotificationEntity } from '../../database/entities/notification.entity'
 import { UserEntity } from '../../database/entities/user.entity';
 import { FcmModule } from '../fcm/fcm.module';
 import { DepartureConsentModule } from '../departure-consent/departure-consent.module';
-import { PickupRequestsModule } from '../pickup-requests/pickup-requests.module';
 import { SettingsModule } from '../settings/settings.module';
 import { CircuitController } from './circuit.controller';
 import { CircuitService } from './circuit.service';
@@ -21,7 +20,6 @@ import { CircuitService } from './circuit.service';
     FcmModule,
     SettingsModule,
     DepartureConsentModule,
-    PickupRequestsModule,
     TypeOrmModule.forFeature([
       CircuitRequestEntity,
       StudentEntity,

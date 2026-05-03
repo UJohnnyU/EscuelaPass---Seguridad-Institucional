@@ -19,10 +19,6 @@ import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
-import {
-  PickupRequestEntity,
-  PickupRequestStatus
-} from '../../database/entities/pickup-request.entity';
 import { ActivitiesService } from '../activities/activities.service';
 import { MeetingsService } from '../meetings/meetings.service';
 import { NoticesService } from '../notices/notices.service';
@@ -55,8 +51,6 @@ export class DashboardService {
     private readonly groupsRepository: Repository<GroupEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
-    @InjectRepository(PickupRequestEntity)
-    private readonly visitRequestsRepository: Repository<PickupRequestEntity>,
     private readonly schoolCalendarService: SchoolCalendarService,
     private readonly activitiesService: ActivitiesService,
     private readonly meetingsService: MeetingsService,
@@ -348,14 +342,8 @@ export class DashboardService {
       .where('DATE(cr.request_time) BETWEEN :start AND :end', { start: previousStartDate, end: previousEndDate });
     if (sid) circuitPreviousQb.innerJoin('students', 's', 's.id = cr.student_id AND s.school_id = :sid', { sid });
 
-    const visitsPendingQb = this.visitRequestsRepository
-      .createQueryBuilder('vr')
-      .where('vr.status = :st', { st: PickupRequestStatus.PENDIENTE });
-    if (sid) visitsPendingQb.innerJoin('students', 's', 's.id = vr.student_id AND s.school_id = :sid', { sid });
-
     const [
       summary,
-      visitsPending,
       circuitDayStatusRows,
       circuitGroupRows,
       attendanceCurrent,
@@ -366,7 +354,6 @@ export class DashboardService {
       circuitPrevious
     ] = await Promise.all([
       this.summary(endDate, sid),
-      visitsPendingQb.getCount(),
       circuitDayQb.getRawMany<{ day: string; status: CircuitStatus; cnt: string }>(),
       circuitGroupQb.getRawMany<{ groupId: string; groupName: string; grade: string; shift: string | null; cnt: string }>(),
       attendanceCurrentQb.getCount(),
@@ -420,9 +407,6 @@ export class DashboardService {
           accessEvents: toMetric(accessCurrent, accessPrevious),
           circuitRequests: toMetric(circuitCurrent, circuitPrevious)
         }
-      },
-      visits: {
-        pendingApproval: visitsPending
       },
       circuits: {
         byDay: circuitByDay,

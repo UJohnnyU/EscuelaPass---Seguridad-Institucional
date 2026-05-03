@@ -138,7 +138,6 @@ type AdminPanelApiPayload = {
       circuitRequests?: { current?: number; previous?: number; delta?: number; deltaPct?: number };
     };
   };
-  visits?: { pendingApproval?: number };
   circuits?: { byDay?: Array<{ date: string; total: number }> };
 };
 
@@ -1351,9 +1350,8 @@ function HomePlatformAdmin() {
   const maxCircuitDay = Math.max(1, ...circuitByDay.map((d) => Number(d.total ?? 0)));
 
   const pendingVoucher = Number(summary?.payments?.pendingWithVoucher ?? 0);
-  const pendingVisits = Number(panel?.visits?.pendingApproval ?? 0);
   const overdueDebts = Number(summary?.payments?.overdueDebts ?? 0);
-  const criticalAlerts = [pendingVoucher > 0, pendingVisits > 0, overdueDebts > 0].filter(Boolean).length;
+  const criticalAlerts = [pendingVoucher > 0, overdueDebts > 0].filter(Boolean).length;
   const comparison = panel?.comparison;
   const incidents = [
     {
@@ -1362,13 +1360,6 @@ function HomePlatformAdmin() {
       value: pendingVoucher,
       severity: pendingVoucher >= 20 ? 'ALTA' : pendingVoucher >= 8 ? 'MEDIA' : 'BAJA',
       hint: 'Riesgo de retraso en conciliación de pagos'
-    },
-    {
-      id: 'visits-pending',
-      title: 'Visitas institucionales sin resolver',
-      value: pendingVisits,
-      severity: pendingVisits >= 12 ? 'ALTA' : pendingVisits >= 5 ? 'MEDIA' : 'BAJA',
-      hint: 'Puede afectar operación y seguridad de acceso'
     },
     {
       id: 'debts-overdue',
@@ -1460,10 +1451,6 @@ function HomePlatformAdmin() {
             <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
               <span>Comprobantes por revisar</span>
               <strong>{pendingVoucher}</strong>
-            </li>
-            <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
-              <span>Visitas pendientes</span>
-              <strong>{pendingVisits}</strong>
             </li>
             <li className="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-slate-800">
               <span>Deudas vencidas</span>

@@ -43,7 +43,6 @@ import { StudentEntity } from '../database/entities/student.entity';
 import { TeacherEntity } from '../database/entities/teacher.entity';
 import { UserEntity } from '../database/entities/user.entity';
 import { UserFcmTokenEntity } from '../database/entities/user-fcm-token.entity';
-import { PickupRequestEntity } from '../database/entities/pickup-request.entity';
 import { VehicleEntity } from '../database/entities/vehicle.entity';
 import { AuditLogEntity } from '../database/entities/audit-log.entity';
 import { PrivacyPolicyEntity } from '../database/entities/privacy-policy.entity';
@@ -95,7 +94,6 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       TeacherGroupEntity,
       TeacherSubjectEntity,
       ImportJobEntity,
-      PickupRequestEntity,
       ExternalVisitEntity,
       ExternalVisitGroupEntity,
       ExternalVisitStudentEntity,
