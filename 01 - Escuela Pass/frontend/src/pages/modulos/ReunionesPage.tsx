@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { DetailModal } from '@/components/DetailModal';
+import { SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isStaff } from '@/lib/roles';
@@ -552,21 +553,23 @@ function MeetingDetailView({
             <span className="text-xs text-slate-600">Solo se muestran asistentes confirmados (ACEPTADA).</span>
           )}
         </div>
-        <ul className="mt-1 divide-y divide-slate-100 rounded border border-slate-200 bg-slate-50 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
-          {participantsForDisplay.map((p) => (
-            <li key={p.id} className="flex items-center justify-between px-3 py-2">
-              <span className="text-slate-800">
-                {p.fullName} <span className="text-xs text-slate-500">· {p.role}</span>
-              </span>
-              <span
-                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${rsvpBadgeClass(p.rsvp)}`}
-                title={rsvpHint(p.rsvp)}
-              >
-                {rsvpLabel(p.rsvp)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-1 overflow-hidden rounded border border-slate-200 dark:border-slate-700">
+          <ul className={`divide-y divide-slate-100 bg-slate-50 dark:divide-slate-700 dark:bg-slate-800 ${SCROLLABLE_PANEL_BODY}`}>
+            {participantsForDisplay.map((p) => (
+              <li key={p.id} className="flex items-center justify-between px-3 py-2">
+                <span className="text-slate-800 dark:text-slate-100">
+                  {p.fullName} <span className="text-xs text-slate-500">· {p.role}</span>
+                </span>
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-xs font-medium ${rsvpBadgeClass(p.rsvp)}`}
+                  title={rsvpHint(p.rsvp)}
+                >
+                  {rsvpLabel(p.rsvp)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
       {detail.cancellationReason && (
         <p className="text-slate-700">

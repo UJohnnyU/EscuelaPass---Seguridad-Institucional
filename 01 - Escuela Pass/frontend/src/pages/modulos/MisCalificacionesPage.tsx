@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SmartSelect } from '@/components/SmartSelect';
 import { DetailModal } from '@/components/DetailModal';
+import { SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
@@ -252,6 +253,7 @@ export function MisCalificacionesPage() {
                     })()
                   )}
                 </div>
+                <div className={`${SCROLLABLE_PANEL_BODY} border-t border-slate-100`}>
                 <ul className="divide-y divide-slate-100">
                   {g.items.map((r) => (
                     <li key={r.id + (r.studentId ?? '')}>
@@ -292,6 +294,7 @@ export function MisCalificacionesPage() {
                     </li>
                   ))}
                 </ul>
+                </div>
               </div>
             );
           })

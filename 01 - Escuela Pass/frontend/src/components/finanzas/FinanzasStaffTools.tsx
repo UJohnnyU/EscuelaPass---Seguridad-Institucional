@@ -6,6 +6,7 @@ import { publicAssetUrl } from '@/lib/asset-url';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
 import { SmartSelect } from '@/components/SmartSelect';
+import { DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT, DataTableScroll } from '@/components/DataTableScroll';
 
 type PaymentConcept = {
   id: string;
@@ -110,6 +111,10 @@ export function FinanzasStaffTools() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectBusy, setRejectBusy] = useState(false);
   const [debtActionBusy, setDebtActionBusy] = useState<string | null>(null);
+
+  const [conceptListSearch, setConceptListSearch] = useState('');
+  const [debtTableSearch, setDebtTableSearch] = useState('');
+  const [adjustmentSearch, setAdjustmentSearch] = useState('');
 
   const [asStudent, setAsStudent] = useState('');
   const [asConcept, setAsConcept] = useState('');
@@ -480,6 +485,67 @@ export function FinanzasStaffTools() {
     }
   }, [debts, debtTab]);
 
+  useEffect(() => {
+    setDebtTableSearch('');
+  }, [debtTab]);
+
+  const conceptsForTable = useMemo(() => {
+    const q = conceptListSearch.trim().toLowerCase();
+    if (!q) return concepts;
+    return concepts.filter((c) => {
+      const blob = [c.name, c.description, c.defaultAmount, c.recurrencePeriod, c.isActive ? 'activo' : 'inactivo']
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [concepts, conceptListSearch]);
+
+  const debtsForTable = useMemo(() => {
+    const q = debtTableSearch.trim().toLowerCase();
+    if (!q) return debtsFiltered;
+    return debtsFiltered.filter((d) => {
+      const blob = [
+        d.studentName,
+        d.matricula,
+        d.conceptName,
+        conceptNameById.get(d.conceptId),
+        d.amount,
+        d.dueDate,
+        d.status,
+        d.description,
+        d.notes,
+        d.id
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [debtsFiltered, debtTableSearch, conceptNameById]);
+
+  const adjustmentsForTable = useMemo(() => {
+    const q = adjustmentSearch.trim().toLowerCase();
+    if (!q) return adjustments;
+    return adjustments.filter((a) => {
+      const blob = [
+        a.studentName,
+        a.matricula,
+        a.actionType,
+        a.previousAmount,
+        a.deltaAmount,
+        a.nextAmount,
+        a.reason,
+        a.createdAt,
+        a.changedByName
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [adjustments, adjustmentSearch]);
+
   function debtStatusLabel(status: string): string {
     switch (status) {
       case 'PAGADO':
@@ -704,19 +770,31 @@ export function FinanzasStaffTools() {
           </form>
         )}
 
-        <div className="mt-6 overflow-x-auto">
+        {concepts.length > 0 ? (
+          <label className="mt-6 block max-w-md text-sm text-slate-700">
+            <span className="font-medium">Buscar en la tabla</span>
+            <input
+              type="search"
+              value={conceptListSearch}
+              onChange={(e) => setConceptListSearch(e.target.value)}
+              placeholder="Nombre, descripción…"
+              className={`mt-1 ${DATA_TABLE_SEARCH_INPUT}`}
+            />
+          </label>
+        ) : null}
+        <DataTableScroll className="mt-3">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
-                <th className="py-2 pr-3 font-medium">Nombre</th>
-                <th className="py-2 pr-3 font-medium">Importe ref.</th>
-                <th className="py-2 pr-3 font-medium">Recurrente</th>
-                <th className="py-2 pr-3 font-medium">Estado</th>
-                <th className="py-2 font-medium">Acciones</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Nombre</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Importe ref.</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Recurrente</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Estado</th>
+                <th className={`py-2 font-medium ${DATA_TABLE_HEAD}`}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {concepts.map((c) => (
+              {conceptsForTable.map((c) => (
                 <tr key={c.id} className="border-b border-slate-100">
                   <td className="py-2 pr-3">
                     {c.name}
@@ -749,8 +827,12 @@ export function FinanzasStaffTools() {
               ))}
             </tbody>
           </table>
-          {concepts.length === 0 && <p className="mt-2 text-slate-500">No hay conceptos.</p>}
-        </div>
+        </DataTableScroll>
+        {concepts.length === 0 ? (
+          <p className="mt-2 text-slate-500">No hay conceptos.</p>
+        ) : conceptsForTable.length === 0 ? (
+          <p className="mt-2 text-slate-500">Ningún concepto coincide con la búsqueda.</p>
+        ) : null}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -866,21 +948,31 @@ export function FinanzasStaffTools() {
             </button>
           ))}
         </div>
-        <div className="mt-4 overflow-x-auto">
+        <label className="mt-4 block max-w-md text-sm text-slate-700">
+          <span className="font-medium">Buscar en obligaciones</span>
+          <input
+            type="search"
+            value={debtTableSearch}
+            onChange={(e) => setDebtTableSearch(e.target.value)}
+            placeholder="Alumno, concepto, estado…"
+            className={`mt-1 ${DATA_TABLE_SEARCH_INPUT}`}
+          />
+        </label>
+        <DataTableScroll className="mt-2">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
-                <th className="py-2 pr-3 font-medium">Alumno</th>
-                <th className="py-2 pr-3 font-medium">Concepto</th>
-                <th className="py-2 pr-3 font-medium">Importe</th>
-                <th className="py-2 pr-3 font-medium">Vence</th>
-                <th className="py-2 pr-3 font-medium">Estado</th>
-                <th className="py-2 pr-3 font-medium">Comprobante</th>
-                <th className="py-2 font-medium">Acciones</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Alumno</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Concepto</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Importe</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Vence</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Estado</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Comprobante</th>
+                <th className={`py-2 font-medium ${DATA_TABLE_HEAD}`}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {debtsFiltered.map((d) => {
+              {debtsForTable.map((d) => {
                 const needsReview =
                   d.status === 'PENDIENTE' && Boolean(d.voucherPath) && !d.verifiedAt;
                 const voucherUrl = d.voucherPath ? publicAssetUrl(d.voucherPath) : null;
@@ -973,10 +1065,12 @@ export function FinanzasStaffTools() {
               })}
             </tbody>
           </table>
-          {debtsFiltered.length === 0 && (
-            <p className="mt-2 text-slate-500">No hay filas en esta vista.</p>
-          )}
-        </div>
+        </DataTableScroll>
+        {debtsFiltered.length === 0 ? (
+          <p className="mt-2 text-slate-500">No hay filas en esta vista.</p>
+        ) : debtsForTable.length === 0 ? (
+          <p className="mt-2 text-slate-500">Ninguna obligación coincide con la búsqueda.</p>
+        ) : null}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -984,21 +1078,33 @@ export function FinanzasStaffTools() {
         <p className="mt-1 text-sm text-slate-600">
           Registro trazable de recargos por mora, convenios y cambios automáticos de estado en cartera.
         </p>
-        <div className="mt-4 overflow-x-auto">
+        {adjustments.length > 0 ? (
+          <label className="mt-4 block max-w-md text-sm text-slate-700">
+            <span className="font-medium">Buscar en bitácora</span>
+            <input
+              type="search"
+              value={adjustmentSearch}
+              onChange={(e) => setAdjustmentSearch(e.target.value)}
+              placeholder="Alumno, tipo, motivo…"
+              className={`mt-1 ${DATA_TABLE_SEARCH_INPUT}`}
+            />
+          </label>
+        ) : null}
+        <DataTableScroll className="mt-2">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
-                <th className="py-2 pr-3 font-medium">Fecha</th>
-                <th className="py-2 pr-3 font-medium">Alumno</th>
-                <th className="py-2 pr-3 font-medium">Tipo</th>
-                <th className="py-2 pr-3 font-medium">Antes</th>
-                <th className="py-2 pr-3 font-medium">Delta</th>
-                <th className="py-2 pr-3 font-medium">Después</th>
-                <th className="py-2 font-medium">Motivo</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Fecha</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Alumno</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Tipo</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Antes</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Delta</th>
+                <th className={`py-2 pr-3 font-medium ${DATA_TABLE_HEAD}`}>Después</th>
+                <th className={`py-2 font-medium ${DATA_TABLE_HEAD}`}>Motivo</th>
               </tr>
             </thead>
             <tbody>
-              {adjustments.map((a) => (
+              {adjustmentsForTable.map((a) => (
                 <tr key={a.id} className="border-b border-slate-100">
                   <td className="py-2 pr-3">{a.createdAt ? new Date(a.createdAt).toLocaleString('es') : '—'}</td>
                   <td className="py-2 pr-3">
@@ -1013,8 +1119,12 @@ export function FinanzasStaffTools() {
               ))}
             </tbody>
           </table>
-          {adjustments.length === 0 && <p className="mt-2 text-slate-500">Sin ajustes registrados por ahora.</p>}
-        </div>
+        </DataTableScroll>
+        {adjustments.length === 0 ? (
+          <p className="mt-2 text-slate-500">Sin ajustes registrados por ahora.</p>
+        ) : adjustmentsForTable.length === 0 ? (
+          <p className="mt-2 text-slate-500">Ningún ajuste coincide con la búsqueda.</p>
+        ) : null}
       </section>
 
       {pendingReject ? (

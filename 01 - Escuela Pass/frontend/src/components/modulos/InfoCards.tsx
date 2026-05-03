@@ -1166,7 +1166,8 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
               </div>
             </div>
             {recordsForDisplay.length > 0 ? (
-              <ul className="mt-3 divide-y divide-slate-100">
+              <div className={`mt-3 ${SCROLLABLE_PANEL_BODY}`}>
+              <ul className="divide-y divide-slate-100">
                 {recordsForDisplay.map((r, i) => (
                   <li key={`${r.attendanceDate}-${i}`} className="flex items-center justify-between py-2 text-sm">
                     <span className="text-slate-700">{fmtDate(r.attendanceDate)}</span>
@@ -1185,6 +1186,7 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
                   </li>
                 ))}
               </ul>
+              </div>
             ) : (
               <p className="mt-3 text-sm text-slate-500">Sin asistencias registradas por el docente.</p>
             )}
@@ -1212,6 +1214,18 @@ export type AttentionNote = {
 
 export function AttentionNotesList({ data }: { data: unknown }) {
   const items = useMemo(() => unwrapList<AttentionNote>(data), [data]);
+  const [listSearch, setListSearch] = useState('');
+  const filteredItems = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((n) =>
+      [n.title, n.category, n.studentName, n.notes, n.description, n.severity]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [items, listSearch]);
   const [openId, setOpenId] = useState<string | null>(null);
   if (items.length === 0) {
     return (
@@ -1229,8 +1243,24 @@ export function AttentionNotesList({ data }: { data: unknown }) {
   const open = items.find((n) => n.id === openId) ?? null;
   return (
     <>
-      <ul className="space-y-3">
-        {items.map((n) => (
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <label className="block w-full sm:max-w-sm">
+          <span className="sr-only">Buscar anotaciones</span>
+          <input
+            type="search"
+            value={listSearch}
+            onChange={(e) => setListSearch(e.target.value)}
+            placeholder="Buscar por título, alumno o texto…"
+            className={DATA_TABLE_SEARCH_INPUT}
+          />
+        </label>
+      </div>
+      {filteredItems.length === 0 ? (
+        <p className="py-6 text-center text-sm text-slate-500">Ninguna anotación coincide con la búsqueda.</p>
+      ) : (
+        <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
+          <ul className="space-y-3">
+        {filteredItems.map((n) => (
           <li key={n.id} className="rounded-lg border border-slate-200 bg-white transition">
             <button
               type="button"
@@ -1261,7 +1291,9 @@ export function AttentionNotesList({ data }: { data: unknown }) {
             </button>
           </li>
         ))}
-      </ul>
+          </ul>
+        </div>
+      )}
       <DetailModal
         open={open !== null}
         title={open?.title || open?.category || 'Anotación'}

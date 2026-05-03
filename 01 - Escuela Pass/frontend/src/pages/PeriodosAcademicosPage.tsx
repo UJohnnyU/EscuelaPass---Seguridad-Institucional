@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SmartSelect } from '@/components/SmartSelect';
+import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
@@ -78,6 +79,7 @@ export function PeriodosAcademicosPage() {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [periodsListSearch, setPeriodsListSearch] = useState('');
   const [ok, setOk] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -138,18 +140,37 @@ export function PeriodosAcademicosPage() {
     void loadPolicy();
   }, [loadPeriods, loadPolicy, platformAdmin, schoolId]);
 
+  const periodsForRegisteredList = useMemo(() => {
+    const q = periodsListSearch.trim().toLowerCase();
+    if (!q) return periods;
+    return periods.filter((p) => {
+      const blob = [
+        p.name,
+        p.schoolYear,
+        p.startDate,
+        p.endDate,
+        p.status,
+        String(p.orderIndex),
+        p.weight
+      ]
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [periods, periodsListSearch]);
+
   const yearOptions = useMemo(() => {
-    const set = new Set(periods.map((p) => p.schoolYear));
+    const set = new Set(periodsForRegisteredList.map((p) => p.schoolYear));
     return [...set].sort().reverse();
-  }, [periods]);
+  }, [periodsForRegisteredList]);
 
   const totalWeightByYear = useMemo(() => {
     const map = new Map<string, number>();
-    for (const p of periods) {
+    for (const p of periodsForRegisteredList) {
       map.set(p.schoolYear, (map.get(p.schoolYear) ?? 0) + Number(p.weight));
     }
     return map;
-  }, [periods]);
+  }, [periodsForRegisteredList]);
 
   const submit = async () => {
     setErr(null);
@@ -449,21 +470,34 @@ export function PeriodosAcademicosPage() {
       <section className="rounded border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Periodos registrados</h2>
-          <button
-            type="button"
-            onClick={() => void loadPeriods()}
-            disabled={loading}
-            className="rounded border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-          >
-            {loading ? 'Actualizando…' : 'Actualizar'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {periods.length > 0 ? (
+              <input
+                type="search"
+                value={periodsListSearch}
+                onChange={(e) => setPeriodsListSearch(e.target.value)}
+                placeholder="Buscar periodo…"
+                className={`max-w-xs ${DATA_TABLE_SEARCH_INPUT}`}
+              />
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void loadPeriods()}
+              disabled={loading}
+              className="rounded border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {loading ? 'Actualizando…' : 'Actualizar'}
+            </button>
+          </div>
         </div>
         {loading ? (
           <p className="px-4 py-4 text-sm text-slate-500">Cargando…</p>
         ) : periods.length === 0 ? (
           <p className="px-4 py-4 text-sm text-slate-500">No hay periodos registrados.</p>
+        ) : periodsForRegisteredList.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-slate-500">Ningún periodo coincide con la búsqueda.</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className={`divide-y divide-slate-100 ${SCROLLABLE_PANEL_BODY}`}>
             {yearOptions.map((year) => {
               const total = totalWeightByYear.get(year) ?? 0;
               return (
@@ -483,7 +517,7 @@ export function PeriodosAcademicosPage() {
                     </span>
                   </div>
                   <ul className="divide-y divide-slate-100">
-                    {periods
+                    {periodsForRegisteredList
                       .filter((p) => p.schoolYear === year)
                       .sort((a, b) => a.orderIndex - b.orderIndex)
                       .map((p) => {

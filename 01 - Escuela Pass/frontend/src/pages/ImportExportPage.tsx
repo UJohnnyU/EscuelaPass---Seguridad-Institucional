@@ -6,6 +6,7 @@ import { createSchoolGroupsLoadOptions, createTeacherMyGroupsLoadOptions } from 
 import { Panel } from '@/components/ValueView';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isPlatformAdmin } from '@/lib/roles';
+import { DATA_TABLE_HEAD, DataTableScroll } from '@/components/DataTableScroll';
 
 type Group = {
   id: string;
@@ -77,6 +78,7 @@ export function ImportExportPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<ImportSummary | null>(null);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
+  const [historySearch, setHistorySearch] = useState('');
 
   const schoolFilterOptions = useMemo(
     () => [
@@ -99,6 +101,24 @@ export function ImportExportPage() {
     }
     return async () => [];
   }, [administrativo, docente, platformAdmin, schoolFilter, schools]);
+
+  const historyFiltered = useMemo(() => {
+    const q = historySearch.trim().toLowerCase();
+    if (!q) return history;
+    return history.filter((h) => {
+      const kindLabel = importKindLabel(h.kind).toLowerCase();
+      const blob = [
+        kindLabel,
+        h.kind,
+        String(h.totalRows),
+        String(h.created),
+        String(h.errorCount),
+        h.dryRun ? 'validación' : 'aplicado',
+        new Date(h.createdAt).toLocaleString('es').toLowerCase()
+      ].join(' ');
+      return blob.includes(q);
+    });
+  }, [history, historySearch]);
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -551,32 +571,64 @@ export function ImportExportPage() {
           {history.length === 0 ? (
             <p className="text-sm text-slate-600 dark:text-slate-300">Aún no hay cargas recientes.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-                    <th className="px-3 py-2 font-semibold text-slate-700">Fecha</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Tipo</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Filas</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Procesadas</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Errores</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Modo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => (
-                    <tr key={h.id} className="border-b border-slate-100">
-                      <td className="px-3 py-2 text-slate-700">{new Date(h.createdAt).toLocaleString()}</td>
-                      <td className="px-3 py-2 text-slate-700">{importKindLabel(h.kind)}</td>
-                      <td className="px-3 py-2 text-slate-700">{h.totalRows}</td>
-                      <td className="px-3 py-2 text-slate-700">{h.created}</td>
-                      <td className="px-3 py-2 text-slate-700">{h.errorCount}</td>
-                      <td className="px-3 py-2 text-slate-700">{h.dryRun ? 'Validación' : 'Aplicado'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <label className="mb-3 block max-w-md text-sm text-slate-700 dark:text-slate-200">
+                <span className="font-medium">Buscar</span>
+                <input
+                  type="search"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Tipo, fecha, filas…"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+              {historyFiltered.length === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-slate-300">Ninguna carga coincide con la búsqueda.</p>
+              ) : (
+                <DataTableScroll>
+                  <table className="min-w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+                        <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>
+                          Fecha
+                        </th>
+                        <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>
+                          Tipo
+                        </th>
+                        <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>
+                          Filas
+                        </th>
+                        <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>
+                          Procesadas
+                        </th>
+                        <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>
+                          Errores
+                        </th>
+                        <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>
+                          Modo
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyFiltered.map((h) => (
+                        <tr key={h.id} className="border-b border-slate-100 dark:border-slate-700">
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                            {new Date(h.createdAt).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{importKindLabel(h.kind)}</td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{h.totalRows}</td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{h.created}</td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{h.errorCount}</td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                            {h.dryRun ? 'Validación' : 'Aplicado'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </DataTableScroll>
+              )}
+            </>
           )}
         </Panel>
       )}

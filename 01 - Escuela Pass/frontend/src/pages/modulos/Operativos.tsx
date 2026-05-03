@@ -29,6 +29,7 @@ import {
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isPlatformAdmin } from '@/lib/roles';
 import { uploadReportEvidence } from '@/lib/uploads-api';
+import { DATA_TABLE_HEAD, DATA_TABLE_SCROLL, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import axios from 'axios';
 
 function parseReportEvidence(message?: string | null): { cleanMessage: string; evidenceUrls: string[] } {
@@ -1317,15 +1318,20 @@ export function AcademicoPage() {
                       ({teacherAttendance.dates.length} días). Esta vista es solo para consultar. Para tomar o corregir
                       asistencia abra la vista <strong>Día</strong>.
                     </p>
-                    <div className="overflow-x-auto rounded border border-slate-200">
+                    <div className={DATA_TABLE_SCROLL}>
                       <table className="min-w-full border-collapse text-left text-sm">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-50">
-                            <th className="sticky left-0 z-10 bg-slate-50 px-2 py-2 font-semibold text-slate-700">
+                            <th
+                              className="sticky left-0 top-0 z-30 border-b border-slate-200 bg-slate-50 px-2 py-2 font-semibold text-slate-700 shadow-[0_1px_0_0_rgb(226_232_240)]"
+                            >
                               Estudiante
                             </th>
                             {teacherAttendance.dates.map((d) => (
-                              <th key={d} className="whitespace-nowrap px-1.5 py-2 text-center text-xs font-semibold text-slate-600">
+                              <th
+                                key={d}
+                                className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-1.5 py-2 text-center text-xs font-semibold text-slate-600 shadow-[0_1px_0_0_rgb(226_232_240)]`}
+                              >
                                 {formatShortISODate(d)}
                               </th>
                             ))}
@@ -1341,7 +1347,9 @@ export function AcademicoPage() {
                             }
                             return (
                               <tr key={student.studentId} className="border-b border-slate-100">
-                                <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-slate-900">{student.fullName}</td>
+                                <td className="sticky left-0 z-10 border-r border-slate-100 bg-white px-2 py-1.5 text-slate-900">
+                                  {student.fullName}
+                                </td>
                                 {teacherAttendance.dates.map((d) => (
                                   <td key={d} className="px-1 py-1.5 text-center text-xs text-slate-800">
                                     {attendanceRecordAbbrev(byDate.get(d))}
@@ -1396,14 +1404,14 @@ export function AcademicoPage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="overflow-x-auto rounded border border-slate-200">
+                    <div className={DATA_TABLE_SCROLL}>
                       <table className="min-w-full border-collapse text-left text-sm">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-50">
-                            <th className="px-3 py-2 font-semibold text-slate-700">Estudiante</th>
-                            <th className="px-3 py-2 font-semibold text-slate-700">Matrícula</th>
-                            <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
-                            <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
+                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Estudiante</th>
+                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Matrícula</th>
+                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Estado</th>
+                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2264,6 +2272,7 @@ export function AdministracionPage() {
             {groupedTopActions.length === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-300">Sin actividad reciente para mostrar.</p>
             ) : (
+              <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
               <ul className="space-y-2">
                 {groupedTopActions.map((item, idx) => (
                   <li key={`${item.latestAt ?? 'x'}-${idx}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
@@ -2278,12 +2287,14 @@ export function AdministracionPage() {
                   </li>
                 ))}
               </ul>
+              </div>
             )}
           </Panel>
           <Panel title="Pagos pendientes prioritarios">
             {latestPayments.length === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-300">No hay pagos pendientes recientes.</p>
             ) : (
+              <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
               <ul className="space-y-2">
                 {latestPayments.map((row, idx) => (
                   <li key={`${row.dueDate ?? 'd'}-${idx}`} className="flex items-center justify-between rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
@@ -2296,6 +2307,7 @@ export function AdministracionPage() {
                   </li>
                 ))}
               </ul>
+              </div>
             )}
           </Panel>
           <Panel title="Días sin clases del calendario escolar">
@@ -2357,6 +2369,7 @@ export function AdministracionPage() {
             ) : adminReports.length === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-300">No hay reportes con los filtros actuales.</p>
             ) : (
+              <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
               <ul className="space-y-3">
                 {adminReports.map((r) => (
                   <li
@@ -2442,6 +2455,7 @@ export function AdministracionPage() {
                         ) : activeComments.length === 0 ? (
                           <p className="text-xs text-slate-500">Sin comentarios.</p>
                         ) : (
+                          <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
                           <ul className="space-y-2">
                             {activeComments.map((c) => (
                               <li key={c.id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800">
@@ -2454,6 +2468,7 @@ export function AdministracionPage() {
                               </li>
                             ))}
                           </ul>
+                          </div>
                         )}
                         <div className="mt-2 flex gap-2">
                           <input
@@ -2477,6 +2492,7 @@ export function AdministracionPage() {
                   </li>
                 ))}
               </ul>
+              </div>
             )}
           </Panel>
         </>
