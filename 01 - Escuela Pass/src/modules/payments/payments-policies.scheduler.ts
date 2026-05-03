@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { getAppTimeZone } from '../../common/local-date';
 import { PaymentsService } from './payments.service';
 
 @Injectable()
@@ -8,8 +9,9 @@ export class PaymentsPoliciesScheduler {
 
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Cron('0 3 * * *')
-  async runNightlyPolicies() {
+  /** Cada 15 min en APP_TIMEZONE: marcar deudas vencidas y recargos (sin depender de sesión). */
+  @Cron('*/15 * * * *', { timeZone: getAppTimeZone() })
+  async runPeriodicDebtPolicies() {
     try {
       const result = await this.paymentsService.runDebtPolicies(null);
       if (result.markedOverdue > 0 || result.lateFeeApplied > 0) {

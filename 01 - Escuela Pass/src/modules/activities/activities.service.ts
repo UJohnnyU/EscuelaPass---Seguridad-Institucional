@@ -475,6 +475,41 @@ export class ActivitiesService {
     return { closed: closedActivities.length, closedActivities };
   }
 
+  /**
+   * Cierra actividades OPEN con fecha de entrega (due_date) anterior a `todayYmd` en periodos ACTIVE.
+   * Sin usuario en sesión (cron); mismo tratamiento que cierre manual (ceros a faltantes).
+   */
+  async closeOpenActivitiesPastDueDate(todayYmd: string): Promise<{ closed: number }> {
+    return this.dataSource.transaction(async (mgr) => {
+      const activities = await mgr
+        .getRepository(ActivityEntity)
+        .createQueryBuilder('a')
+        .innerJoin('academic_periods', 'p', 'p.id = a.period_id')
+        .where('a.status = :st', { st: ActivityStatus.OPEN })
+        .andWhere('a.due_date IS NOT NULL')
+        .andWhere('a.due_date < :today', { today: todayYmd })
+        .andWhere('p.status = :pst', { pst: AcademicPeriodStatus.ACTIVE })
+        .getMany();
+
+      let closed = 0;
+      for (const activity of activities) {
+        await this.fillMissingGradesWithZero(mgr, activity, null);
+        activity.status = ActivityStatus.CLOSED;
+        activity.closedAt = new Date();
+        activity.closedBy = null;
+        if (!activity.publishedAt) activity.publishedAt = activity.closedAt;
+        const saved = await mgr.getRepository(ActivityEntity).save(activity);
+        closed += 1;
+        try {
+          await this.notifications.notifyActivityClosed(saved);
+        } catch {
+          // no-op
+        }
+      }
+      return { closed };
+    });
+  }
+
   private async fillMissingGradesWithZero(
     mgr: EntityManager,
     activity: ActivityEntity,

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
-import { todayLocalISODate } from '../../common/local-date';
+import { calendarDateInTimeZone, todayInAppTimezone } from '../../common/local-date';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -451,7 +451,7 @@ export class AcademicPeriodsService {
    * Invocado solo desde el cron académico.
    */
   async runAutoCloseReopenedPastDeadline(): Promise<number> {
-    const today = todayLocalISODate();
+    const today = todayInAppTimezone();
     const candidates = await this.periodsRepository.find({
       where: { status: AcademicPeriodStatus.ACTIVE }
     });
@@ -459,7 +459,9 @@ export class AcademicPeriodsService {
     for (const candidate of candidates) {
       if (!candidate.reopenedAt) continue;
       const re = candidate.reopenedAt instanceof Date ? candidate.reopenedAt : new Date(candidate.reopenedAt);
-      const deadline = `${re.getFullYear() + 1}-01-01`;
+      const reopenedYmd = calendarDateInTimeZone(re);
+      const y = Number(reopenedYmd.slice(0, 4));
+      const deadline = `${y + 1}-01-01`;
       if (today < deadline) continue;
       const row = await this.periodsRepository.findOne({ where: { id: candidate.id } });
       if (!row || row.status !== AcademicPeriodStatus.ACTIVE || !row.reopenedAt) continue;

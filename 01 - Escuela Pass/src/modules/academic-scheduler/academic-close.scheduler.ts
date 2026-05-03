@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In, LessThan } from 'typeorm';
-import { todayLocalISODate } from '../../common/local-date';
+import { getAppTimeZone, todayInAppTimezone } from '../../common/local-date';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -14,15 +14,14 @@ import { ActivitiesService } from '../activities/activities.service';
 import { ReportCardsService } from '../report-cards/report-cards.service';
 
 /**
- * Corre una vez al día y aplica el ciclo académico:
- *  1. Activa periodos PLANNED cuya fecha de inicio ya llegó.
- *  2. Cierra periodos ACTIVE cuya fecha de fin ya pasó: cierra actividades
- *     abiertas del periodo (completando con 0 a quien no tenga nota),
- *     genera y publica los boletines de periodo.
- *  3. Si todos los periodos del año escolar de una escuela están cerrados,
- *     genera y publica el boletín final con el estado de promoción.
- *  4. Cierra periodos que fueron reabiertos y siguen ACTIVOS pasado el 1 de enero del año
- *     siguiente al de la reapertura (si no se cerraron a mano antes).
+ * Ciclo automático cada 15 minutos en `APP_TIMEZONE` (predeterminado: America/Mexico_City),
+ * sin depender de que haya usuarios en sesión.
+ *
+ *  1. Activa periodos PLANNED cuya fecha de inicio ya llegó (día calendario en esa zona).
+ *  2. Cierra actividades OPEN con due_date vencido dentro de un periodo ACTIVE.
+ *  3. Cierra periodos ACTIVE/PLANNED con endDate &lt; “hoy” en esa zona: actividades, boletines.
+ *  4. Si todos los periodos del año escolar están CLOSED, genera/publica boletín final.
+ *  5. Cierra periodos reabiertos que sigan ACTIVE después del 1 ene (año posterior a reopenedAt).
  */
 @Injectable()
 export class AcademicCloseScheduler {
@@ -37,8 +36,8 @@ export class AcademicCloseScheduler {
     private readonly academicPeriodsService: AcademicPeriodsService
   ) {}
 
-  /** 03:00 hora del servidor — evita solaparse con otros jobs nocturnos. */
-  @Cron('0 3 * * *')
+  /** Cada 15 min según el reloj en APP_TIMEZONE (cierre al pasar el último día del periodo en México). */
+  @Cron('*/15 * * * *', { timeZone: getAppTimeZone() })
   async runDailyCycle(): Promise<void> {
     const lock = await this.dataSource.query<{ acquired: boolean }[]>(
       `SELECT pg_try_advisory_lock(847291103, 129384756) AS acquired`
@@ -47,18 +46,22 @@ export class AcademicCloseScheduler {
       this.logger.warn('Ciclo académico: bloqueo activo en otra instancia; omisión segura.');
       return;
     }
-    this.logger.log('Ciclo académico diario: iniciando');
+    this.logger.log(`Ciclo académico automático: iniciando (zona ${getAppTimeZone()})`);
     try {
       await this.activatePlannedPeriods();
+      const overdueActs = await this.activitiesService.closeOpenActivitiesPastDueDate(todayInAppTimezone());
+      if (overdueActs.closed > 0) {
+        this.logger.log(`Actividades cerradas por entrega vencida: ${overdueActs.closed}`);
+      }
       await this.closeExpiredPeriods();
       const autoReclosed = await this.academicPeriodsService.runAutoCloseReopenedPastDeadline();
       if (autoReclosed > 0) {
         this.logger.log(`Periodos reabiertos cerrados automáticamente (plazo 1 ene): ${autoReclosed}`);
       }
       await this.tryGenerateFinalReportCards();
-      this.logger.log('Ciclo académico diario: finalizado');
+      this.logger.log('Ciclo académico automático: finalizado');
     } catch (err) {
-      this.logger.error('Error en el ciclo académico diario', err as Error);
+      this.logger.error('Error en el ciclo académico automático', err as Error);
     } finally {
       await this.dataSource.query(`SELECT pg_advisory_unlock(847291103, 129384756)`);
     }
@@ -68,7 +71,7 @@ export class AcademicCloseScheduler {
     const periods = await this.dataSource.getRepository(AcademicPeriodEntity).find({
       where: { status: AcademicPeriodStatus.PLANNED }
     });
-    const todayISO = todayLocalISODate();
+    const todayISO = todayInAppTimezone();
     for (const p of periods) {
       if (p.startDate <= todayISO && p.endDate >= todayISO) {
         p.status = AcademicPeriodStatus.ACTIVE;
@@ -83,7 +86,7 @@ export class AcademicCloseScheduler {
    * a tiempo (p. ej. sin clases en el rango del cron anterior).
    */
   private async closeExpiredPeriods(): Promise<void> {
-    const todayISO = todayLocalISODate();
+    const todayISO = todayInAppTimezone();
     const periods = await this.dataSource.getRepository(AcademicPeriodEntity).find({
       where: {
         status: In([AcademicPeriodStatus.ACTIVE, AcademicPeriodStatus.PLANNED]),

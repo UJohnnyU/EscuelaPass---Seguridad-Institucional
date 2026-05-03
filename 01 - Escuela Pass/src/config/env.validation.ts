@@ -112,6 +112,11 @@ class EnvVars {
   @IsString()
   @IsOptional()
   INSTITUTION_EMAIL?: string;
+
+  /** IANA, p. ej. `America/Mexico_City`. Cierre de periodos, actividades vencidas y políticas de cartera usan esta zona. */
+  @IsString()
+  @IsOptional()
+  APP_TIMEZONE?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

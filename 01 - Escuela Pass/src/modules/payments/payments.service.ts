@@ -16,6 +16,7 @@ import { PaymentRecordEntity } from '../../database/entities/payment-record.enti
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { todayInAppTimezone } from '../../common/local-date';
 import { FcmService } from '../fcm/fcm.service';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
@@ -615,7 +616,7 @@ export class PaymentsService {
         status: PaymentStatus;
         schoolId: string | null;
       }>();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayInAppTimezone();
     let markedOverdue = 0;
     let lateFeeApplied = 0;
     for (const row of rows) {
