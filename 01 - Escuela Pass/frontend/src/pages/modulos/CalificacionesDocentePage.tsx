@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { DataTableScroll, DATA_TABLE_HEAD } from '@/components/DataTableScroll';
+import { DataTableScroll, DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -139,6 +139,7 @@ export function CalificacionesDocentePage() {
   const [filterAssignment, setFilterAssignment] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | ActivityStatus>('');
   const [filterPeriod, setFilterPeriod] = useState('');
+  const [activitiesListSearch, setActivitiesListSearch] = useState('');
 
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
 
@@ -301,6 +302,28 @@ export function CalificacionesDocentePage() {
     () => [{ value: '', label: 'Todos los periodos' }, ...periodOptions],
     [periodOptions]
   );
+
+  const displayedActivities = useMemo(() => {
+    const q = activitiesListSearch.trim().toLowerCase();
+    if (!q) return activities;
+    return activities.filter((a) =>
+      [
+        a.title,
+        a.groupName,
+        a.subjectName,
+        a.schoolName,
+        a.periodName,
+        a.grade,
+        a.schoolYear,
+        a.dueDate ?? '',
+        a.status
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [activities, activitiesListSearch]);
 
   const loadActivities = useCallback(async () => {
     if (platformAdmin && !schoolFilter.trim()) {
@@ -666,18 +689,29 @@ export function CalificacionesDocentePage() {
           </section>
 
           <section className="rounded border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Actividades
-              </h2>
-              <button
-                type="button"
-                onClick={() => void loadActivities()}
-                disabled={loadingActivities}
-                className="rounded border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {loadingActivities ? 'Actualizando…' : 'Actualizar'}
-              </button>
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Actividades</h2>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                <label className="block w-full sm:max-w-xs">
+                  <span className="sr-only">Buscar actividades</span>
+                  <input
+                    type="search"
+                    value={activitiesListSearch}
+                    onChange={(e) => setActivitiesListSearch(e.target.value)}
+                    placeholder="Buscar por título, grupo, materia…"
+                    disabled={activities.length === 0}
+                    className={DATA_TABLE_SEARCH_INPUT}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void loadActivities()}
+                  disabled={loadingActivities}
+                  className="shrink-0 rounded border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {loadingActivities ? 'Actualizando…' : 'Actualizar'}
+                </button>
+              </div>
             </div>
             {loadingActivities ? (
               <p className="p-4 text-sm text-slate-500">Cargando…</p>
@@ -685,9 +719,12 @@ export function CalificacionesDocentePage() {
               <p className="p-6 text-sm text-slate-500">
                 No hay actividades con los filtros seleccionados. Cree una nueva con el botón anterior.
               </p>
+            ) : displayedActivities.length === 0 ? (
+              <p className="p-6 text-sm text-slate-500">Ninguna actividad coincide con la búsqueda.</p>
             ) : (
-              <ul className="divide-y divide-slate-100">
-                {activities.map((a) => (
+              <div className={SCROLLABLE_PANEL_BODY}>
+                <ul className="divide-y divide-slate-100">
+                  {displayedActivities.map((a) => (
                   <li key={a.id} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -729,7 +766,8 @@ export function CalificacionesDocentePage() {
                     </div>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </div>
             )}
           </section>
         </>

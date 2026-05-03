@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -46,6 +47,8 @@ export function AnotacionesDocentePage() {
   const [notes, setNotes] = useState<AttentionNoteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [notesSearch, setNotesSearch] = useState('');
 
   const [studentId, setStudentId] = useState('');
   const [severity, setSeverity] = useState<'LEVE' | 'MODERADA' | 'GRAVE'>('LEVE');
@@ -113,6 +116,24 @@ export function AnotacionesDocentePage() {
       })),
     [students]
   );
+
+  const filteredNotes = useMemo(() => {
+    const q = notesSearch.trim().toLowerCase();
+    if (!q) return notes;
+    return notes.filter((n) =>
+      [
+        n.studentName,
+        n.matricula,
+        n.title,
+        n.description,
+        n.createdByName,
+        SEVERITY_LABEL[n.severity] ?? n.severity
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [notes, notesSearch]);
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -195,6 +216,10 @@ export function AnotacionesDocentePage() {
   useEffect(() => {
     if (!groupId) return;
     void loadGroupData(groupId);
+  }, [groupId]);
+
+  useEffect(() => {
+    setNotesSearch('');
   }, [groupId]);
 
   const submit = async (e: FormEvent) => {
@@ -358,12 +383,28 @@ export function AnotacionesDocentePage() {
 
       {groupId && notes.length > 0 && (
         <section className="rounded border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-800">Anotaciones recientes en este grupo</h2>
-            <p className="text-xs text-slate-500">Incluye registros de todo el personal autorizado.</p>
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">Anotaciones recientes en este grupo</h2>
+              <p className="text-xs text-slate-500">Incluye registros de todo el personal autorizado.</p>
+            </div>
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar anotaciones</span>
+              <input
+                type="search"
+                value={notesSearch}
+                onChange={(e) => setNotesSearch(e.target.value)}
+                placeholder="Buscar alumno, título, autor…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
           </div>
-          <ul className="divide-y divide-slate-100">
-            {notes.map((n) => (
+          {filteredNotes.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-slate-500">Ninguna anotación coincide con la búsqueda.</p>
+          ) : (
+            <div className={SCROLLABLE_PANEL_BODY}>
+              <ul className="divide-y divide-slate-100">
+                {filteredNotes.map((n) => (
               <li key={n.id} className="px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium text-slate-900">
@@ -385,7 +426,9 @@ export function AnotacionesDocentePage() {
                 </p>
               </li>
             ))}
-          </ul>
+              </ul>
+            </div>
+          )}
         </section>
       )}
     </div>

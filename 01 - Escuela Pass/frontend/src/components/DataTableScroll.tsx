@@ -14,3 +14,7 @@ export function DataTableScroll({ children, className = '' }: { children: ReactN
 
 export const DATA_TABLE_SEARCH_INPUT =
   'w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500';
+
+/** Listas largas dentro de tarjetas/paneles (solo scroll, sin borde extra) */
+export const SCROLLABLE_PANEL_BODY =
+  'max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden';

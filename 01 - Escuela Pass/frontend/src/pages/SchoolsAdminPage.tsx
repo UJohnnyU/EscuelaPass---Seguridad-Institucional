@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
+import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { uploadSchoolLogo } from '@/lib/uploads-api';
 
 type School = {
@@ -42,6 +43,8 @@ export function SchoolsAdminPage() {
 
   const [editing, setEditing] = useState<Record<string, EditDraft>>({});
 
+  const [schoolsSearch, setSchoolsSearch] = useState('');
+
   const loadSchools = async () => {
     setLoading(true);
     setErr(null);
@@ -69,6 +72,17 @@ export function SchoolsAdminPage() {
   useEffect(() => {
     void loadSchools();
   }, []);
+
+  const filteredSchools = useMemo(() => {
+    const q = schoolsSearch.trim().toLowerCase();
+    if (!q) return schools;
+    return schools.filter((s) =>
+      [s.name, s.code, String(s.latitude), String(s.longitude), s.status ? 'activa' : 'inactiva']
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [schools, schoolsSearch]);
 
   const parseDec2 = (s: string): number | null => {
     const n = Number(s.replace(',', '.'));
@@ -301,16 +315,30 @@ export function SchoolsAdminPage() {
       </section>
 
       <section className="rounded border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Escuelas registradas</h2>
+          <label className="block w-full sm:max-w-xs">
+            <span className="sr-only">Buscar escuelas</span>
+            <input
+              type="search"
+              value={schoolsSearch}
+              onChange={(e) => setSchoolsSearch(e.target.value)}
+              placeholder="Buscar por nombre o código…"
+              disabled={schools.length === 0}
+              className={DATA_TABLE_SEARCH_INPUT}
+            />
+          </label>
         </div>
         {loading ? (
           <p className="px-4 py-4 text-sm text-slate-600">Cargando...</p>
         ) : schools.length === 0 ? (
           <p className="px-4 py-4 text-sm text-slate-600">No hay escuelas registradas.</p>
+        ) : filteredSchools.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-slate-600">Ninguna escuela coincide con la búsqueda.</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {schools.map((s) => {
+          <div className={SCROLLABLE_PANEL_BODY}>
+            <ul className="divide-y divide-slate-100">
+            {filteredSchools.map((s) => {
               const d = editing[s.id] ?? {
                 maxGradeScale: String(parseFloat(s.maxGradeScale)),
                 passingGrade: String(parseFloat(s.passingGrade)),
@@ -423,6 +451,7 @@ export function SchoolsAdminPage() {
               );
             })}
           </ul>
+          </div>
         )}
       </section>
     </div>

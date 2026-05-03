@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
+import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { DetailModal } from '@/components/DetailModal';
 import { emitNotificationRead } from '@/lib/notifications-sync';
 
@@ -161,6 +162,14 @@ export function NotificationsList({
   allowMarkRead?: boolean;
 }) {
   const items = useMemo(() => unwrapList<Notification>(data), [data]);
+  const [listSearch, setListSearch] = useState('');
+  const filteredItems = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((n) =>
+      [n.title, n.message, n.studentName ?? '', n.deliveryStatus ?? ''].join(' ').toLowerCase().includes(q)
+    );
+  }, [items, listSearch]);
   const [readMap, setReadMap] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -207,8 +216,26 @@ export function NotificationsList({
 
   return (
     <>
-      <ul className="space-y-3">
-        {items.map((n) => {
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <label className="block w-full sm:max-w-sm">
+          <span className="sr-only">Buscar notificaciones</span>
+          <input
+            type="search"
+            value={listSearch}
+            onChange={(e) => setListSearch(e.target.value)}
+            placeholder="Buscar por título o contenido…"
+            className={DATA_TABLE_SEARCH_INPUT}
+          />
+        </label>
+      </div>
+      {filteredItems.length === 0 ? (
+        <div className={SCROLLABLE_PANEL_BODY}>
+          <p className="py-8 text-center text-sm text-slate-500">Ninguna notificación coincide con la búsqueda.</p>
+        </div>
+      ) : (
+        <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
+          <ul className="space-y-3">
+            {filteredItems.map((n) => {
           const isUnread = !n.readAt && !readMap[n.id];
           return (
             <li
@@ -253,7 +280,9 @@ export function NotificationsList({
             </li>
           );
         })}
-      </ul>
+          </ul>
+        </div>
+      )}
       <DetailModal
         open={openItem !== null}
         title={openItem?.title ?? ''}
@@ -320,6 +349,14 @@ export function NotificationsList({
 
 export function NoticesList({ data }: { data: unknown }) {
   const items = useMemo(() => unwrapList<Notice>(data), [data]);
+  const [listSearch, setListSearch] = useState('');
+  const filteredItems = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((n) =>
+      [n.title, n.content, n.isImportant ? 'importante' : ''].join(' ').toLowerCase().includes(q)
+    );
+  }, [items, listSearch]);
   const [openId, setOpenId] = useState<string | null>(null);
   const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const [searchParams, setSearchParams] = useSearchParams();
@@ -355,8 +392,26 @@ export function NoticesList({ data }: { data: unknown }) {
   const open = items.find((n) => n.id === openId) ?? null;
   return (
     <>
-      <ul className="space-y-3">
-        {items.map((n) => (
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <label className="block w-full sm:max-w-sm">
+          <span className="sr-only">Buscar comunicados</span>
+          <input
+            type="search"
+            value={listSearch}
+            onChange={(e) => setListSearch(e.target.value)}
+            placeholder="Buscar por título o contenido…"
+            className={DATA_TABLE_SEARCH_INPUT}
+          />
+        </label>
+      </div>
+      {filteredItems.length === 0 ? (
+        <div className={SCROLLABLE_PANEL_BODY}>
+          <p className="py-8 text-center text-sm text-slate-500">Ningún comunicado coincide con la búsqueda.</p>
+        </div>
+      ) : (
+        <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
+          <ul className="space-y-3">
+            {filteredItems.map((n) => (
           <li
             key={n.id}
             ref={(el) => {
@@ -393,7 +448,9 @@ export function NoticesList({ data }: { data: unknown }) {
             </button>
           </li>
         ))}
-      </ul>
+          </ul>
+        </div>
+      )}
       <DetailModal
         open={open !== null}
         title={open?.title ?? ''}
