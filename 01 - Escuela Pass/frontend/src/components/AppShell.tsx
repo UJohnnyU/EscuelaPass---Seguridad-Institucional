@@ -8,6 +8,7 @@ import { uploadReportEvidence } from '@/lib/uploads-api';
 import { navVisibleForRole, SIDEBAR_NAV } from '@/navigation/navConfig';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationsBadge } from '@/components/NotificationsBadge';
+import logoUrl from '@/assets/landing/logo.png';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
@@ -98,12 +99,20 @@ export function AppShell() {
     <div className="flex min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-slate-100 lg:flex">
         <div className="border-b border-slate-800 px-4 py-5">
-          <Link to="/app" className="block font-serif text-lg font-semibold tracking-tight text-white">
-            Escuela Pass
+          <Link to="/app" className="flex items-start gap-3">
+            <img
+              src={logoUrl}
+              alt=""
+              className="h-9 w-auto shrink-0 object-contain pt-0.5"
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <span className="block font-serif text-lg font-semibold tracking-tight text-white">Escuela Pass</span>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-500">
+                Gestión institucional
+              </p>
+            </div>
           </Link>
-          <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-500">
-            Gestión institucional
-          </p>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map((item) => (
@@ -141,9 +150,17 @@ export function AppShell() {
             >
               Menú
             </button>
-            <Link to="/app" className="min-w-0">
-              <p className="font-serif font-semibold text-slate-900">Escuela Pass</p>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Gestión institucional</p>
+            <Link to="/app" className="flex min-w-0 items-start gap-2.5">
+              <img
+                src={logoUrl}
+                alt=""
+                className="h-8 w-auto shrink-0 object-contain"
+                aria-hidden
+              />
+              <div className="min-w-0">
+                <p className="font-serif font-semibold text-slate-900">Escuela Pass</p>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">Gestión institucional</p>
+              </div>
             </Link>
           </div>
           <div className="flex items-center gap-2">
@@ -170,15 +187,20 @@ export function AppShell() {
               id="mobile-main-menu"
               className="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-slate-800 bg-slate-950 text-slate-100 shadow-2xl"
             >
-              <div className="flex items-start justify-between border-b border-slate-800 px-4 py-5">
-                <div>
-                  <Link to="/app" onClick={closeMobileMenu} className="block font-serif text-lg font-semibold text-white">
-                    Escuela Pass
-                  </Link>
-                  <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-500">
-                    Gestión institucional
-                  </p>
-                </div>
+              <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-5">
+                <Link
+                  to="/app"
+                  onClick={closeMobileMenu}
+                  className="flex min-w-0 flex-1 items-start gap-3"
+                >
+                  <img src={logoUrl} alt="" className="h-9 w-auto shrink-0 object-contain pt-0.5" aria-hidden />
+                  <div className="min-w-0">
+                    <span className="block font-serif text-lg font-semibold text-white">Escuela Pass</span>
+                    <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-500">
+                      Gestión institucional
+                    </p>
+                  </div>
+                </Link>
                 <button
                   type="button"
                   onClick={closeMobileMenu}
