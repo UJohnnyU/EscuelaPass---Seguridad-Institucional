@@ -11,22 +11,22 @@ const ROLE_BADGES: Array<{ label: string; className: string }> = [
   {
     label: 'Alumno',
     className:
-      'bg-gradient-to-br from-brand-100 via-brand-200 to-brand-300 text-brand-950 shadow-sm shadow-brand-900/10 ring-1 ring-white/40'
+      'border-white/[0.12] bg-gradient-to-b from-slate-700/35 to-slate-900/55 text-brand-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] hover:border-white/20 hover:from-slate-600/30'
   },
   {
     label: 'Padre',
     className:
-      'bg-gradient-to-br from-brand-300 via-brand-400 to-brand-500 text-brand-950 shadow-md shadow-brand-950/15 ring-1 ring-white/25'
+      'border-brand-400/18 bg-gradient-to-b from-brand-900/45 to-brand-950/70 text-brand-50 shadow-[inset_0_1px_0_0_rgba(96,165,250,0.14)] hover:border-brand-300/28'
   },
   {
     label: 'Docente',
     className:
-      'bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 text-white shadow-md shadow-brand-950/25 ring-1 ring-brand-400/35'
+      'border-brand-500/22 bg-gradient-to-b from-brand-800/50 to-brand-950/75 text-white shadow-[inset_0_1px_0_0_rgba(96,165,250,0.14)] hover:border-brand-400/35'
   },
   {
     label: 'Administrativo',
     className:
-      'bg-gradient-to-br from-brand-800 via-brand-900 to-brand-950 text-brand-50 shadow-lg shadow-black/30 ring-1 ring-brand-600/40'
+      'border-brand-600/28 bg-gradient-to-b from-brand-900/70 to-brand-950 text-white shadow-[inset_0_1px_0_0_rgba(59,130,246,0.18)] hover:border-brand-500/40'
   }
 ];
 
@@ -301,12 +301,14 @@ export function LoginPage() {
             <p className="mt-2 text-xs leading-relaxed text-brand-200/60">
               Cada perfil dispone de las pantallas que corresponden a su función en la institución.
             </p>
-            <p className="mt-5 text-xs font-medium text-brand-200/70">Perfiles en la institución</p>
-            <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-2">
+            <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-300/45">
+              Perfiles en la institución
+            </p>
+            <div className="mt-3.5 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
               {ROLE_BADGES.map((role) => (
                 <div
                   key={role.label}
-                  className={`rounded-xl px-3 py-2.5 text-center text-[11px] font-semibold leading-snug tracking-tight sm:text-xs ${role.className}`}
+                  className={`rounded-md border px-2.5 py-2 text-center text-[11px] font-medium leading-tight antialiased transition duration-200 sm:px-3 sm:py-2 sm:text-xs ${role.className}`}
                 >
                   {role.label}
                 </div>
