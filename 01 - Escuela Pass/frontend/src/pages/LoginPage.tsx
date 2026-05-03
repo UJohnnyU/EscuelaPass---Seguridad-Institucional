@@ -7,26 +7,52 @@ import logoUrl from '@/assets/landing/logo.png';
 
 const REMEMBER_KEY = 'ep_login_remember_email';
 
-const ROLE_BADGES: Array<{ label: string; className: string }> = [
+const ROLE_CARDS = [
   {
     label: 'Alumno',
-    className:
-      'border-white/[0.12] bg-gradient-to-b from-slate-700/35 to-slate-900/55 text-brand-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] hover:border-white/20 hover:from-slate-600/30'
+    description: 'Credencial y horario',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M12 14c-4 0-7 2-7 4v1h14v-1c0-2-3-4-7-4z" />
+        <circle cx="12" cy="8" r="4" />
+      </svg>
+    ),
+    style: { background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', color: 'rgba(219,234,254,0.85)' }
   },
   {
     label: 'Padre',
-    className:
-      'border-brand-400/18 bg-gradient-to-b from-brand-900/45 to-brand-950/70 text-brand-50 shadow-[inset_0_1px_0_0_rgba(96,165,250,0.14)] hover:border-brand-300/28'
+    description: 'Recogida y avisos',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M17 20H7a2 2 0 01-2-2v-1c0-2.5 2.5-4 5-4h4c2.5 0 5 1.5 5 4v1a2 2 0 01-2 2z" />
+        <circle cx="12" cy="7" r="3" />
+        <path d="M3 11c0-1.5 1-3 3-3" strokeOpacity="0.5" />
+        <path d="M21 11c0-1.5-1-3-3-3" strokeOpacity="0.5" />
+      </svg>
+    ),
+    style: { background: 'rgba(96,165,250,0.09)', borderColor: 'rgba(147,197,253,0.15)', color: 'rgba(191,219,254,0.90)' }
   },
   {
     label: 'Docente',
-    className:
-      'border-brand-500/22 bg-gradient-to-b from-brand-800/50 to-brand-950/75 text-white shadow-[inset_0_1px_0_0_rgba(96,165,250,0.14)] hover:border-brand-400/35'
+    description: 'Clases y anotaciones',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3" y="4" width="18" height="14" rx="2" />
+        <path d="M8 10h8M8 14h5" />
+      </svg>
+    ),
+    style: { background: 'rgba(59,130,246,0.12)', borderColor: 'rgba(96,165,250,0.22)', color: 'rgba(219,234,254,0.95)' }
   },
   {
     label: 'Administrativo',
-    className:
-      'border-brand-600/28 bg-gradient-to-b from-brand-900/70 to-brand-950 text-white shadow-[inset_0_1px_0_0_rgba(59,130,246,0.18)] hover:border-brand-500/40'
+    description: 'Gestión institucional',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M3 9l9-6 9 6v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+    ),
+    style: { background: 'rgba(30,58,138,0.30)', borderColor: 'rgba(59,130,246,0.30)', color: 'rgba(239,246,255,1)' }
   }
 ];
 
@@ -301,16 +327,18 @@ export function LoginPage() {
             <p className="mt-2 text-xs leading-relaxed text-brand-200/60">
               Cada perfil dispone de las pantallas que corresponden a su función en la institución.
             </p>
-            <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-300/45">
-              Perfiles en la institución
-            </p>
-            <div className="mt-3.5 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
-              {ROLE_BADGES.map((role) => (
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {ROLE_CARDS.map((role) => (
                 <div
                   key={role.label}
-                  className={`rounded-md border px-2.5 py-2 text-center text-[11px] font-medium leading-tight antialiased transition duration-200 sm:px-3 sm:py-2 sm:text-xs ${role.className}`}
+                  className="group flex flex-col items-start gap-2 rounded-2xl border px-3.5 py-3 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110"
+                  style={role.style}
                 >
-                  {role.label}
+                  <span className="opacity-80 transition-opacity group-hover:opacity-100">{role.icon}</span>
+                  <div>
+                    <p className="text-[11px] font-semibold leading-tight tracking-wide">{role.label}</p>
+                    <p className="mt-0.5 text-[9px] leading-snug opacity-55">{role.description}</p>
+                  </div>
                 </div>
               ))}
             </div>
