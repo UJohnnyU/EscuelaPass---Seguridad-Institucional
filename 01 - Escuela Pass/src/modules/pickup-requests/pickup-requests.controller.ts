@@ -43,6 +43,15 @@ export class PickupRequestsController {
     return this.pickupRequestsService.listForStaff(req.user.userId, req.user.role);
   }
 
+  @Post(':id/cancel')
+  @Roles(UserRole.PADRE)
+  cancel(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.pickupRequestsService.cancelByParent(id, req.user.userId);
+  }
+
   @Patch(':id/status')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   updateStatus(

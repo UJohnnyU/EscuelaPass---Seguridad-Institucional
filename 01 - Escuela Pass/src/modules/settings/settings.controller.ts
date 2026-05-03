@@ -59,9 +59,9 @@ export class SettingsController {
     @Query('schoolId') schoolId: string | undefined,
     @Body() dto: UpdateCircuitSettingDto
   ) {
-    return this.settingsService.setCircuitEnabled(
+    return this.settingsService.setCircuitSettings(
       { role: req.user.role, schoolId: req.user.schoolId },
-      dto.enabled,
+      dto,
       schoolId
     );
   }

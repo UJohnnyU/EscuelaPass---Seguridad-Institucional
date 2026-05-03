@@ -31,6 +31,7 @@ import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
 import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-signal.dto';
 import { FcmService } from '../fcm/fcm.service';
 import { DepartureConsentService } from '../departure-consent/departure-consent.service';
+import { PickupRequestsService } from '../pickup-requests/pickup-requests.service';
 import { SettingsService } from '../settings/settings.service';
 
 type DistanceResult = {
@@ -80,7 +81,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     private readonly usersRepository: Repository<UserEntity>,
     private readonly fcmService: FcmService,
     private readonly settingsService: SettingsService,
-    private readonly departureConsentService: DepartureConsentService
+    private readonly departureConsentService: DepartureConsentService,
+    private readonly pickupRequestsService: PickupRequestsService
   ) {}
 
   onModuleInit(): void {
@@ -240,6 +242,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException(
         'Hoy tiene activo el permiso de salida autónoma para este alumno. Desactive el consentimiento en Circuito antes de iniciar una recogida con seguimiento.'
       );
+    }
+    if (payload.pickupMethod !== PickupMethod.SOLO_CONSENTIMIENTO) {
+      await this.pickupRequestsService.assertEarlyPickupApprovedIfSchoolRequires(student.id);
     }
     const parent = await this.parentsRepository.findOne({
       where: { id: payload.requestedByParentId }

@@ -12,6 +12,25 @@ type ActiveCircuit = { id: string; status: string; requestTime: string; studentI
 
 const METHODS = ['VEHICULO_REGISTRADO', 'OTRO_VEHICULO', 'A_PIE', 'SOLO_CONSENTIMIENTO'] as const;
 
+type EarlyPickupRow = { studentId: string; status: string; visitDatetime: string };
+
+function utcYmdFromIso(iso: string): string {
+  return iso.slice(0, 10);
+}
+
+function hasApprovedEarlyPickupToday(
+  studentId: string,
+  rows: EarlyPickupRow[],
+  todayUtcYmd: string
+): boolean {
+  return rows.some(
+    (r) =>
+      r.studentId === studentId &&
+      r.status === 'APROBADA' &&
+      utcYmdFromIso(r.visitDatetime) === todayUtcYmd
+  );
+}
+
 export function CircuitPadrePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -28,6 +47,8 @@ export function CircuitPadrePage() {
   const [activeCircuits, setActiveCircuits] = useState<ActiveCircuit[]>([]);
   const [consentActive, setConsentActive] = useState<Record<string, boolean>>({});
   const [consentSaving, setConsentSaving] = useState<string | null>(null);
+  const [requiresEarlyPickupApproval, setRequiresEarlyPickupApproval] = useState(false);
+  const [earlyPickupRows, setEarlyPickupRows] = useState<EarlyPickupRow[]>([]);
 
   useEffect(() => {
     if (user?.role !== 'PADRE') return;
@@ -49,18 +70,26 @@ export function CircuitPadrePage() {
         } catch {
           /* Compatibilidad: si el endpoint no existe, mostrar formulario */
         }
-        const [{ data: ps }, { data: vh }, consentRes] = await Promise.all([
+        const [psRes, vhRes, consentRes, circuitRes, pickupsRes] = await Promise.all([
           api.get<ParentStudents>('/api/v1/attendance/parent/my-students'),
           api.get<Vehicle[]>('/api/v1/parents/vehicles'),
           api
             .get<Array<{ studentId: string; autonomousToday: boolean }>>(
               '/api/v1/departure-consent/parent/today'
             )
-            .catch(() => ({ data: [] as Array<{ studentId: string; autonomousToday: boolean }> }))
+            .catch(() => ({ data: [] as Array<{ studentId: string; autonomousToday: boolean }> })),
+          api
+            .get<{ enabled: boolean; requiresEarlyPickupApproval?: boolean }>('/api/v1/settings/circuit')
+            .catch(() => ({ data: { enabled: true, requiresEarlyPickupApproval: false } })),
+          api.get<EarlyPickupRow[]>('/api/v1/pickup-requests/me').catch(() => ({ data: [] as EarlyPickupRow[] }))
         ]);
+        const ps = psRes.data;
+        const vh = vhRes.data;
         if (cancelled) return;
         setData(ps);
         setVehicles(vh);
+        setRequiresEarlyPickupApproval(Boolean(circuitRes.data?.requiresEarlyPickupApproval));
+        setEarlyPickupRows(Array.isArray(pickupsRes.data) ? pickupsRes.data : []);
         const map: Record<string, boolean> = {};
         for (const c of consentRes.data ?? []) {
           map[c.studentId] = c.autonomousToday;
@@ -120,6 +149,21 @@ export function CircuitPadrePage() {
       setError(`Desactive "Salida autónoma" antes de crear el circuito para: ${names}`);
       return;
     }
+
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    if (requiresEarlyPickupApproval && pickupMethod !== 'SOLO_CONSENTIMIENTO') {
+      const missing = studentIds.filter((id) => !hasApprovedEarlyPickupToday(id, earlyPickupRows, todayUtc));
+      if (missing.length) {
+        const names = missing
+          .map((id) => data.students.find((s) => s.id === id)?.fullName ?? id)
+          .join(', ');
+        setError(
+          `La institución exige un retiro anticipado aprobado para hoy antes de iniciar el circuito. Solicítelo en «Retiro anticipado» para: ${names}.`
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -256,6 +300,7 @@ export function CircuitPadrePage() {
   const anyConsentLocked = [...selectedStudentIds].some((id) => consentActive[id]);
   const formLocked = anyConsentLocked || consentSaving !== null;
   const selectLockedClass = formLocked ? 'cursor-not-allowed opacity-60' : '';
+  const todayUtcYmd = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="max-w-lg animate-slide-up">
@@ -264,6 +309,21 @@ export function CircuitPadrePage() {
         Indique cómo va a recoger a sus hijos. Puede seleccionar uno o varios. Después podrá avisar que va en camino
         y marcar su llegada desde cada solicitud.
       </p>
+      {requiresEarlyPickupApproval && pickupMethod !== 'SOLO_CONSENTIMIENTO' && (
+        <div
+          className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="status"
+        >
+          <p className="font-medium">Retiro anticipado obligatorio para hoy</p>
+          <p className="mt-1 text-amber-900/90">
+            Antes de iniciar el circuito (vehículo o a pie), solicite y obtenga la aprobación del plantel en{' '}
+            <Link to="/app/solicitudes-retiro" className="font-semibold underline">
+              Retiro anticipado
+            </Link>
+            . La fecha programada de la solicitud debe corresponder a hoy.
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 space-y-3">
         <p className="text-sm font-medium text-slate-700">Estudiantes a recoger</p>
@@ -305,6 +365,18 @@ export function CircuitPadrePage() {
                   Desactive "Salida autónoma" para incluir a este alumno en el circuito.
                 </p>
               )}
+              {requiresEarlyPickupApproval &&
+                pickupMethod !== 'SOLO_CONSENTIMIENTO' &&
+                checked &&
+                !hasApprovedEarlyPickupToday(s.id, earlyPickupRows, todayUtcYmd) && (
+                  <p className="ml-7 text-xs font-medium text-amber-800">
+                    Falta retiro anticipado aprobado para hoy —{' '}
+                    <Link to="/app/solicitudes-retiro" className="underline">
+                      solicitar aquí
+                    </Link>
+                    .
+                  </p>
+                )}
             </div>
           );
         })}

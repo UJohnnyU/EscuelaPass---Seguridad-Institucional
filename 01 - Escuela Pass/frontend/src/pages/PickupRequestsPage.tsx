@@ -39,7 +39,7 @@ function isStaffRole(role: string | undefined) {
 
 function minDatetimeLocal(): string {
   const now = new Date();
-  now.setMinutes(now.getMinutes() + 30);
+  now.setMinutes(now.getMinutes() + 11);
   return now.toISOString().slice(0, 16);
 }
 
@@ -140,6 +140,21 @@ export function PickupRequestsPage() {
     }
   }
 
+  async function handleCancel(id: string) {
+    setActionBusy(id);
+    setError(null);
+    setMsg(null);
+    try {
+      await api.post(`/api/v1/pickup-requests/${id}/cancel`);
+      setMsg('Solicitud cancelada.');
+      await reload();
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo cancelar la solicitud.'));
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
   if (!isStaff && !isParent) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
@@ -159,8 +174,8 @@ export function PickupRequestsPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
           {isStaff
-            ? 'Revise y gestione las solicitudes de retiro anticipado de estudiantes. Apruebe o rechace según corresponda.'
-            : 'Solicite retiro anticipado de su hijo o hija. El plantel revisará y aprobará o rechazará la solicitud.'}
+            ? 'Revise solicitudes de retiro fuera del horario habitual o durante la jornada. Apruebe o rechace; al marcar «Completada» queda constancia de que el menor ya salió según lo autorizado.'
+            : 'Avise con antelación si su hijo o hija deberá salir antes o en horario no habitual: el plantel valida la solicitud. Si la institución activa la opción correspondiente, necesitará una solicitud aprobada el mismo día antes de iniciar el circuito de recogida (vehículo o a pie). «Solo consentimiento» en el circuito no es un retiro físico y no sustituye este aviso cuando viene alguien a recoger al menor.'}
         </p>
       </header>
 
@@ -313,23 +328,36 @@ export function PickupRequestsPage() {
                   >
                     Rechazar
                   </button>
+                </div>
+              )}
+
+              {isStaff && r.status === 'APROBADA' && (
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     disabled={actionBusy === r.id}
                     onClick={() => void handleStatus(r.id, 'COMPLETADA')}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
                   >
-                    Marcar completada
+                    Marcar completada (menor retirado)
                   </button>
-                </div>
-              )}
-
-              {isParent && r.status === 'PENDIENTE' && (
-                <div className="mt-4 border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     disabled={actionBusy === r.id}
                     onClick={() => void handleStatus(r.id, 'CANCELADA')}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Cancelar autorización
+                  </button>
+                </div>
+              )}
+
+              {isParent && (r.status === 'PENDIENTE' || r.status === 'APROBADA') && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <button
+                    type="button"
+                    disabled={actionBusy === r.id}
+                    onClick={() => void handleCancel(r.id)}
                     className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   >
                     Cancelar solicitud

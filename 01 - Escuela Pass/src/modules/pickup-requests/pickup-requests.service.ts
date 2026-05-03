@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ParentEntity } from '../../database/entities/parent.entity';
@@ -6,6 +11,7 @@ import {
   PickupRequestEntity,
   PickupRequestStatus
 } from '../../database/entities/pickup-request.entity';
+import { SchoolEntity } from '../../database/entities/school.entity';
 import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
@@ -22,7 +28,9 @@ export class PickupRequestsService {
     @InjectRepository(ParentEntity)
     private readonly parentsRepository: Repository<ParentEntity>,
     @InjectRepository(TeacherEntity)
-    private readonly teachersRepository: Repository<TeacherEntity>
+    private readonly teachersRepository: Repository<TeacherEntity>,
+    @InjectRepository(SchoolEntity)
+    private readonly schoolsRepository: Repository<SchoolEntity>
   ) {}
 
   async create(dto: CreatePickupRequestDto, parentUserId: string) {
@@ -30,6 +38,19 @@ export class PickupRequestsService {
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
     await this.assertParentLinkedToStudent(parent.id, dto.studentId);
+
+    const visit = new Date(dto.visitDatetime);
+    if (Number.isNaN(visit.getTime())) {
+      throw new BadRequestException('La fecha y hora del retiro no son válidas.');
+    }
+    const nowMs = Date.now();
+    if (visit.getTime() <= nowMs + 9 * 60 * 1000) {
+      throw new BadRequestException('La fecha de retiro debe ser al menos 10 minutos en el futuro.');
+    }
+    const maxAhead = 120 * 24 * 60 * 60 * 1000;
+    if (visit.getTime() > nowMs + maxAhead) {
+      throw new BadRequestException('No se pueden programar retiros con más de 120 días de anticipación.');
+    }
 
     const row = this.requestsRepository.create({
       parentId: parent.id,
@@ -90,6 +111,32 @@ export class PickupRequestsService {
     const row = await this.requestsRepository.findOne({ where: { id } });
     if (!row) throw new NotFoundException('Solicitud no encontrada');
 
+    if (
+      row.status === PickupRequestStatus.RECHAZADA ||
+      row.status === PickupRequestStatus.COMPLETADA ||
+      row.status === PickupRequestStatus.CANCELADA
+    ) {
+      throw new BadRequestException('La solicitud ya está cerrada y no admite cambios.');
+    }
+
+    if (row.status === PickupRequestStatus.PENDIENTE) {
+      if (
+        dto.status !== PickupRequestStatus.APROBADA &&
+        dto.status !== PickupRequestStatus.RECHAZADA
+      ) {
+        throw new BadRequestException('Una solicitud pendiente solo puede aprobarse o rechazarse.');
+      }
+    } else if (row.status === PickupRequestStatus.APROBADA) {
+      if (
+        dto.status !== PickupRequestStatus.COMPLETADA &&
+        dto.status !== PickupRequestStatus.CANCELADA
+      ) {
+        throw new BadRequestException(
+          'Una solicitud aprobada solo puede marcarse como completada o cancelada.'
+        );
+      }
+    }
+
     if (role === UserRole.ADMIN) {
       row.status = dto.status;
       return this.requestsRepository.save(row);
@@ -117,6 +164,64 @@ export class PickupRequestsService {
     await this.assertDocenteCanAccessStudentGroup(userId, row.studentId);
     row.status = dto.status;
     return this.requestsRepository.save(row);
+  }
+
+  /** Padre/tutor cancela su propia solicitud (pendiente o aprobada). */
+  async cancelByParent(id: string, parentUserId: string) {
+    const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
+    if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
+
+    const row = await this.requestsRepository.findOne({ where: { id } });
+    if (!row) throw new NotFoundException('Solicitud no encontrada');
+    if (row.parentId !== parent.id) {
+      throw new ForbiddenException('No autorizado');
+    }
+    if (
+      row.status !== PickupRequestStatus.PENDIENTE &&
+      row.status !== PickupRequestStatus.APROBADA
+    ) {
+      throw new BadRequestException('Solo puede cancelar solicitudes pendientes o aprobadas.');
+    }
+    row.status = PickupRequestStatus.CANCELADA;
+    return this.requestsRepository.save(row);
+  }
+
+  /**
+   * Hay al menos una solicitud APROBADA para el estudiante cuya visit_datetime cae en el día UTC indicado (YYYY-MM-DD).
+   */
+  async hasApprovedPickupForStudentOnDate(studentId: string, ymdUtc: string): Promise<boolean> {
+    const n = await this.requestsRepository
+      .createQueryBuilder('vr')
+      .where('vr.student_id = :sid', { sid: studentId })
+      .andWhere('vr.status = :st', { st: PickupRequestStatus.APROBADA })
+      .andWhere(`to_char(vr.visit_datetime AT TIME ZONE 'UTC', 'YYYY-MM-DD') = :d`, { d: ymdUtc })
+      .getCount();
+    return n > 0;
+  }
+
+  /**
+   * Si la escuela lo exige, bloquea hasta exista retiro anticipado aprobado para el día actual (UTC).
+   */
+  async assertEarlyPickupApprovedIfSchoolRequires(studentId: string): Promise<void> {
+    const student = await this.studentsRepository.findOne({
+      where: { id: studentId },
+      select: ['id', 'schoolId']
+    });
+    if (!student?.schoolId) return;
+
+    const school = await this.schoolsRepository.findOne({
+      where: { id: student.schoolId },
+      select: ['circuitRequiresEarlyPickupApproval']
+    });
+    if (!school?.circuitRequiresEarlyPickupApproval) return;
+
+    const ymd = new Date().toISOString().slice(0, 10);
+    const ok = await this.hasApprovedPickupForStudentOnDate(studentId, ymd);
+    if (!ok) {
+      throw new BadRequestException(
+        'La institución exige una solicitud de retiro anticipado aprobada para hoy antes de iniciar el circuito de recogida. Solicítela en «Retiro anticipado» y espere la aprobación del plantel.'
+      );
+    }
   }
 
   private async assertParentLinkedToStudent(parentId: string, studentId: string) {
