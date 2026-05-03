@@ -96,17 +96,18 @@ export function AppShell() {
   }
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-slate-100 lg:flex">
-        <div className="border-b border-slate-800 px-4 py-5">
-          <Link to="/app" className="flex items-start gap-3">
+    <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
+      {/* Desktop: fijo al viewport; el contenido principal usa lg:pl-60 */}
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:h-screen lg:w-60 lg:min-h-0 lg:flex-col lg:overflow-hidden border-r border-slate-800 bg-slate-950 text-slate-100">
+        <div className="shrink-0 border-b border-slate-800 px-4 py-5">
+          <Link to="/app" className="flex items-center gap-3">
             <img
               src={logoUrl}
               alt=""
-              className="h-9 w-auto shrink-0 object-contain pt-0.5"
+              className="h-9 w-auto shrink-0 object-contain"
               aria-hidden
             />
-            <div className="min-w-0">
+            <div className="min-w-0 leading-tight">
               <span className="block font-serif text-lg font-semibold tracking-tight text-white">Escuela Pass</span>
               <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-500">
                 Gestión institucional
@@ -114,7 +115,7 @@ export function AppShell() {
             </div>
           </Link>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4">
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.to === '/app'} className={navCls}>
               {item.label}
@@ -122,7 +123,7 @@ export function AppShell() {
           ))}
         </nav>
         {canReportProblem ? (
-          <div className="px-3 pb-3">
+          <div className="shrink-0 px-3 pb-3">
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
@@ -133,12 +134,12 @@ export function AppShell() {
             </button>
           </div>
         ) : null}
-        <div className="border-t border-slate-800 p-4 text-xs text-slate-500">
+        <div className="shrink-0 border-t border-slate-800 p-4 text-xs text-slate-500">
           Uso autorizado de la institución
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-hidden">
+      <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden lg:pl-60">
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center gap-3">
             <button
@@ -150,7 +151,7 @@ export function AppShell() {
             >
               Menú
             </button>
-            <Link to="/app" className="flex min-w-0 items-start gap-2.5">
+            <Link to="/app" className="flex min-w-0 items-center gap-2.5">
               <img
                 src={logoUrl}
                 alt=""
@@ -185,16 +186,16 @@ export function AppShell() {
             />
             <aside
               id="mobile-main-menu"
-              className="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-slate-800 bg-slate-950 text-slate-100 shadow-2xl"
+              className="fixed inset-y-0 left-0 z-40 flex h-dvh max-h-screen w-72 min-h-0 max-w-[85vw] flex-col overflow-hidden border-r border-slate-800 bg-slate-950 text-slate-100 shadow-2xl"
             >
-              <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-5">
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 px-4 py-5">
                 <Link
                   to="/app"
                   onClick={closeMobileMenu}
-                  className="flex min-w-0 flex-1 items-start gap-3"
+                  className="flex min-w-0 flex-1 items-center gap-3"
                 >
-                  <img src={logoUrl} alt="" className="h-9 w-auto shrink-0 object-contain pt-0.5" aria-hidden />
-                  <div className="min-w-0">
+                  <img src={logoUrl} alt="" className="h-9 w-auto shrink-0 object-contain" aria-hidden />
+                  <div className="min-w-0 leading-tight">
                     <span className="block font-serif text-lg font-semibold text-white">Escuela Pass</span>
                     <p className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-500">
                       Gestión institucional
@@ -204,12 +205,12 @@ export function AppShell() {
                 <button
                   type="button"
                   onClick={closeMobileMenu}
-                  className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300"
+                  className="shrink-0 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300"
                 >
                   Cerrar
                 </button>
               </div>
-              <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+              <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4">
                 {navItems.map((item) => (
                   <NavLink
                     key={item.to}
@@ -223,7 +224,7 @@ export function AppShell() {
                 ))}
               </nav>
               {canReportProblem ? (
-                <div className="px-3 pb-3">
+                <div className="shrink-0 px-3 pb-3">
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 rounded border border-red-700/70 bg-red-900/30 px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-red-900/50"
@@ -237,7 +238,9 @@ export function AppShell() {
                   </button>
                 </div>
               ) : null}
-              <div className="border-t border-slate-800 p-4 text-xs text-slate-500">Uso autorizado de la institución</div>
+              <div className="shrink-0 border-t border-slate-800 p-4 text-xs text-slate-500">
+                Uso autorizado de la institución
+              </div>
             </aside>
           </div>
         )}
