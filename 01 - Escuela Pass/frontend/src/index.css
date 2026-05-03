@@ -218,6 +218,30 @@
   50%       { opacity: 0.30; }
 }
 
+@keyframes loginLogoRotateY {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
+.login-welcome-logo-perspective {
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+.login-welcome-logo-spin {
+  animation: loginLogoRotateY 75s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-welcome-logo-spin {
+    animation: none;
+  }
+}
+
 @keyframes modal-overlay-fade {
   from {
     opacity: 0;

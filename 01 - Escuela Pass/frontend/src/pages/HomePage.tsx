@@ -12,6 +12,12 @@ import operacionUrl from '@/assets/landing/operacion-diaria.png';
 import criterioUrl from '@/assets/landing/criterio-institucional.png';
 import escalableUrl from '@/assets/landing/escalable-rol.png';
 
+/** Misma URL que el botón "Contacto comercial" (hero). */
+const CONTACT_WHATSAPP_URL = 'https://wa.me/5216691992906';
+/** Misma URL que "Solicitar una demostración" (Gmail compose). */
+const GMAIL_DEMO_COMPOSE_URL =
+  'https://mail.google.com/mail/?view=cm&fs=1&to=clientes.alfanetworks@gmail.com&su=Solicitud%20de%20demostraci%C3%B3n%20Escuela%20Pass';
+
 const NAV_LINKS = [
   { href: '#beneficios', label: 'Beneficios' },
   { href: '#plataforma', label: 'La plataforma' },
@@ -86,8 +92,8 @@ const FOOTER_LINKS = [
   {
     heading: 'Contacto',
     links: [
-      { label: '+52 669 199 2906', href: 'tel:+526691992906' },
-      { label: 'clientes.alfanetworks@gmail.com', href: 'mailto:clientes.alfanetworks@gmail.com' }
+      { label: '+52 669 199 2906', href: CONTACT_WHATSAPP_URL, openInNewTab: true },
+      { label: 'clientes.alfanetworks@gmail.com', href: GMAIL_DEMO_COMPOSE_URL, openInNewTab: true }
     ]
   }
 ];
@@ -198,7 +204,7 @@ export function HomePage() {
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <a
-                href="https://wa.me/5216691992906"
+                href={CONTACT_WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-full border-2 border-white/90 bg-transparent px-8 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
@@ -322,7 +328,7 @@ export function HomePage() {
           </div>
           <div className="mt-14 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <a
-              href="https://mail.google.com/mail/?view=cm&fs=1&to=clientes.alfanetworks@gmail.com&su=Solicitud%20de%20demostraci%C3%B3n%20Escuela%20Pass"
+              href={GMAIL_DEMO_COMPOSE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex rounded-full bg-brand-600 px-10 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand-900/40 transition hover:bg-brand-500"
@@ -411,7 +417,13 @@ export function HomePage() {
                           {l.label}
                         </Link>
                       ) : (
-                        <a href={l.href} className="text-sm text-brand-100/70 transition-colors hover:text-white">
+                        <a
+                          href={l.href}
+                          className="text-sm text-brand-100/70 transition-colors hover:text-white"
+                          {...('openInNewTab' in l && l.openInNewTab
+                            ? { target: '_blank' as const, rel: 'noopener noreferrer' }
+                            : {})}
+                        >
                           {l.label}
                         </a>
                       )}

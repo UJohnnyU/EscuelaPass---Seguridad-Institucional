@@ -7,20 +7,48 @@ import logoUrl from '@/assets/landing/logo.png';
 
 const REMEMBER_KEY = 'ep_login_remember_email';
 
+const ROLE_CHIPS = [
+  { short: 'AL', label: 'Alumno' },
+  { short: 'PA', label: 'Padre' },
+  { short: 'DC', label: 'Docente' },
+  { short: 'AD', label: 'Administrativo' }
+];
+
 function MailIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-      <polyline points="22,6 12,13 2,6" />
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
   );
 }
 
 function LockIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
     </svg>
   );
 }
@@ -102,10 +130,8 @@ export function LoginPage() {
         {/* Columna formulario */}
         <div className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-10 lg:px-14 xl:px-20">
           <div className="mx-auto w-full max-w-md">
-            <Link to="/" className="inline-flex items-center gap-2 text-white/90 transition hover:text-white">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-sm font-bold text-white ring-1 ring-white/20">
-                EP
-              </span>
+            <Link to="/" className="inline-flex items-center gap-2.5 text-white/90 transition hover:text-white">
+              <img src={logoUrl} alt="" className="h-9 w-auto object-contain sm:h-10" aria-hidden />
               <span className="text-lg font-semibold tracking-tight">Escuela Pass</span>
             </Link>
 
@@ -131,7 +157,7 @@ export function LoginPage() {
                   Correo electrónico
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-200/70">
+                  <span className="pointer-events-none absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/[0.06] text-white/80 ring-1 ring-white/10">
                     <MailIcon />
                   </span>
                   <input
@@ -142,7 +168,7 @@ export function LoginPage() {
                     placeholder="nombre@colegio.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-white/15 bg-white/10 py-3 pl-11 pr-4 text-sm text-white placeholder:text-brand-200/40 outline-none ring-brand-400/30 backdrop-blur-sm transition focus:border-brand-300/40 focus:ring-2"
+                    className="w-full rounded-2xl border border-white/15 bg-white/10 py-3 pl-[3.25rem] pr-4 text-sm text-white placeholder:text-brand-200/40 outline-none ring-brand-400/30 backdrop-blur-sm transition focus:border-brand-300/40 focus:ring-2"
                   />
                 </div>
               </div>
@@ -151,7 +177,7 @@ export function LoginPage() {
                   Contraseña
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-200/70">
+                  <span className="pointer-events-none absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/[0.06] text-white/80 ring-1 ring-white/10">
                     <LockIcon />
                   </span>
                   <input
@@ -162,12 +188,12 @@ export function LoginPage() {
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-2xl border border-white/15 bg-white/10 py-3 pl-11 pr-12 text-sm text-white placeholder:text-brand-200/40 outline-none ring-brand-400/30 backdrop-blur-sm transition focus:border-brand-300/40 focus:ring-2"
+                    className="w-full rounded-2xl border border-white/15 bg-white/10 py-3 pl-[3.25rem] pr-12 text-sm text-white placeholder:text-brand-200/40 outline-none ring-brand-400/30 backdrop-blur-sm transition focus:border-brand-300/40 focus:ring-2"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-brand-200/70 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400"
+                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-brand-200/80 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400"
                     aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   >
                     {showPassword ? <EyeOffIcon /> : <EyeIcon />}
@@ -223,12 +249,12 @@ export function LoginPage() {
         {/* Columna marca / bienvenida (desktop) */}
         <div className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-t-[2.5rem] border-t border-white/10 bg-slate-950/55 p-10 backdrop-blur-md lg:flex lg:min-h-screen lg:rounded-none lg:rounded-l-[2.5rem] lg:border-l lg:border-t-0 lg:p-12 xl:p-14">
           <div className="pointer-events-none absolute -right-16 top-8 h-72 w-72 rounded-full bg-brand-500/10 blur-3xl" />
-          <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+          <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden login-welcome-logo-perspective">
             <img
               src={logoUrl}
               alt=""
               aria-hidden
-              className="w-[70%] max-w-[min(70%,28rem)] object-contain opacity-[0.1] sm:opacity-[0.12]"
+              className="login-welcome-logo-spin w-[70%] max-w-[min(70%,28rem)] object-contain opacity-[0.1] sm:opacity-[0.12]"
             />
           </div>
 
@@ -249,18 +275,18 @@ export function LoginPage() {
             <p className="mt-2 text-xs leading-relaxed text-brand-200/60">
               Cada perfil dispone de las pantallas que corresponden a su función en la institución.
             </p>
-            <div className="mt-5 flex items-center gap-2">
-              <div className="flex -space-x-2">
-                {['FA', 'DC', 'AD', 'SG'].map((t, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border-2 border-slate-900 bg-gradient-to-br from-brand-500 to-brand-700 text-[10px] font-bold text-white"
-                  >
-                    {t}
+            <p className="mt-5 text-xs font-medium text-brand-200/70">Perfiles en la institución</p>
+            <div className="mt-3 flex flex-wrap items-end justify-between gap-3 sm:gap-4">
+              {ROLE_CHIPS.map((role) => (
+                <div key={role.label} className="flex min-w-[4.25rem] flex-col items-center gap-1.5">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-900 bg-gradient-to-br from-brand-500 to-brand-700 text-[10px] font-bold text-white shadow-md shadow-brand-950/30">
+                    {role.short}
                   </span>
-                ))}
-              </div>
-              <span className="text-xs font-medium text-brand-200/70">Roles típicos</span>
+                  <span className="max-w-[5rem] text-center text-[10px] font-medium leading-tight text-brand-200/80">
+                    {role.label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
