@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { DataTableScroll, DATA_TABLE_HEAD } from '@/components/DataTableScroll';
 import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -802,10 +803,10 @@ export function CalificacionesDocentePage() {
                   Esta actividad está cerrada. Las calificaciones no se pueden editar hasta reabrirla.
                 </div>
               )}
-              <div className="overflow-x-auto">
+              <DataTableScroll>
                 <table className="min-w-full border-collapse text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-white">
+                  <thead className={DATA_TABLE_HEAD}>
+                    <tr className="border-b border-slate-200 dark:border-slate-600">
                       <th className="px-3 py-2 font-semibold text-slate-700">Estudiante</th>
                       <th className="px-3 py-2 font-semibold text-slate-700">Matrícula</th>
                       <th className="px-3 py-2 font-semibold text-slate-700">Calificación</th>
@@ -864,7 +865,7 @@ export function CalificacionesDocentePage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </DataTableScroll>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
                 <p className="text-xs text-slate-500">
                   Las filas con calificación se pueden guardar en lote. Al cerrar la actividad las notas quedan publicadas.

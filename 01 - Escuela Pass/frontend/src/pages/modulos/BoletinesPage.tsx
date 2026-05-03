@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isPlatformAdmin } from '@/lib/roles';
+import { DataTableScroll, DATA_TABLE_HEAD } from '@/components/DataTableScroll';
 import { SmartSelect, type SmartSelectOption } from '@/components/SmartSelect';
 
 type ReportCardType = 'PERIOD' | 'FINAL';
@@ -420,10 +421,10 @@ function ReportCardDetailView({
           )}
         </div>
 
-        <div className="overflow-x-auto">
+        <DataTableScroll>
           <table className="min-w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 bg-white">
+            <thead className={DATA_TABLE_HEAD}>
+              <tr className="border-b border-slate-200 dark:border-slate-600">
                 <th className="px-3 py-2 font-semibold text-slate-700">Asignatura</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-700">Promedio</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-700">Actividades</th>
@@ -460,7 +461,7 @@ function ReportCardDetailView({
               )}
             </tbody>
           </table>
-        </div>
+        </DataTableScroll>
 
         <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-[11px] text-slate-500">
           Generado el {new Date(detail.generatedAt).toLocaleString('es')}

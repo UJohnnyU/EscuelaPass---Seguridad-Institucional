@@ -1,5 +1,6 @@
 import { type FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DataTableScroll, DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT } from '@/components/DataTableScroll';
 import { DetailModal } from '@/components/DetailModal';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
@@ -222,6 +223,10 @@ function shiftLabel(shift: string): string {
   return shift;
 }
 
+function normalizeTableQuery(q: string): string {
+  return q.trim().toLowerCase();
+}
+
 function lifecycleLabel(v?: string): string {
   if (v === 'ACTIVO') return 'Activo';
   if (v === 'BAJA') return 'Baja';
@@ -342,6 +347,18 @@ export function SchoolRosterPage() {
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   const [vehicleActionId, setVehicleActionId] = useState<string | null>(null);
 
+  const [lifecycleAuditSearch, setLifecycleAuditSearch] = useState('');
+  const [groupsTableSearch, setGroupsTableSearch] = useState('');
+  const [studentsTableSearch, setStudentsTableSearch] = useState('');
+  const [studentsGroupFilter, setStudentsGroupFilter] = useState('');
+  const [groupCapacitySearch, setGroupCapacitySearch] = useState('');
+  const [teachersTableSearch, setTeachersTableSearch] = useState('');
+  const [subjectsTableSearch, setSubjectsTableSearch] = useState('');
+  const [assignmentsTableSearch, setAssignmentsTableSearch] = useState('');
+  const [assignmentsGroupFilter, setAssignmentsGroupFilter] = useState('');
+  const [parentsTableSearch, setParentsTableSearch] = useState('');
+  const [linksTableSearch, setLinksTableSearch] = useState('');
+
   const schoolQuery = useMemo(() => {
     if (platformAdmin && selectedSchoolId) return { schoolId: selectedSchoolId };
     return undefined;
@@ -449,6 +466,130 @@ export function SchoolRosterPage() {
       ),
     [aGroup, aSubject, aTeacher, classSessions]
   );
+  const studentsGroupFilterOptions = useMemo(
+    (): SmartSelectOption[] => [{ value: '', label: 'Todos los grupos' }, ...groupOptions],
+    [groupOptions]
+  );
+  const assignmentsGroupFilterOptions = useMemo(
+    (): SmartSelectOption[] => [{ value: '', label: 'Todos los grupos' }, ...groupOptions],
+    [groupOptions]
+  );
+  const filteredLifecycleEvents = useMemo(() => {
+    const q = normalizeTableQuery(lifecycleAuditSearch);
+    if (!q) return lifecycleEvents;
+    return lifecycleEvents.filter((row) => {
+      const blob = [
+        row.personName,
+        row.reason,
+        row.changedByName,
+        row.entityType === 'student' ? 'alumno' : 'docente',
+        lifecycleLabel(row.fromStatus),
+        lifecycleLabel(row.toStatus),
+        new Date(row.createdAt).toLocaleString()
+      ].join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [lifecycleEvents, lifecycleAuditSearch]);
+  const filteredGroupsTable = useMemo(() => {
+    const q = normalizeTableQuery(groupsTableSearch);
+    if (!q) return groups;
+    return groups.filter((r) => {
+      const blob = [
+        r.name,
+        r.grade ?? '',
+        r.schoolYear,
+        r.classroom ?? '',
+        shiftLabel(r.shift),
+        r.status !== false ? 'activo' : 'inactivo'
+      ].join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [groups, groupsTableSearch]);
+  const visibleGroupCapacityRows = useMemo(
+    () =>
+      groupCapacityRows
+        .filter((g) => !g.isFull)
+        .sort((a, b) => {
+          const avA = a.available ?? Number.POSITIVE_INFINITY;
+          const avB = b.available ?? Number.POSITIVE_INFINITY;
+          return avB - avA;
+        }),
+    [groupCapacityRows]
+  );
+  const filteredGroupCapacityRows = useMemo(() => {
+    const q = normalizeTableQuery(groupCapacitySearch);
+    if (!q) return visibleGroupCapacityRows;
+    return visibleGroupCapacityRows.filter((g) => {
+      const blob = [g.name, g.grade ?? '', g.schoolYear, shiftLabel(g.shift), String(g.capacity ?? ''), String(g.occupied)].join(
+        ' '
+      );
+      return blob.toLowerCase().includes(q);
+    });
+  }, [visibleGroupCapacityRows, groupCapacitySearch]);
+  const filteredStudentsTable = useMemo(() => {
+    let rows = students;
+    if (studentsGroupFilter) {
+      rows = rows.filter((s) => s.groupId === studentsGroupFilter);
+    }
+    const q = normalizeTableQuery(studentsTableSearch);
+    if (!q) return rows;
+    return rows.filter((s) => {
+      const blob = [s.fullName, s.matricula, s.email, s.phone ?? '', lifecycleLabel(s.lifecycleStatus)].join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [students, studentsGroupFilter, studentsTableSearch]);
+  const filteredTeachersTable = useMemo(() => {
+    const q = normalizeTableQuery(teachersTableSearch);
+    if (!q) return teachers;
+    return teachers.filter((r) => {
+      const subs = (teacherSubjectByTeacher.get(r.id) ?? [])
+        .map((x) => `${x.subjectCode} ${x.subjectName}`)
+        .join(' ');
+      const blob = [r.fullName, r.employeeNumber, r.email, r.phone ?? '', subs, lifecycleLabel(r.lifecycleStatus)].join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [teacherSubjectByTeacher, teachers, teachersTableSearch]);
+  const filteredSubjectsTable = useMemo(() => {
+    const q = normalizeTableQuery(subjectsTableSearch);
+    if (!q) return subjects;
+    return subjects.filter((s) => {
+      const blob = [s.code, s.name, s.educationLevel ?? '', s.gradeScope ?? '', s.area ?? '', s.description ?? ''].join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [subjects, subjectsTableSearch]);
+  const filteredAssignmentsTable = useMemo(() => {
+    let rows = assignments;
+    if (assignmentsGroupFilter) {
+      rows = rows.filter((r) => r.groupId === assignmentsGroupFilter);
+    }
+    const q = normalizeTableQuery(assignmentsTableSearch);
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const te = teachers.find((t) => t.id === r.teacherId);
+      const gr = groups.find((g) => g.id === r.groupId);
+      const sb = subjects.find((s) => s.id === r.subjectId);
+      const blob = [te?.fullName, gr?.name, gr?.schoolYear, sb?.code, sb?.name].filter(Boolean).join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [assignments, assignmentsGroupFilter, assignmentsTableSearch, groups, subjects, teachers]);
+  const filteredParentsTable = useMemo(() => {
+    const q = normalizeTableQuery(parentsTableSearch);
+    if (!q) return parents;
+    return parents.filter((r) => {
+      const blob = [r.fullName, r.email, r.phone ?? '', r.isPrimaryContact ? 'contacto principal' : ''].join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [parents, parentsTableSearch]);
+  const filteredLinksTable = useMemo(() => {
+    const q = normalizeTableQuery(linksTableSearch);
+    if (!q) return links;
+    return links.filter((r) => {
+      const blob = [r.studentFullName, r.parentFullName, r.relationship, r.canPickup ? 'recogida' : '', r.isPrimary ? 'principal' : ''].join(
+        ' '
+      );
+      return blob.toLowerCase().includes(q);
+    });
+  }, [links, linksTableSearch]);
   const loadStudentOptions = useCallback(
     async (q: string, signal: AbortSignal) => {
       if (!canLoad) return [];
@@ -1228,35 +1369,51 @@ export function SchoolRosterPage() {
             {downloadingLifecycleCsv ? 'Descargando…' : 'Exportar XLSX'}
           </button>
         </div>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600">
-                <th className="py-2 pr-4 font-medium">Fecha</th>
-                <th className="py-2 pr-4 font-medium">Tipo</th>
-                <th className="py-2 pr-4 font-medium">Persona</th>
-                <th className="py-2 pr-4 font-medium">Transición</th>
-                <th className="py-2 pr-4 font-medium">Motivo</th>
-                <th className="py-2 font-medium">Responsable</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lifecycleEvents.map((row) => (
-                <tr key={row.id} className="border-b border-slate-100">
-                  <td className="py-2 pr-4">{new Date(row.createdAt).toLocaleString()}</td>
-                  <td className="py-2 pr-4">{row.entityType === 'student' ? 'Alumno' : 'Docente'}</td>
-                  <td className="py-2 pr-4">{row.personName}</td>
-                  <td className="py-2 pr-4">
-                    {lifecycleLabel(row.fromStatus)} {'->'} {lifecycleLabel(row.toStatus)}
-                  </td>
-                  <td className="py-2 pr-4">{row.reason}</td>
-                  <td className="py-2">{row.changedByName}</td>
+        <div className="mt-4">
+          <div className="mb-3 flex justify-end">
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar en auditoría</span>
+              <input
+                type="search"
+                value={lifecycleAuditSearch}
+                onChange={(e) => setLifecycleAuditSearch(e.target.value)}
+                placeholder="Buscar persona, motivo, responsable…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
+            <table className="min-w-full text-left text-sm">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                  <th className="py-2 pr-4 font-medium">Fecha</th>
+                  <th className="py-2 pr-4 font-medium">Tipo</th>
+                  <th className="py-2 pr-4 font-medium">Persona</th>
+                  <th className="py-2 pr-4 font-medium">Transición</th>
+                  <th className="py-2 pr-4 font-medium">Motivo</th>
+                  <th className="py-2 font-medium">Responsable</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredLifecycleEvents.map((row) => (
+                  <tr key={row.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-4">{new Date(row.createdAt).toLocaleString()}</td>
+                    <td className="py-2 pr-4">{row.entityType === 'student' ? 'Alumno' : 'Docente'}</td>
+                    <td className="py-2 pr-4">{row.personName}</td>
+                    <td className="py-2 pr-4">
+                      {lifecycleLabel(row.fromStatus)} {'->'} {lifecycleLabel(row.toStatus)}
+                    </td>
+                    <td className="py-2 pr-4">{row.reason}</td>
+                    <td className="py-2">{row.changedByName}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DataTableScroll>
           {lifecycleEvents.length === 0 ? (
             <p className="mt-2 text-slate-500">Sin eventos lifecycle para esta escuela.</p>
+          ) : filteredLifecycleEvents.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ningún evento coincide con la búsqueda.</p>
           ) : null}
         </div>
       </section>
@@ -1329,51 +1486,69 @@ export function SchoolRosterPage() {
             </button>
           </div>
         </form>
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600">
-                <th className="py-2 pr-4 font-medium">Nombre</th>
-                <th className="py-2 pr-4 font-medium">Grado</th>
-                <th className="py-2 pr-4 font-medium">Turno</th>
-                <th className="py-2 pr-4 font-medium">Ciclo</th>
-                <th className="py-2 pr-4 font-medium">Aula</th>
-                <th className="py-2 pr-4 font-medium">Estado</th>
-                <th className="py-2 font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100">
-                  <td className="py-2 pr-4">{r.name}</td>
-                  <td className="py-2 pr-4">{r.grade ?? '—'}</td>
-                  <td className="py-2 pr-4">{shiftLabel(r.shift)}</td>
-                  <td className="py-2 pr-4">{r.schoolYear}</td>
-                  <td className="py-2 pr-4">{r.classroom ?? '—'}</td>
-                  <td className="py-2 pr-4">
-                    <span className={r.status !== false ? 'text-emerald-700' : 'text-slate-500'}>
-                      {r.status !== false ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="py-2">
-                    <div className="flex gap-2">
-                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => onEditGroup(r)}>
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="text-xs text-red-700 underline"
-                        onClick={() => setPendingDelete({ kind: 'group', id: r.id, label: `${r.name} (${r.schoolYear})` })}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
+        <div className="mt-6">
+          <div className="mb-3 flex justify-end">
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar grupos</span>
+              <input
+                type="search"
+                value={groupsTableSearch}
+                onChange={(e) => setGroupsTableSearch(e.target.value)}
+                placeholder="Buscar por nombre, ciclo, aula…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
+            <table className="min-w-full text-left text-sm">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                  <th className="py-2 pr-4 font-medium">Nombre</th>
+                  <th className="py-2 pr-4 font-medium">Grado</th>
+                  <th className="py-2 pr-4 font-medium">Turno</th>
+                  <th className="py-2 pr-4 font-medium">Ciclo</th>
+                  <th className="py-2 pr-4 font-medium">Aula</th>
+                  <th className="py-2 pr-4 font-medium">Estado</th>
+                  <th className="py-2 font-medium">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {groups.length === 0 && <p className="mt-2 text-slate-500">No hay grupos en esta escuela.</p>}
+              </thead>
+              <tbody>
+                {filteredGroupsTable.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-4">{r.name}</td>
+                    <td className="py-2 pr-4">{r.grade ?? '—'}</td>
+                    <td className="py-2 pr-4">{shiftLabel(r.shift)}</td>
+                    <td className="py-2 pr-4">{r.schoolYear}</td>
+                    <td className="py-2 pr-4">{r.classroom ?? '—'}</td>
+                    <td className="py-2 pr-4">
+                      <span className={r.status !== false ? 'text-emerald-700' : 'text-slate-500'}>
+                        {r.status !== false ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      <div className="flex gap-2">
+                        <button type="button" className="text-xs text-brand-800 underline" onClick={() => onEditGroup(r)}>
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-red-700 underline"
+                          onClick={() => setPendingDelete({ kind: 'group', id: r.id, label: `${r.name} (${r.schoolYear})` })}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DataTableScroll>
+          {groups.length === 0 ? (
+            <p className="mt-2 text-slate-500">No hay grupos en esta escuela.</p>
+          ) : filteredGroupsTable.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ningún grupo coincide con la búsqueda.</p>
+          ) : null}
         </div>
       </section>
 
@@ -1465,97 +1640,136 @@ export function SchoolRosterPage() {
         <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
           En la tabla puede cambiar el grupo de un alumno ya registrado; el cambio se guarda al elegir otra opción.
         </p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600">
-                <th className="w-28 py-2 pr-2 font-medium">Foto</th>
-                <th className="py-2 pr-4 font-medium">Nombre</th>
-                <th className="py-2 pr-4 font-medium">Matrícula</th>
-                <th className="py-2 pr-4 font-medium">Celular</th>
-                <th className="py-2 pr-4 font-medium">Estado</th>
-                <th className="py-2 pr-4 font-medium">Sale solo</th>
-                <th className="py-2 pr-4 font-medium">Acceso</th>
-                <th className="min-w-[14rem] py-2 font-medium">Grupo</th>
-                <th className="py-2 font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100">
-                  <td className="py-2 pr-2 align-middle">
-                    <RosterAvatar
-                      fullName={r.fullName}
-                      avatarUrl={r.avatarUrl}
-                      canUpload={canUploadAvatars}
-                      busy={uploadingAvatarUserId === r.userId}
-                      onPick={(file) => void onUserAvatarFile(r.userId, file)}
-                    />
-                  </td>
-                  <td className="py-2 pr-4 align-middle">{r.fullName}</td>
-                  <td className="py-2 pr-4 align-middle">{r.matricula}</td>
-                  <td className="py-2 pr-4 align-middle">{r.phone?.trim() ? r.phone : '—'}</td>
-                  <td className="py-2 pr-4 align-middle">{lifecycleLabel(r.lifecycleStatus)}</td>
-                  <td className="py-2 pr-4 align-middle">{r.canLeaveAlone ? 'Sí' : 'No'}</td>
-                  <td className="py-2 pr-4 align-middle">{r.canAccessCampus ? 'Sí' : 'No'}</td>
-                  <td className="py-2 align-middle">
-                    {(() => {
-                      const selectableGroups = groupCapacityRows.filter(
-                        (g) => !g.isFull || g.id === r.groupId
-                      );
-                      return (
-                    <select
-                      className="max-w-full rounded border border-slate-300 px-2 py-1.5 text-sm disabled:opacity-60"
-                      value={r.groupId ?? ''}
-                      disabled={updatingStudentId === r.id}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        void updateStudentGroup(r.id, v === '' ? null : v, r.groupId);
-                      }}
-                      aria-label={`Grupo de ${r.fullName}`}
-                    >
-                      <option value="">— Sin asignar —</option>
-                      {selectableGroups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name} ({g.schoolYear})
-                          {g.available != null ? ` · ${g.available} cupos` : ''}
-                        </option>
-                      ))}
-                    </select>
-                      );
-                    })()}
-                  </td>
-                  <td className="py-2 align-middle">
-                    <div className="flex gap-2">
-                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditStudent(r)}>
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="text-xs text-red-700 underline"
-                        onClick={() => setPendingDelete({ kind: 'student', id: r.id, label: r.fullName })}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
+        <div className="mt-4">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+            <label className="block w-full text-sm sm:min-w-[14rem] sm:max-w-xs">
+              <span className="mb-1 block text-slate-700">Filtrar por grupo</span>
+              <SmartSelect
+                options={studentsGroupFilterOptions}
+                value={studentsGroupFilter}
+                onChange={setStudentsGroupFilter}
+                placeholder="Todos los grupos"
+              />
+            </label>
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar alumnos</span>
+              <input
+                type="search"
+                value={studentsTableSearch}
+                onChange={(e) => setStudentsTableSearch(e.target.value)}
+                placeholder="Buscar nombre, matrícula, correo…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
+            <table className="min-w-full text-left text-sm">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                  <th className="w-28 py-2 pr-2 font-medium">Foto</th>
+                  <th className="py-2 pr-4 font-medium">Nombre</th>
+                  <th className="py-2 pr-4 font-medium">Matrícula</th>
+                  <th className="py-2 pr-4 font-medium">Celular</th>
+                  <th className="py-2 pr-4 font-medium">Estado</th>
+                  <th className="py-2 pr-4 font-medium">Sale solo</th>
+                  <th className="py-2 pr-4 font-medium">Acceso</th>
+                  <th className="min-w-[14rem] py-2 font-medium">Grupo</th>
+                  <th className="py-2 font-medium">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {students.length === 0 && <p className="mt-2 text-slate-500">No hay alumnos registrados.</p>}
+              </thead>
+              <tbody>
+                {filteredStudentsTable.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-2 align-middle">
+                      <RosterAvatar
+                        fullName={r.fullName}
+                        avatarUrl={r.avatarUrl}
+                        canUpload={canUploadAvatars}
+                        busy={uploadingAvatarUserId === r.userId}
+                        onPick={(file) => void onUserAvatarFile(r.userId, file)}
+                      />
+                    </td>
+                    <td className="py-2 pr-4 align-middle">{r.fullName}</td>
+                    <td className="py-2 pr-4 align-middle">{r.matricula}</td>
+                    <td className="py-2 pr-4 align-middle">{r.phone?.trim() ? r.phone : '—'}</td>
+                    <td className="py-2 pr-4 align-middle">{lifecycleLabel(r.lifecycleStatus)}</td>
+                    <td className="py-2 pr-4 align-middle">{r.canLeaveAlone ? 'Sí' : 'No'}</td>
+                    <td className="py-2 pr-4 align-middle">{r.canAccessCampus ? 'Sí' : 'No'}</td>
+                    <td className="py-2 align-middle">
+                      {(() => {
+                        const selectableGroups = groupCapacityRows.filter(
+                          (g) => !g.isFull || g.id === r.groupId
+                        );
+                        return (
+                          <select
+                            className="max-w-full rounded border border-slate-300 px-2 py-1.5 text-sm disabled:opacity-60"
+                            value={r.groupId ?? ''}
+                            disabled={updatingStudentId === r.id}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              void updateStudentGroup(r.id, v === '' ? null : v, r.groupId);
+                            }}
+                            aria-label={`Grupo de ${r.fullName}`}
+                          >
+                            <option value="">— Sin asignar —</option>
+                            {selectableGroups.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name} ({g.schoolYear})
+                                {g.available != null ? ` · ${g.available} cupos` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })()}
+                    </td>
+                    <td className="py-2 align-middle">
+                      <div className="flex gap-2">
+                        <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditStudent(r)}>
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-red-700 underline"
+                          onClick={() => setPendingDelete({ kind: 'student', id: r.id, label: r.fullName })}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DataTableScroll>
+          {students.length === 0 ? (
+            <p className="mt-2 text-slate-500">No hay alumnos registrados.</p>
+          ) : filteredStudentsTable.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ningún alumno coincide con el filtro.</p>
+          ) : null}
         </div>
         <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/50">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Grupos con cupo disponible</h3>
             <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
-              {groupCapacityRows.filter((g) => !g.isFull).length} de {groupCapacityRows.length} con espacio
+              {visibleGroupCapacityRows.length} de {groupCapacityRows.length} con espacio
             </span>
           </div>
-          <div className="overflow-x-auto">
+          <div className="mb-3 flex justify-end">
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar en cupos</span>
+              <input
+                type="search"
+                value={groupCapacitySearch}
+                onChange={(e) => setGroupCapacitySearch(e.target.value)}
+                placeholder="Buscar grupo…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
             <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-600">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
                   <th className="py-2 pr-4 font-medium">Grupo</th>
                   <th className="py-2 pr-4 font-medium">Turno</th>
                   <th className="py-2 pr-4 font-medium">Capacidad</th>
@@ -1565,54 +1779,49 @@ export function SchoolRosterPage() {
                 </tr>
               </thead>
               <tbody>
-                {groupCapacityRows
-                  .filter((g) => !g.isFull)
-                  .sort((a, b) => {
-                    const avA = a.available ?? Number.POSITIVE_INFINITY;
-                    const avB = b.available ?? Number.POSITIVE_INFINITY;
-                    return avB - avA;
-                  })
-                  .map((g) => (
-                    <tr key={g.id} className="border-b border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900">
-                      <td className="py-2 pr-4">
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{g.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {g.grade ?? '—'} · {g.schoolYear}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="py-2 pr-4">{shiftLabel(g.shift)}</td>
-                      <td className="py-2 pr-4">{g.capacity ?? 'Sin límite'}</td>
-                      <td className="py-2 pr-4">{g.occupied}</td>
-                      <td className="py-2 pr-4">
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                          {g.available ?? 'Ilimitado'}
-                        </span>
-                      </td>
-                      <td className="py-2">
-                        {g.ratio != null ? (
-                          <div className="w-36">
-                            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                              <div
-                                className={`h-full rounded-full ${g.ratio >= 85 ? 'bg-amber-500' : 'bg-brand-700'}`}
-                                style={{ width: `${g.ratio}%` }}
-                              />
-                            </div>
-                            <p className="mt-1 text-xs text-slate-500">{g.ratio}%</p>
+                {filteredGroupCapacityRows.map((g) => (
+                  <tr key={g.id} className="border-b border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900">
+                    <td className="py-2 pr-4">
+                      <div>
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{g.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {g.grade ?? '—'} · {g.schoolYear}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="py-2 pr-4">{shiftLabel(g.shift)}</td>
+                    <td className="py-2 pr-4">{g.capacity ?? 'Sin límite'}</td>
+                    <td className="py-2 pr-4">{g.occupied}</td>
+                    <td className="py-2 pr-4">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                        {g.available ?? 'Ilimitado'}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      {g.ratio != null ? (
+                        <div className="w-36">
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                            <div
+                              className={`h-full rounded-full ${g.ratio >= 85 ? 'bg-amber-500' : 'bg-brand-700'}`}
+                              style={{ width: `${g.ratio}%` }}
+                            />
                           </div>
-                        ) : (
-                          <span className="text-xs text-slate-500">Sin tope</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          <p className="mt-1 text-xs text-slate-500">{g.ratio}%</p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-500">Sin tope</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-            {groupCapacityRows.filter((g) => !g.isFull).length === 0 && (
-              <p className="mt-2 text-slate-500">No hay grupos con cupo disponible en este momento.</p>
-            )}
-          </div>
+          </DataTableScroll>
+          {visibleGroupCapacityRows.length === 0 ? (
+            <p className="mt-2 text-slate-500">No hay grupos con cupo disponible en este momento.</p>
+          ) : filteredGroupCapacityRows.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ningún grupo coincide con la búsqueda.</p>
+          ) : null}
         </div>
       </section>
 
@@ -1741,63 +1950,81 @@ export function SchoolRosterPage() {
             </button>
           </div>
         </form>
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600">
-                <th className="w-28 py-2 pr-2 font-medium">Foto</th>
-                <th className="py-2 pr-4 font-medium">Nombre</th>
-                <th className="py-2 pr-4 font-medium">No. empleado</th>
-                <th className="py-2 pr-4 font-medium">Asignaturas</th>
-                <th className="py-2 pr-4 font-medium">Celular</th>
-                <th className="py-2 pr-4 font-medium">Estado</th>
-                <th className="py-2 font-medium">Correo</th>
-                <th className="py-2 font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {teachers.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100">
-                  <td className="py-2 pr-2 align-middle">
-                    <RosterAvatar
-                      fullName={r.fullName}
-                      avatarUrl={r.avatarUrl}
-                      canUpload={canUploadAvatars}
-                      busy={uploadingAvatarUserId === r.userId}
-                      onPick={(file) => void onUserAvatarFile(r.userId, file)}
-                    />
-                  </td>
-                  <td className="py-2 pr-4">{r.fullName}</td>
-                  <td className="py-2 pr-4">{r.employeeNumber}</td>
-                  <td className="py-2 pr-4">
-                    {(teacherSubjectByTeacher.get(r.id) ?? []).length > 0
-                      ? (teacherSubjectByTeacher.get(r.id) ?? [])
-                          .map((x) => `${x.subjectCode} · ${x.subjectName}`)
-                          .join(', ')
-                      : '—'}
-                  </td>
-                  <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
-                  <td className="py-2 pr-4">{lifecycleLabel(r.lifecycleStatus)}</td>
-                  <td className="py-2">{r.email}</td>
-                  <td className="py-2">
-                    <div className="flex gap-2">
-                      <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditTeacher(r)}>
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="text-xs text-red-700 underline"
-                        onClick={() => setPendingDelete({ kind: 'teacher', id: r.id, label: r.fullName })}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
+        <div className="mt-6">
+          <div className="mb-3 flex justify-end">
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar docentes</span>
+              <input
+                type="search"
+                value={teachersTableSearch}
+                onChange={(e) => setTeachersTableSearch(e.target.value)}
+                placeholder="Buscar nombre, empleado, correo…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
+            <table className="min-w-full text-left text-sm">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                  <th className="w-28 py-2 pr-2 font-medium">Foto</th>
+                  <th className="py-2 pr-4 font-medium">Nombre</th>
+                  <th className="py-2 pr-4 font-medium">No. empleado</th>
+                  <th className="py-2 pr-4 font-medium">Asignaturas</th>
+                  <th className="py-2 pr-4 font-medium">Celular</th>
+                  <th className="py-2 pr-4 font-medium">Estado</th>
+                  <th className="py-2 font-medium">Correo</th>
+                  <th className="py-2 font-medium">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {teachers.length === 0 && <p className="mt-2 text-slate-500">No hay docentes registrados.</p>}
+              </thead>
+              <tbody>
+                {filteredTeachersTable.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-2 align-middle">
+                      <RosterAvatar
+                        fullName={r.fullName}
+                        avatarUrl={r.avatarUrl}
+                        canUpload={canUploadAvatars}
+                        busy={uploadingAvatarUserId === r.userId}
+                        onPick={(file) => void onUserAvatarFile(r.userId, file)}
+                      />
+                    </td>
+                    <td className="py-2 pr-4">{r.fullName}</td>
+                    <td className="py-2 pr-4">{r.employeeNumber}</td>
+                    <td className="py-2 pr-4">
+                      {(teacherSubjectByTeacher.get(r.id) ?? []).length > 0
+                        ? (teacherSubjectByTeacher.get(r.id) ?? [])
+                            .map((x) => `${x.subjectCode} · ${x.subjectName}`)
+                            .join(', ')
+                        : '—'}
+                    </td>
+                    <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
+                    <td className="py-2 pr-4">{lifecycleLabel(r.lifecycleStatus)}</td>
+                    <td className="py-2">{r.email}</td>
+                    <td className="py-2">
+                      <div className="flex gap-2">
+                        <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditTeacher(r)}>
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-red-700 underline"
+                          onClick={() => setPendingDelete({ kind: 'teacher', id: r.id, label: r.fullName })}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DataTableScroll>
+          {teachers.length === 0 ? (
+            <p className="mt-2 text-slate-500">No hay docentes registrados.</p>
+          ) : filteredTeachersTable.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ningún docente coincide con la búsqueda.</p>
+          ) : null}
         </div>
       </section>
 
@@ -1873,30 +2100,48 @@ export function SchoolRosterPage() {
               </button>
             </div>
           </form>
-          <div className="mt-6 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-600">
-                  <th className="py-2 pr-4 font-medium">Codigo</th>
-                  <th className="py-2 pr-4 font-medium">Nombre</th>
-                  <th className="py-2 pr-4 font-medium">Nivel</th>
-                  <th className="py-2 pr-4 font-medium">Grado</th>
-                  <th className="py-2 font-medium">Area</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subjects.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-4 font-medium text-slate-900">{s.code}</td>
-                    <td className="py-2 pr-4">{s.name}</td>
-                    <td className="py-2 pr-4">{s.educationLevel ?? '—'}</td>
-                    <td className="py-2 pr-4">{s.gradeScope ?? '—'}</td>
-                    <td className="py-2">{s.area ?? '—'}</td>
+          <div className="mt-6">
+            <div className="mb-3 flex justify-end">
+              <label className="block w-full sm:max-w-xs">
+                <span className="sr-only">Buscar asignaturas</span>
+                <input
+                  type="search"
+                  value={subjectsTableSearch}
+                  onChange={(e) => setSubjectsTableSearch(e.target.value)}
+                  placeholder="Buscar código, nombre, área…"
+                  className={DATA_TABLE_SEARCH_INPUT}
+                />
+              </label>
+            </div>
+            <DataTableScroll>
+              <table className="min-w-full text-left text-sm">
+                <thead className={DATA_TABLE_HEAD}>
+                  <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                    <th className="py-2 pr-4 font-medium">Codigo</th>
+                    <th className="py-2 pr-4 font-medium">Nombre</th>
+                    <th className="py-2 pr-4 font-medium">Nivel</th>
+                    <th className="py-2 pr-4 font-medium">Grado</th>
+                    <th className="py-2 font-medium">Area</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {subjects.length === 0 && <p className="mt-2 text-slate-500">No hay asignaturas creadas.</p>}
+                </thead>
+                <tbody>
+                  {filteredSubjectsTable.map((s) => (
+                    <tr key={s.id} className="border-b border-slate-100">
+                      <td className="py-2 pr-4 font-medium text-slate-900">{s.code}</td>
+                      <td className="py-2 pr-4">{s.name}</td>
+                      <td className="py-2 pr-4">{s.educationLevel ?? '—'}</td>
+                      <td className="py-2 pr-4">{s.gradeScope ?? '—'}</td>
+                      <td className="py-2">{s.area ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </DataTableScroll>
+            {subjects.length === 0 ? (
+              <p className="mt-2 text-slate-500">No hay asignaturas creadas.</p>
+            ) : filteredSubjectsTable.length === 0 ? (
+              <p className="mt-2 text-slate-500">Ninguna asignatura coincide con la búsqueda.</p>
+            ) : null}
           </div>
         </section>
       )}
@@ -2035,47 +2280,74 @@ export function SchoolRosterPage() {
             </div>
           ) : null}
         </div>
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600">
-                <th className="py-2 pr-4 font-medium">Docente</th>
-                <th className="py-2 pr-4 font-medium">Grupo</th>
-                <th className="py-2 pr-4 font-medium">Asignatura</th>
-                <th className="py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {assignments.map((r) => {
-                const te = teachers.find((t) => t.id === r.teacherId);
-                const gr = groups.find((g) => g.id === r.groupId);
-                const sb = subjects.find((s) => s.id === r.subjectId);
-                return (
-                  <tr key={r.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-4">{te?.fullName ?? r.teacherId}</td>
-                    <td className="py-2 pr-4">{gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}</td>
-                    <td className="py-2 pr-4">{sb ? `${sb.code} · ${sb.name}` : r.subjectId ?? '—'}</td>
-                    <td className="py-2">
-                      <button
-                        type="button"
-                        className="text-sm text-red-700 underline hover:text-red-900"
-                        onClick={() =>
-                          setPendingDelete({
-                            kind: 'assignment',
-                            id: r.id,
-                            label: `${te?.fullName ?? 'Docente'} / ${gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}`
-                          })
-                        }
-                      >
-                        Quitar
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {assignments.length === 0 && <p className="mt-2 text-slate-500">No hay asignaciones.</p>}
+        <div className="mt-6">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+            <label className="block w-full text-sm sm:min-w-[14rem] sm:max-w-xs">
+              <span className="mb-1 block text-slate-700">Filtrar por grupo</span>
+              <SmartSelect
+                options={assignmentsGroupFilterOptions}
+                value={assignmentsGroupFilter}
+                onChange={setAssignmentsGroupFilter}
+                placeholder="Todos los grupos"
+              />
+            </label>
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar asignaciones</span>
+              <input
+                type="search"
+                value={assignmentsTableSearch}
+                onChange={(e) => setAssignmentsTableSearch(e.target.value)}
+                placeholder="Buscar docente, grupo, materia…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
+            <table className="min-w-full text-left text-sm">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                  <th className="py-2 pr-4 font-medium">Docente</th>
+                  <th className="py-2 pr-4 font-medium">Grupo</th>
+                  <th className="py-2 pr-4 font-medium">Asignatura</th>
+                  <th className="py-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAssignmentsTable.map((r) => {
+                  const te = teachers.find((t) => t.id === r.teacherId);
+                  const gr = groups.find((g) => g.id === r.groupId);
+                  const sb = subjects.find((s) => s.id === r.subjectId);
+                  return (
+                    <tr key={r.id} className="border-b border-slate-100">
+                      <td className="py-2 pr-4">{te?.fullName ?? r.teacherId}</td>
+                      <td className="py-2 pr-4">{gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}</td>
+                      <td className="py-2 pr-4">{sb ? `${sb.code} · ${sb.name}` : r.subjectId ?? '—'}</td>
+                      <td className="py-2">
+                        <button
+                          type="button"
+                          className="text-sm text-red-700 underline hover:text-red-900"
+                          onClick={() =>
+                            setPendingDelete({
+                              kind: 'assignment',
+                              id: r.id,
+                              label: `${te?.fullName ?? 'Docente'} / ${gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}`
+                            })
+                          }
+                        >
+                          Quitar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </DataTableScroll>
+          {assignments.length === 0 ? (
+            <p className="mt-2 text-slate-500">No hay asignaciones.</p>
+          ) : filteredAssignmentsTable.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ninguna asignación coincide con el filtro.</p>
+          ) : null}
         </div>
       </section>
 
@@ -2135,121 +2407,141 @@ export function SchoolRosterPage() {
             </button>
           </div>
         </form>
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600">
-                <th className="w-28 py-2 pr-2 font-medium">Foto</th>
-                <th className="py-2 pr-4 font-medium">Nombre</th>
-                <th className="py-2 pr-4 font-medium">Correo</th>
-                <th className="py-2 pr-4 font-medium">Celular</th>
-                <th className="py-2 pr-4 font-medium">Principal</th>
-                <th className="py-2 pr-4 font-medium">Acceso</th>
-                <th className="py-2 font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parents.map((r) => (
-                <Fragment key={r.id}>
-                  <tr className="border-b border-slate-100">
-                    <td className="py-2 pr-2 align-middle">
-                      <RosterAvatar
-                        fullName={r.fullName}
-                        avatarUrl={r.avatarUrl}
-                        canUpload={canUploadAvatars}
-                        busy={uploadingAvatarUserId === r.userId}
-                        onPick={(file) => void onUserAvatarFile(r.userId, file)}
-                      />
-                    </td>
-                    <td className="py-2 pr-4">{r.fullName}</td>
-                    <td className="py-2 pr-4">{r.email}</td>
-                    <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
-                    <td className="py-2 pr-4">{r.isPrimaryContact ? 'Sí' : '—'}</td>
-                    <td className="py-2 pr-4">{r.canAccessCampus ? 'Sí' : 'No'}</td>
-                    <td className="py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditParent(r)}>
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs text-slate-600 underline"
-                          onClick={() => void loadParentVehicles(r.id)}
-                        >
-                          {vehicleParentId === r.id ? 'Ocultar vehículos' : 'Vehículos'}
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs text-red-700 underline"
-                          onClick={() => setPendingDelete({ kind: 'parent', id: r.id, label: r.fullName })}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {vehicleParentId === r.id && (
-                    <tr key={`${r.id}-vehicles`}>
-                      <td colSpan={7} className="bg-slate-50 px-4 pb-3 pt-2 dark:bg-slate-800/50">
-                        {loadingVehicles ? (
-                          <p className="text-xs text-slate-500">Cargando vehículos…</p>
-                        ) : parentVehicles.length === 0 ? (
-                          <p className="text-xs text-slate-500">Este padre/tutor no tiene vehículos registrados.</p>
-                        ) : (
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-slate-200 text-slate-500">
-                                <th className="py-1 pr-3 font-medium text-left">Placa</th>
-                                <th className="py-1 pr-3 font-medium text-left">Marca / Modelo</th>
-                                <th className="py-1 pr-3 font-medium text-left">Color / Año</th>
-                                <th className="py-1 pr-3 font-medium text-left">Estado</th>
-                                <th className="py-1 font-medium text-left">Acciones</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {parentVehicles.map((v) => (
-                                <tr key={v.id} className="border-b border-slate-100">
-                                  <td className="py-1 pr-3 font-mono font-semibold">{v.plate}</td>
-                                  <td className="py-1 pr-3">{[v.brand, v.model].filter(Boolean).join(' ') || '—'}</td>
-                                  <td className="py-1 pr-3">{[v.color, v.year ? String(v.year) : null].filter(Boolean).join(', ') || '—'}</td>
-                                  <td className="py-1 pr-3">
-                                    <span className={v.isActive ? 'text-emerald-700' : 'text-red-600'}>
-                                      {v.isActive ? 'Activo' : 'Inactivo'}
-                                    </span>
-                                  </td>
-                                  <td className="py-1">
-                                    <div className="flex gap-2">
-                                      <button
-                                        type="button"
-                                        disabled={vehicleActionId === v.id}
-                                        className="underline disabled:opacity-50"
-                                        onClick={() => void onVehicleSetActive(v.id, !v.isActive)}
-                                      >
-                                        {v.isActive ? 'Desactivar' : 'Activar'}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={vehicleActionId === v.id}
-                                        className="text-red-700 underline disabled:opacity-50"
-                                        onClick={() => void onVehicleDelete(v.id)}
-                                      >
-                                        Eliminar
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
+        <div className="mt-6">
+          <div className="mb-3 flex justify-end">
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar padres</span>
+              <input
+                type="search"
+                value={parentsTableSearch}
+                onChange={(e) => setParentsTableSearch(e.target.value)}
+                placeholder="Buscar nombre, correo, teléfono…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
+            <table className="min-w-full text-left text-sm">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                  <th className="w-28 py-2 pr-2 font-medium">Foto</th>
+                  <th className="py-2 pr-4 font-medium">Nombre</th>
+                  <th className="py-2 pr-4 font-medium">Correo</th>
+                  <th className="py-2 pr-4 font-medium">Celular</th>
+                  <th className="py-2 pr-4 font-medium">Principal</th>
+                  <th className="py-2 pr-4 font-medium">Acceso</th>
+                  <th className="py-2 font-medium">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredParentsTable.map((r) => (
+                  <Fragment key={r.id}>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-2 pr-2 align-middle">
+                        <RosterAvatar
+                          fullName={r.fullName}
+                          avatarUrl={r.avatarUrl}
+                          canUpload={canUploadAvatars}
+                          busy={uploadingAvatarUserId === r.userId}
+                          onPick={(file) => void onUserAvatarFile(r.userId, file)}
+                        />
+                      </td>
+                      <td className="py-2 pr-4">{r.fullName}</td>
+                      <td className="py-2 pr-4">{r.email}</td>
+                      <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
+                      <td className="py-2 pr-4">{r.isPrimaryContact ? 'Sí' : '—'}</td>
+                      <td className="py-2 pr-4">{r.canAccessCampus ? 'Sí' : 'No'}</td>
+                      <td className="py-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditParent(r)}>
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-slate-600 underline"
+                            onClick={() => void loadParentVehicles(r.id)}
+                          >
+                            {vehicleParentId === r.id ? 'Ocultar vehículos' : 'Vehículos'}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-red-700 underline"
+                            onClick={() => setPendingDelete({ kind: 'parent', id: r.id, label: r.fullName })}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-          {parents.length === 0 && <p className="mt-2 text-slate-500">No hay padres/tutores registrados.</p>}
+                    {vehicleParentId === r.id && (
+                      <tr key={`${r.id}-vehicles`}>
+                        <td colSpan={7} className="bg-slate-50 px-4 pb-3 pt-2 dark:bg-slate-800/50">
+                          {loadingVehicles ? (
+                            <p className="text-xs text-slate-500">Cargando vehículos…</p>
+                          ) : parentVehicles.length === 0 ? (
+                            <p className="text-xs text-slate-500">Este padre/tutor no tiene vehículos registrados.</p>
+                          ) : (
+                            <div className="max-h-48 overflow-auto rounded border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-900">
+                              <table className="w-full text-xs">
+                                <thead className={DATA_TABLE_HEAD}>
+                                  <tr className="border-b border-slate-200 text-slate-500 dark:border-slate-600">
+                                    <th className="py-1 pr-3 font-medium text-left">Placa</th>
+                                    <th className="py-1 pr-3 font-medium text-left">Marca / Modelo</th>
+                                    <th className="py-1 pr-3 font-medium text-left">Color / Año</th>
+                                    <th className="py-1 pr-3 font-medium text-left">Estado</th>
+                                    <th className="py-1 font-medium text-left">Acciones</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {parentVehicles.map((v) => (
+                                    <tr key={v.id} className="border-b border-slate-100">
+                                      <td className="py-1 pr-3 font-mono font-semibold">{v.plate}</td>
+                                      <td className="py-1 pr-3">{[v.brand, v.model].filter(Boolean).join(' ') || '—'}</td>
+                                      <td className="py-1 pr-3">{[v.color, v.year ? String(v.year) : null].filter(Boolean).join(', ') || '—'}</td>
+                                      <td className="py-1 pr-3">
+                                        <span className={v.isActive ? 'text-emerald-700' : 'text-red-600'}>
+                                          {v.isActive ? 'Activo' : 'Inactivo'}
+                                        </span>
+                                      </td>
+                                      <td className="py-1">
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={vehicleActionId === v.id}
+                                            className="underline disabled:opacity-50"
+                                            onClick={() => void onVehicleSetActive(v.id, !v.isActive)}
+                                          >
+                                            {v.isActive ? 'Desactivar' : 'Activar'}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={vehicleActionId === v.id}
+                                            className="text-red-700 underline disabled:opacity-50"
+                                            onClick={() => void onVehicleDelete(v.id)}
+                                          >
+                                            Eliminar
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </DataTableScroll>
+          {parents.length === 0 ? (
+            <p className="mt-2 text-slate-500">No hay padres/tutores registrados.</p>
+          ) : filteredParentsTable.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ningún contacto coincide con la búsqueda.</p>
+          ) : null}
         </div>
       </section>
 
@@ -2305,55 +2597,73 @@ export function SchoolRosterPage() {
             Vincular
           </button>
         </form>
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600">
-                <th className="py-2 pr-4 font-medium">Alumno</th>
-                <th className="py-2 pr-4 font-medium">Padre / tutor</th>
-                <th className="py-2 pr-4 font-medium">Parentesco</th>
-                <th className="py-2 pr-4 font-medium">Recogida</th>
-                <th className="py-2 pr-4 font-medium">Principal</th>
-                <th className="py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {links.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100">
-                  <td className="py-2 pr-4">{r.studentFullName}</td>
-                  <td className="py-2 pr-4">{r.parentFullName}</td>
-                  <td className="py-2 pr-4">{r.relationship}</td>
-                  <td className="py-2 pr-4">{r.canPickup ? 'Sí' : 'No'}</td>
-                  <td className="py-2 pr-4">{r.isPrimary ? 'Sí' : '—'}</td>
-                  <td className="py-2">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="text-xs text-brand-800 underline"
-                        onClick={() => onEditLink(r)}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="text-xs text-red-700 underline hover:text-red-900"
-                        onClick={() =>
-                          setPendingDelete({
-                            kind: 'link',
-                            id: r.id,
-                            label: `${r.studentFullName} ↔ ${r.parentFullName}`
-                          })
-                        }
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                  </td>
+        <div className="mt-6">
+          <div className="mb-3 flex justify-end">
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar vínculos</span>
+              <input
+                type="search"
+                value={linksTableSearch}
+                onChange={(e) => setLinksTableSearch(e.target.value)}
+                placeholder="Buscar alumno, tutor, parentesco…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          <DataTableScroll>
+            <table className="min-w-full text-left text-sm">
+              <thead className={DATA_TABLE_HEAD}>
+                <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                  <th className="py-2 pr-4 font-medium">Alumno</th>
+                  <th className="py-2 pr-4 font-medium">Padre / tutor</th>
+                  <th className="py-2 pr-4 font-medium">Parentesco</th>
+                  <th className="py-2 pr-4 font-medium">Recogida</th>
+                  <th className="py-2 pr-4 font-medium">Principal</th>
+                  <th className="py-2 font-medium" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {links.length === 0 && <p className="mt-2 text-slate-500">No hay vínculos registrados.</p>}
+              </thead>
+              <tbody>
+                {filteredLinksTable.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-4">{r.studentFullName}</td>
+                    <td className="py-2 pr-4">{r.parentFullName}</td>
+                    <td className="py-2 pr-4">{r.relationship}</td>
+                    <td className="py-2 pr-4">{r.canPickup ? 'Sí' : 'No'}</td>
+                    <td className="py-2 pr-4">{r.isPrimary ? 'Sí' : '—'}</td>
+                    <td className="py-2">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="text-xs text-brand-800 underline"
+                          onClick={() => onEditLink(r)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-red-700 underline hover:text-red-900"
+                          onClick={() =>
+                            setPendingDelete({
+                              kind: 'link',
+                              id: r.id,
+                              label: `${r.studentFullName} ↔ ${r.parentFullName}`
+                            })
+                          }
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DataTableScroll>
+          {links.length === 0 ? (
+            <p className="mt-2 text-slate-500">No hay vínculos registrados.</p>
+          ) : filteredLinksTable.length === 0 ? (
+            <p className="mt-2 text-slate-500">Ningún vínculo coincide con la búsqueda.</p>
+          ) : null}
         </div>
       </section>
       <ConfirmDialog
