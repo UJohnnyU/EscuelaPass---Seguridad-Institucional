@@ -7,11 +7,27 @@ import logoUrl from '@/assets/landing/logo.png';
 
 const REMEMBER_KEY = 'ep_login_remember_email';
 
-const ROLE_CHIPS = [
-  { short: 'AL', label: 'Alumno' },
-  { short: 'PA', label: 'Padre' },
-  { short: 'DC', label: 'Docente' },
-  { short: 'AD', label: 'Administrativo' }
+const ROLE_BADGES: Array<{ label: string; className: string }> = [
+  {
+    label: 'Alumno',
+    className:
+      'bg-gradient-to-br from-brand-100 via-brand-200 to-brand-300 text-brand-950 shadow-sm shadow-brand-900/10 ring-1 ring-white/40'
+  },
+  {
+    label: 'Padre',
+    className:
+      'bg-gradient-to-br from-brand-300 via-brand-400 to-brand-500 text-brand-950 shadow-md shadow-brand-950/15 ring-1 ring-white/25'
+  },
+  {
+    label: 'Docente',
+    className:
+      'bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 text-white shadow-md shadow-brand-950/25 ring-1 ring-brand-400/35'
+  },
+  {
+    label: 'Administrativo',
+    className:
+      'bg-gradient-to-br from-brand-800 via-brand-900 to-brand-950 text-brand-50 shadow-lg shadow-black/30 ring-1 ring-brand-600/40'
+  }
 ];
 
 function MailIcon({ className }: { className?: string }) {
@@ -23,7 +39,7 @@ function MailIcon({ className }: { className?: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.75"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
@@ -42,7 +58,7 @@ function LockIcon({ className }: { className?: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.75"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
@@ -157,19 +173,24 @@ export function LoginPage() {
                   Correo electrónico
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/[0.06] text-white/80 ring-1 ring-white/10">
-                    <MailIcon />
-                  </span>
-                  <input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    placeholder="nombre@colegio.edu"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-white/15 bg-white/10 py-3 pl-[3.25rem] pr-4 text-sm text-white placeholder:text-brand-200/40 outline-none ring-brand-400/30 backdrop-blur-sm transition focus:border-brand-300/40 focus:ring-2"
-                  />
+                  <div className="flex min-h-[3rem] w-full overflow-hidden rounded-2xl border border-white/15 bg-white/[0.12] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition focus-within:border-brand-300/45 focus-within:ring-2 focus-within:ring-brand-400/25">
+                    <div
+                      className="flex w-11 shrink-0 items-center justify-center border-r border-white/10 bg-brand-950/35 text-white"
+                      aria-hidden
+                    >
+                      <MailIcon />
+                    </div>
+                    <input
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      placeholder="nombre@colegio.edu"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="min-w-0 flex-1 border-0 bg-transparent py-3 pl-3 pr-4 text-sm text-white placeholder:text-brand-200/45 outline-none ring-0 focus:ring-0"
+                    />
+                  </div>
                 </div>
               </div>
               <div>
@@ -177,27 +198,32 @@ export function LoginPage() {
                   Contraseña
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/[0.06] text-white/80 ring-1 ring-white/10">
-                    <LockIcon />
-                  </span>
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-2xl border border-white/15 bg-white/10 py-3 pl-[3.25rem] pr-12 text-sm text-white placeholder:text-brand-200/40 outline-none ring-brand-400/30 backdrop-blur-sm transition focus:border-brand-300/40 focus:ring-2"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-brand-200/80 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400"
-                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  >
-                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                  </button>
+                  <div className="flex min-h-[3rem] w-full overflow-hidden rounded-2xl border border-white/15 bg-white/[0.12] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition focus-within:border-brand-300/45 focus-within:ring-2 focus-within:ring-brand-400/25">
+                    <div
+                      className="flex w-11 shrink-0 items-center justify-center border-r border-white/10 bg-brand-950/35 text-white"
+                      aria-hidden
+                    >
+                      <LockIcon />
+                    </div>
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="min-w-0 flex-1 border-0 bg-transparent py-3 pl-3 pr-2 text-sm text-white placeholder:text-brand-200/45 outline-none ring-0 focus:ring-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="flex shrink-0 items-center justify-center px-3 text-brand-100/90 transition hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-400"
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    >
+                      {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -276,15 +302,13 @@ export function LoginPage() {
               Cada perfil dispone de las pantallas que corresponden a su función en la institución.
             </p>
             <p className="mt-5 text-xs font-medium text-brand-200/70">Perfiles en la institución</p>
-            <div className="mt-3 flex flex-wrap items-end justify-between gap-3 sm:gap-4">
-              {ROLE_CHIPS.map((role) => (
-                <div key={role.label} className="flex min-w-[4.25rem] flex-col items-center gap-1.5">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-900 bg-gradient-to-br from-brand-500 to-brand-700 text-[10px] font-bold text-white shadow-md shadow-brand-950/30">
-                    {role.short}
-                  </span>
-                  <span className="max-w-[5rem] text-center text-[10px] font-medium leading-tight text-brand-200/80">
-                    {role.label}
-                  </span>
+            <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-2">
+              {ROLE_BADGES.map((role) => (
+                <div
+                  key={role.label}
+                  className={`rounded-xl px-3 py-2.5 text-center text-[11px] font-semibold leading-snug tracking-tight sm:text-xs ${role.className}`}
+                >
+                  {role.label}
                 </div>
               ))}
             </div>
