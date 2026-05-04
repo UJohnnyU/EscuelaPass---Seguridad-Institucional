@@ -74,6 +74,19 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
     );
 
     await runner.query(
+      `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_matutino_start time NULL`
+    );
+    await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_matutino_end time NULL`);
+    await runner.query(
+      `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_vespertino_start time NULL`
+    );
+    await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_vespertino_end time NULL`);
+    await runner.query(
+      `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_nocturno_start time NULL`
+    );
+    await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_nocturno_end time NULL`);
+
+    await runner.query(
       `ALTER TABLE activities ADD COLUMN IF NOT EXISTS period_id uuid NULL`
     );
     await runner.query(
@@ -496,6 +509,15 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
       END $$;
     `);
 
+    await runner.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token varchar(128) NULL`
+    );
+    await runner.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at timestamptz NULL`
+    );
+    await runner.query(
+      `CREATE INDEX IF NOT EXISTS ix_users_password_reset_token ON users (password_reset_token) WHERE password_reset_token IS NOT NULL`
+    );
     await runner.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(500) NULL`);
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500) NULL`);
     await runner.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS student_matricula_prefix VARCHAR(20) NULL`);
