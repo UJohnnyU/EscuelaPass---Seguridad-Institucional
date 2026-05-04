@@ -231,6 +231,24 @@ type StudentActivity = {
   publishedAt?: string | null;
 };
 
+/** Más urgente primero: vencidas (fecha más antigua primero), luego fechas futuras (más cercana primero), sin fecha al final. */
+function compareUpcomingByUrgency(a: StudentActivity, b: StudentActivity): number {
+  const daysA = daysUntilDueYmd(a.dueDate);
+  const daysB = daysUntilDueYmd(b.dueDate);
+  const da = a.dueDate?.slice(0, 10) ?? '';
+  const db = b.dueDate?.slice(0, 10) ?? '';
+
+  if (daysA === null && daysB === null) return (a.title ?? '').localeCompare(b.title ?? '', 'es');
+  if (daysA === null) return 1;
+  if (daysB === null) return -1;
+
+  const overA = daysA < 0;
+  const overB = daysB < 0;
+  if (overA && !overB) return -1;
+  if (!overA && overB) return 1;
+  return da.localeCompare(db);
+}
+
 type Notification = {
   id: string;
   title?: string;
@@ -318,133 +336,133 @@ function HomeAlumno() {
   }, [activities]);
 
   const upcoming = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
     return activities
       .filter((a) => !activityHasPublishedScore(a))
-      .sort((a, b) => {
-        const da = a.dueDate?.slice(0, 10) ?? '';
-        const db = b.dueDate?.slice(0, 10) ?? '';
-        const aOver = da && da < today;
-        const bOver = db && db < today;
-        if (aOver !== bOver) return aOver ? -1 : 1;
-        if (da && db) return da.localeCompare(db);
-        if (da && !db) return -1;
-        if (!da && db) return 1;
-        return (a.title ?? '').localeCompare(b.title ?? '', 'es');
-      })
-      .slice(0, 6);
+      .sort(compareUpcomingByUrgency)
+      .slice(0, 18);
   }, [activities]);
 
   const latestReportCards = useMemo(() => reportCards.slice(0, 3), [reportCards]);
   const latestNotifs = useMemo(() => notifications.slice(0, 5), [notifications]);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {err ? (
-        <div className="md:col-span-2 xl:col-span-3 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          {err}
-        </div>
-      ) : null}
-      <Card title="Últimas calificaciones" to="/app/modulos/mis-calificaciones" accent="emerald">
-        {latestGraded.length === 0 ? (
-          <p className="text-slate-500">Aún no hay notas publicadas.</p>
-        ) : (
-          <ul className="space-y-2">
-            {latestGraded.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-900">{a.title}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {a.subjectName} · {a.period ?? ''}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${gradeScoreBadgeClass(a.myScore, a.maxScore)}`}
-                >
-                  {a.myScore}
-                  {a.maxScore ? `/${a.maxScore}` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card title="Próximas entregas" to="/app/modulos/mis-calificaciones" accent="amber">
-        {upcoming.length === 0 ? (
-          <p className="text-slate-500 dark:text-slate-400">
-            No tienes actividades pendientes sin calificar. Cuando tu docente asigne trabajo nuevo, aparecerá aquí con la
-            fecha límite y un recordatorio según el tiempo que quede.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {upcoming.map((a) => {
-              const u = dueDateUrgency(a.dueDate);
-              return (
-                <li key={a.id} className={`px-3 py-2 text-sm ${u.rowClass}`}>
-                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">{a.title}</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300">
-                    {a.subjectName}
-                    {a.dueDate
-                      ? ` · entrega ${formatISO(a.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}`
-                      : ' · sin fecha límite en el sistema'}
-                  </p>
-                  <p className={`mt-1.5 text-xs leading-snug ${u.bandClass}`}>
-                    <span className="mr-1" aria-hidden>
-                      {u.emoji}
-                    </span>
-                    {u.message}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Card>
-
-      <Card title="Mis boletines" to="/app/modulos/boletines" accent="indigo">
-        {latestReportCards.length === 0 ? (
-          <p className="text-slate-500">Los boletines aparecerán al cerrar cada periodo.</p>
-        ) : (
-          <ul className="space-y-2">
-            {latestReportCards.map((r) => (
-              <li key={r.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm">
-                <div>
-                  <p className="font-medium text-slate-900">
-                    {r.type === 'FINAL' ? `Boletín final ${r.schoolYear}` : `Periodo ${r.schoolYear}`}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Publicado {formatISO(r.publishedAt, { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
-                {r.overallAverage ? (
-                  <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-800">
-                    {Number(r.overallAverage).toFixed(2)}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {err ? (
+          <div className="rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 md:col-span-3">
+            {err}
+          </div>
+        ) : null}
+        <Card title="Últimas calificaciones" to="/app/modulos/mis-calificaciones" accent="emerald">
+          {latestGraded.length === 0 ? (
+            <p className="text-slate-500">Aún no hay notas publicadas.</p>
+          ) : (
+            <ul className="space-y-2">
+              {latestGraded.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-900">{a.title}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {a.subjectName} · {a.period ?? ''}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${gradeScoreBadgeClass(a.myScore, a.maxScore)}`}
+                  >
+                    {a.myScore}
+                    {a.maxScore ? `/${a.maxScore}` : ''}
                   </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
 
-      <Card title="Notificaciones recientes" to="/app/modulos/comunicacion" accent="slate">
-        {latestNotifs.length === 0 ? (
-          <p className="text-slate-500">Aún no hay avisos recientes.</p>
-        ) : (
-          <ul className="space-y-2">
-            {latestNotifs.map((n) => (
-              <li key={n.id} className="rounded-lg bg-white px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate font-medium text-slate-900">{n.title ?? 'Aviso'}</p>
-                  {!n.readAt ? <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" aria-label="nueva" /> : null}
-                </div>
-                <p className="truncate text-xs text-slate-500">{n.message}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+        <Card title="Mis boletines" to="/app/modulos/boletines" accent="indigo">
+          {latestReportCards.length === 0 ? (
+            <p className="text-slate-500">Los boletines aparecerán al cerrar cada periodo.</p>
+          ) : (
+            <ul className="space-y-2">
+              {latestReportCards.map((r) => (
+                <li key={r.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {r.type === 'FINAL' ? `Boletín final ${r.schoolYear}` : `Periodo ${r.schoolYear}`}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Publicado {formatISO(r.publishedAt, { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  {r.overallAverage ? (
+                    <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-800">
+                      {Number(r.overallAverage).toFixed(2)}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Notificaciones recientes" to="/app/modulos/comunicacion" accent="slate">
+          {latestNotifs.length === 0 ? (
+            <p className="text-slate-500">Aún no hay avisos recientes.</p>
+          ) : (
+            <ul className="space-y-2">
+              {latestNotifs.map((n) => (
+                <li key={n.id} className="rounded-lg bg-white px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate font-medium text-slate-900">{n.title ?? 'Aviso'}</p>
+                    {!n.readAt ? <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" aria-label="nueva" /> : null}
+                  </div>
+                  <p className="truncate text-xs text-slate-500">{n.message}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <div className="min-w-0">
+        <Card
+          title="Próximas entregas"
+          subtitle="Ordenadas por urgencia (primero lo más prioritario). Revisa fechas y mensajes."
+          to="/app/modulos/mis-calificaciones"
+          accent="amber"
+        >
+          {upcoming.length === 0 ? (
+            <p className="text-slate-500 dark:text-slate-400">
+              No tienes actividades pendientes sin calificar. Cuando tu docente asigne trabajo nuevo, aparecerá aquí con la
+              fecha límite y un recordatorio según el tiempo que quede.
+            </p>
+          ) : (
+            <div className="max-h-[min(70vh,32rem)] overflow-y-auto overflow-x-hidden pr-1">
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {upcoming.map((a) => {
+                  const u = dueDateUrgency(a.dueDate);
+                  return (
+                    <li key={a.id} className={`min-h-0 min-w-0 px-3 py-2 text-sm ${u.rowClass}`}>
+                      <p className="line-clamp-2 font-medium text-slate-900 dark:text-slate-100">{a.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                        {a.subjectName}
+                        {a.dueDate
+                          ? ` · entrega ${formatISO(a.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}`
+                          : ' · sin fecha límite en el sistema'}
+                      </p>
+                      <p className={`mt-1.5 text-xs leading-snug ${u.bandClass}`}>
+                        <span className="mr-1" aria-hidden>
+                          {u.emoji}
+                        </span>
+                        {u.message}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
