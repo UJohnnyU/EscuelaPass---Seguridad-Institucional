@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { DetailModal } from '@/components/DetailModal';
+import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isStaff } from '@/lib/roles';
@@ -83,6 +84,7 @@ export function VisitasPage() {
   const platformAdmin = user?.role === 'ADMIN';
 
   const [tab, setTab] = useState<'upcoming' | 'past' | 'organized'>('upcoming');
+  const [listSearch, setListSearch] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [mine, setMine] = useState<VisitRow[]>([]);
@@ -155,6 +157,10 @@ export function VisitasPage() {
   }, [loadLists]);
 
   useEffect(() => {
+    setListSearch('');
+  }, [tab]);
+
+  useEffect(() => {
     if (!selectedId) {
       setDetail(null);
       return;
@@ -192,6 +198,26 @@ export function VisitasPage() {
   }, [mine]);
 
   const list = tab === 'upcoming' ? upcoming : tab === 'past' ? past : organized;
+  const filteredList = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((v) => {
+      const blob = [
+        v.title,
+        v.purpose,
+        v.visitorName,
+        v.visitorOrganization,
+        v.location,
+        v.status,
+        formatDateLong(v.visitDatetime),
+        v.audienceScope
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [list, listSearch]);
   const allVisits = useMemo(() => {
     const byId = new Map<string, VisitRow>();
     [...mine, ...organized].forEach((v) => byId.set(v.id, v));
@@ -369,35 +395,53 @@ export function VisitasPage() {
           {list.length === 0 ? (
             <p className="text-sm text-slate-600">No hay visitas en esta vista.</p>
           ) : (
-            <ul className="space-y-3">
-              {list.map((v) => (
-                <li
-                  key={v.id}
-                  className="rounded border border-slate-200 bg-slate-50 p-3 transition hover:bg-white"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(v.id)}
-                    className="flex w-full flex-col gap-1 text-left"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-900">{v.title}</span>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(v.status)}`}
+            <>
+              <label className="mb-3 block max-w-md text-sm text-slate-700">
+                <span className="font-medium">Buscar en esta vista</span>
+                <input
+                  type="search"
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  placeholder="Título, visitante, lugar, estado…"
+                  className={`mt-1 ${DATA_TABLE_SEARCH_INPUT}`}
+                />
+              </label>
+              {filteredList.length === 0 ? (
+                <p className="text-sm text-slate-600">Ninguna visita coincide con la búsqueda.</p>
+              ) : (
+                <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
+                  <ul className="space-y-3">
+                    {filteredList.map((v) => (
+                      <li
+                        key={v.id}
+                        className="rounded border border-slate-200 bg-slate-50 p-3 transition hover:bg-white"
                       >
-                        {v.status}
-                      </span>
-                    </div>
-                    <span className="text-sm text-slate-700">{formatDateLong(v.visitDatetime)}</span>
-                    <span className="text-xs text-slate-500">
-                      Visitante: {v.visitorName}
-                      {v.visitorOrganization ? ` · ${v.visitorOrganization}` : ''}
-                      {v.location ? ` · ${v.location}` : ''}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId(v.id)}
+                          className="flex w-full flex-col gap-1 text-left"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-semibold text-slate-900">{v.title}</span>
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(v.status)}`}
+                            >
+                              {v.status}
+                            </span>
+                          </div>
+                          <span className="text-sm text-slate-700">{formatDateLong(v.visitDatetime)}</span>
+                          <span className="text-xs text-slate-500">
+                            Visitante: {v.visitorName}
+                            {v.visitorOrganization ? ` · ${v.visitorOrganization}` : ''}
+                            {v.location ? ` · ${v.location}` : ''}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -784,23 +828,25 @@ function CreateVisitPanel({
                   />
                 </div>
               </div>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {groupIds.map((id) => (
-                  <li
-                    key={id}
-                    className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
-                  >
-                    {id.slice(0, 8)}…
-                    <button
-                      type="button"
-                      onClick={() => setGroupIds(groupIds.filter((x) => x !== id))}
-                      className="text-slate-500 hover:text-slate-800"
+              <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
+                <ul className="flex flex-wrap gap-2 py-0.5">
+                  {groupIds.map((id) => (
+                    <li
+                      key={id}
+                      className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                     >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      {id.slice(0, 8)}…
+                      <button
+                        type="button"
+                        onClick={() => setGroupIds(groupIds.filter((x) => x !== id))}
+                        className="text-slate-500 hover:text-slate-800"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
           {scope === 'STUDENTS' && (
@@ -819,23 +865,25 @@ function CreateVisitPanel({
                   />
                 </div>
               </div>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {studentIds.map((id) => (
-                  <li
-                    key={id}
-                    className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
-                  >
-                    {id.slice(0, 8)}…
-                    <button
-                      type="button"
-                      onClick={() => setStudentIds(studentIds.filter((x) => x !== id))}
-                      className="text-slate-500 hover:text-slate-800"
+              <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
+                <ul className="flex flex-wrap gap-2 py-0.5">
+                  {studentIds.map((id) => (
+                    <li
+                      key={id}
+                      className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                     >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      {id.slice(0, 8)}…
+                      <button
+                        type="button"
+                        onClick={() => setStudentIds(studentIds.filter((x) => x !== id))}
+                        className="text-slate-500 hover:text-slate-800"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
           <div className="sm:col-span-2">

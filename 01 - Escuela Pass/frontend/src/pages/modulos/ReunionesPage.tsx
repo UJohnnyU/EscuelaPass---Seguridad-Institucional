@@ -2,7 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { DetailModal } from '@/components/DetailModal';
-import { SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
+import { SCROLLABLE_PANEL_BODY, DATA_TABLE_SEARCH_INPUT } from '@/components/DataTableScroll';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isStaff } from '@/lib/roles';
@@ -121,6 +121,7 @@ export function ReunionesPage() {
   const showOrganizedTab = staff;
 
   const [tab, setTab] = useState<'mine' | 'organized' | 'past'>('mine');
+  const [listSearch, setListSearch] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [mine, setMine] = useState<Meeting[]>([]);
@@ -191,6 +192,10 @@ export function ReunionesPage() {
   }, [loadLists]);
 
   useEffect(() => {
+    setListSearch('');
+  }, [tab]);
+
+  useEffect(() => {
     if (!showOrganizedTab && tab === 'organized') {
       setTab('mine');
     }
@@ -246,6 +251,29 @@ export function ReunionesPage() {
       : tab === 'organized'
         ? organized
         : past;
+
+  const filteredMeetingList = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((m) => {
+      const blob = [
+        m.title,
+        m.purpose,
+        m.modality,
+        m.location,
+        m.meetingLink,
+        m.status,
+        formatDateLong(m.startAt),
+        String(m.participants.length),
+        m.organizerRole
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [list, listSearch]);
+
   const allMeetings = useMemo(() => {
     const byId = new Map<string, Meeting>();
     [...mine, ...organized].forEach((m) => byId.set(m.id, m));
@@ -382,53 +410,71 @@ export function ReunionesPage() {
         </div>
         <div className="p-4">
           {list.length === 0 ? (
-            <p className="text-sm text-slate-600">No hay reuniones en esta vista.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">No hay reuniones en esta vista.</p>
           ) : (
-            <ul className="space-y-3">
-              {list.map((m) => {
-                const myPart = m.participants.find((p) => p.userId === user?.id);
-                const isOrganizer = m.organizerUserId === user?.id;
-                return (
-                  <li
-                    key={m.id}
-                    className="rounded border border-slate-200 bg-slate-50 p-3 transition hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-900"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(m.id)}
-                      className="flex w-full flex-col gap-1 text-left"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-semibold text-slate-900">{m.title}</span>
-                        <div className="flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(m.status)}`}
+            <>
+              <label className="mb-3 block max-w-md text-sm text-slate-700 dark:text-slate-200">
+                <span className="font-medium">Buscar en esta vista</span>
+                <input
+                  type="search"
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  placeholder="Título, modalidad, lugar, estado…"
+                  className={`mt-1 ${DATA_TABLE_SEARCH_INPUT}`}
+                />
+              </label>
+              {filteredMeetingList.length === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-slate-300">Ninguna reunión coincide con la búsqueda.</p>
+              ) : (
+                <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
+                  <ul className="space-y-3">
+                    {filteredMeetingList.map((m) => {
+                      const myPart = m.participants.find((p) => p.userId === user?.id);
+                      const isOrganizer = m.organizerUserId === user?.id;
+                      return (
+                        <li
+                          key={m.id}
+                          className="rounded border border-slate-200 bg-slate-50 p-3 transition hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-900"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setSelectedId(m.id)}
+                            className="flex w-full flex-col gap-1 text-left"
                           >
-                            {m.status}
-                          </span>
-                          {myPart && !isOrganizer && (
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${rsvpBadgeClass(myPart.rsvp)}`}
-                              title={rsvpHint(myPart.rsvp)}
-                            >
-                              {rsvpLabel(myPart.rsvp)}
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-semibold text-slate-900 dark:text-slate-100">{m.title}</span>
+                              <div className="flex flex-wrap gap-2">
+                                <span
+                                  className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(m.status)}`}
+                                >
+                                  {m.status}
+                                </span>
+                                {myPart && !isOrganizer && (
+                                  <span
+                                    className={`rounded-full border px-2 py-0.5 text-xs font-medium ${rsvpBadgeClass(myPart.rsvp)}`}
+                                    title={rsvpHint(myPart.rsvp)}
+                                  >
+                                    {rsvpLabel(myPart.rsvp)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-sm text-slate-700 dark:text-slate-300">{formatDateLong(m.startAt)}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              Modalidad: {m.modality}
+                              {m.modality === 'PRESENCIAL' && m.location ? ` · ${m.location}` : ''}
+                              {' · '}
+                              {m.participants.length} participantes · {m.counts.accepted} aceptadas ·{' '}
+                              {m.counts.declined} declinadas · {m.counts.noShow} no asistieron
                             </span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-sm text-slate-700">{formatDateLong(m.startAt)}</span>
-                      <span className="text-xs text-slate-500">
-                        Modalidad: {m.modality}
-                        {m.modality === 'PRESENCIAL' && m.location ? ` · ${m.location}` : ''}
-                        {' · '}
-                        {m.participants.length} participantes · {m.counts.accepted} aceptadas ·{' '}
-                        {m.counts.declined} declinadas · {m.counts.noShow} no asistieron
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -890,23 +936,25 @@ function CreateMeetingPanel({
                   placeholder="— Buscar grupo —"
                 />
               </div>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {presetParents.map((id) => (
-                  <li
-                    key={id}
-                    className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
-                  >
-                    {id.slice(0, 8)}…
-                    <button
-                      type="button"
-                      onClick={() => setPresetParents(presetParents.filter((x) => x !== id))}
-                      className="text-slate-500 hover:text-slate-800"
+              <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
+                <ul className="flex flex-wrap gap-2 py-0.5">
+                  {presetParents.map((id) => (
+                    <li
+                      key={id}
+                      className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                     >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      {id.slice(0, 8)}…
+                      <button
+                        type="button"
+                        onClick={() => setPresetParents(presetParents.filter((x) => x !== id))}
+                        className="text-slate-500 hover:text-slate-800"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </fieldset>
 
@@ -924,23 +972,25 @@ function CreateMeetingPanel({
                 placeholder="— Buscar usuario —"
               />
             </div>
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {invitees.map((i) => (
-                <li
-                  key={i.userId}
-                  className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
-                >
-                  {i.label}
-                  <button
-                    type="button"
-                    onClick={() => setInvitees(invitees.filter((x) => x.userId !== i.userId))}
-                    className="text-slate-500 hover:text-slate-800"
+            <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
+              <ul className="flex flex-wrap gap-2 py-0.5">
+                {invitees.map((i) => (
+                  <li
+                    key={i.userId}
+                    className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                   >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    {i.label}
+                    <button
+                      type="button"
+                      onClick={() => setInvitees(invitees.filter((x) => x.userId !== i.userId))}
+                      className="text-slate-500 hover:text-slate-800"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           <div className="sm:col-span-2">
