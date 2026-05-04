@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { getMapboxStyleUrl, isMapboxConfigured, mapPinElement, mapboxgl } from '@/lib/mapbox-basemap';
+import { attachMapboxStyleRecovery, getMapboxStyleUrl, isMapboxConfigured, mapPinElement, mapboxgl } from '@/lib/mapbox-basemap';
 
 function escapeHtml(s: string): string {
   return s
@@ -46,6 +46,8 @@ export function InstitutionMap({
       )
       .addTo(map);
 
+    const removeRecovery = attachMapboxStyleRecovery(map);
+
     const ro = new ResizeObserver(() => {
       try {
         map.resize();
@@ -57,6 +59,7 @@ export function InstitutionMap({
 
     return () => {
       ro.disconnect();
+      removeRecovery();
       marker.remove();
       map.remove();
     };

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   arrivalZoneFeature,
+  attachMapboxStyleRecovery,
   findFirstSymbolLayerId,
   getMapboxStyleUrl,
   isMapboxConfigured,
@@ -147,7 +148,8 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
       fit();
     };
 
-    map.once('load', onStyleLoad);
+    const removeRecovery = attachMapboxStyleRecovery(map);
+    map.on('style.load', onStyleLoad);
 
     const ro = new ResizeObserver(() => {
       try {
@@ -160,6 +162,8 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
 
     return () => {
       ro.disconnect();
+      removeRecovery();
+      map.off('style.load', onStyleLoad);
       schoolMarker.remove();
       parentMarker.remove();
       map.remove();
