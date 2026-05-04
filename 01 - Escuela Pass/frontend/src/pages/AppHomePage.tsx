@@ -73,15 +73,26 @@ function activityHasPublishedScore(a: { myScore?: string | number | null }): boo
   return true;
 }
 
-/** Días hasta la fecha límite (YYYY-MM-DD); negativo = vencida; sin fecha válida → null */
+/** Días hasta la fecha límite (calendario local); negativo = vencida; sin fecha válida → null */
 function daysUntilDueYmd(dueYmd: string | null | undefined): number | null {
   if (!dueYmd || !/^\d{4}-\d{2}-\d{2}/.test(dueYmd)) return null;
-  const ymd = dueYmd.slice(0, 10);
+  const parts = dueYmd.slice(0, 10).split('-').map(Number);
+  const [yy, mm, dd] = parts;
+  if (!yy || !mm || !dd) return null;
+  const due = new Date(yy, mm - 1, dd);
+  due.setHours(0, 0, 0, 0);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const due = new Date(`${ymd}T12:00:00`);
-  due.setHours(0, 0, 0, 0);
   return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
+
+/** Fecha límite YYYY-MM-DD mostrada en día calendario local (sin desfase UTC). */
+function formatDueDateLocalYmd(dueYmd: string | null | undefined): string {
+  if (!dueYmd || !/^\d{4}-\d{2}-\d{2}/.test(dueYmd)) return '—';
+  const [yy, mm, dd] = dueYmd.slice(0, 10).split('-').map(Number);
+  if (!yy || !mm || !dd) return '—';
+  const d = new Date(yy, mm - 1, dd);
+  return d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 type DueUrgency = {
@@ -231,8 +242,8 @@ type StudentActivity = {
   publishedAt?: string | null;
 };
 
-/** Más urgente primero: vencidas (fecha más antigua primero), luego fechas futuras (más cercana primero), sin fecha al final. */
-function compareUpcomingByUrgency(a: StudentActivity, b: StudentActivity): number {
+/** Solo hoy o futuras: fecha más cercana primero; sin fecha al final. */
+function compareUpcomingNonOverdue(a: StudentActivity, b: StudentActivity): number {
   const daysA = daysUntilDueYmd(a.dueDate);
   const daysB = daysUntilDueYmd(b.dueDate);
   const da = a.dueDate?.slice(0, 10) ?? '';
@@ -241,11 +252,6 @@ function compareUpcomingByUrgency(a: StudentActivity, b: StudentActivity): numbe
   if (daysA === null && daysB === null) return (a.title ?? '').localeCompare(b.title ?? '', 'es');
   if (daysA === null) return 1;
   if (daysB === null) return -1;
-
-  const overA = daysA < 0;
-  const overB = daysB < 0;
-  if (overA && !overB) return -1;
-  if (!overA && overB) return 1;
   return da.localeCompare(db);
 }
 
@@ -338,7 +344,12 @@ function HomeAlumno() {
   const upcoming = useMemo(() => {
     return activities
       .filter((a) => !activityHasPublishedScore(a))
-      .sort(compareUpcomingByUrgency)
+      .filter((a) => {
+        const d = daysUntilDueYmd(a.dueDate);
+        if (d === null) return true;
+        return d >= 0;
+      })
+      .sort(compareUpcomingNonOverdue)
       .slice(0, 18);
   }, [activities]);
 
@@ -426,7 +437,7 @@ function HomeAlumno() {
       <div className="min-w-0">
         <Card
           title="Próximas entregas"
-          subtitle="Ordenadas por urgencia (primero lo más prioritario). Revisa fechas y mensajes."
+          subtitle="Solo entregas de hoy en adelante (no se muestran vencidas). Orden por fecha límite más cercana."
           to="/app/modulos/mis-calificaciones"
           accent="amber"
         >
@@ -437,24 +448,34 @@ function HomeAlumno() {
             </p>
           ) : (
             <div className="max-h-[min(70vh,32rem)] overflow-y-auto overflow-x-hidden pr-1">
-              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className="flex flex-col gap-3">
                 {upcoming.map((a) => {
                   const u = dueDateUrgency(a.dueDate);
                   return (
-                    <li key={a.id} className={`min-h-0 min-w-0 px-3 py-2 text-sm ${u.rowClass}`}>
-                      <p className="line-clamp-2 font-medium text-slate-900 dark:text-slate-100">{a.title}</p>
-                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
-                        {a.subjectName}
-                        {a.dueDate
-                          ? ` · entrega ${formatISO(a.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}`
-                          : ' · sin fecha límite en el sistema'}
-                      </p>
-                      <p className={`mt-1.5 text-xs leading-snug ${u.bandClass}`}>
-                        <span className="mr-1" aria-hidden>
-                          {u.emoji}
-                        </span>
+                    <li
+                      key={a.id}
+                      className={`flex w-full flex-col gap-3 px-3 py-3 text-sm sm:flex-row sm:items-center sm:gap-4 ${u.rowClass}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{a.title}</p>
+                        <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                          {a.subjectName}
+                          {a.dueDate
+                            ? ` · entrega ${formatDueDateLocalYmd(a.dueDate)}`
+                            : ' · sin fecha límite en el sistema'}
+                        </p>
+                      </div>
+                      <p
+                        className={`min-w-0 text-xs font-medium leading-snug sm:basis-[38%] sm:text-center sm:text-sm ${u.bandClass}`}
+                      >
                         {u.message}
                       </p>
+                      <div
+                        className="flex shrink-0 items-center justify-center self-start text-2xl sm:w-14 sm:self-center sm:text-3xl"
+                        aria-hidden
+                      >
+                        {u.emoji}
+                      </div>
                     </li>
                   );
                 })}

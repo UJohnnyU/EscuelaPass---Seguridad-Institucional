@@ -41,6 +41,15 @@ function scoreMood(score: number, maxScore: number): { emoji: string; label: str
   return { emoji: '💪', label: 'No te rindas, sigue intentando', tone: 'text-rose-700' };
 }
 
+/** Fecha límite YYYY-MM-DD en calendario local (evita mostrar un día antes por UTC). */
+function formatDueDateLocalYmd(dueYmd: string | null | undefined): string {
+  if (!dueYmd || !/^\d{4}-\d{2}-\d{2}/.test(dueYmd)) return '—';
+  const [yy, mm, dd] = dueYmd.slice(0, 10).split('-').map(Number);
+  if (!yy || !mm || !dd) return '—';
+  const d = new Date(yy, mm - 1, dd);
+  return d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export function MisCalificacionesPage() {
   const { user } = useAuth();
   const isParent = user?.role === 'PADRE';
@@ -372,7 +381,7 @@ export function MisCalificacionesPage() {
               {openRow.dueDate ? (
                 <div>
                   <dt className="font-semibold uppercase tracking-widest text-slate-500">Fecha límite</dt>
-                  <dd className="mt-0.5 text-slate-900">{new Date(openRow.dueDate).toLocaleDateString('es')}</dd>
+                  <dd className="mt-0.5 text-slate-900">{formatDueDateLocalYmd(openRow.dueDate)}</dd>
                 </div>
               ) : null}
               {openRow.closedAt ? (
