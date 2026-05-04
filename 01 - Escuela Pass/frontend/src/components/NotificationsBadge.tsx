@@ -48,6 +48,7 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
   const unread = useMemo(() => items.filter((r) => !r.readAt).length, [items]);
   const unreadItems = useMemo(() => items.filter((r) => !r.readAt), [items]);
 
+  /** Dos tonos agudos (campana); ganancia mayor que antes para que sea audible en entorno ruidoso. */
   const playSoftPing = () => {
     if (typeof window === 'undefined') return;
     const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -55,10 +56,11 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
     try {
       const ctx = new AudioCtx();
       const now = ctx.currentTime;
+      const peak = 0.22;
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.035, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+      gain.gain.exponentialRampToValueAtTime(peak, now + 0.022);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
       gain.connect(ctx.destination);
       const o1 = ctx.createOscillator();
       o1.type = 'sine';
@@ -71,8 +73,8 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
       o2.frequency.setValueAtTime(1320, now + 0.12);
       o2.connect(gain);
       o2.start(now + 0.11);
-      o2.stop(now + 0.23);
-      window.setTimeout(() => void ctx.close(), 350);
+      o2.stop(now + 0.24);
+      window.setTimeout(() => void ctx.close(), 400);
     } catch {
       // ignorar errores de audio/autoplay
     }
