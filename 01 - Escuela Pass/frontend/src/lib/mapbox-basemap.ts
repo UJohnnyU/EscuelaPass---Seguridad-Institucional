@@ -1,4 +1,12 @@
 import mapboxgl from 'mapbox-gl';
+import mapboxglWorkerUrl from 'mapbox-gl/dist/mapbox-gl-csp-worker.js?url';
+
+/**
+ * En Vercel/hosts con CSP estricto, el worker por defecto (blob:) queda bloqueado y el mapa sale en blanco
+ * aunque logo y controles carguen. El worker CSP se sirve como asset con URL propia.
+ * @see https://docs.mapbox.com/mapbox-gl-js/guides/install/#csp-directives
+ */
+mapboxgl.workerUrl = mapboxglWorkerUrl;
 
 const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN?.trim();
 
@@ -49,7 +57,11 @@ export function attachMapboxStyleRecovery(map: mapboxgl.Map): () => void {
     didFallback = true;
     if (import.meta.env.DEV) {
       console.warn(
-        `[mapbox] Estilo personalizado no usable (${reason}). Revisá URLs permitidas del token (p. ej. http://localhost:5173), que el estilo esté publicado en Studio y el token del mismo usuario. Usando ${MAPBOX_FALLBACK_STYLE}.`
+        `[mapbox] Estilo personalizado no usable (${reason}). Revisá token del mismo usuario que el estilo, estilo publicado en Studio (puede tardar unos minutos) y URLs permitidas del token para este dominio. Usando ${MAPBOX_FALLBACK_STYLE}. Ver https://docs.mapbox.com/help/tutorials/add-data-to-mapbox-style/ · troubleshooting.`
+      );
+    } else {
+      console.warn(
+        `[mapbox] Estilo personalizado no cargó (${reason}). Mostrando mapa base Mapbox. Revise token, estilo publicado y restricciones de URL en mapbox.com/account/access-tokens.`
       );
     }
     map.setStyle(MAPBOX_FALLBACK_STYLE);
@@ -75,12 +87,25 @@ export function attachMapboxStyleRecovery(map: mapboxgl.Map): () => void {
     }
   }, 12000);
 
+  let tileTimer: number | undefined;
+
   map.once('style.load', () => {
     window.clearTimeout(timer);
+    tileTimer = window.setTimeout(() => {
+      if (didFallback) return;
+      try {
+        if (typeof map.areTilesLoaded === 'function' && !map.areTilesLoaded()) {
+          fallback('teselas no cargaron (revisar CSP worker-src, token y estilo publicado)');
+        }
+      } catch {
+        /* noop */
+      }
+    }, 6500);
   });
 
   return () => {
     window.clearTimeout(timer);
+    if (tileTimer !== undefined) window.clearTimeout(tileTimer);
     map.off('error', onError);
   };
 }
@@ -89,7 +114,7 @@ export function attachMapboxStyleRecovery(map: mapboxgl.Map): () => void {
 export function findFirstSymbolLayerId(map: mapboxgl.Map): string | undefined {
   const layers = map.getStyle()?.layers;
   if (!layers) return undefined;
-  const sym = layers.find((l) => l.type === 'symbol');
+  const sym = layers.find((l: { type?: string }) => l.type === 'symbol');
   return sym?.id;
 }
 
