@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -12,6 +13,7 @@ import {
 } from '@/lib/circuit-partner-sound';
 import { useAuth } from '@/context/useAuth';
 import { isStaff as userIsStaff } from '@/lib/roles';
+import { useParentCircuitGpsOnDevice } from '@/lib/circuit-device-context';
 import { requestGeolocationForCircuitArrival } from '@/lib/geolocation';
 import type { MapContextPayload } from '@/components/CircuitArrivalMap';
 
@@ -64,6 +66,7 @@ export function CircuitDetailPage() {
 
   const isParent = user?.role === 'PADRE';
   const isStaff = userIsStaff(user);
+  const parentGpsOnThisDevice = useParentCircuitGpsOnDevice();
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -405,11 +408,13 @@ export function CircuitDetailPage() {
 
       {isParent && !terminal && (
         <div className="mt-8 space-y-3">
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Avanza el circuito cuando corresponda. Al pulsar «Ya llegué» se envía su ubicación en ese momento para
-            revisión en el plantel. Podrás confirmar que ya recibiste a tu hijo o hija solo cuando el plantel haya
-            indicado que va en camino hacia la salida (en tránsito).
-          </p>
+          {!(row.status === 'PADRE_EN_CAMINO' && !parentGpsOnThisDevice) && (
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Avanza el circuito cuando corresponda. Al pulsar «Ya llegué» se envía su ubicación en ese momento para
+              revisión en el plantel. Podrás confirmar que ya recibiste a tu hijo o hija solo cuando el plantel haya
+              indicado que va en camino hacia la salida (en tránsito).
+            </p>
+          )}
           {row.status === 'PENDIENTE' && (
             <button
               type="button"
@@ -428,7 +433,83 @@ export function CircuitDetailPage() {
               Voy en camino
             </button>
           )}
-          {row.status === 'PADRE_EN_CAMINO' && (
+          {row.status === 'PADRE_EN_CAMINO' && !parentGpsOnThisDevice && (
+            <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-4 py-5 shadow-sm ring-1 ring-sky-100">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+                <div className="mx-auto shrink-0 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 sm:mx-0">
+                  <QRCodeSVG
+                    value={typeof window !== 'undefined' ? window.location.href : ''}
+                    size={132}
+                    level="M"
+                    marginSize={1}
+                    className="block"
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
+                  <p className="text-base font-semibold text-sky-950">Continúe en su teléfono móvil</p>
+                  <p className="text-sm leading-relaxed text-sky-900/90">
+                    Ha indicado que viene hacia el colegio. Los siguientes pasos usan la ubicación GPS y están pensados
+                    para el móvil mientras se acerca al plantel. Abra este mismo enlace en su celular o escanee el
+                    código.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(window.location.href);
+                        setMsg('Enlace copiado. Péguelo en el navegador de su móvil.');
+                        setError(null);
+                      } catch {
+                        setMsg(null);
+                        setError('No pudimos copiar al portapapeles. Copie la dirección de la barra del navegador.');
+                      }
+                    }}
+                    className="w-full rounded-lg border border-sky-300 bg-white px-4 py-2.5 text-sm font-medium text-sky-950 hover:bg-sky-50 disabled:opacity-50 sm:w-auto"
+                  >
+                    Copiar enlace de esta solicitud
+                  </button>
+                </div>
+              </div>
+              <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-left">
+                <summary className="cursor-pointer text-xs font-medium text-slate-700">
+                  Solo dispongo de este ordenador
+                </summary>
+                <p className="mt-2 text-xs text-slate-600">
+                  Si no puede usar un móvil, puede intentar marcar «Ya llegué» aquí (el navegador pedirá permiso de
+                  ubicación; en PC la señal suele ser menos fiable).
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    runWithCircuitBody(async () => {
+                      const pos = await requestGeolocationForCircuitArrival();
+                      const parentGpsLatitude = Number(pos.coords.latitude);
+                      const parentGpsLongitude = Number(pos.coords.longitude);
+                      await api.patch(`/api/v1/circuit-requests/${id}/gps`, {
+                        parentGpsLatitude,
+                        parentGpsLongitude
+                      });
+                      const { data } = await api.patch<CircuitReq>(
+                        `/api/v1/circuit-requests/${id}/parent-progress`,
+                        {
+                          status: 'NOTIFICADO_LLEGADA',
+                          parentGpsLatitude,
+                          parentGpsLongitude
+                        }
+                      );
+                      return data;
+                    })
+                  }
+                  className="mt-3 w-full rounded bg-brand-800 py-2.5 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+                >
+                  Ya llegué (con ubicación)
+                </button>
+              </details>
+            </div>
+          )}
+          {row.status === 'PADRE_EN_CAMINO' && parentGpsOnThisDevice && (
             <button
               type="button"
               disabled={busy}
