@@ -36,6 +36,36 @@ function formatISO(dateStr?: string | null, opts?: Intl.DateTimeFormatOptions) {
   }
 }
 
+/** Pastilla de nota: verde (alta) → rojo (baja), según score/maxScore (si no hay max, se asume 10). */
+function gradeScoreBadgeClass(
+  myScore: string | number | null | undefined,
+  maxScore: string | number | null | undefined
+): string {
+  const score = typeof myScore === 'string' ? parseFloat(myScore) : Number(myScore);
+  if (!Number.isFinite(score)) {
+    return 'bg-slate-100 text-slate-800 border border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600';
+  }
+  let max = typeof maxScore === 'string' ? parseFloat(maxScore) : Number(maxScore);
+  if (!Number.isFinite(max) || max <= 0) max = 10;
+  const ratio = Math.max(0, Math.min(1, score / max));
+  if (ratio >= 0.98) {
+    return 'bg-emerald-100 text-emerald-900 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-700/50';
+  }
+  if (ratio >= 0.9) {
+    return 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700/50';
+  }
+  if (ratio >= 0.75) {
+    return 'bg-sky-100 text-sky-900 border border-sky-200 dark:bg-sky-900/40 dark:text-sky-100 dark:border-sky-700/50';
+  }
+  if (ratio >= 0.6) {
+    return 'bg-amber-100 text-amber-900 border border-amber-200 dark:bg-amber-900/40 dark:text-amber-100 dark:border-amber-700/50';
+  }
+  if (ratio >= 0.4) {
+    return 'bg-orange-100 text-orange-900 border border-orange-200 dark:bg-orange-900/40 dark:text-orange-100 dark:border-orange-700/50';
+  }
+  return 'bg-rose-100 text-rose-900 border border-rose-200 dark:bg-rose-900/40 dark:text-rose-100 dark:border-rose-700/50';
+}
+
 function Card({
   title,
   subtitle,
@@ -214,7 +244,9 @@ function HomeAlumno() {
                     {a.subjectName} · {a.period ?? ''}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${gradeScoreBadgeClass(a.myScore, a.maxScore)}`}
+                >
                   {a.myScore}
                   {a.maxScore ? `/${a.maxScore}` : ''}
                 </span>
@@ -751,7 +783,9 @@ function HomePadre() {
         }
         badge={
           openGrade ? (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${gradeScoreBadgeClass(openGrade.myScore, openGrade.maxScore)}`}
+            >
               {openGrade.myScore}
               {openGrade.maxScore ? `/${openGrade.maxScore}` : ''}
             </span>
@@ -1011,7 +1045,9 @@ function HomePadre() {
                       {g.periodName ? ` · ${g.periodName}` : ''}
                     </p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${gradeScoreBadgeClass(g.myScore, g.maxScore)}`}
+                  >
                     {g.myScore}
                     {g.maxScore ? `/${g.maxScore}` : ''}
                   </span>
