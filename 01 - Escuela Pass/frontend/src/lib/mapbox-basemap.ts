@@ -42,9 +42,26 @@ function mapErrorMessage(e: mapboxgl.ErrorEvent): string {
   return String(err ?? '');
 }
 
+function shouldFallbackToLightStyle(errorMessage: string): boolean {
+  const msg = errorMessage;
+  if (!msg.trim()) return false;
+  const lower = msg.toLowerCase();
+  // Solo fallback ante fallos “duros”: auth, estilo inexistente, red al cargar el JSON del estilo.
+  if (/\b401\b|\b403\b|\b404\b/.test(msg)) return true;
+  if (/unauthorized|forbidden|access denied|invalid\s+access\s+token|not\s+found/i.test(msg)) return true;
+  if (
+    /failed\s+to\s+load\s+style|could\s+not\s+load\s+style|error\s+loading\s+the\s+style|style\s+(is\s+)?not\s+available|style\s+not\s+found|fetch\s+style/i.test(
+      lower
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /**
- * Si el estilo Studio o las teselas fallan (token sin URL permitida, 401/403, estilo no publicado),
- * el canvas queda en blanco pero los controles y el marcador HTML sí aparecen. Cambia al estilo light oficial.
+ * Último recurso si el JSON del estilo nunca termina de cargar (muy lento o bloqueado).
+ * No usa heurísticas de teselas (areTilesLoaded) para no forzar light-v11 en estilos Studio válidos.
  */
 export function attachMapboxStyleRecovery(map: mapboxgl.Map): () => void {
   if (!hasCustomMapboxStyle()) {
@@ -69,11 +86,7 @@ export function attachMapboxStyleRecovery(map: mapboxgl.Map): () => void {
 
   const onError = (e: mapboxgl.ErrorEvent) => {
     const msg = mapErrorMessage(e);
-    if (
-      /style|tiles|glyphs|sprite|Unauthorized|Forbidden|401|403|404|Failed to fetch|NetworkError|could not be loaded|ERR_FAILED|ACL|Not Found/i.test(
-        msg
-      )
-    ) {
+    if (shouldFallbackToLightStyle(msg)) {
       fallback(msg || 'error');
     }
   };
@@ -85,27 +98,14 @@ export function attachMapboxStyleRecovery(map: mapboxgl.Map): () => void {
     if (!map.isStyleLoaded()) {
       fallback('timeout: estilo sin cargar');
     }
-  }, 12000);
-
-  let tileTimer: number | undefined;
+  }, 30000);
 
   map.once('style.load', () => {
     window.clearTimeout(timer);
-    tileTimer = window.setTimeout(() => {
-      if (didFallback) return;
-      try {
-        if (typeof map.areTilesLoaded === 'function' && !map.areTilesLoaded()) {
-          fallback('teselas no cargaron (revisar CSP worker-src, token y estilo publicado)');
-        }
-      } catch {
-        /* noop */
-      }
-    }, 6500);
   });
 
   return () => {
     window.clearTimeout(timer);
-    if (tileTimer !== undefined) window.clearTimeout(tileTimer);
     map.off('error', onError);
   };
 }
