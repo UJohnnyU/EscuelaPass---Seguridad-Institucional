@@ -965,7 +965,7 @@ export class ActivitiesService {
     filters: { periodId?: string | null }
   ): Promise<(ActivityListRow & { myScore: string | null; myNotes: string | null })[]> {
     const params: unknown[] = [groupId, studentId];
-    let where = `a.group_id = $1 AND a.published_at IS NOT NULL`;
+    let where = `a.group_id = $1 AND (a.status = 'OPEN' OR a.published_at IS NOT NULL)`;
     if (filters.periodId) {
       params.push(filters.periodId);
       where += ` AND a.period_id = $${params.length}`;

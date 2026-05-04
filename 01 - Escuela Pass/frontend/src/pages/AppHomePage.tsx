@@ -66,6 +66,101 @@ function gradeScoreBadgeClass(
   return 'bg-rose-100 text-rose-900 border border-rose-200 dark:bg-rose-900/40 dark:text-rose-100 dark:border-rose-700/50';
 }
 
+function activityHasPublishedScore(a: { myScore?: string | number | null }): boolean {
+  const s = a.myScore;
+  if (s === null || s === undefined) return false;
+  if (typeof s === 'string' && s.trim() === '') return false;
+  return true;
+}
+
+/** Días hasta la fecha límite (YYYY-MM-DD); negativo = vencida; sin fecha válida → null */
+function daysUntilDueYmd(dueYmd: string | null | undefined): number | null {
+  if (!dueYmd || !/^\d{4}-\d{2}-\d{2}/.test(dueYmd)) return null;
+  const ymd = dueYmd.slice(0, 10);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(`${ymd}T12:00:00`);
+  due.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
+
+type DueUrgency = {
+  emoji: string;
+  message: string;
+  rowClass: string;
+  bandClass: string;
+};
+
+/** Mensaje y estilo según cercanía de la entrega (cualquier tipo de actividad). */
+function dueDateUrgency(dueYmd: string | null | undefined): DueUrgency {
+  const d = daysUntilDueYmd(dueYmd);
+  if (d === null) {
+    return {
+      emoji: '📌',
+      message:
+        'Sin fecha límite en el sistema — confirma en clase o con tu docente cuándo debes entregar o presentar el trabajo.',
+      rowClass: 'rounded-lg border-l-4 border-slate-300 bg-slate-50/90 dark:border-slate-500 dark:bg-slate-800/50',
+      bandClass: 'text-slate-700 dark:text-slate-200'
+    };
+  }
+  if (d < 0) {
+    return {
+      emoji: '🆘',
+      message:
+        'La fecha límite ya pasó y aún no aparece calificación. Entrega cuanto antes o consulta con tu docente.',
+      rowClass: 'rounded-lg border-l-4 border-red-600 bg-red-50/95 dark:border-red-500 dark:bg-red-950/40',
+      bandClass: 'text-red-900 dark:text-red-100'
+    };
+  }
+  if (d === 0) {
+    return {
+      emoji: '🔥',
+      message: 'Vence hoy: prioridad máxima. Revisa el enunciado y deja todo listo con tiempo.',
+      rowClass: 'rounded-lg border-l-4 border-rose-500 bg-rose-50/95 dark:border-rose-400 dark:bg-rose-950/35',
+      bandClass: 'text-rose-900 font-medium dark:text-rose-100'
+    };
+  }
+  if (d === 1) {
+    return {
+      emoji: '⚡',
+      message: 'Vence mañana: organiza hoy tu tiempo y avanza lo antes posible.',
+      rowClass: 'rounded-lg border-l-4 border-orange-500 bg-orange-50/90 dark:border-orange-400 dark:bg-orange-950/30',
+      bandClass: 'text-orange-900 font-medium dark:text-orange-100'
+    };
+  }
+  if (d < 3) {
+    return {
+      emoji: '🚨',
+      message: `Quedan ${d} días: es muy poco tiempo; evita dejarlo para el último momento.`,
+      rowClass: 'rounded-lg border-l-4 border-amber-500 bg-amber-50/90 dark:border-amber-400 dark:bg-amber-950/30',
+      bandClass: 'text-amber-950 font-medium dark:text-amber-100'
+    };
+  }
+  if (d < 7) {
+    return {
+      emoji: '⏰',
+      message: 'Vence esta semana: adelanta lo que puedas y reparte el trabajo día a día.',
+      rowClass: 'rounded-lg border-l-4 border-amber-400 bg-amber-50/60 dark:border-amber-500/60 dark:bg-amber-950/20',
+      bandClass: 'text-amber-900 dark:text-amber-100'
+    };
+  }
+  if (d < 14) {
+    return {
+      emoji: '📅',
+      message: 'Tienes alrededor de una o dos semanas: planifica y aprovecha para hacerlo con calma y bien.',
+      rowClass: 'rounded-lg border-l-4 border-sky-400 bg-sky-50/70 dark:border-sky-500 dark:bg-sky-950/30',
+      bandClass: 'text-sky-900 dark:text-sky-100'
+    };
+  }
+  return {
+    emoji: '🌱',
+    message:
+      'Aún tienes tiempo: úsalo bien — investiga, repasa y entrega un trabajo completo; no lo dejes para el final.',
+    rowClass: 'rounded-lg border-l-4 border-emerald-400 bg-emerald-50/65 dark:border-emerald-500 dark:bg-emerald-950/25',
+    bandClass: 'text-emerald-900 dark:text-emerald-100'
+  };
+}
+
 function Card({
   title,
   subtitle,
@@ -211,7 +306,7 @@ function HomeAlumno() {
 
   const latestGraded = useMemo(() => {
     return activities
-      .filter((a) => a.myScore !== null && a.myScore !== undefined && a.myScore !== '')
+      .filter((a) => activityHasPublishedScore(a))
       .sort((a, b) => {
         const tb = (b.closedAt ?? b.publishedAt ?? '') as string;
         const ta = (a.closedAt ?? a.publishedAt ?? '') as string;
@@ -225,9 +320,19 @@ function HomeAlumno() {
   const upcoming = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return activities
-      .filter((a) => !a.myScore && a.dueDate && a.dueDate >= today)
-      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-      .slice(0, 4);
+      .filter((a) => !activityHasPublishedScore(a))
+      .sort((a, b) => {
+        const da = a.dueDate?.slice(0, 10) ?? '';
+        const db = b.dueDate?.slice(0, 10) ?? '';
+        const aOver = da && da < today;
+        const bOver = db && db < today;
+        if (aOver !== bOver) return aOver ? -1 : 1;
+        if (da && db) return da.localeCompare(db);
+        if (da && !db) return -1;
+        if (!da && db) return 1;
+        return (a.title ?? '').localeCompare(b.title ?? '', 'es');
+      })
+      .slice(0, 6);
   }, [activities]);
 
   const latestReportCards = useMemo(() => reportCards.slice(0, 3), [reportCards]);
@@ -267,17 +372,32 @@ function HomeAlumno() {
 
       <Card title="Próximas entregas" to="/app/modulos/mis-calificaciones" accent="amber">
         {upcoming.length === 0 ? (
-          <p className="text-slate-500">Nada urgente por entregar.</p>
+          <p className="text-slate-500 dark:text-slate-400">
+            No tienes actividades pendientes sin calificar. Cuando tu docente asigne trabajo nuevo, aparecerá aquí con la
+            fecha límite y un recordatorio según el tiempo que quede.
+          </p>
         ) : (
           <ul className="space-y-2">
-            {upcoming.map((a) => (
-              <li key={a.id} className="rounded-lg bg-white px-3 py-2 text-sm">
-                <p className="truncate font-medium text-slate-900">{a.title}</p>
-                <p className="text-xs text-slate-500">
-                  {a.subjectName} · entrega {formatISO(a.dueDate, { day: '2-digit', month: 'short' })}
-                </p>
-              </li>
-            ))}
+            {upcoming.map((a) => {
+              const u = dueDateUrgency(a.dueDate);
+              return (
+                <li key={a.id} className={`px-3 py-2 text-sm ${u.rowClass}`}>
+                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">{a.title}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {a.subjectName}
+                    {a.dueDate
+                      ? ` · entrega ${formatISO(a.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}`
+                      : ' · sin fecha límite en el sistema'}
+                  </p>
+                  <p className={`mt-1.5 text-xs leading-snug ${u.bandClass}`}>
+                    <span className="mr-1" aria-hidden>
+                      {u.emoji}
+                    </span>
+                    {u.message}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
