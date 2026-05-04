@@ -971,7 +971,7 @@ export function CalificacionesDocentePage() {
                   onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
                 />
               </label>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className={platformAdmin ? 'grid gap-3 sm:grid-cols-2' : undefined}>
                 <label className="block text-sm">
                   <span className="text-slate-700">Periodo académico</span>
                   <div className="mt-1">
@@ -1004,19 +1004,7 @@ export function CalificacionesDocentePage() {
                       }
                     />
                   </label>
-                ) : (
-                  <div className="block text-sm sm:flex sm:flex-col sm:justify-end">
-                    <span className="text-slate-700">Nota máxima (escala institucional)</span>
-                    <p className="mt-1 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900">
-                      {selectedCreateAssignment?.schoolMaxGradeScale
-                        ? parseFloat(selectedCreateAssignment.schoolMaxGradeScale)
-                        : '—'}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      La escuela define esta escala; no puede cambiarse por actividad.
-                    </p>
-                  </div>
-                )}
+                ) : null}
               </div>
               <label className="block text-sm">
                 <span className="text-slate-700">Fecha de entrega (opcional)</span>
