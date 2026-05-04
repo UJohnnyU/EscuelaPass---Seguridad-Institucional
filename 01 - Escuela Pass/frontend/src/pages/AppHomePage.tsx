@@ -132,6 +132,8 @@ type StudentActivity = {
   myScore?: string | number | null;
   maxScore?: string | number | null;
   period?: string;
+  closedAt?: string | null;
+  publishedAt?: string | null;
 };
 
 type Notification = {
@@ -210,6 +212,13 @@ function HomeAlumno() {
   const latestGraded = useMemo(() => {
     return activities
       .filter((a) => a.myScore !== null && a.myScore !== undefined && a.myScore !== '')
+      .sort((a, b) => {
+        const tb = (b.closedAt ?? b.publishedAt ?? '') as string;
+        const ta = (a.closedAt ?? a.publishedAt ?? '') as string;
+        const byDate = tb.localeCompare(ta);
+        if (byDate !== 0) return byDate;
+        return (b.id ?? '').localeCompare(a.id ?? '');
+      })
       .slice(0, 5);
   }, [activities]);
 
@@ -375,6 +384,7 @@ type ParentActivity = {
   maxScore?: string | number | null;
   myNotes?: string | null;
   closedAt?: string | null;
+  publishedAt?: string | null;
   periodName?: string | null;
   period?: string;
   dueDate?: string | null;
@@ -517,7 +527,13 @@ function HomePadre() {
     () =>
       grades
         .filter((g) => g.myScore !== null && g.myScore !== undefined && g.myScore !== '')
-        .sort((a, b) => (b.closedAt ?? '').localeCompare(a.closedAt ?? ''))
+        .sort((a, b) => {
+          const tb = (b.closedAt ?? b.publishedAt ?? '') as string;
+          const ta = (a.closedAt ?? a.publishedAt ?? '') as string;
+          const byDate = tb.localeCompare(ta);
+          if (byDate !== 0) return byDate;
+          return (b.id ?? '').localeCompare(a.id ?? '');
+        })
         .slice(0, 5),
     [grades]
   );
