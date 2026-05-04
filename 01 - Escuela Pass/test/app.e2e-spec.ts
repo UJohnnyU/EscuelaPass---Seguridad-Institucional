@@ -370,10 +370,10 @@ describe('App (e2e)', () => {
         groupId: group.id,
         subjectId,
         periodId,
-        title: 'Parcial 1',
-        maxScore: 20
+        title: 'Parcial 1'
       })
       .expect(201);
+    expect(parseFloat(String(activity.body.maxScore))).toBe(100);
     await request(app.getHttpServer())
       .post(`/${apiPrefix}/activities/${activity.body.id}/grades`)
       .set(authHeader(docente.accessToken))

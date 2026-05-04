@@ -364,13 +364,13 @@ export function CalificacionesDocentePage() {
   }, [assignments, createForm.assignmentKey]);
 
   useEffect(() => {
-    if (!showCreate) return;
+    if (!showCreate || !platformAdmin) return;
     if (!selectedCreateAssignment?.schoolMaxGradeScale) return;
     const n = Number(selectedCreateAssignment.schoolMaxGradeScale);
     if (Number.isFinite(n) && n >= 1) {
       setCreateForm((f) => ({ ...f, maxScore: (Math.round(n * 100) / 100).toFixed(2) }));
     }
-  }, [selectedCreateAssignment?.schoolMaxGradeScale, showCreate]);
+  }, [platformAdmin, selectedCreateAssignment?.schoolMaxGradeScale, showCreate]);
 
   const openCreate = () => {
     setErr(null);
@@ -403,7 +403,7 @@ export function CalificacionesDocentePage() {
       title
     };
     if (createForm.description.trim()) body.description = createForm.description.trim();
-    if (createForm.maxScore.trim()) {
+    if (platformAdmin && createForm.maxScore.trim()) {
       const n = Number(createForm.maxScore.replace(',', '.'));
       if (!Number.isFinite(n) || n < 1) {
         setErr('El puntaje máximo debe ser un número mayor o igual a 1.');
@@ -988,21 +988,35 @@ export function CalificacionesDocentePage() {
                     />
                   </div>
                 </label>
-                <label className="block text-sm">
-                  <span className="text-slate-700">Puntaje máximo</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={createForm.maxScore}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, maxScore: e.target.value }))}
-                    placeholder={
-                      selectedCreateAssignment?.schoolMaxGradeScale
-                        ? `Predeterminado ${parseFloat(selectedCreateAssignment.schoolMaxGradeScale)}`
-                        : '100'
-                    }
-                  />
-                </label>
+                {platformAdmin ? (
+                  <label className="block text-sm">
+                    <span className="text-slate-700">Puntaje máximo</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      value={createForm.maxScore}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, maxScore: e.target.value }))}
+                      placeholder={
+                        selectedCreateAssignment?.schoolMaxGradeScale
+                          ? `Predeterminado ${parseFloat(selectedCreateAssignment.schoolMaxGradeScale)}`
+                          : '100'
+                      }
+                    />
+                  </label>
+                ) : (
+                  <div className="block text-sm sm:flex sm:flex-col sm:justify-end">
+                    <span className="text-slate-700">Nota máxima (escala institucional)</span>
+                    <p className="mt-1 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900">
+                      {selectedCreateAssignment?.schoolMaxGradeScale
+                        ? parseFloat(selectedCreateAssignment.schoolMaxGradeScale)
+                        : '—'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      La escuela define esta escala; no puede cambiarse por actividad.
+                    </p>
+                  </div>
+                )}
               </div>
               <label className="block text-sm">
                 <span className="text-slate-700">Fecha de entrega (opcional)</span>

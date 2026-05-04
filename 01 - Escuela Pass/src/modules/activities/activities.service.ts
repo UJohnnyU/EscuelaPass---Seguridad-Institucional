@@ -298,8 +298,11 @@ export class ActivitiesService {
     const { schoolId, maxScore: schoolMax } = await this.getSchoolInfoForGroup(dto.groupId);
     const period = await this.assertPeriodUsable(dto.periodId, schoolId);
 
+    const institutionSetsMax =
+      role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO;
+
     let maxScore = schoolMax;
-    if (dto.maxScore !== undefined && dto.maxScore !== null) {
+    if (!institutionSetsMax && dto.maxScore !== undefined && dto.maxScore !== null) {
       this.assertTwoDecimalScale(dto.maxScore, 'maxScore');
       if (dto.maxScore < 1) throw new BadRequestException('maxScore debe ser mayor o igual a 1');
       if (dto.maxScore > schoolMax) {
@@ -383,6 +386,11 @@ export class ActivitiesService {
       activity.period = period.name;
     }
     if (dto.maxScore !== undefined) {
+      if (role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO) {
+        throw new BadRequestException(
+          'La escala máxima la define la institución; no se puede cambiar en la actividad.'
+        );
+      }
       this.assertTwoDecimalScale(dto.maxScore, 'maxScore');
       if (dto.maxScore < 1) throw new BadRequestException('maxScore debe ser mayor o igual a 1');
       const { maxScore: schoolMax } = await this.getSchoolInfoForGroup(activity.groupId);
