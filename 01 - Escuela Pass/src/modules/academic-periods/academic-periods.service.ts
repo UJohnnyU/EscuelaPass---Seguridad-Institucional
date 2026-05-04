@@ -433,7 +433,7 @@ export class AcademicPeriodsService {
         row.schoolYear,
         true
       );
-      if (!res.skipped && res.generated > 0) {
+      if (!res.skipped && res.newlyPublishedFinals > 0) {
         await this.notifications.notifyReportCardsPublished(
           row.schoolId,
           row.schoolYear,

@@ -271,17 +271,17 @@ export class ReportCardsService {
     schoolYear: string,
     publish: boolean,
     mgr?: EntityManager
-  ): Promise<{ generated: number; published: number; skipped: boolean }> {
+  ): Promise<{ generated: number; published: number; skipped: boolean; newlyPublishedFinals: number }> {
     const run = async (em: EntityManager) => {
       const periods = await em.getRepository(AcademicPeriodEntity).find({
         where: { schoolId, schoolYear }
       });
       if (periods.length === 0) {
-        return { generated: 0, published: 0, skipped: true };
+        return { generated: 0, published: 0, skipped: true, newlyPublishedFinals: 0 };
       }
       const allClosed = periods.every((p) => p.status === AcademicPeriodStatus.CLOSED);
       if (!allClosed) {
-        return { generated: 0, published: 0, skipped: true };
+        return { generated: 0, published: 0, skipped: true, newlyPublishedFinals: 0 };
       }
       const school = await em.getRepository(SchoolEntity).findOne({ where: { id: schoolId } });
       if (!school) throw new NotFoundException('Escuela no encontrada');
@@ -351,6 +351,7 @@ export class ReportCardsService {
       const now = new Date();
       let generated = 0;
       let published = 0;
+      let newlyPublishedFinals = 0;
 
       for (const [studentId, subjMap] of studentMap) {
         let card = await rcRepo.findOne({
@@ -361,6 +362,7 @@ export class ReportCardsService {
             type: ReportCardType.FINAL
           }
         });
+        const wasPublishedBefore = card?.status === ReportCardStatus.PUBLISHED;
         if (!card) {
           card = rcRepo.create({
             studentId,
@@ -424,12 +426,19 @@ export class ReportCardsService {
         }
         generated += 1;
         if (savedCard.status === ReportCardStatus.PUBLISHED) published += 1;
+        if (
+          publish &&
+          savedCard.status === ReportCardStatus.PUBLISHED &&
+          !wasPublishedBefore
+        ) {
+          newlyPublishedFinals += 1;
+        }
       }
 
       this.logger.log(
-        `Boletines finales ${schoolYear} generados=${generated} publicados=${published} (totalWeight=${totalWeight})`
+        `Boletines finales ${schoolYear} generados=${generated} publicados=${published} nuevos_publicados=${newlyPublishedFinals} (totalWeight=${totalWeight})`
       );
-      return { generated, published, skipped: false };
+      return { generated, published, skipped: false, newlyPublishedFinals };
     };
     return mgr ? run(mgr) : this.dataSource.transaction(run);
   }

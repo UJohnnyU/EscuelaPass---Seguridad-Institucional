@@ -135,7 +135,7 @@ export class AcademicCloseScheduler {
           c.school_year,
           true
         );
-        if (!res.skipped && res.generated > 0) {
+        if (!res.skipped && res.newlyPublishedFinals > 0) {
           await this.notifications.notifyReportCardsPublished(
             c.school_id,
             c.school_year,
