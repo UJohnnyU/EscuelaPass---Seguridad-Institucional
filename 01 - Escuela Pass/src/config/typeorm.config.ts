@@ -1,3 +1,4 @@
+import { join } from 'path';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AcademicPeriodEntity } from '../database/entities/academic-period.entity';
 import { ActivityEntity } from '../database/entities/activity.entity';
@@ -112,6 +113,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
   ];
 
   const url = directPostgresUrl();
+  const migrationPaths = [join(__dirname, '..', 'database', 'migrations', '*.js')];
   if (url) {
     const needsSsl =
       url.includes('sslmode=require') ||
@@ -123,7 +125,9 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       ssl: needsSsl ? { rejectUnauthorized: false } : false,
       synchronize: false,
       logging: false,
-      entities
+      entities,
+      migrations: migrationPaths,
+      migrationsTableName: 'typeorm_migrations'
     };
   }
 
@@ -137,7 +141,9 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
     ssl: (process.env.DB_SSL ?? 'false') === 'true' ? { rejectUnauthorized: false } : false,
     synchronize: false,
     logging: false,
-    entities
+    entities,
+    migrations: migrationPaths,
+    migrationsTableName: 'typeorm_migrations'
   };
 }
 

@@ -11,6 +11,8 @@
 builder = "NIXPACKS"
 
 [deploy]
+# Al arranque el backend ejecuta migraciones TypeORM pendientes (dist/database/migrations/*.js)
+# y luego ensureRuntimeSchema. No hace falta releaseCommand separado para columnas nuevas.
 startCommand = "npm run start:prod"
 restartPolicyType = "ON_FAILURE"
 # Recomendación: configura manualmente un Volume de 1GB montado en /data y

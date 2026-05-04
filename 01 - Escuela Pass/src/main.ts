@@ -19,8 +19,18 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
+  const dataSource = app.get(DataSource);
   try {
-    const dataSource = app.get(DataSource);
+    const executed = await dataSource.runMigrations({ transaction: 'all' });
+    if (executed.length > 0) {
+      new Logger('TypeORM').log(`Migraciones aplicadas: ${executed.map((m) => m.name).join(', ')}`);
+    }
+  } catch (err) {
+    const logger = new Logger('Bootstrap');
+    logger.error('Fallo al ejecutar migraciones TypeORM', err as Error);
+    throw err;
+  }
+  try {
     await ensureRuntimeSchema(dataSource);
   } catch (err) {
     const logger = new Logger('ensureRuntimeSchema');
