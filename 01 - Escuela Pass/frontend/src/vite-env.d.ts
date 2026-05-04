@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Token público de Mapbox (sk. no debe usarse en el navegador; usar pk.). */
+  /** Token público de Mapbox (sk. no debe usarse en el navegador; usar pk.). Valor en .env, no aquí. */
   readonly VITE_MAPBOX_ACCESS_TOKEN?: string;
-  /** Opcional: URL o URI de estilo Mapbox Studio, p. ej. mapbox://styles/… */
+  /** Opcional: URL o URI de estilo Mapbox Studio. Valor en .env, no aquí. */
   readonly VITE_MAPBOX_STYLE_URL?: string;
 }
 
