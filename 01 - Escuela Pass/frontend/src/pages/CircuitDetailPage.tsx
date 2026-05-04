@@ -245,14 +245,14 @@ export function CircuitDetailPage() {
   if (!id) return null;
   if (loading) {
     return (
-      <p className="text-slate-500 text-sm tracking-wide uppercase">Cargando solicitud…</p>
+      <p className="text-sm tracking-wide uppercase text-slate-500 dark:text-slate-400">Cargando solicitud…</p>
     );
   }
   if (error && !row) {
     return (
-      <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-red-900 text-sm">
+      <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-100">
         {error}{' '}
-        <Link to="/app" className="font-medium text-brand-800 underline">
+        <Link to="/app" className="font-medium text-brand-800 underline dark:text-brand-300">
           Volver
         </Link>
       </div>
@@ -273,16 +273,16 @@ export function CircuitDetailPage() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
-            <h2 className="font-serif text-lg font-semibold text-slate-900">Confirmación de recibimiento</h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">Confirmación de recibimiento</h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               El menor debería estar en camino al punto de salida. ¿Ya lo recibiste? Si no confirmas antes del plazo,
               el sistema cerrará el circuito indicando que no hubo confirmación final.
             </p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                 onClick={dismissReminder}
               >
                 Recordar más tarde
@@ -306,12 +306,12 @@ export function CircuitDetailPage() {
       {isStaff ? (
         <Link
           to="/app/circuito/hoy"
-          className="text-xs font-medium uppercase tracking-wider text-brand-800 hover:underline"
+          className="text-xs font-medium uppercase tracking-wider text-brand-800 hover:underline dark:text-brand-300"
         >
           ← Volver al listado del día
         </Link>
       ) : (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium uppercase tracking-wider text-brand-800">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium uppercase tracking-wider text-brand-800 dark:text-brand-300">
           <Link to="/app" className="hover:underline">
             ← Inicio
           </Link>
@@ -323,7 +323,7 @@ export function CircuitDetailPage() {
         </div>
       )}
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <h1 className="font-serif text-2xl font-semibold tracking-tight text-slate-900">
+        <h1 className="font-serif text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
           Circuito de recogida
         </h1>
         <button
@@ -331,7 +331,7 @@ export function CircuitDetailPage() {
           onClick={() => setCircuitFlowMuted((v) => !v)}
           className={`shrink-0 self-start rounded-full border px-3 py-1.5 text-xs font-medium ${
             circuitFlowMuted
-              ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+              ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60'
               : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
           }`}
           title="Aviso cuando la familia o el plantel actualicen el circuito en esta pantalla (distinto al sonido de notificaciones)"
@@ -339,69 +339,69 @@ export function CircuitDetailPage() {
           {circuitFlowMuted ? 'Activar aviso del circuito' : 'Silenciar aviso del circuito'}
         </button>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Registro {new Date(row.requestTime).toLocaleString('es')}
       </p>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Si deja esta vista abierta, sonará un aviso discreto cuando la otra parte avance el flujo (no es el mismo sonido
         que la campana de notificaciones).
       </p>
 
-      <dl className="mt-8 space-y-4 rounded border border-slate-200/80 bg-white p-6 shadow-sm">
+      <dl className="mt-8 space-y-4 rounded border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div>
-          <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Estado</dt>
-          <dd className="mt-1 text-lg font-medium text-slate-900">
+          <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Estado</dt>
+          <dd className="mt-1 text-lg font-medium text-slate-900 dark:text-slate-100">
             {CIRCUIT_STATUS_LABEL[row.status] ?? row.status}
           </dd>
         </div>
         <div>
-          <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Forma de retiro</dt>
-          <dd className="mt-1 text-slate-800">{PICKUP_METHOD_LABEL[row.pickupMethod] ?? row.pickupMethod}</dd>
+          <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Forma de retiro</dt>
+          <dd className="mt-1 text-slate-800 dark:text-slate-200">{PICKUP_METHOD_LABEL[row.pickupMethod] ?? row.pickupMethod}</dd>
         </div>
         {row.pickupVehicleDescription && (
           <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
               Vehículo no registrado
             </dt>
-            <dd className="mt-1 text-slate-800">{row.pickupVehicleDescription}</dd>
+            <dd className="mt-1 text-slate-800 dark:text-slate-200">{row.pickupVehicleDescription}</dd>
           </div>
         )}
         {row.pickupNotes && (
           <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Nota familia</dt>
-            <dd className="mt-1 whitespace-pre-line text-slate-800">{row.pickupNotes}</dd>
+            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Nota familia</dt>
+            <dd className="mt-1 whitespace-pre-line text-slate-800 dark:text-slate-200">{row.pickupNotes}</dd>
           </div>
         )}
         {row.teacherSignal && (
           <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Señal docente</dt>
-            <dd className="mt-1 text-slate-800">{TEACHER_SIGNAL_LABEL[row.teacherSignal] ?? row.teacherSignal}</dd>
+            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Señal docente</dt>
+            <dd className="mt-1 text-slate-800 dark:text-slate-200">{TEACHER_SIGNAL_LABEL[row.teacherSignal] ?? row.teacherSignal}</dd>
           </div>
         )}
         {row.parentReceiptConfirmedAt && (
           <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            <dt className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
               Confirmación familia
             </dt>
-            <dd className="mt-1 text-slate-800">
+            <dd className="mt-1 text-slate-800 dark:text-slate-200">
               {new Date(row.parentReceiptConfirmedAt).toLocaleString('es')}
             </dd>
           </div>
         )}
         {row.status === 'EN_CAMINO' && row.parentConfirmDeadlineAt && (
-          <div className="rounded border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-950">
+          <div className="rounded border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/35 dark:text-amber-100">
             {reminderLogic.label}
           </div>
         )}
       </dl>
 
       {error && (
-        <div className="mt-4 rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-900" role="alert">
+        <div className="mt-4 rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-900 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-100" role="alert">
           {error}
         </div>
       )}
       {msg && (
-        <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-950" role="status">
+        <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-950 dark:border-emerald-800/50 dark:bg-emerald-950/35 dark:text-emerald-100" role="status">
           {msg}
         </div>
       )}
@@ -409,7 +409,7 @@ export function CircuitDetailPage() {
       {isParent && !terminal && (
         <div className="mt-8 space-y-3">
           {!(row.status === 'PADRE_EN_CAMINO' && !parentGpsOnThisDevice) && (
-            <p className="text-sm text-slate-600 leading-relaxed">
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               Avanza el circuito cuando corresponda. Al pulsar «Ya llegué» se envía su ubicación en ese momento para
               revisión en el plantel. Podrás confirmar que ya recibiste a tu hijo o hija solo cuando el plantel haya
               indicado que va en camino hacia la salida (en tránsito).
@@ -434,9 +434,9 @@ export function CircuitDetailPage() {
             </button>
           )}
           {row.status === 'PADRE_EN_CAMINO' && !parentGpsOnThisDevice && (
-            <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-4 py-5 shadow-sm ring-1 ring-sky-100">
+            <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-4 py-5 shadow-sm ring-1 ring-sky-100 dark:border-sky-800/50 dark:from-sky-950/80 dark:to-slate-900 dark:shadow-slate-950/20 dark:ring-sky-900/40">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
-                <div className="mx-auto shrink-0 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 sm:mx-0">
+                <div className="mx-auto shrink-0 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 sm:mx-0 dark:bg-white dark:ring-slate-500">
                   <QRCodeSVG
                     value={typeof window !== 'undefined' ? window.location.href : ''}
                     size={132}
@@ -446,11 +446,10 @@ export function CircuitDetailPage() {
                   />
                 </div>
                 <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
-                  <p className="text-base font-semibold text-sky-950">Continúe en su teléfono móvil</p>
-                  <p className="text-sm leading-relaxed text-sky-900/90">
-                    Ha indicado que viene hacia el colegio. Los siguientes pasos usan la ubicación GPS y están pensados
-                    para el móvil mientras se acerca al plantel. Abra este mismo enlace en su celular o escanee el
-                    código.
+                  <p className="text-base font-semibold text-sky-950 dark:text-sky-100">Continúe en su teléfono móvil</p>
+                  <p className="text-sm leading-relaxed text-sky-900/90 dark:text-sky-200/90">
+                    Ha indicado que viene hacia el colegio. «Ya llegué» con ubicación solo puede confirmarse desde el
+                    móvil. Abra este mismo enlace en su celular o escanee el código.
                   </p>
                   <button
                     type="button"
@@ -465,48 +464,12 @@ export function CircuitDetailPage() {
                         setError('No pudimos copiar al portapapeles. Copie la dirección de la barra del navegador.');
                       }
                     }}
-                    className="w-full rounded-lg border border-sky-300 bg-white px-4 py-2.5 text-sm font-medium text-sky-950 hover:bg-sky-50 disabled:opacity-50 sm:w-auto"
+                    className="w-full rounded-lg border border-sky-300 bg-white px-4 py-2.5 text-sm font-medium text-sky-950 hover:bg-sky-50 disabled:opacity-50 sm:w-auto dark:border-sky-600 dark:bg-slate-800 dark:text-sky-100 dark:hover:bg-slate-700"
                   >
                     Copiar enlace de esta solicitud
                   </button>
                 </div>
               </div>
-              <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-left">
-                <summary className="cursor-pointer text-xs font-medium text-slate-700">
-                  Solo dispongo de este ordenador
-                </summary>
-                <p className="mt-2 text-xs text-slate-600">
-                  Si no puede usar un móvil, puede intentar marcar «Ya llegué» aquí (el navegador pedirá permiso de
-                  ubicación; en PC la señal suele ser menos fiable).
-                </p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    runWithCircuitBody(async () => {
-                      const pos = await requestGeolocationForCircuitArrival();
-                      const parentGpsLatitude = Number(pos.coords.latitude);
-                      const parentGpsLongitude = Number(pos.coords.longitude);
-                      await api.patch(`/api/v1/circuit-requests/${id}/gps`, {
-                        parentGpsLatitude,
-                        parentGpsLongitude
-                      });
-                      const { data } = await api.patch<CircuitReq>(
-                        `/api/v1/circuit-requests/${id}/parent-progress`,
-                        {
-                          status: 'NOTIFICADO_LLEGADA',
-                          parentGpsLatitude,
-                          parentGpsLongitude
-                        }
-                      );
-                      return data;
-                    })
-                  }
-                  className="mt-3 w-full rounded bg-brand-800 py-2.5 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
-                >
-                  Ya llegué (con ubicación)
-                </button>
-              </details>
             </div>
           )}
           {row.status === 'PADRE_EN_CAMINO' && parentGpsOnThisDevice && (
@@ -543,7 +506,7 @@ export function CircuitDetailPage() {
               type="button"
               disabled={busy}
               onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/cancel`, {}))}
-              className="w-full rounded border border-slate-300 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+              className="w-full rounded border border-slate-300 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancelar solicitud
             </button>
@@ -553,7 +516,7 @@ export function CircuitDetailPage() {
               type="button"
               disabled={busy}
               onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/confirm-delivered`, {}))}
-              className="w-full rounded border border-slate-900 bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              className="w-full rounded border border-slate-900 bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
             >
               Confirmar que ya recibí a mi hijo o hija
             </button>
@@ -562,22 +525,22 @@ export function CircuitDetailPage() {
       )}
 
       {isStaff && !terminal && (
-        <div className="mt-8 space-y-6 rounded border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mt-8 space-y-6 rounded border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900">Mapa de llegada del padre o madre</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">Mapa de llegada del padre o madre</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Muestra la posición capturada al marcar «Ya llegué». Si la ubicación no es creíble, use el botón inferior
               para pedir que se acerquen y vuelvan a confirmar con GPS.
             </p>
             <div className="mt-4">
               {mapCtx ? (
                 <Suspense
-                  fallback={<p className="text-sm text-slate-500">Cargando mapa…</p>}
+                  fallback={<p className="text-sm text-slate-500 dark:text-slate-400">Cargando mapa…</p>}
                 >
                   <CircuitArrivalMap ctx={mapCtx} />
                 </Suspense>
               ) : (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   {loading ? 'Cargando…' : 'No hay datos de mapa para esta solicitud.'}
                 </p>
               )}
@@ -590,11 +553,11 @@ export function CircuitDetailPage() {
                   onClick={() =>
                     run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'PADRE_EN_CAMINO' }))
                   }
-                  className="w-full rounded border border-amber-600 bg-amber-50 py-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                  className="w-full rounded border border-amber-600 bg-amber-50 py-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60"
                 >
                   Pedir acercarse y reconfirmar llegada
                 </button>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   El estado volverá a «En camino» y la familia recibirá un aviso para marcar de nuevo «Ya llegué» con
                   ubicación actualizada.
                 </p>
@@ -603,8 +566,8 @@ export function CircuitDetailPage() {
           </div>
 
           <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900">Aviso al padre o madre</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">Aviso al padre o madre</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Envíelos en este orden: primero &quot;Preparando salida&quot; y después &quot;Alumno en camino a la
               salida&quot;.
             </p>
@@ -624,15 +587,15 @@ export function CircuitDetailPage() {
                 </button>
               </div>
             ) : (
-              <p className="mt-4 text-sm text-slate-600">
+              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
                 Ya se enviaron las dos señales pedagógicas de esta solicitud.
               </p>
             )}
           </div>
 
           <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900">Avance de la recogida</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">Avance de la recogida</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Avance paso a paso: familia en camino → llegada → autorizado → camino a la salida. La entrega la
               confirma la familia. Si necesita anularla use el botón Cancelar.
             </p>
@@ -652,26 +615,26 @@ export function CircuitDetailPage() {
                 </button>
               </div>
             ) : row.status === 'EN_CAMINO' ? (
-              <p className="mt-4 text-sm text-slate-600">
+              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
                 El alumno va camino a la salida. La familia confirmará cuando lo reciba. Si necesita anular la
                 solicitud, use el botón Cancelar.
               </p>
             ) : row.status === 'PADRE_EN_CAMINO' ? (
-              <p className="mt-4 text-sm text-slate-600">
+              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
                 Espere a que la familia marque «Ya llegué» con su ubicación. Entonces podrá ver el mapa y continuar.
               </p>
             ) : (
-              <p className="mt-4 text-sm text-slate-600">No hay otro paso disponible en este momento.</p>
+              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">No hay otro paso disponible en este momento.</p>
             )}
 
             {canStaffCancel && (
-              <div className="mt-6 border-t border-slate-200 pt-5">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Anular solicitud</p>
+              <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-700">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Anular solicitud</p>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'CANCELADO' }))}
-                  className="mt-3 w-full rounded border border-slate-300 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                  className="mt-3 w-full rounded border border-slate-300 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Cancelar solicitud
                 </button>
@@ -682,7 +645,7 @@ export function CircuitDetailPage() {
       )}
 
       {terminal && (
-        <p className="mt-8 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <p className="mt-8 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200">
           Este circuito está cerrado. No se envían más señales ni cambios de estado.
         </p>
       )}

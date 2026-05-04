@@ -181,7 +181,7 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
 
   if (!hasParent) {
     return (
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-slate-600 dark:text-slate-400">
         Aún no hay una ubicación de llegada registrada. El padre o madre debe marcar «Ya llegué» con el GPS activo.
       </p>
     );
@@ -189,16 +189,16 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
 
   if (!isMapboxConfigured()) {
     return (
-      <div className="rounded-lg border border-amber-200/80 bg-gradient-to-b from-amber-50 to-amber-50/50 px-5 py-8 text-center shadow-sm">
-        <p className="text-sm font-semibold text-amber-950">Mapa no disponible en este entorno</p>
-        <p className="mt-2 text-xs leading-relaxed text-amber-900/85">
+      <div className="rounded-lg border border-amber-200/80 bg-gradient-to-b from-amber-50 to-amber-50/50 px-5 py-8 text-center shadow-sm dark:border-amber-700/50 dark:from-amber-950/50 dark:to-amber-950/30">
+        <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Mapa no disponible en este entorno</p>
+        <p className="mt-2 text-xs leading-relaxed text-amber-900/85 dark:text-amber-200/90">
           Defina la variable{' '}
-          <code className="rounded bg-amber-100/90 px-1.5 py-0.5 font-mono text-[11px] text-amber-950">
+          <code className="rounded bg-amber-100/90 px-1.5 py-0.5 font-mono text-[11px] text-amber-950 dark:bg-amber-900/50 dark:text-amber-100">
             VITE_MAPBOX_ACCESS_TOKEN
           </code>{' '}
           en el build del frontend (p. ej. Vercel o Railway) con un{' '}
           <a
-            className="font-medium text-amber-800 underline decoration-amber-600/60 underline-offset-2 hover:text-amber-950"
+            className="font-medium text-amber-800 underline decoration-amber-600/60 underline-offset-2 hover:text-amber-950 dark:text-amber-200 dark:decoration-amber-400/60 dark:hover:text-amber-50"
             href="https://docs.mapbox.com/help/getting-started/access-tokens/"
             target="_blank"
             rel="noreferrer"
@@ -215,19 +215,19 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
     <div className="space-y-2">
       <div
         ref={wrapRef}
-        className="relative h-80 min-h-[18rem] w-full overflow-hidden rounded-lg border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] ring-1 ring-slate-900/5"
+        className="relative h-80 min-h-[18rem] w-full overflow-hidden rounded-lg border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] ring-1 ring-slate-900/5 dark:border-slate-600 dark:shadow-[0_8px_30px_rgb(0,0,0,0.35)] dark:ring-slate-950/40"
       />
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-        <div className="rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2">
-          <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Distancia a la institución</dt>
-          <dd className="mt-0.5 font-medium text-slate-900">
+        <div className="rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+          <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Distancia a la institución</dt>
+          <dd className="mt-0.5 font-medium text-slate-900 dark:text-slate-100">
             {ctx.distanceToSchoolKm != null ? `${ctx.distanceToSchoolKm} km` : '—'}
             {ctx.etaMinutes != null ? ` · ~${ctx.etaMinutes} min` : ''}
           </dd>
         </div>
-        <div className="rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2">
-          <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Dentro del radio configurado</dt>
-          <dd className="mt-0.5 font-medium text-slate-900">
+        <div className="rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+          <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Dentro del radio configurado</dt>
+          <dd className="mt-0.5 font-medium text-slate-900 dark:text-slate-100">
             {ctx.withinSchoolArrivalRadius === null
               ? '—'
               : ctx.withinSchoolArrivalRadius
@@ -237,7 +237,7 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
           </dd>
         </div>
       </dl>
-      <p className="text-[11px] leading-snug text-slate-400">
+      <p className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">
         © Mapbox © OpenStreetMap. El área sombreada muestra el radio de llegada configurado para la institución.
       </p>
     </div>
