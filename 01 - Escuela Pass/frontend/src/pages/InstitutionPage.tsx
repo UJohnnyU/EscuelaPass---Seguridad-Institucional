@@ -123,7 +123,9 @@ export function InstitutionPage() {
     setMessage(null);
     setError(null);
     try {
-      const { shiftWindows: _omitShifts, ...formRest } = form;
+      // Horarios de jornada solo vía admin de plataforma; no se envían desde esta pantalla.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- omitido del payload
+      const { shiftWindows, ...formRest } = form;
       const payload: Omit<Profile, 'maxGradeScale' | 'latitude' | 'longitude' | 'shiftWindows'> & {
         maxGradeScale?: number;
         latitude?: number;

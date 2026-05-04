@@ -7,6 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: ['mapbox-gl']
+  },
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') }
   },
@@ -20,6 +23,18 @@ export default defineConfig({
       '/uploads': {
         target: 'http://localhost:3000',
         changeOrigin: true
+      }
+    }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/mapbox-gl')) {
+            return 'mapbox-gl';
+          }
+          return undefined;
+        }
       }
     }
   }
