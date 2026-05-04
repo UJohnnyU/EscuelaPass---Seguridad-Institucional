@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS schools (
   latitude                   NUMERIC(10,8) NOT NULL DEFAULT 0,
   longitude                  NUMERIC(11,8) NOT NULL DEFAULT 0,
   logo_path                  VARCHAR(500),
+  shift_matutino_start       TIME,
+  shift_matutino_end         TIME,
+  shift_vespertino_start     TIME,
+  shift_vespertino_end       TIME,
+  shift_nocturno_start       TIME,
+  shift_nocturno_end         TIME,
   created_at                 TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at                 TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );

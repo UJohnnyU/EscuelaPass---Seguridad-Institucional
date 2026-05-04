@@ -9,6 +9,7 @@ import { In, Repository } from 'typeorm';
 import { InstitutionSettingEntity } from '../../database/entities/institution-setting.entity';
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { formatTimeForDisplay } from '../../common/shift-schedule';
 import { UpdateInstitutionProfileDto } from './dto/update-institution-profile.dto';
 
 export const CIRCUIT_ENABLED_KEY = 'circuit.enabled';
@@ -22,6 +23,8 @@ export const INSTITUTION_SETTING_KEYS = {
   directorName: 'institution.director_name',
   motto: 'institution.motto'
 } as const;
+
+export type InstitutionShiftWindow = { start: string | null; end: string | null };
 
 export type InstitutionProfile = {
   name: string;
@@ -37,12 +40,39 @@ export type InstitutionProfile = {
   logoUrl?: string | null;
   latitude?: string | null;
   longitude?: string | null;
+  /**
+   * Horarios de jornada (solo lectura en campus). Configurables solo por ADMIN al crear/parchar escuela.
+   */
+  shiftWindows?: {
+    matutino: InstitutionShiftWindow;
+    vespertino: InstitutionShiftWindow;
+    nocturno: InstitutionShiftWindow;
+  } | null;
 };
 
 type JwtLike = { role: UserRole; schoolId?: string | null };
 
 @Injectable()
 export class SettingsService {
+  static shiftWindowsFromSchool(school: SchoolEntity): InstitutionProfile['shiftWindows'] {
+    const pair = (a: string | null, b: string | null): InstitutionShiftWindow => ({
+      start: formatTimeForDisplay(a),
+      end: formatTimeForDisplay(b)
+    });
+    const m = pair(school.shiftMatutinoStart, school.shiftMatutinoEnd);
+    const v = pair(school.shiftVespertinoStart, school.shiftVespertinoEnd);
+    const n = pair(school.shiftNocturnoStart, school.shiftNocturnoEnd);
+    const empty =
+      !m.start &&
+      !m.end &&
+      !v.start &&
+      !v.end &&
+      !n.start &&
+      !n.end;
+    if (empty) return null;
+    return { matutino: m, vespertino: v, nocturno: n };
+  }
+
   constructor(
     @InjectRepository(InstitutionSettingEntity)
     private readonly settingsRepository: Repository<InstitutionSettingEntity>,
@@ -50,7 +80,6 @@ export class SettingsService {
     private readonly schoolsRepository: Repository<SchoolEntity>
   ) {}
 
-  /** Perfil global (tabla key-value + env). Sin alcance por escuela. */
   private async getGlobalInstitutionProfile(): Promise<InstitutionProfile> {
     const keys = Object.values(INSTITUTION_SETTING_KEYS);
     const rows = await this.settingsRepository.find({
@@ -107,7 +136,8 @@ export class SettingsService {
       maxGradeScale: school.maxGradeScale,
       logoUrl: school.logoPath ?? null,
       latitude: school.latitude ?? null,
-      longitude: school.longitude ?? null
+      longitude: school.longitude ?? null,
+      shiftWindows: SettingsService.shiftWindowsFromSchool(school)
     };
   }
 

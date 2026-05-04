@@ -92,6 +92,16 @@ export class AttendanceService {
     );
   }
 
+  /** Tras ausencias automáticas al cierre de jornada. */
+  async applyUnjustifiedAbsentForRecordIds(recordIds: string[]): Promise<void> {
+    if (recordIds.length === 0) return;
+    if (!(await this.hasJustificationColumn())) return;
+    await this.attendanceRepository.query(
+      `UPDATE attendance_records SET is_justified = $2 WHERE id = ANY($1::uuid[]) AND status = 'AUSENTE'`,
+      [recordIds, false]
+    );
+  }
+
   async register(dto: RegisterAttendanceDto, registeredByUserId: string, role: UserRole) {
     const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado');

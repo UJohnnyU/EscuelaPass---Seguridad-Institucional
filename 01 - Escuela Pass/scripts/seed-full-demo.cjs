@@ -370,8 +370,12 @@ async function populateSchool(client, schoolDef, si, hash, policyId, globalAdmin
     INSERT INTO schools
       (name, code, city, address, phone, email, director_name, motto,
        max_grade_scale, passing_grade, min_failed_subjects_to_repeat,
-       latitude, longitude, circuit_enabled, student_matricula_prefix, status)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,100,60,3,$9,$10,TRUE,$11,TRUE)
+       latitude, longitude, circuit_enabled, student_matricula_prefix, status,
+       shift_matutino_start, shift_matutino_end,
+       shift_vespertino_start, shift_vespertino_end,
+       shift_nocturno_start, shift_nocturno_end)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,100,60,3,$9,$10,TRUE,$11,TRUE,
+       '07:00:00', '13:00:00', '14:00:00', '19:00:00', '19:00:00', '22:00:00')
     RETURNING id
   `, [
     schoolDef.name, schoolDef.code, schoolDef.city, schoolDef.address,

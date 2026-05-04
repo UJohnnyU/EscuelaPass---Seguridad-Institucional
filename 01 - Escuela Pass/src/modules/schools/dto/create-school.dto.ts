@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { SchoolShiftWindowsDto } from './school-shift-windows.dto';
 
 export class CreateSchoolDto {
   @IsString()
@@ -46,4 +47,9 @@ export class CreateSchoolDto {
   @Min(-180)
   @Max(180)
   longitude!: number;
+
+  /** Horario de clases por jornada (obligatorio al crear la escuela). */
+  @ValidateNested()
+  @Type(() => SchoolShiftWindowsDto)
+  shiftWindows!: SchoolShiftWindowsDto;
 }

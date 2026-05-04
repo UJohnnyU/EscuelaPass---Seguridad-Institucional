@@ -1,5 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested
+} from 'class-validator';
+import { SchoolShiftWindowsDto } from './school-shift-windows.dto';
 
 export class UpdateSchoolDto {
   @IsOptional()
@@ -46,4 +58,10 @@ export class UpdateSchoolDto {
   @Min(1)
   @Max(50)
   minFailedSubjectsToRepeat?: number;
+
+  /** Solo ADMIN (PATCH /schools). Si se envía, deben figurar las tres jornadas. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SchoolShiftWindowsDto)
+  shiftWindows?: SchoolShiftWindowsDto;
 }

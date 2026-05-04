@@ -437,7 +437,7 @@ function HomeAlumno() {
       <div className="min-w-0">
         <Card
           title="Próximas entregas"
-          subtitle="Solo entregas de hoy en adelante (no se muestran vencidas). Orden por fecha límite más cercana."
+          subtitle="De un vistazo, lo que tienes por entregar sin calificar: arriba lo que vence antes, para organizarte mejor."
           to="/app/modulos/mis-calificaciones"
           accent="amber"
         >

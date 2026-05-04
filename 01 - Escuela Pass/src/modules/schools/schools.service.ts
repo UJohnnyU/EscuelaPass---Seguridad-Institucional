@@ -1,10 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { assertWindowStartBeforeEnd, timeHmToSql } from '../../common/shift-schedule';
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AssignUserSchoolDto } from './dto/assign-user-school.dto';
 import { CreateSchoolDto } from './dto/create-school.dto';
+import { SchoolShiftWindowsDto } from './dto/school-shift-windows.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
 
 @Injectable()
@@ -15,6 +17,23 @@ export class SchoolsService {
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>
   ) {}
+
+  private applyShiftWindowsToSchoolOrThrow(school: SchoolEntity, w: SchoolShiftWindowsDto): void {
+    try {
+      assertWindowStartBeforeEnd(w.matutino.start, w.matutino.end);
+      assertWindowStartBeforeEnd(w.vespertino.start, w.vespertino.end);
+      assertWindowStartBeforeEnd(w.nocturno.start, w.nocturno.end);
+      school.shiftMatutinoStart = timeHmToSql(w.matutino.start);
+      school.shiftMatutinoEnd = timeHmToSql(w.matutino.end);
+      school.shiftVespertinoStart = timeHmToSql(w.vespertino.start);
+      school.shiftVespertinoEnd = timeHmToSql(w.vespertino.end);
+      school.shiftNocturnoStart = timeHmToSql(w.nocturno.start);
+      school.shiftNocturnoEnd = timeHmToSql(w.nocturno.end);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Horarios de jornada inválidos';
+      throw new BadRequestException(msg);
+    }
+  }
 
   list() {
     return this.schoolsRepository.find({ order: { name: 'ASC' } });
@@ -45,6 +64,7 @@ export class SchoolsService {
       latitude: dto.latitude.toFixed(8),
       longitude: dto.longitude.toFixed(8)
     });
+    this.applyShiftWindowsToSchoolOrThrow(row, dto.shiftWindows);
     return this.schoolsRepository.save(row);
   }
 
@@ -74,6 +94,9 @@ export class SchoolsService {
     if (dto.latitude !== undefined && dto.longitude !== undefined) {
       row.latitude = dto.latitude.toFixed(8);
       row.longitude = dto.longitude.toFixed(8);
+    }
+    if (dto.shiftWindows !== undefined) {
+      this.applyShiftWindowsToSchoolOrThrow(row, dto.shiftWindows);
     }
     return this.schoolsRepository.save(row);
   }

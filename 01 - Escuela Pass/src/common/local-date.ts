@@ -24,6 +24,11 @@ export function todayInAppTimezone(): string {
 /**
  * Fecha calendario en la zona horaria del proceso (p. ej. servidor).
  * Preferible a `toISOString().slice(0, 10)` (UTC) para reglas de negocio por día escolar.
+ *
+ * Nota: los cierres automáticos (pagos, periodos, asistencia al cierre de jornada) usan
+ * `todayInAppTimezone()` según `APP_TIMEZONE`. El registro manual de asistencia por docente
+ * usa esta función; si el servidor no está en la misma zona que `APP_TIMEZONE`, conviene
+ * alinear ambos en el futuro.
  */
 export function todayLocalISODate(): string {
   const n = new Date();

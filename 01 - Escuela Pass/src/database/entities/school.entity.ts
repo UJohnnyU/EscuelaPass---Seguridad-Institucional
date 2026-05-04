@@ -57,6 +57,26 @@ export class SchoolEntity {
   @Column({ name: 'min_failed_subjects_to_repeat', type: 'int', default: 3 })
   minFailedSubjectsToRepeat!: number;
 
+  /** Inicio de clases jornada matutina (hora local institucional, cf. APP_TIMEZONE). */
+  @Column({ name: 'shift_matutino_start', type: 'time', nullable: true })
+  shiftMatutinoStart!: string | null;
+
+  /** Fin de clases jornada matutina. */
+  @Column({ name: 'shift_matutino_end', type: 'time', nullable: true })
+  shiftMatutinoEnd!: string | null;
+
+  @Column({ name: 'shift_vespertino_start', type: 'time', nullable: true })
+  shiftVespertinoStart!: string | null;
+
+  @Column({ name: 'shift_vespertino_end', type: 'time', nullable: true })
+  shiftVespertinoEnd!: string | null;
+
+  @Column({ name: 'shift_nocturno_start', type: 'time', nullable: true })
+  shiftNocturnoStart!: string | null;
+
+  @Column({ name: 'shift_nocturno_end', type: 'time', nullable: true })
+  shiftNocturnoEnd!: string | null;
+
   /** Ruta pública bajo `/uploads/school-logos/…` */
   @Column({ name: 'logo_path', type: 'varchar', length: 500, nullable: true })
   logoPath!: string | null;

@@ -21,6 +21,11 @@ type Profile = {
   logoUrl?: string | null;
   latitude?: string | null;
   longitude?: string | null;
+  shiftWindows?: {
+    matutino: { start: string | null; end: string | null };
+    vespertino: { start: string | null; end: string | null };
+    nocturno: { start: string | null; end: string | null };
+  } | null;
 };
 
 type SchoolRow = { id: string; name: string; code: string };
@@ -118,12 +123,13 @@ export function InstitutionPage() {
     setMessage(null);
     setError(null);
     try {
-      const payload: Omit<Profile, 'maxGradeScale' | 'latitude' | 'longitude'> & {
+      const { shiftWindows: _omitShifts, ...formRest } = form;
+      const payload: Omit<Profile, 'maxGradeScale' | 'latitude' | 'longitude' | 'shiftWindows'> & {
         maxGradeScale?: number;
         latitude?: number;
         longitude?: number;
       } = {
-        ...form,
+        ...formRest,
         maxGradeScale: undefined,
         latitude: undefined,
         longitude: undefined
@@ -323,16 +329,18 @@ export function InstitutionPage() {
               )}
             </div>
           </div>
-          {[
-            ['name', 'Nombre de la escuela', 'text'],
-            ['address', 'Dirección', 'text'],
-            ['city', 'Ciudad', 'text'],
-            ['phone', 'Teléfono', 'text'],
-            ['email', 'Correo de contacto', 'email'],
-            ['directorName', 'Director/a', 'text'],
-            ['motto', 'Lema o mensaje', 'text'],
-            ['studentMatriculaPrefix', 'Prefijo de matrícula de alumnos', 'text']
-          ].map(([key, label, type]) => (
+          {(
+            [
+              ['name', 'Nombre de la escuela', 'text'],
+              ['address', 'Dirección', 'text'],
+              ['city', 'Ciudad', 'text'],
+              ['phone', 'Teléfono', 'text'],
+              ['email', 'Correo de contacto', 'email'],
+              ['directorName', 'Director/a', 'text'],
+              ['motto', 'Lema o mensaje', 'text'],
+              ['studentMatriculaPrefix', 'Prefijo de matrícula de alumnos', 'text']
+            ] as const
+          ).map(([key, label, type]) => (
             <div key={key}>
               <label className="block text-sm font-medium text-slate-700" htmlFor={key}>
                 {label}
@@ -340,7 +348,7 @@ export function InstitutionPage() {
               <input
                 id={key}
                 type={type}
-                value={(form as Record<string, string | undefined>)[key] ?? ''}
+                value={(form[key] as string | undefined) ?? ''}
                 onChange={(e) => {
                   setFormDirty(true);
                   setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -518,6 +526,36 @@ export function InstitutionPage() {
           </div>
         </dl>
       )}
+
+      {profile?.shiftWindows ? (
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/40">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Horarios de jornada escolar</h2>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Referencia de inicio y fin de clases por turno. Se definen al crear la escuela; el personal administrativo no puede
+            cambiarlos desde aquí (solo el administrador de plataforma, desde la sección Escuelas).
+          </p>
+          <ul className="mt-3 grid gap-2 text-sm text-slate-800 dark:text-slate-200 sm:grid-cols-3">
+            <li className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Mañana</span>
+              <p className="font-medium">
+                {profile.shiftWindows.matutino.start ?? '—'} – {profile.shiftWindows.matutino.end ?? '—'}
+              </p>
+            </li>
+            <li className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tarde</span>
+              <p className="font-medium">
+                {profile.shiftWindows.vespertino.start ?? '—'} – {profile.shiftWindows.vespertino.end ?? '—'}
+              </p>
+            </li>
+            <li className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Noche</span>
+              <p className="font-medium">
+                {profile.shiftWindows.nocturno.start ?? '—'} – {profile.shiftWindows.nocturno.end ?? '—'}
+              </p>
+            </li>
+          </ul>
+        </section>
+      ) : null}
 
       {(() => {
         const lat = profile?.latitude != null ? Number(profile.latitude) : NaN;
