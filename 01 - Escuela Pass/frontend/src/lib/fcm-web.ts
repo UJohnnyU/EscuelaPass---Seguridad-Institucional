@@ -2,7 +2,7 @@ import { getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from '
 import { getAnalytics, isSupported as isAnalyticsSupported } from 'firebase/analytics';
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
 
-import { api } from '@/lib/api';
+import { API_BASE_URL, api } from '@/lib/api';
 import { NOTIFICATIONS_REFRESH_REQUEST_EVENT } from '@/lib/notifications-sync';
 
 const STORAGE_LAST_TOKEN = 'ep-fcm-registration-token';
@@ -70,6 +70,12 @@ let foregroundListenerAttached = false;
  */
 export async function ensureWebPushRegistered(): Promise<void> {
   if (!isWebPushConfigured()) return;
+  if (import.meta.env.PROD && !API_BASE_URL) {
+    console.warn(
+      '[Escuela Pass FCM] VITE_API_BASE no está definido en el build. El token no se registrará en el API (use la URL pública de Railway en Vercel y vuelva a desplegar).'
+    );
+    return;
+  }
   try {
     if (!(await isSupported())) return;
     if (typeof Notification === 'undefined') return;
@@ -97,13 +103,26 @@ export async function ensureWebPushRegistered(): Promise<void> {
     localStorage.setItem(STORAGE_LAST_TOKEN, token);
 
     if (!foregroundListenerAttached) {
-      onMessage(messaging, () => {
+      onMessage(messaging, (payload) => {
         requestRefreshSoon();
+        if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+        const title = payload.notification?.title ?? 'Escuela Pass';
+        const body = payload.notification?.body ?? '';
+        if (!title && !body) return;
+        try {
+          const n = new Notification(title, { body, icon: '/favicon.svg', tag: payload.data?.notificationId ?? undefined });
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        } catch {
+          /* Notification API no disponible */
+        }
       });
       foregroundListenerAttached = true;
     }
-  } catch {
-    /* permisos, SW o red */
+  } catch (err) {
+    console.warn('[Escuela Pass FCM] No se pudo registrar el token de push:', err);
   }
 }
 

@@ -123,15 +123,23 @@ export class FcmService implements OnModuleInit {
     data: Record<string, string>
   ) {
     if (!this.messaging) return;
+    /** FCM exige valores string en `data` (especialmente en web). */
+    const dataStrings = Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, v === undefined || v === null ? '' : String(v)])
+    );
     for (let i = 0; i < tokens.length; i += FCM_BATCH) {
       const chunk = tokens.slice(i, i + FCM_BATCH);
       try {
         const res = await this.messaging.sendEachForMulticast({
           tokens: chunk,
           notification: { title, body },
-          data
+          data: dataStrings
         });
         if (res.failureCount > 0) {
+          const firstFail = res.responses.find((r) => !r.success);
+          this.logger.warn(
+            `FCM: ${res.failureCount}/${chunk.length} envíos fallidos${firstFail?.error?.message ? ` (ej.: ${firstFail.error.message})` : ''}`
+          );
           res.responses.forEach((r, idx) => {
             if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
               void this.tokenRepository.delete({ token: chunk[idx] }).catch(() => undefined);
