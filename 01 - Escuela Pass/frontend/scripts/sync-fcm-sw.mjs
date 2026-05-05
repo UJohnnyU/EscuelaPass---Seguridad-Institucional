@@ -139,10 +139,10 @@ self.addEventListener('notificationclick', (event) => {
             return c.navigate(url).then(function () {
               return c.focus();
             }).catch(function () {
-              return c.focus();
+              if (self.clients.openWindow) return self.clients.openWindow(url);
             });
           }
-          return c.focus();
+          if (self.clients.openWindow) return self.clients.openWindow(url);
         }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
