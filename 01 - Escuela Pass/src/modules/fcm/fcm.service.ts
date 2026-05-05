@@ -129,14 +129,37 @@ export class FcmService implements OnModuleInit {
     );
     const bodyText = this.truncate(body, MAX_BODY);
     const titleText = this.truncate(title, 200);
-    const dataOnly: Record<string, string> = { ...dataStrings, title: titleText, body: bodyText };
+    const openPath = this.resolveOpenPath(dataStrings);
+    const notifTag =
+      dataStrings.notifTag?.trim() ||
+      (dataStrings.circuitRequestId?.trim()
+        ? `circuit-${dataStrings.circuitRequestId.trim()}`
+        : '') ||
+      (dataStrings.notificationId?.trim() ? `notice-${dataStrings.notificationId.trim()}` : '') ||
+      'escuela-pass';
+    const dataOnly: Record<string, string> = {
+      ...dataStrings,
+      title: titleText,
+      body: bodyText,
+      openPath,
+      notifTag
+    };
+    const openUrl = this.absoluteAppUrl(openPath);
+    if (openUrl) {
+      dataOnly.openUrl = openUrl;
+    }
     for (let i = 0; i < tokens.length; i += FCM_BATCH) {
       const chunk = tokens.slice(i, i + FCM_BATCH);
       try {
-        /** Solo `data`: en web activa `onBackgroundMessage` de forma fiable (evita mensajes con `notification`). */
+        /** Solo `data` + webpush.link: click y pestañas en segundo plano; el SW abre `openPath` al pulsar. */
         const res = await this.messaging.sendEachForMulticast({
           tokens: chunk,
-          data: dataOnly
+          data: dataOnly,
+          webpush: openUrl
+            ? {
+                fcmOptions: { link: openUrl }
+              }
+            : undefined
         });
         if (res.failureCount > 0) {
           const firstFail = res.responses.find((r) => !r.success);
@@ -183,5 +206,29 @@ export class FcmService implements OnModuleInit {
   private truncate(s: string, max: number): string {
     if (s.length <= max) return s;
     return `${s.slice(0, max - 3)}...`;
+  }
+
+  /** Ruta bajo el mismo origen que el SPA (p. ej. /app/circuito/uuid). */
+  private resolveOpenPath(d: Record<string, string>): string {
+    const explicit = d.openPath?.trim();
+    if (explicit) return explicit.startsWith('/') ? explicit : `/${explicit}`;
+    const deep = d.deepLink?.trim();
+    if (deep) return deep.startsWith('/') ? deep : `/${deep}`;
+    const route = d.route?.trim();
+    if (route) return route.startsWith('/') ? route : `/${route}`;
+    const cid = d.circuitRequestId?.trim();
+    if (cid) return `/app/circuito/${cid}`;
+    const nid = d.notificationId?.trim();
+    if (nid) {
+      return `/app/modulos/comunicacion?notification=${encodeURIComponent(nid)}`;
+    }
+    return '/app';
+  }
+
+  private absoluteAppUrl(path: string): string | undefined {
+    const base = (process.env.FRONTEND_URL ?? '').trim().replace(/\/$/, '');
+    if (!base) return undefined;
+    const p = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${p}`;
   }
 }

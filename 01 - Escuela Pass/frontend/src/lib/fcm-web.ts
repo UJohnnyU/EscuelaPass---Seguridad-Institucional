@@ -103,21 +103,9 @@ export async function ensureWebPushRegistered(): Promise<void> {
     localStorage.setItem(STORAGE_LAST_TOKEN, token);
 
     if (!foregroundListenerAttached) {
-      onMessage(messaging, (payload) => {
+      /** En primer plano solo actualizamos la campana; el aviso del sistema lo muestra el SW si la pestaña no está activa. */
+      onMessage(messaging, () => {
         requestRefreshSoon();
-        if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-        const title = payload.notification?.title ?? payload.data?.title ?? 'Escuela Pass';
-        const body = payload.notification?.body ?? payload.data?.body ?? '';
-        if (!title && !body) return;
-        try {
-          const n = new Notification(title, { body, icon: '/favicon.svg', tag: payload.data?.notificationId ?? undefined });
-          n.onclick = () => {
-            window.focus();
-            n.close();
-          };
-        } catch {
-          /* Notification API no disponible */
-        }
       });
       foregroundListenerAttached = true;
     }

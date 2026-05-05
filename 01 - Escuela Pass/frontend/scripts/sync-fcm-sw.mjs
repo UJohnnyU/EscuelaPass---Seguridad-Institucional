@@ -111,10 +111,43 @@ function main() {
 
   const body = `/* Auto-generado por scripts/sync-fcm-sw.mjs — no editar a mano */
 /* Firebase compat JS v${FIREBASE_CDN} */
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 importScripts('https://www.gstatic.com/firebasejs/${FIREBASE_CDN}/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/${FIREBASE_CDN}/firebase-messaging-compat.js');
 firebase.initializeApp({
 ${initFields.join(',\n')}
+});
+function epAbsoluteUrlFromNotification(raw) {
+  if (!raw) return self.location.origin + '/app';
+  var u = raw.openUrl;
+  if (u && /^https?:\\/\\//i.test(String(u))) return String(u);
+  var p = raw.openPath || raw.route || '';
+  p = String(p);
+  if (!p.startsWith('/')) p = '/' + p;
+  return self.location.origin + p;
+}
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  var url = epAbsoluteUrlFromNotification(event.notification.data || {});
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var c = clientList[i];
+        if (c.url.indexOf(self.location.origin) === 0 && 'focus' in c) {
+          if ('navigate' in c && typeof c.navigate === 'function') {
+            return c.navigate(url).then(function () {
+              return c.focus();
+            }).catch(function () {
+              return c.focus();
+            });
+          }
+          return c.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
+  );
 });
 const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
@@ -126,9 +159,11 @@ messaging.onBackgroundMessage((payload) => {
     (payload.notification && payload.notification.body) ||
     (payload.data && payload.data.body) ||
     '';
+  const tag = (payload.data && payload.data.notifTag) || undefined;
   const options = {
     body: bodyText,
     icon: '/favicon.svg',
+    tag: tag,
     data: payload.data || {}
   };
   return self.registration.showNotification(title, options);

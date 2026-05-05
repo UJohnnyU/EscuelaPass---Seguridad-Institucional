@@ -101,7 +101,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
   private parentConfirmWindowMinutes(): number {
     const n = Number(process.env.CIRCUIT_PARENT_CONFIRM_MINUTES ?? 15);
-    return Number.isFinite(n) && n > 0 ? Math.min(n, 120) : 15;
+    if (!Number.isFinite(n) || n <= 0) return 15;
+    /** Evita plazos ridículamente cortos (p. ej. 0.01 en env) que disparan el cierre y el push en bucle. */
+    return Math.min(Math.max(n, 1), 120);
   }
 
   private isTerminalCircuitStatus(status: CircuitStatus): boolean {
@@ -128,6 +130,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
        RETURNING id, student_id, requested_by_parent_id`,
       [CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE, CircuitStatus.EN_CAMINO, now]
     );
+
+    if (rows.length > 0) {
+      this.logger.log(
+        `Circuito: cierre automático por plazo de confirmación del padre: ${rows.length} solicitud(es).`
+      );
+    }
 
     for (const row of rows) {
       const parentUid = await this.parentUserIdByPk(row.requested_by_parent_id);
