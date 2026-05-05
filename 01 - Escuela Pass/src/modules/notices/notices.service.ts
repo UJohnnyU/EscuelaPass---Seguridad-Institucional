@@ -685,7 +685,7 @@ export class NoticesService {
       report.resolvedByUserId = null;
     }
     const saved = await this.adminReportsRepository.save(report);
-    await this.notificationsRepository.save(
+    const statusNotif = await this.notificationsRepository.save(
       this.notificationsRepository.create({
         userId: report.createdByUserId,
         noticeId: null,
@@ -694,6 +694,9 @@ export class NoticesService {
         deliveryStatus: 'SENT'
       })
     );
+    void this.fcmService.sendPushForNotifications([statusNotif]).catch((err: unknown) => {
+      this.logger.warn(`Push FCM (estado reporte) no enviado: ${String(err)}`);
+    });
     return saved;
   }
 
@@ -784,7 +787,7 @@ export class NoticesService {
     const saved = await this.adminReportCommentsRepository.save(row);
     const notifyTo = role === UserRole.ADMIN ? report.createdByUserId : report.assignedAdminUserId;
     if (notifyTo) {
-      await this.notificationsRepository.save(
+      const commentNotif = await this.notificationsRepository.save(
         this.notificationsRepository.create({
           userId: notifyTo,
           noticeId: null,
@@ -793,6 +796,9 @@ export class NoticesService {
           deliveryStatus: 'SENT'
         })
       );
+      void this.fcmService.sendPushForNotifications([commentNotif]).catch((err: unknown) => {
+        this.logger.warn(`Push FCM (comentario reporte) no enviado: ${String(err)}`);
+      });
     }
     return saved;
   }

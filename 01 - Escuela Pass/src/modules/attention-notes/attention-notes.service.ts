@@ -10,6 +10,7 @@ import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { FcmService } from '../fcm/fcm.service';
 import { CreateAttentionNoteDto } from './dto/create-attention-note.dto';
 
 @Injectable()
@@ -26,7 +27,8 @@ export class AttentionNotesService {
     @InjectRepository(NotificationEntity)
     private readonly notificationsRepository: Repository<NotificationEntity>,
     @InjectDataSource()
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly fcmService: FcmService
   ) {}
 
   async create(dto: CreateAttentionNoteDto, userId: string, role: UserRole) {
@@ -237,7 +239,8 @@ export class AttentionNotesService {
         deliveryStatus: 'SENT'
       })
     );
-    await this.notificationsRepository.save(notifications);
+    const savedNotifications = await this.notificationsRepository.save(notifications);
+    void this.fcmService.sendPushForNotifications(savedNotifications).catch(() => undefined);
     await this.notesRepository.update({ id: note.id }, { notifiedParent: true });
   }
 }

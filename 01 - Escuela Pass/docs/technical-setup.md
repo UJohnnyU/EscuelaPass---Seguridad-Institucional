@@ -171,6 +171,37 @@ Si hay datos viejos en `refresh_tokens`, en desarrollo se puede vaciar: `DELETE 
 
 **Push (FCM):** al crear un aviso (`POST /notices`), además de las filas en `notifications`, el backend intenta enviar un mensaje push a cada destinatario que tenga tokens en `user_fcm_tokens`. Requiere credenciales de cuenta de servicio en `.env` (`FIREBASE_SERVICE_ACCOUNT_PATH` o `FIREBASE_SERVICE_ACCOUNT_JSON`). Sin credenciales, la API sigue funcionando; solo no habrá push.
 
+### Firebase: configuración para push en navegador (Web FCM)
+
+Hay **dos piezas** independientes:
+
+1. **Cliente web (Vite / `frontend/.env`)** — credenciales **públicas** del proyecto (API Key, App ID, etc.) + **clave VAPID** para Web Push. Sirven para que el navegador obtenga un token y se registre en `POST /notifications/fcm/register`.
+2. **Backend (API Nest, `.env` en la raíz del monorepo)** — **cuenta de servicio** de Firebase (JSON privado o ruta al archivo). Solo el servidor debe conocerla; con ella `firebase-admin` envía los mensajes a los tokens guardados.
+
+**En la consola de Firebase** (console.firebase.google.com):
+
+1. Cree un proyecto o use uno existente. En **Configuración del proyecto** → **Sus apps** → **Agregar app** → **Web** (`</>`). Copie el objeto `firebaseConfig` (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId).
+2. En **Compilación → Mensajería en la nube (Cloud Messaging)**:
+   - Active la API si se solicita.
+   - En **Certificados de clave web push** genere un par de claves y copie la **clave pública** (VAPID). Esa es `VITE_FIREBASE_VAPID_KEY` en el frontend.
+3. Para el **backend**, en **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada** descargará un JSON. Ese archivo (o su contenido en base64) es lo que va en `FIREBASE_SERVICE_ACCOUNT_PATH` o `FIREBASE_SERVICE_ACCOUNT_JSON` (véase `.env.example` en la raíz).
+
+**En el código frontend**: en `frontend/.env` defina:
+
+```env
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+VITE_FIREBASE_VAPID_KEY=BK...  # clave pública web push de la consola
+```
+
+Luego ejecute **`npm run sync:fcm-sw`** desde `frontend/` (también se ejecuta automáticamente en `predev` y `prebuild`) para regenerar `public/firebase-messaging-sw.js` con la misma configuración que el cliente. Tras iniciar sesión, el usuario verá el permiso del navegador; si acepta, el token se asocia a su usuario y recibirá push en **cada dispositivo/navegador** donde haya iniciado sesión y concedido permiso.
+
+**Notas:** iOS Safari solo entrega push web de forma fiable si la app está **añadida a inicio** (PWA); en escritorio Chrome/Firefox/Edge suele funcionar en HTTPS o `localhost`. Las notificaciones del sistema complementan la **bandeja** (`GET /notifications/me`); la campana refresca al recibir un push en primer plano.
+
 Reglas docente: no puede `ALL`; en `GROUP` debe estar en `teacher_groups`; en `USER` el destino debe ser alumno o padre de un alumno de sus grupos.
 
 Body ejemplo `POST /notices` (grupo):

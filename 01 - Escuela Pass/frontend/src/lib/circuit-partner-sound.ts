@@ -50,7 +50,7 @@ export function playCircuitPartnerAlert(): void {
 
       const master = ctx.createGain();
       master.gain.setValueAtTime(0.0001, t0);
-      master.gain.exponentialRampToValueAtTime(0.18, t0 + 0.06);
+      master.gain.exponentialRampToValueAtTime(0.42, t0 + 0.06);
       master.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.92);
       master.connect(ctx.destination);
 
@@ -73,7 +73,7 @@ export function playCircuitPartnerAlert(): void {
 
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.0001, start);
-        g.gain.exponentialRampToValueAtTime(0.62, start + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.88, start + 0.04);
         g.gain.exponentialRampToValueAtTime(0.0001, start + noteDur);
 
         osc.connect(g);

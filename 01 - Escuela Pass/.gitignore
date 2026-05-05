@@ -10,5 +10,11 @@ uploads/comprobantes/*
 .vercel
 .env*.local
 
+# Claves locales (Firebase Admin, etc.) — no subir al repositorio
+.secrets/
+
+# Generado desde frontend/.env por scripts/sync-fcm-sw.mjs (no versionar con claves del proyecto).
+frontend/public/firebase-messaging-sw.js
+
 # Design assets / local images (not versioned)
 Img/

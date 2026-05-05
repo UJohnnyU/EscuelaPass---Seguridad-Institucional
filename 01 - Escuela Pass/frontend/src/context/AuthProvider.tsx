@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { unregisterWebPushToken } from '@/lib/fcm-web';
 import { clearTokens, loadTokens, loadUser, saveTokens, saveUser, type StoredUser } from '@/lib/storage';
 import { AuthContext, type AuthState } from './auth-context';
 
@@ -28,6 +29,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    try {
+      await unregisterWebPushToken();
+    } catch {
+      /* ignorar */
+    }
     const { refresh } = loadTokens();
     try {
       if (refresh) {

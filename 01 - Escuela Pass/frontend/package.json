@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "sync:fcm-sw": "node scripts/sync-fcm-sw.mjs",
+    "predev": "node scripts/sync-fcm-sw.mjs",
+    "prebuild": "node scripts/sync-fcm-sw.mjs",
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json --noEmit && vite build",
     "preview": "vite preview",
@@ -12,6 +15,7 @@
   "dependencies": {
     "@types/react-window": "^1.8.8",
     "axios": "^1.7.9",
+    "firebase": "^11.6.0",
     "html5-qrcode": "^2.3.8",
     "mapbox-gl": "^3.23.0",
     "qrcode.react": "^4.2.0",

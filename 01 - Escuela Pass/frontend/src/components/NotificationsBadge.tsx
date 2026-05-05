@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import {
   NOTIFICATION_READ_EVENT,
   NOTIFICATIONS_READ_ALL_EVENT,
+  NOTIFICATIONS_REFRESH_REQUEST_EVENT,
   emitNotificationRead,
   emitNotificationsReadAll
 } from '@/lib/notifications-sync';
@@ -104,10 +105,19 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
       if (document.visibilityState === 'visible') void refresh();
     };
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
+    const onFcmRefresh = () => {
+      void refresh();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener(NOTIFICATIONS_REFRESH_REQUEST_EVENT, onFcmRefresh);
+    }
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(NOTIFICATIONS_REFRESH_REQUEST_EVENT, onFcmRefresh);
+      }
     };
   }, []);
 
