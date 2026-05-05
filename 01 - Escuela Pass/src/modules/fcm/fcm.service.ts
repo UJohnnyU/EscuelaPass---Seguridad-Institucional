@@ -127,13 +127,16 @@ export class FcmService implements OnModuleInit {
     const dataStrings = Object.fromEntries(
       Object.entries(data).map(([k, v]) => [k, v === undefined || v === null ? '' : String(v)])
     );
+    const bodyText = this.truncate(body, MAX_BODY);
+    const titleText = this.truncate(title, 200);
+    const dataOnly: Record<string, string> = { ...dataStrings, title: titleText, body: bodyText };
     for (let i = 0; i < tokens.length; i += FCM_BATCH) {
       const chunk = tokens.slice(i, i + FCM_BATCH);
       try {
+        /** Solo `data`: en web activa `onBackgroundMessage` de forma fiable (evita mensajes con `notification`). */
         const res = await this.messaging.sendEachForMulticast({
           tokens: chunk,
-          notification: { title, body },
-          data: dataStrings
+          data: dataOnly
         });
         if (res.failureCount > 0) {
           const firstFail = res.responses.find((r) => !r.success);

@@ -106,8 +106,8 @@ export async function ensureWebPushRegistered(): Promise<void> {
       onMessage(messaging, (payload) => {
         requestRefreshSoon();
         if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-        const title = payload.notification?.title ?? 'Escuela Pass';
-        const body = payload.notification?.body ?? '';
+        const title = payload.notification?.title ?? payload.data?.title ?? 'Escuela Pass';
+        const body = payload.notification?.body ?? payload.data?.body ?? '';
         if (!title && !body) return;
         try {
           const n = new Notification(title, { body, icon: '/favicon.svg', tag: payload.data?.notificationId ?? undefined });

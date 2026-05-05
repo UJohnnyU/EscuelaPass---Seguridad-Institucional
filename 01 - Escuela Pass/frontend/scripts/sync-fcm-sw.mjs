@@ -1,6 +1,6 @@
 /**
- * Genera public/firebase-messaging-sw.js a partir de variables VITE_FIREBASE_* en frontend/.env
- * para que el service worker use la misma configuración que el cliente (compat API en el SW).
+ * Genera public/firebase-messaging-sw.js a partir de VITE_FIREBASE_* en frontend/.env y/o process.env
+ * (Vercel/Railway en build) para que el service worker coincida con el cliente (compat API en el SW).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +22,35 @@ function readFirebaseCdnVersion() {
 }
 
 const FIREBASE_CDN = readFirebaseCdnVersion();
+
+const FCM_SW_ENV_KEYS = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+];
+
+/**
+ * Variables desde frontend/.env (local) y process.env (Vercel/Railway en build).
+ * Lo definido en el entorno de CI sobrescribe el archivo para un deploy correcto sin commitear .env.
+ */
+function loadMergedEnv() {
+  const map = new Map();
+  if (fs.existsSync(envPath)) {
+    for (const [k, v] of parseEnvFile(fs.readFileSync(envPath, 'utf8'))) {
+      map.set(k, v);
+    }
+  }
+  for (const key of [...FCM_SW_ENV_KEYS, 'VITE_FIREBASE_MEASUREMENT_ID']) {
+    const v = process.env[key];
+    if (v != null && String(v).trim() !== '') {
+      map.set(key, String(v).trim());
+    }
+  }
+  return map;
+}
 
 function parseEnvFile(text) {
   const map = new Map();
@@ -49,27 +78,13 @@ self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 `;
 
-const keys = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID'
-];
-
 function main() {
-  if (!fs.existsSync(envPath)) {
-    fs.writeFileSync(outPath, stub, 'utf8');
-    console.warn('[sync-fcm-sw] No hay frontend/.env — se escribió stub en public/firebase-messaging-sw.js');
-    return;
-  }
-  const env = parseEnvFile(fs.readFileSync(envPath, 'utf8'));
-  const missing = keys.filter((k) => !env.get(k)?.trim());
+  const env = loadMergedEnv();
+  const missing = FCM_SW_ENV_KEYS.filter((k) => !env.get(k)?.trim());
   if (missing.length > 0) {
     fs.writeFileSync(outPath, stub, 'utf8');
     console.warn(
-      `[sync-fcm-sw] Faltan variables (${missing.join(', ')}). Stub escrito; el push web quedará desactivado hasta completar .env`
+      `[sync-fcm-sw] Faltan variables (${missing.join(', ')}). Stub escrito. En Vercel defínalas en el proyecto y redeploy (no hace falta .env en el repo).`
     );
     return;
   }
@@ -103,8 +118,14 @@ ${initFields.join(',\n')}
 });
 const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
-  const title = (payload.notification && payload.notification.title) || 'Escuela Pass';
-  const bodyText = (payload.notification && payload.notification.body) || '';
+  const title =
+    (payload.notification && payload.notification.title) ||
+    (payload.data && payload.data.title) ||
+    'Escuela Pass';
+  const bodyText =
+    (payload.notification && payload.notification.body) ||
+    (payload.data && payload.data.body) ||
+    '';
   const options = {
     body: bodyText,
     icon: '/favicon.svg',
