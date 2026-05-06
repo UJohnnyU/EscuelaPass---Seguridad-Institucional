@@ -32,6 +32,7 @@ import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-sign
 import { FcmService } from '../fcm/fcm.service';
 import { DepartureConsentService } from '../departure-consent/departure-consent.service';
 import { SettingsService } from '../settings/settings.service';
+import { getCircuitTimezone, todayYmdInCircuitTimezone } from './circuit-calendar';
 
 type DistanceResult = {
   distanceKm: number;
@@ -148,11 +149,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
    * Cierra EN_CAMINO con plazo vencido: el padre no confirmó recibimiento dentro de la ventana tras
    * «alumno en camino a salida». No exige `parent_confirm_deadline_started_at` (compat. con filas
    * anteriores a la columna o sin backfill). Solo solicitudes del **mismo criterio de “hoy”** que
-   * `findAllActiveForParentUser` (evita push por circuitos atascados de días previos que la UI no muestra).
+   * `findAllActiveForParentUser` (misma fecha calendario en `APP_TIMEZONE`, p. ej. México).
    */
   async applyParentConfirmTimeouts(): Promise<void> {
     const now = new Date();
-    const today = new Date().toISOString().slice(0, 10);
+    const tz = getCircuitTimezone();
     const rows = await this.circuitRepository.query<
       Array<{ id: string; student_id: string; requested_by_parent_id: string }>
     >(
@@ -165,14 +166,14 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
          AND parent_confirm_deadline_at IS NOT NULL
          AND parent_confirm_deadline_at <= $3
          AND teacher_signal = $4
-         AND DATE(request_time) = $5::date
+         AND date(timezone($5::text, request_time)) = date(timezone($5::text, now()))
        RETURNING id, student_id, requested_by_parent_id`,
       [
         CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE,
         CircuitStatus.EN_CAMINO,
         now,
         TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA,
-        today
+        tz
       ]
     );
 
@@ -220,7 +221,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   } | null> {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) return null;
-    const today = new Date().toISOString().slice(0, 10);
+    const tz = getCircuitTimezone();
     const terminal = [
       CircuitStatus.ENTREGADO,
       CircuitStatus.CANCELADO,
@@ -229,7 +230,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     const row = await this.circuitRepository
       .createQueryBuilder('cr')
       .where('cr.requestedByParentId = :pid', { pid: parent.id })
-      .andWhere('DATE(cr.request_time) = :today', { today })
+      .andWhere('(timezone(:tz, cr.request_time))::date = (timezone(:tz, now()))::date', { tz })
       .andWhere('cr.status NOT IN (:...terminal)', { terminal })
       .orderBy('cr.requestTime', 'DESC')
       .getOne();
@@ -243,7 +244,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   ): Promise<Array<{ id: string; status: CircuitStatus; requestTime: Date; studentId: string }>> {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) return [];
-    const today = new Date().toISOString().slice(0, 10);
+    const tz = getCircuitTimezone();
     const terminal = [
       CircuitStatus.ENTREGADO,
       CircuitStatus.CANCELADO,
@@ -252,7 +253,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     const rows = await this.circuitRepository
       .createQueryBuilder('cr')
       .where('cr.requestedByParentId = :pid', { pid: parent.id })
-      .andWhere('DATE(cr.request_time) = :today', { today })
+      .andWhere('(timezone(:tz, cr.request_time))::date = (timezone(:tz, now()))::date', { tz })
       .andWhere('cr.status NOT IN (:...terminal)', { terminal })
       .orderBy('cr.requestTime', 'ASC')
       .getMany();
@@ -302,7 +303,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     if (!(await this.settingsService.isCircuitEnabled(student.schoolId))) {
       throw new BadRequestException('El circuito de recogida está deshabilitado por la institución.');
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayYmdInCircuitTimezone();
     if (await this.departureConsentService.hasAutonomousConsentOnDate(student.id, today)) {
       throw new BadRequestException(
         'Hoy tiene activo el permiso de salida autónoma para este alumno. Desactive el consentimiento en Circuito antes de iniciar una recogida con seguimiento.'
@@ -445,7 +446,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       .sendPushToUser(parentUserId, title, body, {
         type: 'circuit',
         circuitRequestId: requestId,
-        status
+        status: String(status),
+        openPath: `/app/circuito/${requestId}`
       })
       .catch((err: unknown) => {
         this.logger.warn(`FCM circuito no enviado: ${String(err)}`);
@@ -617,7 +619,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     searchQ?: string | null,
     limitStr?: string | null
   ): Promise<CircuitTodayListItem[]> {
-    const today = new Date().toISOString().slice(0, 10);
+    const tz = getCircuitTimezone();
     const maxRows = Math.min(300, Math.max(10, Number.parseInt(limitStr ?? '120', 10) || 120));
 
     const qb = this.circuitRepository
@@ -627,7 +629,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
       .innerJoin(ParentEntity, 'p', 'p.id = cr.requested_by_parent_id')
       .innerJoin(UserEntity, 'pu', 'pu.id = p.user_id')
-      .where(`to_char(cr.request_time AT TIME ZONE 'UTC', 'YYYY-MM-DD') = :today`, { today });
+      .where('(timezone(:tz, cr.request_time))::date = (timezone(:tz, now()))::date', { tz });
 
     const q = searchQ?.trim();
     if (q) {
@@ -667,7 +669,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
         error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       this.logger.warn(`Circuito findToday: fallback SQL por error en query principal (${reason})`);
       try {
-        return await this.findTodayFallback(userId, role, schoolIdParam, searchQ, maxRows, today);
+        return await this.findTodayFallback(userId, role, schoolIdParam, searchQ, maxRows, todayYmdInCircuitTimezone());
       } catch (fallbackError) {
         const fallbackReason =
           fallbackError instanceof Error

@@ -160,8 +160,10 @@ export class FcmService implements OnModuleInit {
     const dataOnly = this.trimDataPayloadIfNeeded(dataOnlyRaw, openPath);
     const webPushLink = this.absoluteAppUrl(dataOnly.openPath) ?? openUrl;
 
-    for (let i = 0; i < tokens.length; i += FCM_BATCH) {
-      const chunk = tokens.slice(i, i + FCM_BATCH);
+    const uniqueTokens = [...new Set(tokens.filter((t) => t && String(t).trim()))];
+
+    for (let i = 0; i < uniqueTokens.length; i += FCM_BATCH) {
+      const chunk = uniqueTokens.slice(i, i + FCM_BATCH);
       try {
         /** Solo `data` + webpush.link: click y pestañas en segundo plano; el SW abre `openPath` al pulsar. */
         const res = await this.messaging.sendEachForMulticast({
@@ -278,9 +280,15 @@ export class FcmService implements OnModuleInit {
   }
 
   private absoluteAppUrl(path: string): string | undefined {
-    const base = (process.env.FRONTEND_URL ?? '').trim().replace(/\/$/, '');
-    if (!base) return undefined;
-    const p = path.startsWith('/') ? path : `/${path}`;
-    return `${base}${p}`;
+    const raw = (process.env.FRONTEND_URL ?? '').trim();
+    if (!raw) return undefined;
+    const baseNoTrail = raw.replace(/\/$/, '');
+    let p = path.startsWith('/') ? path : `/${path}`;
+    /** Evitar `.../app/app/circuito/...` cuando FRONTEND_URL ya termina en `/app`. */
+    if (/\/app$/i.test(baseNoTrail) && (p === '/app' || p.startsWith('/app/'))) {
+      if (p === '/app') return baseNoTrail;
+      p = p.slice(4);
+    }
+    return `${baseNoTrail}${p}`;
   }
 }

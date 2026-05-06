@@ -120,12 +120,15 @@ ${initFields.join(',\n')}
 });
 function epAbsoluteUrlFromNotification(raw) {
   if (!raw) return self.location.origin + '/app';
+  /* Mismo origen que la pestaña: openUrl del backend puede apuntar a otra base o duplicar /app. */
+  var p = String(raw.openPath || raw.route || '').trim();
+  if (p) {
+    if (!p.startsWith('/')) p = '/' + p;
+    return self.location.origin + p;
+  }
   var u = raw.openUrl;
   if (u && /^https?:\\/\\//i.test(String(u))) return String(u);
-  var p = raw.openPath || raw.route || '';
-  p = String(p);
-  if (!p.startsWith('/')) p = '/' + p;
-  return self.location.origin + p;
+  return self.location.origin + '/app';
 }
 function epPathFromAbsolute(url) {
   try {
@@ -177,7 +180,7 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/favicon.svg',
     badge: '/favicon.svg',
     tag: tag,
-    renotify: !!tag,
+    renotify: false,
     data: payload.data || {}
   };
   return self.registration.showNotification(title, options);
