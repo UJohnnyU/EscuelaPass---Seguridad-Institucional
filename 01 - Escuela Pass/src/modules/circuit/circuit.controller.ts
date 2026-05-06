@@ -26,6 +26,9 @@ import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-sign
 
 type JwtUser = { userId: string; email: string; role: UserRole };
 
+/** Acepta cualquier UUID RFC (v4, v7, etc.); coincide con `uuid` en PostgreSQL. */
+const circuitIdPipe = new ParseUUIDPipe();
+
 @Controller('circuit-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CircuitController {
@@ -72,7 +75,7 @@ export class CircuitController {
   @Patch(':id/gps')
   @Roles(UserRole.PADRE)
   updateGps(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', circuitIdPipe) id: string,
     @Body() dto: UpdateCircuitGpsDto,
     @Req() req: Request & { user: JwtUser }
   ) {
@@ -82,7 +85,7 @@ export class CircuitController {
   @Patch(':id/parent-progress')
   @Roles(UserRole.PADRE)
   advanceParentProgress(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', circuitIdPipe) id: string,
     @Body() dto: UpdateParentCircuitProgressDto,
     @Req() req: Request & { user: JwtUser }
   ) {
@@ -93,7 +96,7 @@ export class CircuitController {
   @Header('Cache-Control', 'no-store, must-revalidate')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
   getMapContext(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', circuitIdPipe) id: string,
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.circuitService.getMapContext(id, req.user.userId, req.user.role);
@@ -103,7 +106,7 @@ export class CircuitController {
   @Header('Cache-Control', 'no-store, must-revalidate')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE, UserRole.PADRE)
   findOne(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', circuitIdPipe) id: string,
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.circuitService.findByIdForViewer(id, req.user.userId, req.user.role);
@@ -112,7 +115,7 @@ export class CircuitController {
   @Patch(':id/teacher-signal')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   setTeacherSignal(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', circuitIdPipe) id: string,
     @Body() dto: UpdateTeacherCircuitSignalDto,
     @Req() req: Request & { user: JwtUser }
   ) {
@@ -122,7 +125,7 @@ export class CircuitController {
   @Patch(':id/status')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   updateStatus(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', circuitIdPipe) id: string,
     @Body() dto: UpdateCircuitStatusDto,
     @Req() req: Request & { user: JwtUser }
   ) {
@@ -131,14 +134,14 @@ export class CircuitController {
 
   @Patch(':id/cancel')
   @Roles(UserRole.PADRE)
-  cancel(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() req: Request & { user: JwtUser }) {
+  cancel(@Param('id', circuitIdPipe) id: string, @Req() req: Request & { user: JwtUser }) {
     return this.circuitService.cancel(id, req.user.userId);
   }
 
   @Patch(':id/confirm-delivered')
   @Roles(UserRole.PADRE, UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   confirmDelivered(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', circuitIdPipe) id: string,
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.circuitService.confirmDelivered(id, req.user.userId, req.user.role);
