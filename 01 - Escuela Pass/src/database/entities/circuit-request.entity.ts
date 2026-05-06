@@ -89,6 +89,13 @@ export class CircuitRequestEntity {
   @Column({ name: 'parent_confirm_deadline_at', type: 'timestamptz', nullable: true })
   parentConfirmDeadlineAt!: Date | null;
 
+  /**
+   * Inicio del plazo cuando concurrieron EN_CAMINO y señal ALUMNO_CAMINO_A_SALIDA (confirmación de recibimiento).
+   * Debe alinearse con el cálculo de `parentConfirmDeadlineAt`; ausente en filas legadas corregidas por migración.
+   */
+  @Column({ name: 'parent_confirm_deadline_started_at', type: 'timestamptz', nullable: true })
+  parentConfirmDeadlineStartedAt!: Date | null;
+
   /** Momento en que el padre confirmó haber recibido al menor (ENTREGADO). */
   @Column({ name: 'parent_receipt_confirmed_at', type: 'timestamptz', nullable: true })
   parentReceiptConfirmedAt!: Date | null;

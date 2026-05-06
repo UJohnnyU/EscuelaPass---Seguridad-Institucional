@@ -508,6 +508,9 @@ export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void>
     await runner.query(`DROP TYPE IF EXISTS visit_request_status`);
     await runner.query(`ALTER TABLE circuit_requests ADD COLUMN IF NOT EXISTS pickup_vehicle_description varchar(120) NULL`);
     await runner.query(`ALTER TABLE circuit_requests ADD COLUMN IF NOT EXISTS pickup_notes varchar(240) NULL`);
+    await runner.query(
+      `ALTER TABLE circuit_requests ADD COLUMN IF NOT EXISTS parent_confirm_deadline_started_at TIMESTAMPTZ NULL`
+    );
 
     await runner.query(
       `ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS excuse_attachment_path VARCHAR(500) NULL`

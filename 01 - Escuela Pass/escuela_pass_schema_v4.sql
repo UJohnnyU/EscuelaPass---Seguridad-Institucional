@@ -352,6 +352,7 @@ CREATE TABLE IF NOT EXISTS circuit_requests (
   pickup_notes                VARCHAR(240),
   teacher_signal              VARCHAR(40),
   parent_confirm_deadline_at  TIMESTAMPTZ,
+  parent_confirm_deadline_started_at TIMESTAMPTZ,
   parent_receipt_confirmed_at TIMESTAMPTZ,
   created_at                  TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ    NOT NULL DEFAULT NOW()

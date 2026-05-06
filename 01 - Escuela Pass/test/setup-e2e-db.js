@@ -330,6 +330,7 @@ async function main() {
     await client.query(`
       ALTER TABLE circuit_requests
       ADD COLUMN IF NOT EXISTS parent_confirm_deadline_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS parent_confirm_deadline_started_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS parent_receipt_confirmed_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS arrival_snapshot_latitude NUMERIC(10, 8) NULL,
       ADD COLUMN IF NOT EXISTS arrival_snapshot_longitude NUMERIC(11, 8) NULL,

@@ -104,8 +104,27 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   private parentConfirmWindowMinutes(): number {
     const n = Number(process.env.CIRCUIT_PARENT_CONFIRM_MINUTES ?? 15);
     if (!Number.isFinite(n) || n <= 0) return 15;
-    /** Evita plazos ridículamente cortos (p. ej. 0.01 en env) que disparan el cierre y el push en bucle. */
-    return Math.min(Math.max(n, 1), 120);
+    /** Mínimo 15 minutos: ventana de confirmación de recibimiento tras «alumno en camino a salida». */
+    return Math.min(Math.max(n, 15), 120);
+  }
+
+  private clearParentConfirmCountdown(req: CircuitRequestEntity): void {
+    req.parentConfirmDeadlineAt = null;
+    req.parentConfirmDeadlineStartedAt = null;
+  }
+
+  /**
+   * Inicia el plazo para que el padre confirme el recibimiento solo cuando el estado operativo es EN_CAMINO
+   * y el docente marcó ALUMNO_CAMINO_A_SALIDA. No reinicia un plazo ya iniciado.
+   */
+  private maybeStartParentConfirmCountdown(req: CircuitRequestEntity): void {
+    if (req.parentConfirmDeadlineAt != null) return;
+    if (req.status !== CircuitStatus.EN_CAMINO) return;
+    if (req.teacherSignal !== TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA) return;
+    const mins = this.parentConfirmWindowMinutes();
+    const started = new Date();
+    req.parentConfirmDeadlineStartedAt = started;
+    req.parentConfirmDeadlineAt = new Date(started.getTime() + mins * 60_000);
   }
 
   private isTerminalCircuitStatus(status: CircuitStatus): boolean {
@@ -117,10 +136,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Cierra solicitudes EN_CAMINO cuyo plazo para confirmación del padre ya venció.
-   * Idempotente por fila: el `UPDATE` deja `status` en terminal; en ciclos siguientes esa fila
-   * ya no cumple `status = EN_CAMINO`, así que no se vuelve a enviar push por el mismo `requestId`
-   * desde este método (varios avisos suelen ser varias solicitudes o varios dispositivos FCM).
+   * Cierra EN_CAMINO con plazo vencido: el padre no confirmó recibimiento dentro de la ventana tras
+   * «alumno en camino a salida». Requiere inicio de plazo registrado (coherente con duración configurada).
+   * Idempotente por fila: tras el UPDATE el estado deja de ser EN_CAMINO.
    */
   async applyParentConfirmTimeouts(): Promise<void> {
     const now = new Date();
@@ -130,9 +148,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       `UPDATE circuit_requests
        SET status = $1::circuit_status,
            teacher_signal = NULL,
-           parent_confirm_deadline_at = NULL
+           parent_confirm_deadline_at = NULL,
+           parent_confirm_deadline_started_at = NULL
        WHERE status = $2::circuit_status
          AND parent_confirm_deadline_at IS NOT NULL
+         AND parent_confirm_deadline_started_at IS NOT NULL
          AND parent_confirm_deadline_at <= $3
          AND teacher_signal = $4
          AND request_time >= CURRENT_DATE - INTERVAL '1 day'
@@ -156,13 +176,15 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
+    const windowMin = this.parentConfirmWindowMinutes();
+
     for (const row of rows) {
       const parentUid = await this.parentUserIdByPk(row.requested_by_parent_id);
       const name = await this.studentDisplayName(row.student_id);
       const body =
         name === CircuitService.ANONYMOUS_STUDENT_LABEL
-          ? 'El circuito del estudiante se cerró sin confirmación final del padre en el tiempo indicado.'
-          : `El circuito de ${name} se cerró sin confirmación final del padre en el tiempo indicado.`;
+          ? `Pasaron ${windowMin} minutos sin confirmar el recibimiento del menor. El circuito del estudiante se cerró sin confirmación final del padre en el tiempo indicado.`
+          : `Pasaron ${windowMin} minutos sin confirmar el recibimiento del menor. El circuito de ${name} se cerró sin confirmación final del padre en el tiempo indicado.`;
       this.logger.log(
         `Circuito: envío FCM cierre por plazo (una vez por solicitud) requestId=${row.id} studentId=${row.student_id}`
       );
@@ -857,6 +879,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       pickupNotes: req.pickupNotes,
       teacherSignal: req.teacherSignal,
       parentConfirmDeadlineAt: req.parentConfirmDeadlineAt,
+      parentConfirmDeadlineStartedAt: req.parentConfirmDeadlineStartedAt,
       parentReceiptConfirmedAt: req.parentReceiptConfirmedAt,
       parentGpsLatitude: req.parentGpsLatitude,
       parentGpsLongitude: req.parentGpsLongitude,
@@ -924,13 +947,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException(`La única señal permitida ahora es: ${label}.`);
     }
     req.teacherSignal = dto.signal;
-    if (
-      dto.signal === TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA &&
-      req.status === CircuitStatus.EN_CAMINO &&
-      !req.parentConfirmDeadlineAt
-    ) {
-      req.parentConfirmDeadlineAt = new Date(Date.now() + this.parentConfirmWindowMinutes() * 60_000);
-    }
+    this.maybeStartParentConfirmCountdown(req);
     const saved = await this.circuitRepository.save(req);
     return { message: 'Señal actualizada', id: saved.id, teacherSignal: saved.teacherSignal };
   }
@@ -1009,6 +1026,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     req.status = CircuitStatus.CANCELADO;
+    this.clearParentConfirmCountdown(req);
     const saved = await this.circuitRepository.save(req);
 
     const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
@@ -1048,7 +1066,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       }
       req.status = CircuitStatus.ENTREGADO;
       req.parentReceiptConfirmedAt = new Date();
-      req.parentConfirmDeadlineAt = null;
+      this.clearParentConfirmCountdown(req);
       req.teacherSignal = null;
     } else if (role === UserRole.ADMIN || role === UserRole.ADMINISTRATIVO || role === UserRole.DOCENTE) {
       if (role === UserRole.ADMINISTRATIVO) {
@@ -1060,7 +1078,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
         );
       }
       req.status = CircuitStatus.ENTREGADO;
-      req.parentConfirmDeadlineAt = null;
+      this.clearParentConfirmCountdown(req);
       req.teacherSignal = null;
     } else {
       throw new ForbiddenException('No autorizado para confirmar entrega');
@@ -1110,14 +1128,10 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     this.assertValidTransition(req.status, next);
 
-    if (next === CircuitStatus.EN_CAMINO) {
-      if (req.teacherSignal === TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA) {
-        req.parentConfirmDeadlineAt = new Date(Date.now() + this.parentConfirmWindowMinutes() * 60_000);
-      } else {
-        req.parentConfirmDeadlineAt = null;
-      }
-    } else if (req.status === CircuitStatus.EN_CAMINO) {
-      req.parentConfirmDeadlineAt = null;
+    const leavingEnCamino =
+      req.status === CircuitStatus.EN_CAMINO && next !== CircuitStatus.EN_CAMINO;
+    if (leavingEnCamino) {
+      this.clearParentConfirmCountdown(req);
     }
 
     if (prevStatus === CircuitStatus.NOTIFICADO_LLEGADA && next === CircuitStatus.PADRE_EN_CAMINO) {
@@ -1127,6 +1141,14 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     req.status = next;
+
+    if (next === CircuitStatus.EN_CAMINO) {
+      if (req.teacherSignal !== TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA) {
+        this.clearParentConfirmCountdown(req);
+      }
+      this.maybeStartParentConfirmCountdown(req);
+    }
+
     // Nota: el esquema actual no tiene columna notes; dto.notes se deja para futuro
     const saved = await this.circuitRepository.save(req);
 
