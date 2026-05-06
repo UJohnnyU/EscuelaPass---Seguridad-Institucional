@@ -118,9 +118,18 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
    * y el docente marcó ALUMNO_CAMINO_A_SALIDA. No reinicia un plazo ya iniciado.
    */
   private maybeStartParentConfirmCountdown(req: CircuitRequestEntity): void {
-    if (req.parentConfirmDeadlineAt != null) return;
     if (req.status !== CircuitStatus.EN_CAMINO) return;
     if (req.teacherSignal !== TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA) return;
+
+    if (req.parentConfirmDeadlineAt != null && req.parentConfirmDeadlineStartedAt == null) {
+      const mins = this.parentConfirmWindowMinutes();
+      req.parentConfirmDeadlineStartedAt = new Date(
+        req.parentConfirmDeadlineAt.getTime() - mins * 60_000
+      );
+      return;
+    }
+    if (req.parentConfirmDeadlineAt != null) return;
+
     const mins = this.parentConfirmWindowMinutes();
     const started = new Date();
     req.parentConfirmDeadlineStartedAt = started;
@@ -137,11 +146,13 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Cierra EN_CAMINO con plazo vencido: el padre no confirmó recibimiento dentro de la ventana tras
-   * «alumno en camino a salida». Requiere inicio de plazo registrado (coherente con duración configurada).
-   * Idempotente por fila: tras el UPDATE el estado deja de ser EN_CAMINO.
+   * «alumno en camino a salida». No exige `parent_confirm_deadline_started_at` (compat. con filas
+   * anteriores a la columna o sin backfill). Solo solicitudes del **mismo criterio de “hoy”** que
+   * `findAllActiveForParentUser` (evita push por circuitos atascados de días previos que la UI no muestra).
    */
   async applyParentConfirmTimeouts(): Promise<void> {
     const now = new Date();
+    const today = new Date().toISOString().slice(0, 10);
     const rows = await this.circuitRepository.query<
       Array<{ id: string; student_id: string; requested_by_parent_id: string }>
     >(
@@ -152,16 +163,16 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
            parent_confirm_deadline_started_at = NULL
        WHERE status = $2::circuit_status
          AND parent_confirm_deadline_at IS NOT NULL
-         AND parent_confirm_deadline_started_at IS NOT NULL
          AND parent_confirm_deadline_at <= $3
          AND teacher_signal = $4
-         AND request_time >= CURRENT_DATE - INTERVAL '1 day'
+         AND DATE(request_time) = $5::date
        RETURNING id, student_id, requested_by_parent_id`,
       [
         CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE,
         CircuitStatus.EN_CAMINO,
         now,
-        TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA
+        TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA,
+        today
       ]
     );
 
