@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SmartSelect } from '@/components/SmartSelect';
 import { DetailModal } from '@/components/DetailModal';
 import { SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
@@ -53,6 +54,9 @@ function formatDueDateLocalYmd(dueYmd: string | null | undefined): string {
 export function MisCalificacionesPage() {
   const { user } = useAuth();
   const isParent = user?.role === 'PADRE';
+  const [searchParams] = useSearchParams();
+  const activityFromUrl = searchParams.get('activity');
+  const studentFromUrl = searchParams.get('studentId') ?? '';
 
   const [rows, setRows] = useState<ActivityRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,6 +89,16 @@ export function MisCalificacionesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (studentFromUrl) setFilterChild(studentFromUrl);
+  }, [studentFromUrl]);
+
+  useEffect(() => {
+    if (!activityFromUrl || loading) return;
+    const row = rows.find((r) => r.id === activityFromUrl);
+    if (row) setOpenRow(row);
+  }, [activityFromUrl, rows, loading]);
 
   useEffect(() => {
     let cancelled = false;

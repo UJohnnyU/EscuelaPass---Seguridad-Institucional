@@ -127,8 +127,14 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
        WHERE status = $2::circuit_status
          AND parent_confirm_deadline_at IS NOT NULL
          AND parent_confirm_deadline_at <= $3
+         AND teacher_signal = $4
        RETURNING id, student_id, requested_by_parent_id`,
-      [CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE, CircuitStatus.EN_CAMINO, now]
+      [
+        CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE,
+        CircuitStatus.EN_CAMINO,
+        now,
+        TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA
+      ]
     );
 
     if (rows.length > 0) {
@@ -898,6 +904,13 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException(`La única señal permitida ahora es: ${label}.`);
     }
     req.teacherSignal = dto.signal;
+    if (
+      dto.signal === TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA &&
+      req.status === CircuitStatus.EN_CAMINO &&
+      !req.parentConfirmDeadlineAt
+    ) {
+      req.parentConfirmDeadlineAt = new Date(Date.now() + this.parentConfirmWindowMinutes() * 60_000);
+    }
     const saved = await this.circuitRepository.save(req);
     return { message: 'Señal actualizada', id: saved.id, teacherSignal: saved.teacherSignal };
   }
@@ -1078,7 +1091,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     this.assertValidTransition(req.status, next);
 
     if (next === CircuitStatus.EN_CAMINO) {
-      req.parentConfirmDeadlineAt = new Date(Date.now() + this.parentConfirmWindowMinutes() * 60_000);
+      if (req.teacherSignal === TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA) {
+        req.parentConfirmDeadlineAt = new Date(Date.now() + this.parentConfirmWindowMinutes() * 60_000);
+      } else {
+        req.parentConfirmDeadlineAt = null;
+      }
     } else if (req.status === CircuitStatus.EN_CAMINO) {
       req.parentConfirmDeadlineAt = null;
     }

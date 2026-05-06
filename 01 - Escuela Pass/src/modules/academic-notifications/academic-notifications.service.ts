@@ -26,13 +26,15 @@ export class AcademicNotificationsService {
   ) {}
 
   async notifyActivityClosed(activity: ActivityEntity): Promise<void> {
-    const recipients = await this.notificationsRepository.manager.query<{ user_id: string }[]>(
-      `SELECT DISTINCT u.id AS user_id
+    const recipients = await this.notificationsRepository.manager.query<
+      { user_id: string; student_id: string }[]
+    >(
+      `SELECT DISTINCT u.id AS user_id, st.id AS student_id
        FROM students st
        INNER JOIN users u ON u.id = st.user_id
        WHERE st.group_id = $1
        UNION
-       SELECT DISTINCT u.id AS user_id
+       SELECT DISTINCT u.id AS user_id, sp.student_id
        FROM students st
        INNER JOIN student_parents sp ON sp.student_id = st.id
        INNER JOIN parents p ON p.id = sp.parent_id
@@ -44,14 +46,20 @@ export class AcademicNotificationsService {
 
     const title = `Nueva calificación publicada`;
     const message = `${activity.subjectName}: ${activity.title} ya tiene calificaciones visibles.`;
-    const rows = recipients.map((r) =>
-      this.notificationsRepository.create({
+    const actId = activity.id;
+    const rows = recipients.map((r) => {
+      const qs = new URLSearchParams({
+        activity: actId,
+        studentId: r.student_id
+      });
+      return this.notificationsRepository.create({
         userId: r.user_id,
         title,
         message,
-        deliveryStatus: 'SENT'
-      })
-    );
+        deliveryStatus: 'SENT',
+        linkPath: `/app/modulos/mis-calificaciones?${qs.toString()}`
+      });
+    });
     const saved = await this.notificationsRepository.save(rows);
     try {
       await this.fcmService.sendPushForNotifications(saved);
@@ -100,6 +108,7 @@ export class AcademicNotificationsService {
       const promotionLabel = card?.promotionStatus
         ? `: ${this.promotionLabel(card.promotionStatus)}`
         : '';
+      const sid = encodeURIComponent(p.student_id);
       return this.notificationsRepository.create({
         userId: p.user_id,
         title,
@@ -107,7 +116,8 @@ export class AcademicNotificationsService {
           type === ReportCardType.FINAL
             ? `Ya puedes consultar el boletín final del año ${schoolYear}${promotionLabel}.`
             : `Tu boletín del periodo ya está publicado.`,
-        deliveryStatus: 'SENT'
+        deliveryStatus: 'SENT',
+        linkPath: `/app/modulos/boletines?studentId=${sid}`
       });
     });
     const saved = await this.notificationsRepository.save(rows);

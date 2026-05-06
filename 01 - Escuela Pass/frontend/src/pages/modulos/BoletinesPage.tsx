@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
@@ -62,6 +63,8 @@ async function downloadPdfBlob(url: string, filename: string): Promise<void> {
 
 export function BoletinesPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const highlightStudentId = searchParams.get('studentId');
   const role = user?.role ?? '';
   const platformAdmin = isPlatformAdmin(user);
   const isStudent = role === 'ALUMNO';
@@ -183,14 +186,19 @@ export function BoletinesPage() {
     });
   }, [rows, bulletinSearch]);
 
+  const filteredByStudent = useMemo(() => {
+    if (!highlightStudentId) return filteredRows;
+    return filteredRows.filter((r) => r.studentId === highlightStudentId);
+  }, [filteredRows, highlightStudentId]);
+
   const groupedByYear = useMemo(() => {
     const map = new Map<string, ReportCardSummary[]>();
-    for (const r of filteredRows) {
+    for (const r of filteredByStudent) {
       if (!map.has(r.schoolYear)) map.set(r.schoolYear, []);
       map.get(r.schoolYear)!.push(r);
     }
     return [...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [filteredRows]);
+  }, [filteredByStudent]);
 
   if (selected) {
     return (
@@ -272,7 +280,7 @@ export function BoletinesPage() {
         <div className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
           No hay boletines disponibles todavía.
         </div>
-      ) : filteredRows.length === 0 ? (
+      ) : filteredByStudent.length === 0 ? (
         <div className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
           Ningún boletín coincide con la búsqueda.
         </div>

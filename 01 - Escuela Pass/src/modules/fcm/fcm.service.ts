@@ -112,6 +112,8 @@ export class FcmService implements OnModuleInit {
         notificationId: n.id,
         noticeId: n.noticeId ?? ''
       };
+      const lp = n.linkPath?.trim();
+      if (lp) data.openPath = lp.startsWith('/') ? lp : `/${lp}`;
       await this.sendMulticastChunks(tokens, n.title, body, data);
     }
   }
@@ -130,11 +132,11 @@ export class FcmService implements OnModuleInit {
     const bodyText = this.truncate(body, MAX_BODY);
     const titleText = this.truncate(title, 200);
     const openPath = this.resolveOpenPath(dataStrings);
+    const cirId = dataStrings.circuitRequestId?.trim();
+    const cirSt = dataStrings.status?.trim();
     const notifTag =
       dataStrings.notifTag?.trim() ||
-      (dataStrings.circuitRequestId?.trim()
-        ? `circuit-${dataStrings.circuitRequestId.trim()}`
-        : '') ||
+      (cirId ? `circuit-${cirId}-${cirSt || 'unknown'}` : '') ||
       (dataStrings.notificationId?.trim() ? `notice-${dataStrings.notificationId.trim()}` : '') ||
       'escuela-pass';
     const dataOnly: Record<string, string> = {

@@ -127,22 +127,30 @@ function epAbsoluteUrlFromNotification(raw) {
   if (!p.startsWith('/')) p = '/' + p;
   return self.location.origin + p;
 }
+function epPathFromAbsolute(url) {
+  try {
+    var o = new URL(url);
+    return o.pathname + o.search + o.hash;
+  } catch (e) {
+    return '/app';
+  }
+}
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   var url = epAbsoluteUrlFromNotification(event.notification.data || {});
+  var path = epPathFromAbsolute(url);
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (var i = 0; i < clientList.length; i++) {
         var c = clientList[i];
         if (c.url.indexOf(self.location.origin) === 0 && 'focus' in c) {
-          if ('navigate' in c && typeof c.navigate === 'function') {
-            return c.navigate(url).then(function () {
-              return c.focus();
-            }).catch(function () {
-              if (self.clients.openWindow) return self.clients.openWindow(url);
-            });
-          }
-          if (self.clients.openWindow) return self.clients.openWindow(url);
+          return c.focus().then(function () {
+            try {
+              var ch = new BroadcastChannel('ep-fcm-nav');
+              ch.postMessage({ type: 'navigate', path: path });
+              ch.close();
+            } catch (e2) {}
+          });
         }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);

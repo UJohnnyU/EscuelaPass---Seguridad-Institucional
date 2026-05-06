@@ -11,6 +11,10 @@ export class NotificationEntity {
   @Column({ name: 'notice_id', type: 'uuid', nullable: true })
   noticeId!: string | null;
 
+  /** Ruta SPA al abrir desde push (p. ej. /app/modulos/mis-calificaciones?activity=…). */
+  @Column({ name: 'link_path', type: 'varchar', length: 480, nullable: true })
+  linkPath!: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   title!: string;
 
