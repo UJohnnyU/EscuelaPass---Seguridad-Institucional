@@ -145,11 +145,15 @@ self.addEventListener('notificationclick', (event) => {
         var c = clientList[i];
         if (c.url.indexOf(self.location.origin) === 0 && 'focus' in c) {
           return c.focus().then(function () {
-            try {
-              var ch = new BroadcastChannel('ep-fcm-nav');
-              ch.postMessage({ type: 'navigate', path: path });
-              ch.close();
-            } catch (e2) {}
+            function postNav() {
+              try {
+                var ch = new BroadcastChannel('ep-fcm-nav');
+                ch.postMessage({ type: 'navigate', path: path });
+                ch.close();
+              } catch (e2) {}
+            }
+            postNav();
+            setTimeout(postNav, 200);
           });
         }
       }

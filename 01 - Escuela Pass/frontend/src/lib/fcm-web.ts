@@ -1,11 +1,19 @@
 import { getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from 'firebase/app';
 import { getAnalytics, isSupported as isAnalyticsSupported } from 'firebase/analytics';
-import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
+import {
+  deleteToken,
+  getMessaging,
+  getToken,
+  isSupported,
+  onMessage,
+  type Messaging
+} from 'firebase/messaging';
 
 import { API_BASE_URL, api } from '@/lib/api';
 import { NOTIFICATIONS_REFRESH_REQUEST_EVENT } from '@/lib/notifications-sync';
 
 const STORAGE_LAST_TOKEN = 'ep-fcm-registration-token';
+const STORAGE_LAST_REGISTER_USER = 'ep-fcm-register-user-id';
 
 let analyticsInitialized = false;
 
@@ -64,11 +72,35 @@ function requestRefreshSoon() {
 
 let foregroundListenerAttached = false;
 
+function attachForegroundListener(messaging: Messaging): void {
+  if (foregroundListenerAttached) return;
+  /** En primer plano solo actualizamos la campana; el SW muestra el aviso si la pestaña no está activa. */
+  onMessage(messaging, () => {
+    requestRefreshSoon();
+  });
+  foregroundListenerAttached = true;
+}
+
+async function postRegisterWithRetry(token: string, platform: string): Promise<boolean> {
+  try {
+    await api.post('/api/v1/notifications/fcm/register', { token, platform });
+    return true;
+  } catch {
+    try {
+      await new Promise((r) => setTimeout(r, 900));
+      await api.post('/api/v1/notifications/fcm/register', { token, platform });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 /**
  * Solicita permiso de notificación si hace falta, registra el SW y envía el token al backend.
- * Puede llamarse en cada sesión autenticada (vuelve a asociar el token al usuario).
+ * @param userId Usuario autenticado (para idempotencia y re-asignación correcta del token).
  */
-export async function ensureWebPushRegistered(): Promise<void> {
+export async function ensureWebPushRegistered(userId: string): Promise<void> {
   if (!isWebPushConfigured()) return;
   if (import.meta.env.PROD && !API_BASE_URL) {
     console.warn(
@@ -99,29 +131,50 @@ export async function ensureWebPushRegistered(): Promise<void> {
     const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: reg });
     if (!token) return;
 
-    await api.post('/api/v1/notifications/fcm/register', { token, platform: 'web' });
-    localStorage.setItem(STORAGE_LAST_TOKEN, token);
+    const prevToken = localStorage.getItem(STORAGE_LAST_TOKEN);
+    const prevUser = localStorage.getItem(STORAGE_LAST_REGISTER_USER);
+    const alreadySynced = token === prevToken && prevUser === userId;
 
-    if (!foregroundListenerAttached) {
-      /** En primer plano solo actualizamos la campana; el aviso del sistema lo muestra el SW si la pestaña no está activa. */
-      onMessage(messaging, () => {
-        requestRefreshSoon();
-      });
-      foregroundListenerAttached = true;
+    attachForegroundListener(messaging);
+
+    if (alreadySynced) {
+      return;
+    }
+
+    const registered = await postRegisterWithRetry(token, 'web');
+    if (registered) {
+      localStorage.setItem(STORAGE_LAST_TOKEN, token);
+      localStorage.setItem(STORAGE_LAST_REGISTER_USER, userId);
+    } else {
+      console.warn('[Escuela Pass FCM] No se pudo registrar el token en el API tras reintento.');
     }
   } catch (err) {
     console.warn('[Escuela Pass FCM] No se pudo registrar el token de push:', err);
   }
 }
 
-/** Llamar antes de limpiar tokens en logout. */
+/** Llamar antes de limpiar tokens en logout. Quita el token en el API y revoca en Firebase. */
 export async function unregisterWebPushToken(): Promise<void> {
   const t = localStorage.getItem(STORAGE_LAST_TOKEN);
-  if (!t) return;
-  try {
-    await api.post('/api/v1/notifications/fcm/unregister', { token: t });
-  } catch {
-    /* token JWT ya invalidado */
+  localStorage.removeItem(STORAGE_LAST_REGISTER_USER);
+
+  if (t) {
+    try {
+      await api.post('/api/v1/notifications/fcm/unregister', { token: t });
+    } catch {
+      /* token JWT ya invalidado */
+    }
   }
+
+  if (isWebPushConfigured()) {
+    try {
+      const app = getOrInitApp();
+      const messaging = getMessaging(app);
+      await deleteToken(messaging);
+    } catch {
+      /* sin instancia o token ya revocado */
+    }
+  }
+
   localStorage.removeItem(STORAGE_LAST_TOKEN);
 }

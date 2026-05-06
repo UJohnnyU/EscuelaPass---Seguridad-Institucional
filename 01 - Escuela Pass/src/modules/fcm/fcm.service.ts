@@ -9,6 +9,13 @@ import { RegisterFcmTokenDto } from './dto/register-fcm-token.dto';
 
 const MAX_BODY = 3500;
 const FCM_BATCH = 500;
+/** Límite práctico del mapa `data` en web (~4 KiB); dejamos margen. */
+const FCM_DATA_BYTES_WARN = 3800;
+
+const FCM_TOKEN_INVALID_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token'
+]);
 
 @Injectable()
 export class FcmService implements OnModuleInit {
@@ -139,7 +146,7 @@ export class FcmService implements OnModuleInit {
       (cirId ? `circuit-${cirId}-${cirSt || 'unknown'}` : '') ||
       (dataStrings.notificationId?.trim() ? `notice-${dataStrings.notificationId.trim()}` : '') ||
       'escuela-pass';
-    const dataOnly: Record<string, string> = {
+    const dataOnlyRaw: Record<string, string> = {
       ...dataStrings,
       title: titleText,
       body: bodyText,
@@ -148,8 +155,11 @@ export class FcmService implements OnModuleInit {
     };
     const openUrl = this.absoluteAppUrl(openPath);
     if (openUrl) {
-      dataOnly.openUrl = openUrl;
+      dataOnlyRaw.openUrl = openUrl;
     }
+    const dataOnly = this.trimDataPayloadIfNeeded(dataOnlyRaw, openPath);
+    const webPushLink = this.absoluteAppUrl(dataOnly.openPath) ?? openUrl;
+
     for (let i = 0; i < tokens.length; i += FCM_BATCH) {
       const chunk = tokens.slice(i, i + FCM_BATCH);
       try {
@@ -157,9 +167,9 @@ export class FcmService implements OnModuleInit {
         const res = await this.messaging.sendEachForMulticast({
           tokens: chunk,
           data: dataOnly,
-          webpush: openUrl
+          webpush: webPushLink
             ? {
-                fcmOptions: { link: openUrl }
+                fcmOptions: { link: webPushLink }
               }
             : undefined
         });
@@ -169,7 +179,7 @@ export class FcmService implements OnModuleInit {
             `FCM: ${res.failureCount}/${chunk.length} envíos fallidos${firstFail?.error?.message ? ` (ej.: ${firstFail.error.message})` : ''}`
           );
           res.responses.forEach((r, idx) => {
-            if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
+            if (!r.success && r.error?.code && FCM_TOKEN_INVALID_CODES.has(r.error.code)) {
               void this.tokenRepository.delete({ token: chunk[idx] }).catch(() => undefined);
             }
           });
@@ -208,6 +218,46 @@ export class FcmService implements OnModuleInit {
   private truncate(s: string, max: number): string {
     if (s.length <= max) return s;
     return `${s.slice(0, max - 3)}...`;
+  }
+
+  /** Tamaño aproximado del payload `data` (clave+valor UTF-8), para no superar límites de web push. */
+  private approxDataPayloadBytes(d: Record<string, string>): number {
+    let n = 0;
+    for (const [k, v] of Object.entries(d)) {
+      n += Buffer.byteLength(k, 'utf8') + Buffer.byteLength(String(v), 'utf8');
+    }
+    return n;
+  }
+
+  /**
+   * Evita mensajes > ~4 KiB que fallan o se truncan en clientes web.
+   * Quita `openUrl` duplicado primero, luego acorta `body` en data.
+   */
+  private trimDataPayloadIfNeeded(
+    data: Record<string, string>,
+    resolvedOpenPath: string
+  ): Record<string, string> {
+    let out = { ...data };
+    let bytes = this.approxDataPayloadBytes(out);
+    if (bytes <= FCM_DATA_BYTES_WARN) return out;
+
+    delete out.openUrl;
+    bytes = this.approxDataPayloadBytes(out);
+    this.logger.warn(`FCM: payload data ~${bytes} B; se omitió openUrl duplicado para acercar al límite web.`);
+
+    if (bytes > FCM_DATA_BYTES_WARN && out.body) {
+      const overhead = bytes - Buffer.byteLength(out.body, 'utf8');
+      const room = Math.max(200, FCM_DATA_BYTES_WARN - overhead - 50);
+      out = { ...out, body: this.truncate(out.body, room) };
+      bytes = this.approxDataPayloadBytes(out);
+    }
+
+    if (bytes > FCM_DATA_BYTES_WARN + 200) {
+      this.logger.warn(
+        `FCM: payload data aún grande (~${bytes} B); revisar link_path u otros campos. openPath=${resolvedOpenPath.slice(0, 80)}…`
+      );
+    }
+    return out;
   }
 
   /** Ruta bajo el mismo origen que el SPA (p. ej. /app/circuito/uuid). */
