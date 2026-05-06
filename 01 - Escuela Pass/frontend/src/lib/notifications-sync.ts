@@ -9,6 +9,8 @@ export interface FcmForegroundPushDetail {
   title: string;
   body: string;
   openPath: string;
+  /** Igual que en FCM/SW; para no mostrar el mismo toast dos veces en ráfaga. */
+  notifTag?: string;
 }
 
 export function emitNotificationRead(notificationId: string) {

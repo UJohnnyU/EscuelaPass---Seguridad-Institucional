@@ -16,6 +16,8 @@ interface ToastEntry {
 
 const MAX_TOASTS = 3;
 const AUTO_DISMISS_MS = 5000;
+/** Ignora el mismo aviso repetido en primer plano (doble `onMessage` o doble envío). */
+const FOREGROUND_DEDUPE_MS = 8000;
 
 let _seq = 0;
 function nextId() {
@@ -32,6 +34,7 @@ export function NotifToast() {
   const navigate = useNavigate();
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const lastForegroundFingerprint = useRef<{ key: string; at: number } | null>(null);
 
   const dismiss = useCallback((id: number) => {
     setToasts((prev) =>
@@ -55,6 +58,16 @@ export function NotifToast() {
     const handler = (ev: Event) => {
       const detail = (ev as CustomEvent<FcmForegroundPushDetail>).detail;
       if (!detail?.title) return;
+
+      const fp =
+        detail.notifTag?.trim() ||
+        `${detail.title}\u0000${detail.body}\u0000${detail.openPath ?? ''}`;
+      const now = Date.now();
+      const prev = lastForegroundFingerprint.current;
+      if (prev && prev.key === fp && now - prev.at < FOREGROUND_DEDUPE_MS) {
+        return;
+      }
+      lastForegroundFingerprint.current = { key: fp, at: now };
 
       const id = nextId();
       setToasts((prev) => {

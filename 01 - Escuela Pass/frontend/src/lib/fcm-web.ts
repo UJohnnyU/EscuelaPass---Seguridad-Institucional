@@ -78,6 +78,8 @@ let foregroundListenerAttached = false;
 
 function attachForegroundListener(messaging: Messaging): void {
   if (foregroundListenerAttached) return;
+  /** Marcador antes de `onMessage`: evita doble registro si `ensureWebPushRegistered` corre en paralelo. */
+  foregroundListenerAttached = true;
   onMessage(messaging, (payload) => {
     requestRefreshSoon();
     if (typeof window === 'undefined') return;
@@ -90,11 +92,15 @@ function attachForegroundListener(messaging: Messaging): void {
       (payload.notification?.body?.trim()) ||
       data.body?.trim() ||
       '';
-    const openPath = data.openPath?.trim() ?? '';
-    const detail: FcmForegroundPushDetail = { title, body, openPath };
+    let openPath = data.openPath?.trim() ?? '';
+    if (!openPath) {
+      const cid = data.circuitRequestId?.trim();
+      if (cid) openPath = `/app/circuito/${cid}`;
+    }
+    const notifTag = data.notifTag?.trim() || undefined;
+    const detail: FcmForegroundPushDetail = { title, body, openPath, notifTag };
     window.dispatchEvent(new CustomEvent<FcmForegroundPushDetail>(FCM_FOREGROUND_PUSH_EVENT, { detail }));
   });
-  foregroundListenerAttached = true;
 }
 
 async function postRegisterWithRetry(token: string, platform: string): Promise<boolean> {
