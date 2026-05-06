@@ -34,7 +34,10 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out forwards',
         'slide-up': 'slideUp 0.45s ease-out forwards',
-        'bubble-drift': 'bubbleDrift 22s ease-in-out infinite'
+        'bubble-drift': 'bubbleDrift 22s ease-in-out infinite',
+        /** Paso activo en protocolo de circuito UI (plantel). */
+        'circuit-step-live': 'circuitStepLive 2.2s ease-in-out infinite',
+        'circuit-step-title': 'circuitStepTitle 3.2s ease-in-out infinite'
       },
       keyframes: {
         fadeIn: {
@@ -50,6 +53,14 @@ export default {
           '25%': { transform: 'translate(12px, -20px) scale(1.03)' },
           '50%': { transform: 'translate(-10px, 8px) scale(0.98)' },
           '75%': { transform: 'translate(6px, 14px) scale(1.02)' }
+        },
+        circuitStepLive: {
+          '0%, 100%': { transform: 'scale(0.92)', opacity: '0.45' },
+          '50%': { transform: 'scale(1.65)', opacity: '0' }
+        },
+        circuitStepTitle: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.86' }
         }
       }
     }

@@ -7,6 +7,11 @@ import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL, TEACHER_SIGNAL_LABEL } from 
 import { getNextPedagogicalSignal, isCircuitTerminal } from '@/lib/circuit-utils';
 import { STAFF_ALLOWED_NEXT, getPrimaryNextOperationalStatus } from '@/lib/circuit-transitions';
 import {
+  getOperationalAdvanceHint,
+  getPedagogicalHint,
+  getStaffTimelineModel
+} from '@/lib/circuit-staff-flow';
+import {
   CIRCUIT_FLOW_MUTE_STORAGE_KEY,
   circuitPartnerActivitySignature,
   playCircuitPartnerAlert
@@ -155,6 +160,11 @@ export function CircuitDetailPage() {
       label: `Plazo para confirmar recibimiento: ${mm}:${ss.toString().padStart(2, '0')}`
     };
   }, [row, nowTick]);
+
+  const staffTimeline = useMemo(() => {
+    if (!row) return null;
+    return getStaffTimelineModel(row.status, row.pickupMethod);
+  }, [row]);
 
   useEffect(() => {
     if (!id || !row || row.status !== 'EN_CAMINO') return;
@@ -524,13 +534,106 @@ export function CircuitDetailPage() {
         </div>
       )}
 
-      {isStaff && !terminal && (
-        <div className="mt-8 space-y-6 rounded border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">Mapa de llegada del padre o madre</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Muestra la posición capturada al marcar «Ya llegué». Si la ubicación no es creíble, use el botón inferior
-              para pedir que se acerquen y vuelvan a confirmar con GPS.
+      {isStaff && !terminal && staffTimeline && (
+        <div className="mt-8 space-y-6">
+          <div className="rounded border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">
+              Protocolo de retiro
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              Referencia institucional del flujo. La línea gruesa indica el progreso; el paso resaltado corresponde al
+              estado actual en el sistema.
+            </p>
+
+            {staffTimeline.cancelled && (
+              <p
+                className="mt-4 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900 dark:border-rose-800/50 dark:bg-rose-950/40 dark:text-rose-100"
+                role="status"
+              >
+                Esta solicitud fue <strong>cancelada</strong>. No envíe nuevas señales ni cambios de estado.
+              </p>
+            )}
+            {staffTimeline.closedWithoutConfirm && (
+              <p
+                className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/35 dark:text-amber-100"
+                role="status"
+              >
+                Cierre automático: <strong>sin confirmación final de la familia</strong> dentro del plazo reglamentario.
+              </p>
+            )}
+
+            <ol className="relative mt-5 ml-1 space-y-5 border-l-2 border-slate-200 pl-6 dark:border-slate-600">
+              {staffTimeline.steps.map((step, i) => {
+                const idx = staffTimeline.currentIndex;
+                const isDone = !staffTimeline.cancelled && !staffTimeline.closedWithoutConfirm && idx >= 0 && i < idx;
+                const isCurrent =
+                  !staffTimeline.cancelled &&
+                  !staffTimeline.closedWithoutConfirm &&
+                  idx >= 0 &&
+                  i === idx;
+                const timelineMuted = staffTimeline.cancelled || staffTimeline.closedWithoutConfirm;
+                return (
+                  <li key={step.statusKey} className="relative">
+                    <span
+                      className={`absolute -left-[calc(0.625rem+2px)] top-1 flex h-3 w-3 items-center justify-center ${
+                        isCurrent && !timelineMuted ? '' : 'top-1.5 h-2.5 w-2.5'
+                      }`}
+                      aria-hidden
+                    >
+                      {isCurrent && !timelineMuted && (
+                        <span className="absolute h-3 w-3 rounded-full bg-brand-600/50 motion-safe:animate-circuit-step-live motion-reduce:animate-none dark:bg-brand-400/40" />
+                      )}
+                      <span
+                        className={`relative z-[1] rounded-full border-2 ${
+                          timelineMuted
+                            ? 'h-2.5 w-2.5 border-slate-300 bg-slate-200 dark:border-slate-500 dark:bg-slate-700'
+                            : isDone
+                              ? 'h-2.5 w-2.5 border-emerald-600 bg-emerald-600'
+                              : isCurrent
+                                ? 'h-2.5 w-2.5 border-brand-800 bg-brand-800 ring-4 ring-brand-800/25 dark:border-brand-500 dark:bg-brand-500 dark:ring-brand-500/25'
+                                : 'h-2.5 w-2.5 border-slate-300 bg-white dark:border-slate-500 dark:bg-slate-900'
+                        }`}
+                      />
+                    </span>
+                    <div
+                      className={
+                        isCurrent && !timelineMuted
+                          ? 'rounded-r-md border-l-2 border-brand-700/55 pl-3 motion-safe:transition-[border-color,box-shadow] motion-safe:duration-500 dark:border-brand-400/45'
+                          : 'pl-0.5'
+                      }
+                    >
+                      <p
+                        className={`text-sm font-semibold ${
+                          isCurrent
+                            ? 'text-brand-900 motion-safe:animate-circuit-step-title motion-reduce:animate-none dark:text-brand-200'
+                            : 'text-slate-900 dark:text-slate-100'
+                        }`}
+                      >
+                        {step.title}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        {step.caption}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {staffTimeline.isConsentOnly && (
+              <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                Flujo de solo consentimiento: no hay verificación de llegada ni tránsito a la salida en esta solicitud.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">
+              Ubicación declarada por la familia
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              Posición registrada al marcar «Ya llegué». Si la ubicación no es coherente con el protocolo, puede solicitar
+              una nueva confirmación con GPS (acción bajo el mapa).
             </p>
             <div className="mt-4">
               {mapCtx ? (
@@ -541,7 +644,7 @@ export function CircuitDetailPage() {
                 </Suspense>
               ) : (
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {loading ? 'Cargando…' : 'No hay datos de mapa para esta solicitud.'}
+                  {loading ? 'Cargando…' : 'Aún no hay llegada verificada con ubicación para este retiro.'}
                 </p>
               )}
             </div>
@@ -555,92 +658,141 @@ export function CircuitDetailPage() {
                   }
                   className="w-full rounded border border-amber-600 bg-amber-50 py-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60"
                 >
-                  Pedir acercarse y reconfirmar llegada
+                  Solicitar nueva verificación de llegada (GPS)
                 </button>
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  El estado volverá a «En camino» y la familia recibirá un aviso para marcar de nuevo «Ya llegué» con
-                  ubicación actualizada.
+                <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  El estado vuelve a «Familia en camino» y el acudiente recibe un aviso para marcar de nuevo «Ya llegué»
+                  con ubicación actualizada.
                 </p>
               </div>
             )}
           </div>
 
-          <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">Aviso al padre o madre</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Envíelos en este orden: primero &quot;Preparando salida&quot; y después &quot;Alumno en camino a la
-              salida&quot;.
+          <div className="rounded border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">
+              Acciones del plantel
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              Separe la <strong>comunicación al acudiente</strong> (mensajes de aula) del <strong>estado oficial</strong>{' '}
+              del retiro. Ambas pueden usarse en paralelo según el protocolo de su institución.
             </p>
-            {nextPedagogical ? (
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    run(() =>
-                      api.patch(`/api/v1/circuit-requests/${id}/teacher-signal`, { signal: nextPedagogical })
-                    )
-                  }
-                  className="rounded bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
-                >
-                  Enviar: {TEACHER_SIGNAL_LABEL[nextPedagogical]}
-                </button>
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-                Ya se enviaron las dos señales pedagógicas de esta solicitud.
-              </p>
-            )}
+
+            <div className="mt-5 space-y-4">
+              {nextPedagogical && !staffTimeline.isConsentOnly && (
+                <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-4 dark:border-slate-600 dark:bg-slate-800/50">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                    Comunicación al acudiente (aula)
+                  </h3>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                    {getPedagogicalHint(nextPedagogical)}{' '}
+                    <span className="text-slate-500 dark:text-slate-500">
+                      Orden obligatorio: primero «Preparar salida», luego «Alumno en camino a salida».
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      run(() =>
+                        api.patch(`/api/v1/circuit-requests/${id}/teacher-signal`, { signal: nextPedagogical })
+                      )
+                    }
+                    className="mt-3 w-full rounded bg-brand-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50 sm:w-auto"
+                  >
+                    Enviar aviso: {TEACHER_SIGNAL_LABEL[nextPedagogical]}
+                  </button>
+                </div>
+              )}
+
+              {!nextPedagogical && !staffTimeline.isConsentOnly && (
+                <p className="rounded-lg border border-slate-100 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                  Comunicaciones de aula completas para esta solicitud (ambas señales ya enviadas).
+                </p>
+              )}
+
+              {primaryOperational ? (
+                <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-4 dark:border-slate-600 dark:bg-slate-800/50">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                    Estado oficial del retiro
+                  </h3>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                    {getOperationalAdvanceHint(primaryOperational)}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      run(() =>
+                        api.patch(`/api/v1/circuit-requests/${id}/status`, { status: primaryOperational })
+                      )
+                    }
+                    className="mt-3 w-full rounded bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:w-auto"
+                  >
+                    Registrar: {CIRCUIT_STATUS_LABEL[primaryOperational] ?? primaryOperational}
+                  </button>
+                </div>
+              ) : row.status === 'EN_CAMINO' ? (
+                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                  El menor está en tránsito hacia la salida. La familia debe <strong>confirmar el recibimiento</strong> en
+                  su app; no hay otro avance de estado del plantel en el flujo normal.
+                </p>
+              ) : row.status === 'PADRE_EN_CAMINO' ? (
+                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                  Siguiente paso principal: la familia marca <strong>«Ya llegué»</strong> con ubicación. Cuando lo haga,
+                  podrá autorizar el retiro según el mapa y el protocolo.
+                </p>
+              ) : (
+                !nextPedagogical &&
+                !staffTimeline.isConsentOnly && (
+                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                    No hay un cambio de estado pendiente para el plantel en este momento.
+                  </p>
+                )
+              )}
+            </div>
           </div>
 
-          <div>
-            <h2 className="font-serif text-base font-semibold text-slate-900 dark:text-slate-100">Avance de la recogida</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Avance paso a paso: familia en camino → llegada → autorizado → camino a la salida. La entrega la
-              confirma la familia. Si necesita anularla use el botón Cancelar.
-            </p>
-            {primaryOperational ? (
-              <div className="mt-4">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    run(() =>
-                      api.patch(`/api/v1/circuit-requests/${id}/status`, { status: primaryOperational })
-                    )
-                  }
-                  className="rounded bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+          <details className="group rounded border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800 outline-none marker:content-none dark:text-slate-100 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center justify-between gap-2">
+                Más opciones del protocolo
+                <span
+                  className="text-xs font-normal text-slate-500 group-open:rotate-180 dark:text-slate-400"
+                  aria-hidden
                 >
-                  Avanzar: {CIRCUIT_STATUS_LABEL[primaryOperational] ?? primaryOperational}
-                </button>
-              </div>
-            ) : row.status === 'EN_CAMINO' ? (
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-                El alumno va camino a la salida. La familia confirmará cuando lo reciba. Si necesita anular la
-                solicitud, use el botón Cancelar.
-              </p>
-            ) : row.status === 'PADRE_EN_CAMINO' ? (
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-                Espere a que la familia marque «Ya llegué» con su ubicación. Entonces podrá ver el mapa y continuar.
-              </p>
-            ) : (
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">No hay otro paso disponible en este momento.</p>
-            )}
-
-            {canStaffCancel && (
-              <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-700">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Anular solicitud</p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'CANCELADO' }))}
-                  className="mt-3 w-full rounded border border-slate-300 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  Cancelar solicitud
-                </button>
-              </div>
-            )}
-          </div>
+                  ▼
+                </span>
+              </span>
+            </summary>
+            <div className="space-y-4 border-t border-slate-200 px-5 py-4 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:text-slate-400">
+              <ul className="list-inside list-disc space-y-2">
+                <li>
+                  Los avisos «al acudiente» informan al aula/familia; el «estado oficial» deja constancia en el sistema
+                  para portería y seguimiento.
+                </li>
+                <li>La entrega física la confirma la familia cuando el estado es «Menor en tránsito a la salida».</li>
+                <li>
+                  Use <strong>Solicitar nueva verificación de llegada</strong> solo cuando deba corregirse la
+                  ubicación declarada.
+                </li>
+              </ul>
+              {canStaffCancel && (
+                <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Anular solicitud
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'CANCELADO' }))}
+                    className="mt-2 w-full rounded border border-slate-300 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Cancelar solicitud
+                  </button>
+                </div>
+              )}
+            </div>
+          </details>
         </div>
       )}
 
