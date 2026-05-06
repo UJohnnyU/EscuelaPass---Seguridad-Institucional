@@ -34,6 +34,14 @@ import { DepartureConsentService } from '../departure-consent/departure-consent.
 import { SettingsService } from '../settings/settings.service';
 import { getCircuitTimezone, todayYmdInCircuitTimezone } from './circuit-calendar';
 
+/** TypeORM + PostgreSQL: `UPDATE`/`DELETE` con `repository.query` devuelve `[rows, rowCount]`, no `rows` solo. */
+function pgMutationReturningRows<R>(raw: unknown): R[] {
+  if (Array.isArray(raw) && raw.length === 2 && typeof raw[1] === 'number' && Array.isArray(raw[0])) {
+    return raw[0] as R[];
+  }
+  return raw as R[];
+}
+
 type DistanceResult = {
   distanceKm: number;
   durationSeconds: number | null;
@@ -154,8 +162,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   async applyParentConfirmTimeouts(): Promise<void> {
     const now = new Date();
     const tz = getCircuitTimezone();
-    const rows = await this.circuitRepository.query<
-      Array<{ id: string; student_id: string; requested_by_parent_id: string }>
+    const rawResult = await this.circuitRepository.query<
+      | Array<{ id: string; student_id: string; requested_by_parent_id: string }>
+      | [
+          Array<{ id: string; student_id: string; requested_by_parent_id: string }>,
+          number
+        ]
     >(
       `UPDATE circuit_requests
        SET status = $1::circuit_status,
@@ -176,6 +188,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
         tz
       ]
     );
+
+    const rows = pgMutationReturningRows<{ id: string; student_id: string; requested_by_parent_id: string }>(rawResult);
 
     if (rows.length > 0) {
       if (rows.length > 5) {
@@ -441,7 +455,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     title: string,
     body: string
   ) {
-    if (!parentUserId) return;
+    if (!parentUserId || !requestId?.trim()) {
+      if (!requestId?.trim()) {
+        this.logger.warn('Circuito: omitiendo FCM (requestId vacío o inválido).');
+      }
+      return;
+    }
     void this.fcmService
       .sendPushToUser(parentUserId, title, body, {
         type: 'circuit',
