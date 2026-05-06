@@ -175,7 +175,9 @@ messaging.onBackgroundMessage((payload) => {
   const options = {
     body: bodyText,
     icon: '/favicon.svg',
+    badge: '/favicon.svg',
     tag: tag,
+    renotify: !!tag,
     data: payload.data || {}
   };
   return self.registration.showNotification(title, options);

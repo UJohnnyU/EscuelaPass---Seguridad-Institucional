@@ -10,7 +10,11 @@ import {
 } from 'firebase/messaging';
 
 import { API_BASE_URL, api } from '@/lib/api';
-import { NOTIFICATIONS_REFRESH_REQUEST_EVENT } from '@/lib/notifications-sync';
+import {
+  FCM_FOREGROUND_PUSH_EVENT,
+  NOTIFICATIONS_REFRESH_REQUEST_EVENT,
+  type FcmForegroundPushDetail
+} from '@/lib/notifications-sync';
 
 const STORAGE_LAST_TOKEN = 'ep-fcm-registration-token';
 const STORAGE_LAST_REGISTER_USER = 'ep-fcm-register-user-id';
@@ -74,9 +78,21 @@ let foregroundListenerAttached = false;
 
 function attachForegroundListener(messaging: Messaging): void {
   if (foregroundListenerAttached) return;
-  /** En primer plano solo actualizamos la campana; el SW muestra el aviso si la pestaña no está activa. */
-  onMessage(messaging, () => {
+  onMessage(messaging, (payload) => {
     requestRefreshSoon();
+    if (typeof window === 'undefined') return;
+    const data = (payload.data ?? {}) as Record<string, string>;
+    const title =
+      (payload.notification?.title?.trim()) ||
+      data.title?.trim() ||
+      'Escuela Pass';
+    const body =
+      (payload.notification?.body?.trim()) ||
+      data.body?.trim() ||
+      '';
+    const openPath = data.openPath?.trim() ?? '';
+    const detail: FcmForegroundPushDetail = { title, body, openPath };
+    window.dispatchEvent(new CustomEvent<FcmForegroundPushDetail>(FCM_FOREGROUND_PUSH_EVENT, { detail }));
   });
   foregroundListenerAttached = true;
 }

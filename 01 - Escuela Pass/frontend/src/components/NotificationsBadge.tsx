@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import {
   NOTIFICATION_READ_EVENT,
@@ -15,6 +16,7 @@ type NotifRow = {
   message?: string;
   sentAt?: string;
   readAt?: string | null;
+  linkPath?: string | null;
 };
 
 function extractArray<T>(data: unknown): T[] {
@@ -34,6 +36,7 @@ function extractArray<T>(data: unknown): T[] {
  */
 export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
   const MUTE_KEY = 'ep-notifications-muted';
+  const navigate = useNavigate();
   const [items, setItems] = useState<NotifRow[]>([]);
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -309,20 +312,32 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
         ) : (
           <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {unreadItems.map((n) => {
+              const hasLink = typeof n.linkPath === 'string' && n.linkPath.length > 0;
               return (
                 <li
                   key={n.id}
-                  className="rounded-lg border border-brand-200 bg-brand-50/40 p-3"
+                  className={`rounded-lg border border-brand-200 bg-brand-50/40 transition-colors ${hasLink ? 'cursor-pointer hover:bg-brand-100/60 active:bg-brand-100' : ''}`}
+                  onClick={hasLink ? () => { navigate(n.linkPath!); setOpen(false); } : undefined}
+                  role={hasLink ? 'button' : undefined}
+                  tabIndex={hasLink ? 0 : undefined}
+                  onKeyDown={hasLink ? (e) => { if (e.key === 'Enter' || e.key === ' ') { navigate(n.linkPath!); setOpen(false); } } : undefined}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-3 p-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900">{n.title ?? 'Notificación'}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold text-slate-900">{n.title ?? 'Notificación'}</p>
+                        {hasLink && (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-brand-500">
+                            <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
                       <p className="mt-1 whitespace-pre-line text-xs text-slate-700">{n.message ?? ''}</p>
                       <p className="mt-1 text-[11px] text-slate-500">{fmtDateTime(n.sentAt)}</p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => void markRead(n.id)}
+                      onClick={(e) => { e.stopPropagation(); void markRead(n.id); }}
                       disabled={busyId === n.id}
                       className="shrink-0 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-slate-400 disabled:opacity-60"
                     >

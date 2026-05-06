@@ -37,7 +37,9 @@ export default {
         'bubble-drift': 'bubbleDrift 22s ease-in-out infinite',
         /** Paso activo en protocolo de circuito UI (plantel). */
         'circuit-step-live': 'circuitStepLive 2.2s ease-in-out infinite',
-        'circuit-step-title': 'circuitStepTitle 3.2s ease-in-out infinite'
+        'circuit-step-title': 'circuitStepTitle 3.2s ease-in-out infinite',
+        /** Barra de progreso del toast de notificación en primer plano. */
+        'toast-progress': 'toastProgress 5s linear forwards'
       },
       keyframes: {
         fadeIn: {
@@ -61,6 +63,10 @@ export default {
         circuitStepTitle: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.86' }
+        },
+        toastProgress: {
+          '0%': { transform: 'scaleX(1)' },
+          '100%': { transform: 'scaleX(0)' }
         }
       }
     }

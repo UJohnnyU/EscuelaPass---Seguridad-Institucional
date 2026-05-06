@@ -128,6 +128,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
          AND parent_confirm_deadline_at IS NOT NULL
          AND parent_confirm_deadline_at <= $3
          AND teacher_signal = $4
+         AND request_time >= CURRENT_DATE - INTERVAL '1 day'
        RETURNING id, student_id, requested_by_parent_id`,
       [
         CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE,
@@ -138,6 +139,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     );
 
     if (rows.length > 0) {
+      if (rows.length > 5) {
+        this.logger.warn(
+          `Circuito: cierre automático inusualmente alto — ${rows.length} solicitud(es) en un solo ciclo. Revisar datos históricos.`
+        );
+      }
       this.logger.log(
         `Circuito: cierre automático por plazo de confirmación del padre: ${rows.length} solicitud(es).`
       );
