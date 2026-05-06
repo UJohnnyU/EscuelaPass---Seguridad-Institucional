@@ -59,6 +59,8 @@ export type CircuitTodayListItem = {
 @Injectable()
 export class CircuitService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CircuitService.name);
+  /** Cuando no hay `full_name` en el usuario del estudiante; no usar «de ${label}» en frases (usar «del estudiante»). */
+  private static readonly ANONYMOUS_STUDENT_LABEL = 'el estudiante';
   private parentConfirmPoll: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -114,7 +116,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  /** Cierra solicitudes EN_CAMINO cuyo plazo para confirmación del padre ya venció. */
+  /**
+   * Cierra solicitudes EN_CAMINO cuyo plazo para confirmación del padre ya venció.
+   * Idempotente por fila: el `UPDATE` deja `status` en terminal; en ciclos siguientes esa fila
+   * ya no cumple `status = EN_CAMINO`, así que no se vuelve a enviar push por el mismo `requestId`
+   * desde este método (varios avisos suelen ser varias solicitudes o varios dispositivos FCM).
+   */
   async applyParentConfirmTimeouts(): Promise<void> {
     const now = new Date();
     const rows = await this.circuitRepository.query<
@@ -152,12 +159,19 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     for (const row of rows) {
       const parentUid = await this.parentUserIdByPk(row.requested_by_parent_id);
       const name = await this.studentDisplayName(row.student_id);
+      const body =
+        name === CircuitService.ANONYMOUS_STUDENT_LABEL
+          ? 'El circuito del estudiante se cerró sin confirmación final del padre en el tiempo indicado.'
+          : `El circuito de ${name} se cerró sin confirmación final del padre en el tiempo indicado.`;
+      this.logger.log(
+        `Circuito: envío FCM cierre por plazo (una vez por solicitud) requestId=${row.id} studentId=${row.student_id}`
+      );
       this.pushCircuitToParent(
         parentUid,
         row.id,
         CircuitStatus.CERRADO_SIN_CONFIRMACION_PADRE,
         'Plazo de confirmación vencido',
-        `El circuito de ${name} se cerró sin confirmación final del padre en el tiempo indicado.`
+        body
       );
     }
   }
@@ -378,7 +392,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       .where('s.id = :id', { id: studentId })
       .getRawOne<{ fullName: string }>();
     const n = row?.fullName?.trim();
-    return n || 'el estudiante';
+    return n || CircuitService.ANONYMOUS_STUDENT_LABEL;
   }
 
   private async parentUserIdByPk(parentPk: string): Promise<string | null> {
