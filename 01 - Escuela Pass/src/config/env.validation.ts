@@ -1,3 +1,7 @@
+/**
+ * Validación centralizada de variables de entorno al cargar `ConfigModule` (class-validator).
+ * Obliga JWT y, salvo `DATABASE_URL`/`POSTGRES_URL` válidas, credenciales `DB_*`.
+ */
 import { plainToInstance } from 'class-transformer';
 import {
   IsBooleanString,

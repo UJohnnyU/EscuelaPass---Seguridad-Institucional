@@ -90,7 +90,9 @@ async function main() {
     // Inicializa esquema y seed en BD de pruebas.
     // Nota: el esquema requiere uuid-ossp y pgcrypto. Si tu usuario no puede crear extensiones,
     // créalas una vez como superusuario en esta BD (o E2E_SKIP_EXTENSIONS=1 en hosts gestionados).
-    await runSqlFile(client, 'escuela_pass_schema_v3.sql', { stripCreateExtensions: stripExtensions });
+    await runSqlFile(client, 'src/database/baseline/typeorm-baseline-v3.sql', {
+      stripCreateExtensions: stripExtensions
+    });
     // Compatibilidad con esquemas runtime más nuevos: el seed histórico no incluye lat/lng.
     await client.query(`
       ALTER TABLE IF EXISTS schools

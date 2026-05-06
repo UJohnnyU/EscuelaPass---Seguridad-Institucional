@@ -1,7 +1,9 @@
 -- =============================================================
 -- ESCUELA PASS — Esquema PostgreSQL v4 (completo y autónomo)
+-- Referencia DDL para greenfield y `npm run db:apply`.
 -- Incluye todas las tablas y columnas hasta la migración actual.
--- Ejecutar en una base de datos vacía.
+-- Ejecutar en una base de datos vacía (no combinar con migration:run
+-- sobre la misma base sin criterio: ver docs/technical-setup.md).
 -- Requiere: PostgreSQL 13+
 -- =============================================================
 

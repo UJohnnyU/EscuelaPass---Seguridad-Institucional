@@ -1,5 +1,6 @@
 /**
- * Ejecuta scripts/database/seed_demo_full.sql (tras schema + seed_dev).
+ * Ejecuta scripts/database/seed_demo_full.sql (solo desarrollo o staging).
+ * Prerrequisito: esquema vía `npm run db:apply` o migraciones TypeORM.
  * Uso: node scripts/seed-demo-full.cjs
  */
 const fs = require('fs');

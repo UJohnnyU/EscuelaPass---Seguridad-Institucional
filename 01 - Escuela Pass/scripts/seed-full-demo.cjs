@@ -1,8 +1,10 @@
 'use strict';
 /**
- * ESCUELA PASS — Seed completo de demostración
+ * ESCUELA PASS — Seed completo de demostración (solo desarrollo / staging)
  *
- * Crea datos realistas de producción:
+ * No ejecutar en producción sin criterio explícito del responsable de datos.
+ *
+ * Crea datos realistas de demostración:
  *   • 2 administradores globales
  *   • 3 colegios (Bogotá, Medellín, Cali)
  *   • Por colegio: 10 docentes, 10 estudiantes, ~18 padres, 2 administrativos,

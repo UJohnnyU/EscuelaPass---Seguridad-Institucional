@@ -1,3 +1,7 @@
+/**
+ * Construye la configuración TypeORM para Nest (`forRootAsync`) y para el CLI (`typeorm.datasource.ts`).
+ * Entidades enumeradas explícitamente; migraciones: `dist/database/migrations/*.js` en runtime compilado.
+ */
 import { join } from 'path';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AcademicPeriodEntity } from '../database/entities/academic-period.entity';

@@ -1,3 +1,6 @@
+/**
+ * Árbol de rutas de la aplicación autenticada y pública (login, recuperación de contraseña, módulos por rol).
+ */
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthProvider';
 import { FcmBootstrap } from '@/components/FcmBootstrap';

@@ -1,6 +1,7 @@
 -- =============================================================
--- ESCUELA PASS - SEED DEV
--- Datos mínimos para pruebas funcionales en Swagger/Postman
+-- ESCUELA PASS - SEED DEV (solo desarrollo / staging)
+-- Datos mínimos para pruebas funcionales en Swagger/Postman.
+-- Prerrequisito: esquema vía `npm run db:apply` o migraciones TypeORM.
 -- =============================================================
 
 BEGIN;

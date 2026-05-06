@@ -1,3 +1,7 @@
+/**
+ * Módulo raíz: configuración global (entorno, TypeORM, rate limit, tareas programadas) y registro
+ * de todos los bounded contexts de la API Escuela Pass.
+ */
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';

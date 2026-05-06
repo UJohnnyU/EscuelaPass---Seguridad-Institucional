@@ -68,14 +68,24 @@ Editar `.env` (o copiar desde `.env.example`):
 
 ## Base de datos
 
-1. Crear base de datos en PostgreSQL (ej. `escuela_pass`).
-2. Ejecutar en orden:
-   - `escuela_pass_schema_v3.sql` (incluye tablas `parent_teacher_meetings`, `class_schedule_slots`, `school_non_instructional_days`, `institution_settings`)
-   - `scripts/database/seed_dev.sql` (datos de prueba)
+Hay **dos formas válidas** de preparar el esquema en PostgreSQL; elija una y no las mezcle sobre la misma base.
 
-   Bases ya creadas antes de esta versión: aplicar migraciones TypeORM pendientes (`npm run migration:run`), incluidas `1776000000000-PhaseSchemaCompliance`, `1776100000000-CircuitPadreEnCamino`, u otras pendientes en `src/database/migrations/`, o ejecutar manualmente el SQL equivalente del esquema.
+### Opción A — Esquema de referencia v4 (desarrollo rápido / greenfield)
 
-   **Migración `CircuitPadreEnCamino` y permisos:** si el usuario de BD no es dueño del tipo `circuit_status` (p. ej. el tipo lo creó `postgres` y la app usa `escuela_pass_app`), la migración puede fallar con *debe ser dueño del tipo*. Solución: en pgAdmin, con usuario `postgres`, ejecutar `scripts/database/ensure-padre-en-camino-enum.sql` (o el mismo bloque `DO $$ ... $$` del final de `escuela_pass_schema_v3.sql`). Luego vuelva a `npm run migration:run` (detectará el valor y continuará). Opcional: `ALTER TYPE circuit_status OWNER TO escuela_pass_app;` para que migraciones futuras sobre el enum las ejecute la app.
+1. Crear la base (ej. `escuela_pass`).
+2. Configurar `DATABASE_URL` en `.env`.
+3. Ejecutar `npm run db:apply` (aplica [`escuela_pass_schema_v4.sql`](../escuela_pass_schema_v4.sql), DDL idempotente).
+4. Opcional: `scripts/database/seed_dev.sql` o flujos de seed demo (solo **desarrollo/staging** — ver cabezales en esos archivos).
+
+### Opción B — Cadena TypeORM (`migration:run` desde base vacía)
+
+1. Crear la base vacía y variables `DB_*` o `DATABASE_URL`.
+2. `npm run migration:run`
+3. La primera migración aplica el baseline congelado en [`src/database/baseline/typeorm-baseline-v3.sql`](../src/database/baseline/typeorm-baseline-v3.sql); el resto son cambios incrementales en `src/database/migrations/`.
+
+**Bases ya pobladas:** aplicar solo migraciones pendientes (`npm run migration:run`), no volver a ejecutar el v4 completo encima.
+
+**Migración `CircuitPadreEnCamino` y permisos:** si el usuario de BD no es dueño del tipo `circuit_status` (p. ej. el tipo lo creó `postgres` y la app usa `escuela_pass_app`), la migración puede fallar con *debe ser dueño del tipo*. Solución: en pgAdmin, con usuario `postgres`, ejecutar [`scripts/database/ensure-padre-en-camino-enum.sql`](../scripts/database/ensure-padre-en-camino-enum.sql) (o el bloque equivalente al final de `src/database/baseline/typeorm-baseline-v3.sql`). Luego vuelva a `npm run migration:run` (detectará el valor y continuará). Opcional: `ALTER TYPE circuit_status OWNER TO escuela_pass_app;` para que migraciones futuras sobre el enum las ejecute la app.
 
 ## Flujo QR/NFC web
 
@@ -142,7 +152,7 @@ npm run start:dev
 - API: `http://localhost:3000/api/v1/health`
 - Docs: `http://localhost:3000/docs`
 
-BD: ejecutar `escuela_pass_schema_v3.sql` y opcionalmente `scripts/database/seed_dev.sql`.
+BD (desarrollo): usar **Opción A** (`npm run db:apply` + `escuela_pass_schema_v4.sql`) u **Opción B** (`migration:run`); luego opcionalmente `scripts/database/seed_dev.sql` (solo dev/staging — ver cabezal del archivo).
 
 ---
 
@@ -501,7 +511,7 @@ Body `POST`: `groupId`, `weekday` (0=domingo … 6=sábado), `startTime` / `endT
 
 ## Migraciones TypeORM (baseline)
 
-El proyecto mantiene `escuela_pass_schema_v3.sql` como esquema inicial y, desde ahora, usa migraciones TypeORM para cambios incrementales.
+El baseline histórico para `npm run migration:run` en BD **vacía** está en [`src/database/baseline/typeorm-baseline-v3.sql`](../src/database/baseline/typeorm-baseline-v3.sql) (aplicado por `1712050000000-BaselineSchema.ts`). El archivo [`escuela_pass_schema_v4.sql`](../escuela_pass_schema_v4.sql) en la raíz es la **referencia DDL completa** usada por `npm run db:apply`; no sustituye al baseline en la cadena de migraciones sin un replan de migraciones.
 
 Comandos:
 
@@ -535,8 +545,8 @@ Antes de cierre/entrega:
    - Copiar `.env.example` -> `.env`.
    - Confirmar `DB_*`, `JWT_*`, `API_PREFIX`, `CORS_ORIGIN`.
 2. Base de datos (dev)
-   - Ejecutar `escuela_pass_schema_v3.sql`.
-   - Ejecutar `scripts/database/seed_dev.sql`.
+   - **Opción A:** `npm run db:apply` (v4) y opcionalmente `scripts/database/seed_dev.sql`.
+   - **Opción B:** BD vacía + `npm run migration:run` (baseline v3 interno + migraciones); seeds opcionales solo en dev.
 3. Pruebas locales de humo
    - `npm run smoke:build`
    - `npm run smoke:e2e`

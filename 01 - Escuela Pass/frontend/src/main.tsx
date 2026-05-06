@@ -1,3 +1,6 @@
+/**
+ * Entrada Vite + React: enrutador en el nivel superior para toda la SPA Escuela Pass.
+ */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

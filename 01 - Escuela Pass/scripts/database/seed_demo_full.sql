@@ -1,6 +1,9 @@
 -- =============================================================
--- ESCUELA PASS — SEED DEMO COMPLETO
--- Ejecutar DESPUÉS de escuela_pass_schema_v3.sql y seed_dev.sql
+-- ESCUELA PASS — SEED DEMO COMPLETO (solo desarrollo / staging)
+-- Ejecutar DESPUÉS de tener el esquema aplicado:
+--   • `npm run db:apply` (escuela_pass_schema_v4.sql), o
+--   • `npm run migration:run` en base vacía (baseline TypeORM + migraciones);
+--   y, si aplica, scripts/database/seed_dev.sql antes que este archivo.
 -- Objetivo: poblar tablas con variedad de enums, estados y relaciones
 -- para probar cada rol y pantalla. Contraseña unificada demo: Pass123*
 -- =============================================================

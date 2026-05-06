@@ -2,11 +2,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
+/**
+ * Primera migración en bases nuevas: aplica el DDL histórico congelado en
+ * `src/database/baseline/typeorm-baseline-v3.sql` (no confundir con el esquema
+ * de referencia `escuela_pass_schema_v4.sql` usado por `npm run db:apply`).
+ */
 export class BaselineSchema1712050000000 implements MigrationInterface {
   name = 'BaselineSchema1712050000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const schemaPath = path.resolve(__dirname, '..', '..', '..', 'escuela_pass_schema_v3.sql');
+    const schemaPath = path.resolve(__dirname, '..', 'baseline', 'typeorm-baseline-v3.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     await queryRunner.query(schemaSql);
   }

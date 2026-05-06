@@ -1,7 +1,13 @@
+﻿-- =============================================================
+-- ESCUELA PASS — Baseline SQL congelado (histórico v3) para TypeORM
 -- =============================================================
--- ESCUELA PASS - Esquema PostgreSQL v3
--- Ejecutar en base vacía (o revisar tipos/tablas antes de re-ejecutar)
--- Requiere: CREATE EXTENSION uuid-ossp; CREATE EXTENSION pgcrypto;
+-- Uso previsto:
+--   • Migración 1712050000000-BaselineSchema (`npm run migration:run` en BD vacía).
+--   • Inicialización de BD en tests E2E (`test/setup-e2e-db.js`).
+-- No emplear como fuente de verdad operativa ni aplicar en producción salvo
+-- un diagnóstico explícito. Esquema completo y actualizado: ver
+-- escuela_pass_schema_v4.sql en la raíz del proyecto (`npm run db:apply`).
+-- Requisitos: PostgreSQL 13+; extensiones uuid-ossp y pgcrypto cuando aplique.
 -- =============================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

@@ -1,3 +1,7 @@
+/**
+ * Punto de entrada HTTP: arranque Nest, migraciones automáticas, saneo de esquema en runtime,
+ * estáticos de uploads, seguridad (helmet, CORS, validación), prefijo API y documentación Swagger.
+ */
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

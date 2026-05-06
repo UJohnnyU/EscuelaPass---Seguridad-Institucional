@@ -6,6 +6,9 @@ import { DataSource } from 'typeorm';
  *
  * Cada sentencia es idempotente: usa IF NOT EXISTS o comprobaciones previas para no romper
  * instalaciones que ya tengan el esquema al día.
+ *
+ * Convive con la cadena oficial de migraciones en `src/database/migrations/`; la estrategia de BD
+ * (solo migraciones vs. `db:apply` v4) se describe en `docs/technical-setup.md`.
  */
 export async function ensureRuntimeSchema(dataSource: DataSource): Promise<void> {
   const runner = dataSource.createQueryRunner();

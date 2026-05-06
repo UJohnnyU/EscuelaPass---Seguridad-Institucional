@@ -1,3 +1,6 @@
+/**
+ * Cliente HTTP compartido (Axios): base URL desde `VITE_API_BASE`, JWT en requests y refresco ante 401.
+ */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { clearTokens, loadTokens, saveTokens } from './storage';
 
