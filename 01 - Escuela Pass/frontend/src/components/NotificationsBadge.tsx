@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import {
   NOTIFICATION_READ_EVENT,
@@ -45,10 +45,41 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
   const prevUnreadRef = useRef<number | null>(null);
   const lastSoundAtRef = useRef<number>(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  /** Panel a `fixed` con coordenadas limitadas al viewport (evita corte en móvil). */
+  const [panelBox, setPanelBox] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const unread = useMemo(() => items.filter((r) => !r.readAt).length, [items]);
   const unreadItems = useMemo(() => items.filter((r) => !r.readAt), [items]);
 
+  const PANEL_MAX_W = 340;
+  const VIEW_MARGIN = 12;
+
+  const updatePanelPosition = () => {
+    const el = rootRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const width = Math.min(PANEL_MAX_W, Math.max(220, vw - VIEW_MARGIN * 2));
+    const centerX = rect.left + rect.width / 2;
+    let left = centerX - width / 2;
+    left = Math.max(VIEW_MARGIN, Math.min(left, vw - VIEW_MARGIN - width));
+    setPanelBox({ top: rect.bottom + 10, left, width });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelBox(null);
+      return;
+    }
+    updatePanelPosition();
+    const onResizeOrScroll = () => updatePanelPosition();
+    window.addEventListener('resize', onResizeOrScroll);
+    window.addEventListener('scroll', onResizeOrScroll, true);
+    return () => {
+      window.removeEventListener('resize', onResizeOrScroll);
+      window.removeEventListener('scroll', onResizeOrScroll, true);
+    };
+  }, [open, items.length, unread]);
   /** Dos tonos agudos (campana); ganancia mayor que antes para que sea audible en entorno ruidoso. */
   const playSoftPing = () => {
     if (typeof window === 'undefined') return;
@@ -240,12 +271,10 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
           </span>
         ) : null}
       </button>
+      {open && panelBox ? (
       <div
-        className={`absolute right-0 top-[calc(100%+10px)] z-[95] w-[340px] origin-top-right rounded-xl border border-slate-200 bg-white p-3 shadow-2xl transition-all duration-200 ${
-          open
-            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
-            : 'pointer-events-none -translate-y-1 scale-95 opacity-0'
-        }`}
+        className="fixed z-[95] rounded-xl border border-slate-200 bg-white p-3 shadow-2xl transition-shadow duration-200"
+        style={{ top: panelBox.top, left: panelBox.left, width: panelBox.width }}
       >
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Notificaciones</p>
@@ -306,6 +335,7 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
           </ul>
         )}
       </div>
+      ) : null}
     </div>
   );
 }
