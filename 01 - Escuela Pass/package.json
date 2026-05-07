@@ -22,6 +22,7 @@
     "migration:show": "npm run typeorm -- migration:show",
     "db:apply": "node scripts/apply-schema-and-seed.cjs",
     "db:seed:demo": "node scripts/seed-demo-full.cjs",
+    "db:seed:railway": "node scripts/seed-railway-two-schools.cjs",
     "smoke:build": "npm run build",
     "smoke:e2e": "npm run test:e2e",
     "smoke:ci-local": "npm run smoke:build && npm run smoke:e2e"

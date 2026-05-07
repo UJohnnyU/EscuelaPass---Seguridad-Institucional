@@ -6,7 +6,7 @@
  *
  * Crea datos realistas de demostración:
  *   • 2 administradores globales
- *   • 3 colegios (Bogotá, Medellín, Cali)
+ *   • N colegios (por defecto 3: Bogotá, Medellín, Cali — ver `SEED_NUM_SCHOOLS`)
  *   • Por colegio: 10 docentes, 10 estudiantes, ~18 padres, 2 administrativos,
  *     3 grupos, 5 materias, periodos académicos, asistencia 30 días,
  *     actividades, calificaciones, deudas, pagos, avisos, reuniones,
@@ -14,9 +14,20 @@
  *
  * Contraseña de todos los usuarios: Escuela2026!
  *
+ * Variables de entorno:
+ *   • DATABASE_URL o POSTGRES_URL (obligatorio)
+ *   • SEED_NUM_SCHOOLS — número de escuelas a poblar (1–3 por defecto, p. ej. 2 para Railway)
+ *   • PGSSLMODE=require o DATABASE_SSL=1 fuerza TLS; en URLs `.railway.app` o `sslmode=require`
+ *     se usa `rejectUnauthorized: false` por defecto.
+ *
  * Uso:
- *   railway run --service "EscuelaPass---Seguridad-Institucional" node scripts/seed-full-demo.cjs
+ *   node scripts/seed-full-demo.cjs
+ *   node scripts/seed-railway-two-schools.cjs
+ *   railway run node scripts/seed-railway-two-schools.cjs
  */
+
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const bcrypt = require('bcrypt');
 const { Client } = require('pg');
@@ -47,7 +58,7 @@ const SCHOOLS_DEF = [
     city: 'Medellín',
     address: 'Av. El Poblado # 12-45, Laureles',
     phone: '6047654321',
-    email: 'contacto@colegiотечnico.edu.co',
+    email: 'contacto@colegiotecnico.edu.co',
     director: 'Ph.D. Esperanza Ríos Montoya',
     lat: '6.25184000',
     lon: '-75.56359000',
@@ -282,6 +293,19 @@ function rndInt(min, max) {
 async function q(client, sql, params) {
   const r = await client.query(sql, params);
   return r;
+}
+
+async function tableExists(client, tableName) {
+  const r = await client.query(
+    `
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = $1
+    ) AS e
+    `,
+    [tableName]
+  );
+  return r.rows[0].e === true;
 }
 
 // ──────────────────────────────────────────────
@@ -613,15 +637,17 @@ async function populateSchool(client, schoolDef, si, hash, policyId, globalAdmin
     vehicles.push({ id: vr.rows[0].id, parentId: parents[i].id, parentIdx: i });
   }
 
-  // pickup_authorizations
-  for (const v of vehicles) {
-    const pDef = parents[v.parentIdx];
-    const st = students[pDef.studentIdx];
-    if (!st) continue;
-    await q(client, `
-      INSERT INTO pickup_authorizations (student_id, parent_id, vehicle_id, is_default, is_active, notes)
-      VALUES ($1,$2,$3,TRUE,TRUE,'Autorizado por el padre registrado')
-    `, [st.id, pDef.id, v.id]);
+  // pickup_authorizations (tabla opcional — eliminada en migración RemoveOutOfScopeTables)
+  if (await tableExists(client, 'pickup_authorizations')) {
+    for (const v of vehicles) {
+      const pDef = parents[v.parentIdx];
+      const st = students[pDef.studentIdx];
+      if (!st) continue;
+      await q(client, `
+        INSERT INTO pickup_authorizations (student_id, parent_id, vehicle_id, is_default, is_active, notes)
+        VALUES ($1,$2,$3,TRUE,TRUE,'Autorizado por el padre registrado')
+      `, [st.id, pDef.id, v.id]);
+    }
   }
 
   // 12. Conceptos de pago
@@ -1091,14 +1117,16 @@ async function populateSchool(client, schoolDef, si, hash, policyId, globalAdmin
   }
 
   // 28. Ajuste de deuda (debt_adjustments)
-  const firstDebt = await q(client, `SELECT id FROM debts WHERE student_id = $1 AND status = 'VENCIDO' LIMIT 1`, [students[0].id]);
-  if (firstDebt.rows.length > 0) {
-    await q(client, `
-      INSERT INTO debt_adjustments
-        (debt_id, school_id, action_type, previous_amount, delta_amount, next_amount,
-         reason, policy_cycle_date, changed_by_user_id)
-      VALUES ($1,$2,'LATE_FEE',$3,5000,$4,'Recargo por mora — política vencidos',CURRENT_DATE,$5)
-    `, [firstDebt.rows[0].id, schoolId, concepts[2].amount, concepts[2].amount + 5000, adminUserId]);
+  if (await tableExists(client, 'debt_adjustments')) {
+    const firstDebt = await q(client, `SELECT id FROM debts WHERE student_id = $1 AND status = 'VENCIDO' LIMIT 1`, [students[0].id]);
+    if (firstDebt.rows.length > 0) {
+      await q(client, `
+        INSERT INTO debt_adjustments
+          (debt_id, school_id, action_type, previous_amount, delta_amount, next_amount,
+           reason, policy_cycle_date, changed_by_user_id)
+        VALUES ($1,$2,'LATE_FEE',$3,5000,$4,'Recargo por mora — política vencidos',CURRENT_DATE,$5)
+      `, [firstDebt.rows[0].id, schoolId, concepts[2].amount, concepts[2].amount + 5000, adminUserId]);
+    }
   }
 
   // 29. Logs de auditoría
@@ -1127,9 +1155,23 @@ async function main() {
   console.log('[seed] Iniciando seed completo de EscuelaPass…');
   const hash = await bcrypt.hash(PASS, 10);
 
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!url || (!url.startsWith('postgres://') && !url.startsWith('postgresql://'))) {
+    console.error('[seed] Define DATABASE_URL o POSTGRES_URL (postgresql://…).');
+    process.exit(1);
+  }
+
+  const ssl =
+    /sslmode=require/i.test(url) ||
+    /\.railway\.app/i.test(url) ||
+    process.env.PGSSLMODE === 'require' ||
+    process.env.DATABASE_SSL === '1'
+      ? { rejectUnauthorized: false }
+      : undefined;
+
   const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    connectionString: url,
+    ssl
   });
   await client.connect();
   console.log('[seed] Conexión a la BD establecida.');
@@ -1139,7 +1181,14 @@ async function main() {
     const policyId = await createPrivacyPolicy(client);
     const globalAdminIds = await createGlobalAdmins(client, hash, policyId);
 
-    for (let si = 0; si < SCHOOLS_DEF.length; si++) {
+    const rawNs = parseInt(process.env.SEED_NUM_SCHOOLS ?? String(SCHOOLS_DEF.length), 10);
+    const numSchools = Math.min(
+      Math.max(1, Number.isFinite(rawNs) ? rawNs : SCHOOLS_DEF.length),
+      SCHOOLS_DEF.length
+    );
+    console.log(`[seed] Escuelas a poblar: ${numSchools} (índices 0..${numSchools - 1})`);
+
+    for (let si = 0; si < numSchools; si++) {
       await populateSchool(client, SCHOOLS_DEF[si], si, hash, policyId, globalAdminIds);
     }
 
