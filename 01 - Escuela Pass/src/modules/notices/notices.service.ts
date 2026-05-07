@@ -452,16 +452,16 @@ export class NoticesService {
   ) {
     if (role !== UserRole.ADMIN) throw new ForbiddenException('Solo administración de la plataforma puede listar todos los reportes');
     const take = Math.min(Math.max(Number.parseInt(query.limit ?? '40', 10) || 40, 1), 200);
-    const qb = this.adminReportsRepository.createQueryBuilder('r').orderBy('r.created_at', 'DESC').take(take);
+    const qb = this.adminReportsRepository.createQueryBuilder('r').orderBy('r.createdAt', 'DESC').take(take);
     const sid = query.schoolId?.trim();
-    if (sid) qb.andWhere('r.school_id = :sid', { sid });
+    if (sid) qb.andWhere('r.schoolId = :sid', { sid });
     if (query.type?.trim()) qb.andWhere('r.type = :t', { t: query.type.trim() });
     if (query.status?.trim()) qb.andWhere('r.status = :st', { st: query.status.trim() });
     const qtxt = query.q?.trim().toLowerCase();
     if (qtxt) {
       qb.andWhere(
         `(LOWER(r.subject) LIKE :q OR LOWER(r.message) LIKE :q OR EXISTS (
-           SELECT 1 FROM users uc WHERE uc.id = r.created_by_user_id AND (LOWER(uc.full_name) LIKE :q OR LOWER(COALESCE(uc.email, '')) LIKE :q)
+           SELECT 1 FROM users uc WHERE uc.id = r.createdByUserId AND (LOWER(uc.full_name) LIKE :q OR LOWER(COALESCE(uc.email, '')) LIKE :q)
          ))`,
         { q: `%${qtxt}%` }
       );
@@ -514,8 +514,8 @@ export class NoticesService {
     if (role !== UserRole.ADMIN) throw new ForbiddenException('Solo administración de la plataforma');
     const { responseH, resolutionH } = await this.getSlaHoursConfig();
     const qb = this.adminReportsRepository.createQueryBuilder('r');
-    if (schoolId?.trim()) qb.where('r.school_id = :sid', { sid: schoolId.trim() });
-    const all = await qb.orderBy('r.created_at', 'DESC').take(1500).getMany();
+    if (schoolId?.trim()) qb.where('r.schoolId = :sid', { sid: schoolId.trim() });
+    const all = await qb.orderBy('r.createdAt', 'DESC').take(1500).getMany();
     if (all.length === 0) {
       return {
         total: 0,
