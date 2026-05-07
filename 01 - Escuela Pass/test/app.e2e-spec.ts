@@ -1006,12 +1006,12 @@ describe('App (e2e)', () => {
     expect(receipts.body.data.length).toBeGreaterThan(0);
     expect(receipts.body.data[0]).toHaveProperty('readRate');
 
-    // admin-reports endpoints fueron eliminados (out of FTG scope)
-    // Verificamos que el endpoint de SLA ya no existe
-    await request(app.getHttpServer())
+    const slaReminder = await request(app.getHttpServer())
       .post(`/${apiPrefix}/notifications/admin-reports/sla-reminders/run`)
       .set(authHeader(platformAdmin.accessToken))
-      .expect(404);
+      .expect(200);
+    expect(slaReminder.body).toHaveProperty('noticesChecked');
+    expect(slaReminder.body).toHaveProperty('remindersCreated');
   }, 30000);
 
   it('t12/t13: políticas de cartera + bitácora de ajustes', async () => {
@@ -1222,17 +1222,23 @@ describe('App (e2e)', () => {
     expect(Array.isArray(notes.body)).toBe(true);
   }, 15000);
 
-  it('t17: admin-reports endpoints devuelven 404 (eliminados)', async () => {
+  it('t17: admin-reports (tickets SLA) están disponibles', async () => {
     const admin = await login('administrativo@escuelapass.local', 'Admin123*');
+    const platformAdmin = await login('admin@escuelapass.local', 'Admin123*');
 
-    await request(app.getHttpServer())
-      .get(`/${apiPrefix}/notifications/admin-reports`)
-      .set(authHeader(admin.accessToken))
-      .expect(404);
-
-    await request(app.getHttpServer())
+    const listMine = await request(app.getHttpServer())
       .get(`/${apiPrefix}/notifications/admin-reports/mine`)
       .set(authHeader(admin.accessToken))
-      .expect(404);
+      .expect(200);
+    expect(listMine.body).toHaveProperty('data');
+    expect(Array.isArray(listMine.body.data)).toBe(true);
+
+    const listAll = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/notifications/admin-reports`)
+      .set(authHeader(platformAdmin.accessToken))
+      .query({ limit: 5 })
+      .expect(200);
+    expect(listAll.body).toHaveProperty('data');
+    expect(Array.isArray(listAll.body.data)).toBe(true);
   }, 15000);
 });

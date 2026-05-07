@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminReportCommentEntity } from '../../database/entities/admin-report-comment.entity';
+import { AdminReportEntity } from '../../database/entities/admin-report.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
+import { InstitutionSettingEntity } from '../../database/entities/institution-setting.entity';
 import { NoticeEntity } from '../../database/entities/notice.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
@@ -23,7 +26,10 @@ import { NoticesService } from './notices.service';
       UserEntity,
       StudentEntity,
       TeacherEntity,
-      GroupEntity
+      GroupEntity,
+      AdminReportEntity,
+      AdminReportCommentEntity,
+      InstitutionSettingEntity
     ])
   ],
   controllers: [NoticesController, NotificationsController],

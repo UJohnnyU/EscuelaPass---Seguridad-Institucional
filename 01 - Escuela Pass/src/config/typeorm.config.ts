@@ -5,6 +5,8 @@
 import { join } from 'path';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AcademicPeriodEntity } from '../database/entities/academic-period.entity';
+import { AdminReportCommentEntity } from '../database/entities/admin-report-comment.entity';
+import { AdminReportEntity } from '../database/entities/admin-report.entity';
 import { ActivityEntity } from '../database/entities/activity.entity';
 import { ActivityGradeEntity } from '../database/entities/activity-grade.entity';
 import { AttendanceRecordEntity } from '../database/entities/attendance-record.entity';
@@ -86,6 +88,8 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       AttendanceRecordEntity,
       AcademicPeriodEntity,
       ActivityEntity,
+      AdminReportCommentEntity,
+      AdminReportEntity,
       ActivityGradeEntity,
       ReportCardEntity,
       ReportCardSubjectEntity,

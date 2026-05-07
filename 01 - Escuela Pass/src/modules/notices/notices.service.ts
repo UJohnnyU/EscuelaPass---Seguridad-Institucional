@@ -6,15 +6,51 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import { DataSource, IsNull, In, Repository } from 'typeorm';
+import { AdminReportCommentEntity } from '../../database/entities/admin-report-comment.entity';
+import {
+  AdminReportEntity,
+  AdminReportStatus,
+  AdminReportType
+} from '../../database/entities/admin-report.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
+import { InstitutionSettingEntity } from '../../database/entities/institution-setting.entity';
 import { NoticeEntity, NoticeTargetType } from '../../database/entities/notice.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { CreateNoticeDto } from './dto/create-notice.dto';
+import { AdminReportCommentDto } from './dto/admin-report-comment.dto';
+import { CreateAdminReportDto } from './dto/create-admin-report.dto';
+import { UpdateAdminReportStatusDto } from './dto/update-admin-report-status.dto';
 import { FcmService } from '../fcm/fcm.service';
+
+type AdminReportRow = {
+  id: string;
+  schoolId: string;
+  type: AdminReportType;
+  subject: string;
+  message: string;
+  status: AdminReportStatus;
+  createdAt: Date;
+  createdByUserId: string;
+  createdByName: string | null;
+  assignedAdminUserId: string | null;
+  assignedAdminName: string | null;
+  resolvedByUserId?: string | null;
+  resolvedAt?: Date | null;
+  firstResponseAt: Date | null;
+  slaResponseHours: number;
+  slaResolutionHours: number;
+  slaResponseStatus: 'OK' | 'PENDING' | 'BREACHED';
+  slaResolutionStatus: 'OK' | 'PENDING' | 'BREACHED';
+};
+
+const DEFAULT_RESPONSE_SLA_H = 24;
+const DEFAULT_RESOLUTION_SLA_H = 72;
+
+const STAFF_REPORT_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE];
 
 @Injectable()
 export class NoticesService {
@@ -33,6 +69,12 @@ export class NoticesService {
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
+    @InjectRepository(AdminReportEntity)
+    private readonly adminReportsRepository: Repository<AdminReportEntity>,
+    @InjectRepository(AdminReportCommentEntity)
+    private readonly adminReportCommentsRepository: Repository<AdminReportCommentEntity>,
+    @InjectRepository(InstitutionSettingEntity)
+    private readonly institutionSettingsRepository: Repository<InstitutionSettingEntity>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly fcmService: FcmService
@@ -373,6 +415,421 @@ export class NoticesService {
     notif.readAt = new Date();
     await this.notificationsRepository.save(notif);
     return { message: 'Marcada como leída', id: notif.id };
+  }
+
+  async createAdminReport(dto: CreateAdminReportDto, createdByUserId: string, role: UserRole) {
+    const schoolId = await this.resolveSchoolIdForReporter(createdByUserId, role);
+    let message = dto.message;
+    if (dto.evidenceUrls?.length) {
+      message = `${dto.message}\n\n[Evidencias]\n${dto.evidenceUrls.join('\n')}`;
+    }
+    const row = this.adminReportsRepository.create({
+      schoolId,
+      createdByUserId,
+      assignedAdminUserId: null,
+      type: dto.type as AdminReportType,
+      subject: dto.subject.trim(),
+      message,
+      status: AdminReportStatus.PENDIENTE,
+      resolvedByUserId: null,
+      resolvedAt: null
+    });
+    await this.adminReportsRepository.save(row);
+    return { message: 'Reporte registrado ante administración.', id: row.id };
+  }
+
+  async listAdminReports(
+    userId: string,
+    role: UserRole,
+    query: {
+      schoolId?: string;
+      type?: string;
+      status?: string;
+      q?: string;
+      unreadOnly?: string;
+      limit?: string;
+    }
+  ) {
+    if (role !== UserRole.ADMIN) throw new ForbiddenException('Solo administración de la plataforma puede listar todos los reportes');
+    const take = Math.min(Math.max(Number.parseInt(query.limit ?? '40', 10) || 40, 1), 200);
+    const qb = this.adminReportsRepository.createQueryBuilder('r').orderBy('r.created_at', 'DESC').take(take);
+    const sid = query.schoolId?.trim();
+    if (sid) qb.andWhere('r.school_id = :sid', { sid });
+    if (query.type?.trim()) qb.andWhere('r.type = :t', { t: query.type.trim() });
+    if (query.status?.trim()) qb.andWhere('r.status = :st', { st: query.status.trim() });
+    const qtxt = query.q?.trim().toLowerCase();
+    if (qtxt) {
+      qb.andWhere(
+        `(LOWER(r.subject) LIKE :q OR LOWER(r.message) LIKE :q OR EXISTS (
+           SELECT 1 FROM users uc WHERE uc.id = r.created_by_user_id AND (LOWER(uc.full_name) LIKE :q OR LOWER(COALESCE(uc.email, '')) LIKE :q)
+         ))`,
+        { q: `%${qtxt}%` }
+      );
+    }
+    if (query.unreadOnly === 'true' || query.unreadOnly === '1') {
+      qb.andWhere(
+        `NOT EXISTS (
+          SELECT 1 FROM admin_report_comments c
+          INNER JOIN users u ON u.id = c.user_id
+          WHERE c.report_id = r.id AND u.role IN (:...staffRoles)
+        )`,
+        { staffRoles: STAFF_REPORT_ROLES }
+      );
+      qb.andWhere('r.status = :pend', { pend: AdminReportStatus.PENDIENTE });
+    }
+    const rows = await qb.getMany();
+    const enriched = await this.enrichReportsWithSla(rows);
+    return {
+      data: enriched.map((e) => ({
+        ...e,
+        createdAt: e.createdAt.toISOString(),
+        resolvedAt: e.resolvedAt ? e.resolvedAt.toISOString() : null,
+        firstResponseAt: e.firstResponseAt ? e.firstResponseAt.toISOString() : null
+      }))
+    };
+  }
+
+  async listMyAdminReports(userId: string, role: UserRole, query: { limit?: string }) {
+    if (role !== UserRole.ADMINISTRATIVO) throw new ForbiddenException('Solo disponible para personal administrativo');
+    const me = await this.usersRepository.findOne({ where: { id: userId }, select: ['schoolId'] });
+    if (!me?.schoolId) throw new ForbiddenException('Usuario sin escuela asignada');
+    const take = Math.min(Math.max(Number.parseInt(query.limit ?? '30', 10) || 30, 1), 100);
+    const rows = await this.adminReportsRepository.find({
+      where: { schoolId: me.schoolId },
+      order: { createdAt: 'DESC' },
+      take
+    });
+    const enriched = await this.enrichReportsWithSla(rows);
+    return {
+      data: enriched.map((e) => ({
+        ...e,
+        createdAt: e.createdAt.toISOString(),
+        resolvedAt: e.resolvedAt ? e.resolvedAt.toISOString() : null,
+        firstResponseAt: e.firstResponseAt ? e.firstResponseAt.toISOString() : null
+      }))
+    };
+  }
+
+  async getAdminReportsSlaSummary(viewerUserId: string, role: UserRole, schoolId?: string) {
+    if (role !== UserRole.ADMIN) throw new ForbiddenException('Solo administración de la plataforma');
+    const { responseH, resolutionH } = await this.getSlaHoursConfig();
+    const qb = this.adminReportsRepository.createQueryBuilder('r');
+    if (schoolId?.trim()) qb.where('r.school_id = :sid', { sid: schoolId.trim() });
+    const all = await qb.orderBy('r.created_at', 'DESC').take(1500).getMany();
+    if (all.length === 0) {
+      return {
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        resolved: 0,
+        responseBreached: 0,
+        resolutionBreached: 0,
+        avgResponseHours: null,
+        avgResolutionHours: null,
+        responseSlaHours: responseH,
+        resolutionSlaHours: resolutionH
+      };
+    }
+    const enriched = await this.enrichReportsWithSla(all);
+    const pending = enriched.filter((r) => r.status === AdminReportStatus.PENDIENTE).length;
+    const inProgress = enriched.filter((r) => r.status === AdminReportStatus.EN_PROCESO).length;
+    const resolved = enriched.filter((r) => r.status === AdminReportStatus.RESUELTO).length;
+    const responseBreached = enriched.filter((r) => r.slaResponseStatus === 'BREACHED').length;
+    const resolutionBreached = enriched.filter((r) => r.slaResolutionStatus === 'BREACHED').length;
+    const respHs = enriched
+      .filter((r) => r.firstResponseAt)
+      .map((r) => (r.firstResponseAt!.getTime() - r.createdAt.getTime()) / 3_600_000);
+    const resHs = enriched
+      .filter((r) => r.status === AdminReportStatus.RESUELTO && r.resolvedAt)
+      .map((r) => (r.resolvedAt!.getTime() - r.createdAt.getTime()) / 3_600_000);
+    const avgResponseHours =
+      respHs.length > 0 ? Number((respHs.reduce((a, b) => a + b, 0) / respHs.length).toFixed(2)) : null;
+    const avgResolutionHours =
+      resHs.length > 0 ? Number((resHs.reduce((a, b) => a + b, 0) / resHs.length).toFixed(2)) : null;
+    return {
+      total: enriched.length,
+      pending,
+      inProgress,
+      resolved,
+      responseBreached,
+      resolutionBreached,
+      avgResponseHours,
+      avgResolutionHours,
+      responseSlaHours: responseH,
+      resolutionSlaHours: resolutionH
+    };
+  }
+
+  /** Dispara recordatorios de comunicados críticos sin leer (misma lógica que avisos importantes). */
+  async runAdminReportsSlaReminders(userId: string, role: UserRole, schoolId?: string) {
+    if (role !== UserRole.ADMIN) throw new ForbiddenException('Solo administración de la plataforma');
+    const summary = await this.sendCriticalReadReminders({ schoolId: schoolId?.trim() });
+    return {
+      message: 'Recordatorios de lectura de comunicados críticos ejecutados',
+      remindersCreated: summary.remindersCreated,
+      noticesChecked: summary.noticesChecked
+    };
+  }
+
+  async listAdminReportComments(reportId: string, userId: string, role: UserRole) {
+    await this.assertCanAccessAdminReport(reportId, userId, role);
+    const rows = await this.adminReportCommentsRepository.find({
+      where: { reportId },
+      order: { createdAt: 'ASC' }
+    });
+    const userIds = [...new Set(rows.map((r) => r.userId))];
+    const authors =
+      userIds.length > 0
+        ? await this.usersRepository.find({
+            where: { id: In(userIds) },
+            select: ['id', 'fullName', 'role']
+          })
+        : [];
+    const byId = new Map(authors.map((u) => [u.id, u]));
+    return rows.map((c) => {
+      const u = byId.get(c.userId);
+      return {
+        id: c.id,
+        reportId: c.reportId,
+        userId: c.userId,
+        message: c.message,
+        createdAt: c.createdAt.toISOString(),
+        authorName: u?.fullName ?? null,
+        authorRole: u?.role ?? null
+      };
+    });
+  }
+
+  async addAdminReportComment(
+    reportId: string,
+    dto: AdminReportCommentDto,
+    userId: string,
+    role: UserRole
+  ) {
+    await this.assertCanAccessAdminReport(reportId, userId, role);
+    const comment = this.adminReportCommentsRepository.create({
+      reportId,
+      userId,
+      message: dto.message.trim()
+    });
+    await this.adminReportCommentsRepository.save(comment);
+    const report = await this.adminReportsRepository.findOne({ where: { id: reportId } });
+    if (report && STAFF_REPORT_ROLES.includes(role) && report.createdByUserId !== userId) {
+      if (report.status === AdminReportStatus.PENDIENTE) {
+        report.status = AdminReportStatus.EN_PROCESO;
+        if (!report.assignedAdminUserId) report.assignedAdminUserId = userId;
+        await this.adminReportsRepository.save(report);
+      }
+    }
+    return { message: 'Comentario publicado.', id: comment.id };
+  }
+
+  async updateAdminReportStatus(
+    reportId: string,
+    dto: UpdateAdminReportStatusDto,
+    userId: string,
+    role: UserRole
+  ) {
+    if (role !== UserRole.ADMIN && role !== UserRole.ADMINISTRATIVO) {
+      throw new ForbiddenException('No autorizado a actualizar estado del reporte');
+    }
+    const report = await this.adminReportsRepository.findOne({ where: { id: reportId } });
+    if (!report) throw new NotFoundException('Reporte no encontrado');
+    if (role === UserRole.ADMINISTRATIVO) {
+      const u = await this.usersRepository.findOne({ where: { id: userId }, select: ['schoolId'] });
+      if (!u?.schoolId || u.schoolId !== report.schoolId) throw new ForbiddenException('Sin acceso a este reporte');
+    }
+
+    report.status = dto.status;
+    if (dto.status === AdminReportStatus.EN_PROCESO) {
+      if (!report.assignedAdminUserId && STAFF_REPORT_ROLES.includes(role)) {
+        report.assignedAdminUserId = userId;
+      }
+    }
+    if (dto.status === AdminReportStatus.RESUELTO) {
+      report.resolvedByUserId = userId;
+      report.resolvedAt = new Date();
+    }
+    await this.adminReportsRepository.save(report);
+    return { message: 'Estado actualizado', id: report.id, status: report.status };
+  }
+
+  private async resolveSchoolIdForReporter(userId: string, role: UserRole): Promise<string> {
+    const user = await this.usersRepository.findOne({ where: { id: userId }, select: ['id', 'schoolId'] });
+    if (user?.schoolId) return user.schoolId;
+
+    if (role === UserRole.PADRE) {
+      const rows = await this.dataSource.query<{ school_id: string }[]>(
+        `SELECT DISTINCT s.school_id
+         FROM student_parents sp
+         JOIN students s ON s.id = sp.student_id
+         JOIN parents p ON p.id = sp.parent_id
+         WHERE p.user_id = $1
+         LIMIT 1`,
+        [userId]
+      );
+      const sid = rows[0]?.school_id;
+      if (!sid) throw new BadRequestException('No se pudo determinar la institución del reporte');
+      return sid;
+    }
+    if (role === UserRole.ALUMNO) {
+      const st = await this.studentsRepository.findOne({ where: { userId }, select: ['schoolId'] });
+      if (!st?.schoolId) throw new BadRequestException('Estudiante sin institución');
+      return st.schoolId;
+    }
+
+    throw new BadRequestException('Usuario sin institución asignada para crear reportes');
+  }
+
+  private async getSlaHoursConfig(): Promise<{ responseH: number; resolutionH: number }> {
+    let responseH = DEFAULT_RESPONSE_SLA_H;
+    let resolutionH = DEFAULT_RESOLUTION_SLA_H;
+    try {
+      const rk = await this.institutionSettingsRepository.findOne({
+        where: { settingKey: 'admin_report.response_sla_hours' }
+      });
+      const uk = await this.institutionSettingsRepository.findOne({
+        where: { settingKey: 'admin_report.resolution_sla_hours' }
+      });
+      if (rk?.value?.trim()) {
+        const n = Number.parseFloat(rk.value.trim());
+        if (!Number.isNaN(n) && n > 0 && n <= 8760) responseH = n;
+      }
+      if (uk?.value?.trim()) {
+        const n = Number.parseFloat(uk.value.trim());
+        if (!Number.isNaN(n) && n > 0 && n <= 8760) resolutionH = n;
+      }
+    } catch {
+      /* usar defaults */
+    }
+    return { responseH: responseH, resolutionH: resolutionH };
+  }
+
+  private async enrichReportsWithSla(reports: AdminReportEntity[]): Promise<AdminReportRow[]> {
+    if (reports.length === 0) return [];
+    const { responseH, resolutionH } = await this.getSlaHoursConfig();
+    const ids = reports.map((r) => r.id);
+    const firstRespRaw = await this.dataSource.query<{ report_id: string; fr: Date }[]>(
+      `SELECT c.report_id, MIN(c.created_at) AS fr
+       FROM admin_report_comments c
+       INNER JOIN users u ON u.id = c.user_id
+       WHERE c.report_id = ANY($1::uuid[])
+         AND u.role = ANY($2::varchar[])
+       GROUP BY c.report_id`,
+      [ids, STAFF_REPORT_ROLES]
+    );
+    const firstByReport = new Map(firstRespRaw.map((r) => [r.report_id, new Date(r.fr)]));
+
+    const uids = [...new Set(reports.flatMap((r) => [r.createdByUserId, r.assignedAdminUserId].filter(Boolean) as string[]))];
+    const users = uids.length
+      ? await this.usersRepository.find({ where: { id: In(uids) }, select: ['id', 'fullName'] })
+      : [];
+    const nameByUser = new Map(users.map((u) => [u.id, u.fullName]));
+
+    const now = Date.now();
+    return reports.map((r) => {
+      const firstResponseAt = firstByReport.get(r.id) ?? null;
+      let slaResponseHours = 0;
+      let slaResponseStatus: AdminReportRow['slaResponseStatus'] = 'PENDING';
+      if (firstResponseAt) {
+        slaResponseHours = Number(((firstResponseAt.getTime() - r.createdAt.getTime()) / 3_600_000).toFixed(2));
+        slaResponseHours = Math.max(0, slaResponseHours);
+        slaResponseStatus = slaResponseHours <= responseH ? 'OK' : 'BREACHED';
+      } else {
+        const elapsedH = (now - r.createdAt.getTime()) / 3_600_000;
+        slaResponseHours = Number(elapsedH.toFixed(2));
+        slaResponseStatus = elapsedH > responseH ? 'BREACHED' : 'PENDING';
+      }
+
+      let slaResolutionHours = 0;
+      let slaResolutionStatus: AdminReportRow['slaResolutionStatus'] = 'PENDING';
+      if (r.status === AdminReportStatus.RESUELTO && r.resolvedAt) {
+        slaResolutionHours = Number(((r.resolvedAt.getTime() - r.createdAt.getTime()) / 3_600_000).toFixed(2));
+        slaResolutionHours = Math.max(0, slaResolutionHours);
+        slaResolutionStatus = slaResolutionHours <= resolutionH ? 'OK' : 'BREACHED';
+      } else {
+        const elapsedH = (now - r.createdAt.getTime()) / 3_600_000;
+        slaResolutionHours = Number(elapsedH.toFixed(2));
+        slaResolutionStatus = elapsedH > resolutionH ? 'BREACHED' : 'PENDING';
+      }
+
+      return {
+        id: r.id,
+        schoolId: r.schoolId,
+        type: r.type,
+        subject: r.subject,
+        message: r.message,
+        status: r.status,
+        createdAt: r.createdAt,
+        createdByUserId: r.createdByUserId,
+        createdByName: nameByUser.get(r.createdByUserId) ?? null,
+        assignedAdminUserId: r.assignedAdminUserId,
+        assignedAdminName: r.assignedAdminUserId ? nameByUser.get(r.assignedAdminUserId!) ?? null : null,
+        resolvedByUserId: r.resolvedByUserId,
+        resolvedAt: r.resolvedAt,
+        firstResponseAt,
+        slaResponseHours,
+        slaResolutionHours,
+        slaResponseStatus,
+        slaResolutionStatus
+      };
+    });
+  }
+
+  private async assertCanAccessAdminReport(
+    reportId: string,
+    userId: string,
+    role: UserRole
+  ): Promise<AdminReportEntity> {
+    const report = await this.adminReportsRepository.findOne({ where: { id: reportId } });
+    if (!report) throw new NotFoundException('Reporte no encontrado');
+
+    if (role === UserRole.ADMIN) return report;
+
+    if (role === UserRole.ADMINISTRATIVO) {
+      const u = await this.usersRepository.findOne({ where: { id: userId }, select: ['schoolId'] });
+      if (!u?.schoolId || u.schoolId !== report.schoolId) throw new ForbiddenException('Sin acceso a este reporte');
+      return report;
+    }
+
+    if (role === UserRole.DOCENTE) {
+      const rows = await this.dataSource.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+          SELECT 1 FROM teacher_groups tg
+          INNER JOIN teachers t ON t.id = tg.teacher_id
+          INNER JOIN groups g ON g.id = tg.group_id
+          WHERE t.user_id = $1 AND g.school_id = $2
+        ) AS ok`,
+        [userId, report.schoolId]
+      );
+      if (!rows[0]?.ok) throw new ForbiddenException('Sin acceso a este reporte');
+      return report;
+    }
+
+    if (report.createdByUserId !== userId) {
+      throw new ForbiddenException('Sin acceso a este reporte');
+    }
+
+    if (role === UserRole.ALUMNO) {
+      const st = await this.studentsRepository.findOne({ where: { userId }, select: ['schoolId'] });
+      if (st?.schoolId !== report.schoolId) throw new ForbiddenException('Sin acceso a este reporte');
+      return report;
+    }
+    if (role === UserRole.PADRE) {
+      const rows = await this.dataSource.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+          SELECT 1 FROM parents p
+          INNER JOIN student_parents sp ON sp.parent_id = p.id
+          INNER JOIN students s ON s.id = sp.student_id
+          WHERE p.user_id = $1 AND s.school_id = $2
+        ) AS ok`,
+        [userId, report.schoolId]
+      );
+      if (!rows[0]?.ok) throw new ForbiddenException('Sin acceso a este reporte');
+      return report;
+    }
+
+    throw new ForbiddenException('Sin acceso a este reporte');
   }
 
   private async ensureTeacherProfile(userId: string): Promise<TeacherEntity> {
