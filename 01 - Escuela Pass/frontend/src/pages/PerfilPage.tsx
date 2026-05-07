@@ -278,8 +278,11 @@ export function PerfilPage() {
                 </FixedSizeList>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {visibleItems.map((item, idx) => (
-                    <ContactArticleCard key={`${item.fullName}-${idx}`} item={item} />
+                  {visibleItems.map((item) => (
+                    <ContactArticleCard
+                      key={`${item.fullName}|${item.subtitle ?? ''}|${item.phone ?? ''}`}
+                      item={item}
+                    />
                   ))}
                 </div>
               )}

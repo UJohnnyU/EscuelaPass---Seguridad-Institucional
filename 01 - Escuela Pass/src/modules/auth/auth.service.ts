@@ -147,7 +147,7 @@ export class AuthService {
                 stu.full_name AS "studentName",
                 g.name AS "groupName"
          FROM teachers t
-         JOIN teacher_groups tg ON tg.teacher_id = t.id
+         JOIN (SELECT DISTINCT teacher_id, group_id FROM teacher_groups) tg ON tg.teacher_id = t.id
          JOIN students st ON st.group_id = tg.group_id
          JOIN student_parents sp ON sp.student_id = st.id
          JOIN parents p ON p.id = sp.parent_id
