@@ -110,6 +110,17 @@ type LinkRow = {
   parentFullName: string;
 };
 
+/** Usuario de escuela (listado `/schools/:id/users`); filtramos rol ADMINISTRATIVO. */
+type SchoolAdminUserSummary = {
+  id: string;
+  email: string;
+  role: string;
+  fullName: string;
+  status: boolean;
+  phone?: string | null;
+  canAccessCampus?: boolean;
+};
+
 type AssignmentRow = {
   id: string;
   teacherId: string;
@@ -367,6 +378,22 @@ export function SchoolRosterPage() {
   const [assignmentsGroupFilter, setAssignmentsGroupFilter] = useState('');
   const [parentsTableSearch, setParentsTableSearch] = useState('');
   const [linksTableSearch, setLinksTableSearch] = useState('');
+  const [administratives, setAdministratives] = useState<SchoolAdminUserSummary[]>([]);
+  const [administrativesTableSearch, setAdministrativesTableSearch] = useState('');
+  const [admStaffEmail, setAdmStaffEmail] = useState('');
+  const [admStaffPass, setAdmStaffPass] = useState('');
+  const [admStaffName, setAdmStaffName] = useState('');
+  const [admStaffPhone, setAdmStaffPhone] = useState('');
+  const [admStaffCanCampus, setAdmStaffCanCampus] = useState(true);
+  const [creatingAdmStaff, setCreatingAdmStaff] = useState(false);
+  const [editingAdmStaffUserId, setEditingAdmStaffUserId] = useState<string | null>(null);
+  const [admStaffEditFullName, setAdmStaffEditFullName] = useState('');
+  const [admStaffEditPhone, setAdmStaffEditPhone] = useState('');
+  const [admStaffEditCampus, setAdmStaffEditCampus] = useState(true);
+  const [savingAdmStaffUserId, setSavingAdmStaffUserId] = useState<string | null>(null);
+  const [admStaffPasswordResetUserId, setAdmStaffPasswordResetUserId] = useState<string | null>(null);
+  const [admStaffResetPass, setAdmStaffResetPass] = useState('');
+  const [resettingAdmStaffPassword, setResettingAdmStaffPassword] = useState(false);
 
   const schoolQuery = useMemo(() => {
     if (platformAdmin && selectedSchoolId) return { schoolId: selectedSchoolId };
@@ -599,6 +626,14 @@ export function SchoolRosterPage() {
       return blob.toLowerCase().includes(q);
     });
   }, [links, linksTableSearch]);
+  const filteredAdministrativesTable = useMemo(() => {
+    const q = normalizeTableQuery(administrativesTableSearch);
+    if (!q) return administratives;
+    return administratives.filter((r) => {
+      const blob = [r.fullName, r.email, r.phone ?? '', r.status ? 'activo' : 'inactivo'].join(' ');
+      return blob.toLowerCase().includes(q);
+    });
+  }, [administratives, administrativesTableSearch]);
   const loadStudentOptions = useCallback(
     async (q: string, signal: AbortSignal) => {
       if (!canLoad) return [];
@@ -690,6 +725,21 @@ export function SchoolRosterPage() {
     }
   }, [canLoad, schoolQuery]);
 
+  const refreshAdministrativeStaff = useCallback(async () => {
+    if (!platformAdmin || !selectedSchoolId) {
+      setAdministratives([]);
+      return;
+    }
+    try {
+      const { data } = await api.get<SchoolAdminUserSummary[]>(`/api/v1/schools/${selectedSchoolId}/users`);
+      const list = Array.isArray(data) ? data : [];
+      setAdministratives(list.filter((u) => u.role === 'ADMINISTRATIVO'));
+    } catch (e) {
+      setAdministratives([]);
+      setError(getUserFacingMessage(e, 'No se pudo cargar el personal administrativo de planta.'));
+    }
+  }, [platformAdmin, selectedSchoolId]);
+
   async function onDownloadLifecycleXlsx() {
     setDownloadingLifecycleCsv(true);
     setError(null);
@@ -768,6 +818,7 @@ export function SchoolRosterPage() {
       setTeacherSubjects([]);
       setLinks([]);
       setAssignments([]);
+      setAdministratives([]);
       setNextMatriculaHint('');
       return;
     }
@@ -775,12 +826,13 @@ export function SchoolRosterPage() {
     (async () => {
       setLoading(true);
       await refreshAll();
+      if (!cancelled) await refreshAdministrativeStaff();
       if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [schoolsReady, platformAdmin, selectedSchoolId, refreshAll]);
+  }, [schoolsReady, platformAdmin, selectedSchoolId, refreshAll, refreshAdministrativeStaff]);
 
   async function onCreateGroup(e: FormEvent) {
     e.preventDefault();
@@ -891,6 +943,116 @@ export function SchoolRosterPage() {
       await refreshAll();
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo registrar el docente.'));
+    }
+  }
+
+  async function onCreateAdministrativeStaff(e: FormEvent) {
+    e.preventDefault();
+    if (!platformAdmin || !selectedSchoolId) return;
+    if (!admStaffEmail.trim() || !admStaffPass || !admStaffName.trim()) {
+      setError('Correo, contraseña y nombre son obligatorios para crear un administrativo de planta.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    setCreatingAdmStaff(true);
+    try {
+      await api.post(`/api/v1/schools/${selectedSchoolId}/admin`, {
+        email: admStaffEmail.trim(),
+        password: admStaffPass,
+        fullName: admStaffName.trim(),
+        phone: admStaffPhone.trim() || undefined,
+        canAccessCampus: admStaffCanCampus
+      });
+      setAdmStaffPass('');
+      setAdmStaffEmail('');
+      setAdmStaffName('');
+      setAdmStaffPhone('');
+      setAdmStaffCanCampus(true);
+      setMessage('Administrativo de planta creado.');
+      await refreshAdministrativeStaff();
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo crear el administrativo.'));
+    } finally {
+      setCreatingAdmStaff(false);
+    }
+  }
+
+  function startEditAdministrativeStaff(u: SchoolAdminUserSummary) {
+    setEditingAdmStaffUserId(u.id);
+    setAdmStaffPasswordResetUserId(null);
+    setAdmStaffResetPass('');
+    setAdmStaffEditFullName(u.fullName);
+    setAdmStaffEditPhone(u.phone?.trim() ? u.phone : '');
+    setAdmStaffEditCampus(u.canAccessCampus ?? false);
+  }
+
+  function cancelAdministrativeStaffEdit() {
+    setEditingAdmStaffUserId(null);
+  }
+
+  async function saveAdministrativeStaffEdits() {
+    if (!platformAdmin || !selectedSchoolId || !editingAdmStaffUserId) return;
+    const fullNameTrim = admStaffEditFullName.trim();
+    if (!fullNameTrim) {
+      setError('El nombre completo no puede estar vacío.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    setSavingAdmStaffUserId(editingAdmStaffUserId);
+    try {
+      await api.patch(`/api/v1/schools/${selectedSchoolId}/users/${editingAdmStaffUserId}`, {
+        fullName: fullNameTrim,
+        phone: admStaffEditPhone.trim(),
+        canAccessCampus: admStaffEditCampus
+      });
+      setMessage('Datos del administrativo actualizados.');
+      setEditingAdmStaffUserId(null);
+      await refreshAdministrativeStaff();
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo guardar los cambios.'));
+    } finally {
+      setSavingAdmStaffUserId(null);
+    }
+  }
+
+  async function toggleAdministrativeStaffStatus(u: SchoolAdminUserSummary) {
+    if (!platformAdmin || !selectedSchoolId) return;
+    setMessage(null);
+    setError(null);
+    setSavingAdmStaffUserId(u.id);
+    try {
+      await api.patch(`/api/v1/schools/${selectedSchoolId}/users/${u.id}`, { status: !u.status });
+      setMessage(u.status ? 'Usuario desactivado.' : 'Usuario activado.');
+      await refreshAdministrativeStaff();
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo cambiar el estado.'));
+    } finally {
+      setSavingAdmStaffUserId(null);
+    }
+  }
+
+  async function submitAdministrativeStaffPasswordReset(userId: string) {
+    if (!platformAdmin || !selectedSchoolId) return;
+    if (admStaffResetPass.length < 8) {
+      setError('La nueva contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    setResettingAdmStaffPassword(true);
+    try {
+      await api.post(`/api/v1/schools/${selectedSchoolId}/users/${userId}/reset-password`, {
+        password: admStaffResetPass
+      });
+      setMessage('Contraseña actualizada.');
+      setAdmStaffPasswordResetUserId(null);
+      setAdmStaffResetPass('');
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo restablecer la contraseña.'));
+    } finally {
+      setResettingAdmStaffPassword(false);
     }
   }
 
@@ -2045,6 +2207,218 @@ export function SchoolRosterPage() {
           ) : null}
         </div>
       </section>
+
+      {platformAdmin && selectedSchoolId ? (
+        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Administrativos de planta</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Usuarios con rol ADMINISTRATIVO en la institución seleccionada arriba. Misma función que la sección{' '}
+            <span className="font-medium text-slate-800 dark:text-slate-200">&quot;Administrativos&quot;</span> en{' '}
+            <span className="font-medium">Escuelas</span>, integrada aquí junto al resto del personal.
+          </p>
+          <form className="mt-4 grid gap-2 sm:grid-cols-2" onSubmit={onCreateAdministrativeStaff}>
+            <label className="block text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+              Correo
+              <input
+                type="email"
+                required
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                value={admStaffEmail}
+                onChange={(e) => setAdmStaffEmail(e.target.value)}
+                autoComplete="off"
+              />
+            </label>
+            <label className="block text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+              Contraseña inicial
+              <input
+                type="password"
+                required
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                value={admStaffPass}
+                onChange={(e) => setAdmStaffPass(e.target.value)}
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </label>
+            <label className="block text-sm text-slate-700 dark:text-slate-300">
+              Nombre completo
+              <input
+                required
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                value={admStaffName}
+                onChange={(e) => setAdmStaffName(e.target.value)}
+              />
+            </label>
+            <label className="block text-sm text-slate-700 dark:text-slate-300">
+              Celular (opcional)
+              <input
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                value={admStaffPhone}
+                onChange={(e) => setAdmStaffPhone(e.target.value)}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={admStaffCanCampus}
+                onChange={(e) => setAdmStaffCanCampus(e.target.checked)}
+              />
+              Acceso al campus habilitado
+            </label>
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                disabled={creatingAdmStaff || loading}
+                className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+              >
+                {creatingAdmStaff ? 'Creando…' : 'Crear administrativo'}
+              </button>
+            </div>
+          </form>
+          <div className="mt-6 mb-3 flex justify-end">
+            <label className="block w-full sm:max-w-xs">
+              <span className="sr-only">Buscar administrativos</span>
+              <input
+                type="search"
+                value={administrativesTableSearch}
+                onChange={(e) => setAdministrativesTableSearch(e.target.value)}
+                placeholder="Buscar nombre, correo…"
+                className={DATA_TABLE_SEARCH_INPUT}
+              />
+            </label>
+          </div>
+          {loading && administratives.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">Cargando administrativos…</p>
+          ) : filteredAdministrativesTable.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">
+              {administratives.length === 0
+                ? 'Aún no hay administrativos en esta institución.'
+                : 'Ningún registro coincide con la búsqueda.'}
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-3 text-sm">
+              {filteredAdministrativesTable.map((u) => (
+                <li key={u.id} className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-600 dark:bg-slate-800/50">
+                  {editingAdmStaffUserId === u.id ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="block text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
+                        Nombre completo
+                        <input
+                          className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                          value={admStaffEditFullName}
+                          onChange={(e) => setAdmStaffEditFullName(e.target.value)}
+                        />
+                      </label>
+                      <label className="block text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
+                        Celular
+                        <input
+                          className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                          value={admStaffEditPhone}
+                          onChange={(e) => setAdmStaffEditPhone(e.target.value)}
+                          placeholder="Opcional"
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={admStaffEditCampus}
+                          onChange={(e) => setAdmStaffEditCampus(e.target.checked)}
+                        />
+                        Acceso al campus habilitado
+                      </label>
+                      <div className="flex flex-wrap gap-2 sm:col-span-2">
+                        <button
+                          type="button"
+                          disabled={savingAdmStaffUserId === u.id}
+                          onClick={() => void saveAdministrativeStaffEdits()}
+                          className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                          {savingAdmStaffUserId === u.id ? 'Guardando…' : 'Guardar'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingAdmStaffUserId === u.id}
+                          onClick={cancelAdministrativeStaffEdit}
+                          className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{u.fullName}</p>
+                          <p className="text-slate-600 dark:text-slate-400">{u.email}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Cel.: {u.phone?.trim() ? u.phone : '—'} · Campus: {u.canAccessCampus ? 'Sí' : 'No'}
+                          </p>
+                        </div>
+                        <span className={u.status ? 'shrink-0 text-emerald-700' : 'shrink-0 text-slate-400'}>
+                          {u.status ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={savingAdmStaffUserId !== null}
+                          onClick={() => startEditAdministrativeStaff(u)}
+                          className="text-xs font-medium text-brand-900 underline hover:no-underline disabled:opacity-50 dark:text-brand-400"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingAdmStaffUserId === u.id}
+                          onClick={() => void toggleAdministrativeStaffStatus(u)}
+                          className="text-xs font-medium text-slate-700 underline hover:no-underline disabled:opacity-50 dark:text-slate-400"
+                        >
+                          {u.status ? 'Desactivar' : 'Activar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAdmStaffUserId(null);
+                            setAdmStaffPasswordResetUserId((prev) => (prev === u.id ? null : u.id));
+                            setAdmStaffResetPass('');
+                          }}
+                          className="text-xs font-medium text-slate-700 underline hover:no-underline dark:text-slate-400"
+                        >
+                          {admStaffPasswordResetUserId === u.id ? 'Ocultar contraseña' : 'Nueva contraseña'}
+                        </button>
+                      </div>
+                      {admStaffPasswordResetUserId === u.id ? (
+                        <div className="mt-2 flex flex-col gap-2 border-t border-slate-200 pt-2 sm:flex-row sm:items-end dark:border-slate-600">
+                          <label className="block min-w-[12rem] flex-1 text-xs text-slate-700 dark:text-slate-300">
+                            Nueva contraseña
+                            <input
+                              type="password"
+                              minLength={8}
+                              autoComplete="new-password"
+                              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                              value={admStaffResetPass}
+                              onChange={(e) => setAdmStaffResetPass(e.target.value)}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            disabled={resettingAdmStaffPassword}
+                            onClick={() => void submitAdministrativeStaffPasswordReset(u.id)}
+                            className="rounded bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-60"
+                          >
+                            {resettingAdmStaffPassword ? 'Aplicando…' : 'Aplicar'}
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       {isAdminRole && (
         <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
