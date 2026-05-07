@@ -49,6 +49,13 @@ type TeacherRow = {
   avatarUrl?: string | null;
 };
 
+/** Coincide docente por id de fila `teachers` (lo habitual) o por `userId` si el legado guardó el otro UUID. */
+function teacherForAssignment(teachers: TeacherRow[], teacherEntityId: string): TeacherRow | undefined {
+  const byPk = teachers.find((t) => t.id === teacherEntityId);
+  if (byPk) return byPk;
+  return teachers.find((t) => t.userId === teacherEntityId);
+}
+
 type SubjectRow = {
   id: string;
   name: string;
@@ -565,7 +572,7 @@ export function SchoolRosterPage() {
     const q = normalizeTableQuery(assignmentsTableSearch);
     if (!q) return rows;
     return rows.filter((r) => {
-      const te = teachers.find((t) => t.id === r.teacherId);
+      const te = teacherForAssignment(teachers, r.teacherId);
       const gr = groups.find((g) => g.id === r.groupId);
       const sb = subjects.find((s) => s.id === r.subjectId);
       const blob = [te?.fullName, gr?.name, gr?.schoolYear, sb?.code, sb?.name].filter(Boolean).join(' ');
@@ -2314,7 +2321,7 @@ export function SchoolRosterPage() {
               </thead>
               <tbody>
                 {filteredAssignmentsTable.map((r) => {
-                  const te = teachers.find((t) => t.id === r.teacherId);
+                  const te = teacherForAssignment(teachers, r.teacherId);
                   const gr = groups.find((g) => g.id === r.groupId);
                   const sb = subjects.find((s) => s.id === r.subjectId);
                   return (

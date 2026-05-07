@@ -1238,7 +1238,9 @@ export class SchoolService {
       .addOrderBy('s.code', 'ASC')
       .addOrderBy('s.name', 'ASC');
     if (teacherId) qb.andWhere('ts.teacher_id = :teacherId', { teacherId });
-    if (scopeSchoolId) qb.andWhere('u.school_id = :schoolId', { schoolId: scopeSchoolId });
+    if (scopeSchoolId) {
+      qb.andWhere('u.school_id = :schoolId AND s.school_id = :schoolId', { schoolId: scopeSchoolId });
+    }
     return qb.getRawMany();
   }
 

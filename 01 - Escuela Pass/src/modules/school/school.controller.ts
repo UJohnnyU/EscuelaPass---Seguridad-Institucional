@@ -117,8 +117,13 @@ export class SchoolController {
   }
 
   @Get('subjects')
-  listSubjects(@Req() req: Request & { user: JwtUser }) {
-    return this.schoolService.listSubjects(this.scopeSchool(req.user));
+  listSubjects(@Req() req: Request & { user: JwtUser }, @Query('schoolId') schoolIdFilter?: string) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listSubjects(sid);
+    }
+    return this.schoolService.listSubjects(scoped);
   }
 
   @Get('subjects/:id')
@@ -271,8 +276,17 @@ export class SchoolController {
   }
 
   @Get('teacher-subjects')
-  listTeacherSubjects(@Query('teacherId') teacherId: string | undefined, @Req() req: Request & { user: JwtUser }) {
-    return this.schoolService.listTeacherSubjects(teacherId, this.scopeSchool(req.user));
+  listTeacherSubjects(
+    @Query('teacherId') teacherId: string | undefined,
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listTeacherSubjects(teacherId, sid);
+    }
+    return this.schoolService.listTeacherSubjects(teacherId, scoped);
   }
 
   @Patch('teachers/:id')
@@ -320,13 +334,18 @@ export class SchoolController {
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
     @Query('limit') limitRaw: string | undefined,
+    @Query('schoolId') schoolIdFilter: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
     const entityType =
       entityTypeRaw === 'student' || entityTypeRaw === 'teacher' || entityTypeRaw === 'all'
         ? entityTypeRaw
         : 'all';
-    return this.schoolService.listLifecycleEvents(this.scopeSchool(req.user), {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    const scopeForList =
+      req.user.role === UserRole.ADMIN && sid ? sid : scoped;
+    return this.schoolService.listLifecycleEvents(scopeForList ?? undefined, {
       entityType,
       from,
       to,
@@ -340,13 +359,18 @@ export class SchoolController {
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
     @Query('limit') limitRaw: string | undefined,
+    @Query('schoolId') schoolIdFilter: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
     const entityType =
       entityTypeRaw === 'student' || entityTypeRaw === 'teacher' || entityTypeRaw === 'all'
         ? entityTypeRaw
         : 'all';
-    const buffer = await this.schoolService.exportLifecycleEventsXlsx(this.scopeSchool(req.user), {
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    const scopeForList =
+      req.user.role === UserRole.ADMIN && sid ? sid : scoped;
+    const buffer = await this.schoolService.exportLifecycleEventsXlsx(scopeForList ?? undefined, {
       entityType,
       from,
       to,
@@ -362,9 +386,15 @@ export class SchoolController {
   listAssignments(
     @Query('teacherId') teacherId: string | undefined,
     @Query('groupId') groupId: string | undefined,
+    @Query('schoolId') schoolIdFilter: string | undefined,
     @Req() req: Request & { user: JwtUser }
   ) {
-    return this.schoolService.listTeacherAssignments(teacherId, groupId, this.scopeSchool(req.user));
+    const scoped = this.scopeSchool(req.user);
+    const sid = schoolIdFilter?.trim();
+    if (req.user.role === UserRole.ADMIN && sid) {
+      return this.schoolService.listTeacherAssignments(teacherId, groupId, sid);
+    }
+    return this.schoolService.listTeacherAssignments(teacherId, groupId, scoped);
   }
 
   @Post('teacher-assignments')
