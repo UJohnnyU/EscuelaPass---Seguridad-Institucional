@@ -2351,133 +2351,154 @@ export function SchoolRosterPage() {
           </div>
           {loading && administratives.length === 0 ? (
             <p className="mt-2 text-sm text-slate-500">Cargando administrativos…</p>
-          ) : filteredAdministrativesTable.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">
-              {administratives.length === 0
-                ? 'Aún no hay administrativos en esta institución.'
-                : 'Ningún registro coincide con la búsqueda.'}
-            </p>
           ) : (
-            <ul className="mt-2 space-y-3 text-sm">
-              {filteredAdministrativesTable.map((u) => (
-                <li key={u.id} className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-600 dark:bg-slate-800/50">
-                  {editingAdmStaffUserId === u.id ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="block text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
-                        Nombre completo
-                        <input
-                          className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-                          value={admStaffEditFullName}
-                          onChange={(e) => setAdmStaffEditFullName(e.target.value)}
-                        />
-                      </label>
-                      <label className="block text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
-                        Celular
-                        <input
-                          className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-                          value={admStaffEditPhone}
-                          onChange={(e) => setAdmStaffEditPhone(e.target.value)}
-                          placeholder="Opcional"
-                        />
-                      </label>
-                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
-                        <input
-                          type="checkbox"
-                          checked={admStaffEditCampus}
-                          onChange={(e) => setAdmStaffEditCampus(e.target.checked)}
-                        />
-                        Acceso al campus habilitado
-                      </label>
-                      <div className="flex flex-wrap gap-2 sm:col-span-2">
-                        <button
-                          type="button"
-                          disabled={savingAdmStaffUserId === u.id}
-                          onClick={() => void saveAdministrativeStaffEdits()}
-                          className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-                        >
-                          {savingAdmStaffUserId === u.id ? 'Guardando…' : 'Guardar'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={savingAdmStaffUserId === u.id}
-                          onClick={cancelAdministrativeStaffEdit}
-                          className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{u.fullName}</p>
-                          <p className="text-slate-600 dark:text-slate-400">{u.email}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Cel.: {u.phone?.trim() ? u.phone : '—'} · Campus: {u.canAccessCampus ? 'Sí' : 'No'}
-                          </p>
-                        </div>
-                        <span className={u.status ? 'shrink-0 text-emerald-700' : 'shrink-0 text-slate-400'}>
-                          {u.status ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          disabled={savingAdmStaffUserId !== null}
-                          onClick={() => startEditAdministrativeStaff(u)}
-                          className="text-xs font-medium text-brand-900 underline hover:no-underline disabled:opacity-50 dark:text-brand-400"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={savingAdmStaffUserId === u.id}
-                          onClick={() => void toggleAdministrativeStaffStatus(u)}
-                          className="text-xs font-medium text-slate-700 underline hover:no-underline disabled:opacity-50 dark:text-slate-400"
-                        >
-                          {u.status ? 'Desactivar' : 'Activar'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingAdmStaffUserId(null);
-                            setAdmStaffPasswordResetUserId((prev) => (prev === u.id ? null : u.id));
-                            setAdmStaffResetPass('');
-                          }}
-                          className="text-xs font-medium text-slate-700 underline hover:no-underline dark:text-slate-400"
-                        >
-                          {admStaffPasswordResetUserId === u.id ? 'Ocultar contraseña' : 'Nueva contraseña'}
-                        </button>
-                      </div>
-                      {admStaffPasswordResetUserId === u.id ? (
-                        <div className="mt-2 flex flex-col gap-2 border-t border-slate-200 pt-2 sm:flex-row sm:items-end dark:border-slate-600">
-                          <label className="block min-w-[12rem] flex-1 text-xs text-slate-700 dark:text-slate-300">
-                            Nueva contraseña
-                            <input
-                              type="password"
-                              minLength={8}
-                              autoComplete="new-password"
-                              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-                              value={admStaffResetPass}
-                              onChange={(e) => setAdmStaffResetPass(e.target.value)}
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            disabled={resettingAdmStaffPassword}
-                            onClick={() => void submitAdministrativeStaffPasswordReset(u.id)}
-                            className="rounded bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-60"
-                          >
-                            {resettingAdmStaffPassword ? 'Aplicando…' : 'Aplicar'}
-                          </button>
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <>
+              <DataTableScroll>
+                <table className="min-w-full text-left text-sm">
+                  <thead className={DATA_TABLE_HEAD}>
+                    <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
+                      <th className="py-2 pr-4 font-medium">Nombre</th>
+                      <th className="py-2 pr-4 font-medium">Correo</th>
+                      <th className="py-2 pr-4 font-medium">Celular</th>
+                      <th className="py-2 pr-4 font-medium">Estado</th>
+                      <th className="py-2 pr-4 font-medium">Campus</th>
+                      <th className="py-2 font-medium">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAdministrativesTable.map((u) => (
+                      <Fragment key={u.id}>
+                        <tr className="border-b border-slate-100 dark:border-slate-700">
+                          <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{u.fullName}</td>
+                          <td className="py-2 pr-4">{u.email}</td>
+                          <td className="py-2 pr-4">{u.phone?.trim() ? u.phone : '—'}</td>
+                          <td className="py-2 pr-4">
+                            <span className={u.status ? 'text-emerald-700' : 'text-slate-400'}>
+                              {u.status ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4">{u.canAccessCampus ? 'Sí' : 'No'}</td>
+                          <td className="py-2">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                disabled={savingAdmStaffUserId !== null}
+                                onClick={() => startEditAdministrativeStaff(u)}
+                                className="text-xs text-brand-800 underline dark:text-brand-400 disabled:opacity-50"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={savingAdmStaffUserId === u.id}
+                                onClick={() => void toggleAdministrativeStaffStatus(u)}
+                                className="text-xs text-slate-600 underline dark:text-slate-400 disabled:opacity-50"
+                              >
+                                {u.status ? 'Desactivar' : 'Activar'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingAdmStaffUserId(null);
+                                  setAdmStaffPasswordResetUserId((prev) => (prev === u.id ? null : u.id));
+                                  setAdmStaffResetPass('');
+                                }}
+                                className="text-xs text-slate-600 underline dark:text-slate-400"
+                              >
+                                {admStaffPasswordResetUserId === u.id ? 'Ocultar contraseña' : 'Nueva contraseña'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {editingAdmStaffUserId === u.id ? (
+                          <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
+                            <td colSpan={6} className="px-2 py-3">
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <label className="block text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
+                                  Nombre completo
+                                  <input
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    value={admStaffEditFullName}
+                                    onChange={(e) => setAdmStaffEditFullName(e.target.value)}
+                                  />
+                                </label>
+                                <label className="block text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
+                                  Celular
+                                  <input
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    value={admStaffEditPhone}
+                                    onChange={(e) => setAdmStaffEditPhone(e.target.value)}
+                                    placeholder="Opcional"
+                                  />
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={admStaffEditCampus}
+                                    onChange={(e) => setAdmStaffEditCampus(e.target.checked)}
+                                  />
+                                  Acceso al campus habilitado
+                                </label>
+                                <div className="flex flex-wrap gap-2 sm:col-span-2">
+                                  <button
+                                    type="button"
+                                    disabled={savingAdmStaffUserId === u.id}
+                                    onClick={() => void saveAdministrativeStaffEdits()}
+                                    className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                  >
+                                    {savingAdmStaffUserId === u.id ? 'Guardando…' : 'Guardar'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={savingAdmStaffUserId === u.id}
+                                    onClick={cancelAdministrativeStaffEdit}
+                                    className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
+                        {admStaffPasswordResetUserId === u.id && editingAdmStaffUserId !== u.id ? (
+                          <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
+                            <td colSpan={6} className="px-2 py-3">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                                <label className="block min-w-[12rem] flex-1 text-xs text-slate-700 dark:text-slate-300">
+                                  Nueva contraseña
+                                  <input
+                                    type="password"
+                                    minLength={8}
+                                    autoComplete="new-password"
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    value={admStaffResetPass}
+                                    onChange={(e) => setAdmStaffResetPass(e.target.value)}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  disabled={resettingAdmStaffPassword}
+                                  onClick={() => void submitAdministrativeStaffPasswordReset(u.id)}
+                                  className="rounded bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-60"
+                                >
+                                  {resettingAdmStaffPassword ? 'Aplicando…' : 'Aplicar'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </DataTableScroll>
+              {administratives.length === 0 ? (
+                <p className="mt-2 text-sm text-slate-500">Aún no hay administrativos en esta institución.</p>
+              ) : filteredAdministrativesTable.length === 0 ? (
+                <p className="mt-2 text-sm text-slate-500">Ningún registro coincide con la búsqueda.</p>
+              ) : null}
+            </>
           )}
         </section>
       ) : null}
