@@ -35,6 +35,9 @@ import { PeriodosAcademicosPage } from '@/pages/PeriodosAcademicosPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { SchoolRosterPage } from '@/pages/SchoolRosterPage';
+import { VisitasPage } from '@/pages/modulos/VisitasPage';
+import { ReunionesPage } from '@/pages/modulos/ReunionesPage';
+import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
 
 function AuthenticatedShell() {
   const { user } = useAuth();
@@ -88,6 +91,16 @@ export default function App() {
           />
           <Route path="modulos" element={<Navigate to="/app" replace />} />
           <Route path="modulos/comunicacion" element={<ComunicacionPage />} />
+          <Route path="modulos/reuniones" element={<ReunionesPage />} />
+          <Route path="modulos/visitas-externas" element={<VisitasPage />} />
+          <Route
+            path="modulos/anotaciones-docente"
+            element={
+              <RoleGate allow={['ADMIN', 'ADMINISTRATIVO', 'DOCENTE']}>
+                <AnotacionesDocentePage />
+              </RoleGate>
+            }
+          />
           <Route path="modulos/finanzas" element={<FinanzasPage />} />
           <Route path="modulos/academico" element={<AcademicoPage />} />
           <Route

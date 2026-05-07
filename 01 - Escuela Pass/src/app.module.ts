@@ -36,6 +36,9 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
 import { SchoolsModule } from './modules/schools/schools.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { DepartureConsentModule } from './modules/departure-consent/departure-consent.module';
+import { EventSchedulerModule } from './modules/event-scheduler/event-scheduler.module';
+import { ExternalVisitsModule } from './modules/external-visits/external-visits.module';
+import { AttentionNotesModule } from './modules/attention-notes/attention-notes.module';
 import { MailModule } from './modules/mail/mail.module';
 
 @Module({
@@ -65,6 +68,7 @@ import { MailModule } from './modules/mail/mail.module';
     PaymentsModule,
     AttendanceModule,
     ActivitiesModule,
+    AttentionNotesModule,
     AcademicPeriodsModule,
     ReportCardsModule,
     AcademicSchedulerModule,
@@ -81,7 +85,9 @@ import { MailModule } from './modules/mail/mail.module';
     PrivacyModule,
     SchoolsModule,
     UploadsModule,
-    DepartureConsentModule
+    DepartureConsentModule,
+    EventSchedulerModule,
+    ExternalVisitsModule
   ],
   providers: [
     {

@@ -16,6 +16,8 @@ import { GroupEntity } from '../database/entities/group.entity';
 import { ClassSessionEntity } from '../database/entities/class-session.entity';
 import { ClassScheduleSlotEntity } from '../database/entities/class-schedule-slot.entity';
 import { ImportJobEntity } from '../database/entities/import-job.entity';
+import { MeetingEntity } from '../database/entities/meeting.entity';
+import { MeetingParticipantEntity } from '../database/entities/meeting-participant.entity';
 import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
@@ -33,6 +35,7 @@ import { RefreshTokenEntity } from '../database/entities/refresh-token.entity';
 import { InstitutionSettingEntity } from '../database/entities/institution-setting.entity';
 import { SchoolNonInstructionalDayEntity } from '../database/entities/school-non-instructional-day.entity';
 import { StudentDepartureConsentEntity } from '../database/entities/student-departure-consent.entity';
+import { StudentAttentionNoteEntity } from '../database/entities/student-attention-note.entity';
 import { StudentLifecycleEventEntity } from '../database/entities/student-lifecycle-event.entity';
 import { StudentParentEntity } from '../database/entities/student-parent.entity';
 import { StudentEntity } from '../database/entities/student.entity';
@@ -44,6 +47,9 @@ import { AuditLogEntity } from '../database/entities/audit-log.entity';
 import { PrivacyPolicyEntity } from '../database/entities/privacy-policy.entity';
 import { UserPrivacyAcceptanceEntity } from '../database/entities/user-privacy-acceptance.entity';
 import { SchoolEntity } from '../database/entities/school.entity';
+import { ExternalVisitEntity } from '../database/entities/external-visit.entity';
+import { ExternalVisitGroupEntity } from '../database/entities/external-visit-group.entity';
+import { ExternalVisitStudentEntity } from '../database/entities/external-visit-student.entity';
 
 function directPostgresUrl(): string | undefined {
   const u = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
@@ -68,6 +74,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       AccessEventEntity,
       RefreshTokenEntity,
       StudentDepartureConsentEntity,
+      StudentAttentionNoteEntity,
       CircuitRequestEntity,
       GroupEntity,
       NoticeEntity,
@@ -86,11 +93,16 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       TeacherGroupEntity,
       TeacherSubjectEntity,
       ImportJobEntity,
+      MeetingEntity,
+      MeetingParticipantEntity,
       ClassScheduleSlotEntity,
       ClassSessionEntity,
       UserFcmTokenEntity,
       SchoolNonInstructionalDayEntity,
       InstitutionSettingEntity,
+      ExternalVisitEntity,
+      ExternalVisitGroupEntity,
+      ExternalVisitStudentEntity,
       VehicleEntity,
       AuditLogEntity,
       PrivacyPolicyEntity,

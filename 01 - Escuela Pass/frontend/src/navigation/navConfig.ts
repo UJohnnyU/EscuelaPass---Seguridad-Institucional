@@ -8,7 +8,13 @@ export type NavItem = {
 export const SIDEBAR_NAV: NavItem[] = [
   { to: '/app', label: 'Inicio', roles: null },
   { to: '/app/perfil', label: 'Mi perfil', roles: null },
-  { to: '/app/modulos/comunicacion', label: 'Comunicación', roles: null },
+  { to: '/app/modulos/reuniones', label: 'Reuniones', roles: null },
+  { to: '/app/modulos/visitas-externas', label: 'Visitas externas', roles: null },
+  {
+    to: '/app/modulos/anotaciones-docente',
+    label: 'Anotaciones (docente)',
+    roles: ['DOCENTE', 'ADMIN', 'ADMINISTRATIVO']
+  },
   { to: '/app/modulos/finanzas', label: 'Finanzas', roles: ['ADMIN', 'ADMINISTRATIVO', 'ALUMNO', 'PADRE'] },
   { to: '/app/modulos/academico', label: 'Académico', roles: ['PADRE', 'DOCENTE', 'ADMINISTRATIVO'] },
   { to: '/app/modulos/periodos-academicos', label: 'Periodos académicos', roles: ['ADMIN', 'ADMINISTRATIVO'] },

@@ -1199,23 +1199,27 @@ describe('App (e2e)', () => {
     expect(foundAfter).toBeUndefined();
   }, 30000);
 
-  it('t16: rutas eliminadas (external-visits, meetings, attention-notes) devuelven 404', async () => {
+  it('t16: reuniones, visitas y anotaciones (padre) responden tras restaurar módulos', async () => {
     const admin = await login('administrativo@escuelapass.local', 'Admin123*');
 
-    await request(app.getHttpServer())
+    const visits = await request(app.getHttpServer())
       .get(`/${apiPrefix}/external-visits`)
       .set(authHeader(admin.accessToken))
-      .expect(404);
+      .expect(200);
+    expect(Array.isArray(visits.body)).toBe(true);
 
-    await request(app.getHttpServer())
+    const meetingsList = await request(app.getHttpServer())
       .get(`/${apiPrefix}/meetings`)
       .set(authHeader(admin.accessToken))
-      .expect(404);
+      .expect(200);
+    expect(Array.isArray(meetingsList.body)).toBe(true);
 
-    await request(app.getHttpServer())
-      .get(`/${apiPrefix}/attention-notes`)
-      .set(authHeader(admin.accessToken))
-      .expect(404);
+    const parent = await login('padre@escuelapass.local', 'Admin123*');
+    const notes = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/attention-notes/parent/my-children`)
+      .set(authHeader(parent.accessToken))
+      .expect(200);
+    expect(Array.isArray(notes.body)).toBe(true);
   }, 15000);
 
   it('t17: admin-reports endpoints devuelven 404 (eliminados)', async () => {
