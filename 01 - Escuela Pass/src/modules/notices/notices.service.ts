@@ -471,7 +471,7 @@ export class NoticesService {
         `NOT EXISTS (
           SELECT 1 FROM admin_report_comments c
           INNER JOIN users u ON u.id = c.user_id
-          WHERE c.report_id = r.id AND u.role IN (:...staffRoles)
+          WHERE c.report_id = r.id AND u.role::text IN (:...staffRoles)
         )`,
         { staffRoles: STAFF_REPORT_ROLES }
       );
@@ -714,7 +714,7 @@ export class NoticesService {
        FROM admin_report_comments c
        INNER JOIN users u ON u.id = c.user_id
        WHERE c.report_id = ANY($1::uuid[])
-         AND u.role = ANY($2::varchar[])
+         AND u.role::text = ANY($2::text[])
        GROUP BY c.report_id`,
       [ids, STAFF_REPORT_ROLES]
     );
