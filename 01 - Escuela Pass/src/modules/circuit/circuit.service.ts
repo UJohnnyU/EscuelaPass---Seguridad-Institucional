@@ -725,8 +725,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     const qb = this.circuitRepository
       .createQueryBuilder('cr')
+      /** No enlazar `groups` aquí: `students.group_id` es nullable y INNER JOIN excluía recogidas válidas. */
       .innerJoin('students', 'st', 'st.id = cr.student_id')
-      .innerJoin('groups', 'g', 'g.id = st.group_id')
       .innerJoin('users', 'su', 'su.id = st.user_id')
       .innerJoin('parents', 'p', 'p.id = cr.requested_by_parent_id')
       .innerJoin('users', 'pu', 'pu.id = p.user_id')
@@ -744,26 +744,35 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       if (!sid || !this.isUuid(sid)) {
         return [];
       }
-      qb.andWhere('g.school_id = :schoolId', { schoolId: sid });
+      qb.andWhere('st.school_id = :schoolId', { schoolId: sid });
     } else if (role === UserRole.ADMINISTRATIVO) {
       const schoolId = await this.userSchoolId(userId);
       if (!schoolId) {
         return [];
       }
-      qb.andWhere('g.school_id = :schoolId', { schoolId });
+      qb.andWhere('st.school_id = :schoolId', { schoolId });
     } else if (role === UserRole.DOCENTE) {
       qb.andWhere(
-        `EXISTS (
-          SELECT 1 FROM teachers t
-          INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
-          WHERE t.user_id = :uid AND tg.group_id = st.group_id
+        `(
+          (st.group_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM teachers t
+            INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
+            WHERE t.user_id = :uid AND tg.group_id = st.group_id
+          ))
+          OR
+          (st.group_id IS NULL AND EXISTS (
+            SELECT 1 FROM teachers t
+            INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
+            INNER JOIN groups g2 ON g2.id = tg.group_id
+            WHERE t.user_id = :uid AND g2.school_id = st.school_id
+          ))
         )`,
         { uid: userId }
       );
     }
 
     try {
-      const entities = await qb.orderBy('cr.request_time', 'DESC').take(maxRows).getMany();
+      const entities = await qb.orderBy('cr.requestTime', 'DESC').take(maxRows).getMany();
       return await this.mapCircuitEntitiesToTodayList(entities);
     } catch (error) {
       const reason =
@@ -812,7 +821,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       }
       idx += 1;
       params.push(sid);
-      where.push(`g.school_id = $${idx}`);
+      where.push(`st.school_id = $${idx}`);
     } else if (role === UserRole.ADMINISTRATIVO) {
       const schoolId = await this.userSchoolId(userId);
       if (!schoolId) {
@@ -820,15 +829,26 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       }
       idx += 1;
       params.push(schoolId);
-      where.push(`g.school_id = $${idx}`);
+      where.push(`st.school_id = $${idx}`);
     } else if (role === UserRole.DOCENTE) {
       idx += 1;
+      const uidPlaceholder = `$${idx}`;
       params.push(userId);
-      where.push(`EXISTS (
-        SELECT 1
-        FROM teachers t
-        INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
-        WHERE t.user_id = $${idx} AND tg.group_id = st.group_id
+      where.push(`(
+          (st.group_id IS NOT NULL AND EXISTS (
+            SELECT 1
+            FROM teachers t
+            INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
+            WHERE t.user_id = ${uidPlaceholder} AND tg.group_id = st.group_id
+          ))
+          OR
+          (st.group_id IS NULL AND EXISTS (
+            SELECT 1
+            FROM teachers t
+            INNER JOIN teacher_groups tg ON tg.teacher_id = t.id
+            INNER JOIN groups g2 ON g2.id = tg.group_id
+            WHERE t.user_id = ${uidPlaceholder} AND g2.school_id = st.school_id
+          ))
       )`);
     }
 
@@ -839,7 +859,6 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
         st.matricula AS student_matricula
       FROM circuit_requests cr
       INNER JOIN students st ON st.id = cr.student_id
-      INNER JOIN groups g ON g.id = st.group_id
       INNER JOIN users su ON su.id = st.user_id
       INNER JOIN parents p ON p.id = cr.requested_by_parent_id
       INNER JOIN users pu ON pu.id = p.user_id
