@@ -123,9 +123,9 @@ export function InstitutionPage() {
     setMessage(null);
     setError(null);
     try {
-      // Horarios de jornada solo vía admin de plataforma; no se envían desde esta pantalla.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- omitido del payload
-      const { shiftWindows, ...formRest } = form;
+      // Horarios y logo solo lectura vía uploads; no forman parte del DTO PATCH.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { shiftWindows, logoUrl, ...formRest } = form;
       const payload: Omit<Profile, 'maxGradeScale' | 'latitude' | 'longitude' | 'shiftWindows'> & {
         maxGradeScale?: number;
         latitude?: number;
