@@ -2,9 +2,12 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ParentEntity } from '../../database/entities/parent.entity';
+import { UserRole } from '../../database/entities/user.entity';
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
+
+type StaffViewer = { role: UserRole; schoolId?: string | null };
 
 @Injectable()
 export class VehiclesService {
@@ -19,6 +22,109 @@ export class VehiclesService {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
     return parent;
+  }
+
+  private async persistNewVehicleRow(
+    parentEntityId: string,
+    dto: CreateVehicleDto,
+    duplicatePlateMessage: string
+  ): Promise<VehicleEntity> {
+    const row = this.vehiclesRepository.create({
+      parentId: parentEntityId,
+      plate: dto.plate.trim().toUpperCase(),
+      description: dto.description?.trim() ?? null,
+      brand: dto.brand?.trim() ?? null,
+      model: dto.model?.trim() ?? null,
+      color: dto.color?.trim() ?? null,
+      year: dto.year ?? null,
+      isActive: true
+    });
+    try {
+      return await this.vehiclesRepository.save(row);
+    } catch (e: unknown) {
+      const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+      if (code === '23505') {
+        throw new ForbiddenException(duplicatePlateMessage);
+      }
+      throw e;
+    }
+  }
+
+  private async parentSchoolIdOrThrow(parentId: string): Promise<string> {
+    const row = await this.parentsRepository
+      .createQueryBuilder('p')
+      .innerJoin('users', 'u', 'u.id = p.userId')
+      .select('u.school_id', 'schoolId')
+      .where('p.id = :id', { id: parentId })
+      .getRawOne<{ schoolId: string | null }>();
+    if (!row?.schoolId) throw new NotFoundException('Padre/tutor no encontrado');
+    return row.schoolId;
+  }
+
+  /** Admin multi-escuela o administrativo: listar tras validar institución cuando aplica. */
+  async listByParentIdForStaff(parentId: string, viewer: StaffViewer): Promise<VehicleEntity[]> {
+    const schoolId = await this.parentSchoolIdOrThrow(parentId);
+    if (viewer.role === UserRole.ADMINISTRATIVO) {
+      if (!viewer.schoolId || viewer.schoolId !== schoolId) {
+        throw new ForbiddenException('No autorizado');
+      }
+    }
+    return this.listByParentId(parentId);
+  }
+
+  /** Docente/personal en Grupos y personas: alta de vehículo para un tutor. */
+  async staffCreateVehicleForParent(parentId: string, dto: CreateVehicleDto): Promise<VehicleEntity> {
+    const parent = await this.parentsRepository.findOne({ where: { id: parentId } });
+    if (!parent) throw new NotFoundException('Padre/tutor no encontrado');
+    return this.persistNewVehicleRow(
+      parent.id,
+      dto,
+      'Ya existe un vehículo con esa placa para este tutor'
+    );
+  }
+
+  async staffUpdateVehicleForParent(parentId: string, vehicleId: string, dto: UpdateVehicleDto): Promise<VehicleEntity> {
+    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId, parentId } });
+    if (!v) throw new NotFoundException('Vehículo no encontrado');
+    if (dto.description !== undefined) v.description = dto.description?.trim() ?? null;
+    if (dto.brand !== undefined) v.brand = dto.brand?.trim() ?? null;
+    if (dto.model !== undefined) v.model = dto.model?.trim() ?? null;
+    if (dto.color !== undefined) v.color = dto.color?.trim() ?? null;
+    if (dto.year !== undefined) v.year = dto.year ?? null;
+    if (dto.isActive !== undefined) v.isActive = dto.isActive;
+    return this.vehiclesRepository.save(v);
+  }
+
+  async staffDeleteVehicleForParent(parentId: string, vehicleId: string): Promise<{ message: string; id: string }> {
+    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId, parentId } });
+    if (!v) throw new NotFoundException('Vehículo no encontrado');
+    await this.vehiclesRepository.delete({ id: vehicleId });
+    return { message: 'Vehículo eliminado', id: vehicleId };
+  }
+
+  private async assertStaffCanManageVehicle(vehicleId: string, viewer: StaffViewer): Promise<VehicleEntity> {
+    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId } });
+    if (!v) throw new NotFoundException('Vehículo no encontrado');
+    if (viewer.role === UserRole.ADMINISTRATIVO) {
+      const schoolId = await this.parentSchoolIdOrThrow(v.parentId);
+      if (!viewer.schoolId || viewer.schoolId !== schoolId) {
+        throw new ForbiddenException('No autorizado');
+      }
+    }
+    return v;
+  }
+
+  /** Activa/desactiva con alcance institucional para administrativos. */
+  async adminSetActiveScoped(vehicleId: string, isActive: boolean, viewer: StaffViewer): Promise<VehicleEntity> {
+    const v = await this.assertStaffCanManageVehicle(vehicleId, viewer);
+    v.isActive = isActive;
+    return this.vehiclesRepository.save(v);
+  }
+
+  async adminDeleteScoped(vehicleId: string, viewer: StaffViewer): Promise<{ message: string; id: string }> {
+    await this.assertStaffCanManageVehicle(vehicleId, viewer);
+    await this.vehiclesRepository.delete({ id: vehicleId });
+    return { message: 'Vehículo eliminado', id: vehicleId };
   }
 
   async listMine(parentUserId: string) {
@@ -39,25 +145,7 @@ export class VehiclesService {
 
   async create(parentUserId: string, dto: CreateVehicleDto) {
     const parent = await this.getParentOrThrow(parentUserId);
-    const row = this.vehiclesRepository.create({
-      parentId: parent.id,
-      plate: dto.plate.trim().toUpperCase(),
-      description: dto.description?.trim() ?? null,
-      brand: dto.brand?.trim() ?? null,
-      model: dto.model?.trim() ?? null,
-      color: dto.color?.trim() ?? null,
-      year: dto.year ?? null,
-      isActive: true
-    });
-    try {
-      return await this.vehiclesRepository.save(row);
-    } catch (e: unknown) {
-      const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-      if (code === '23505') {
-        throw new ForbiddenException('Ya existe un vehículo con esa placa en tu cuenta');
-      }
-      throw e;
-    }
+    return this.persistNewVehicleRow(parent.id, dto, 'Ya existe un vehículo con esa placa en tu cuenta');
   }
 
   async update(parentUserId: string, vehicleId: string, dto: UpdateVehicleDto) {
@@ -77,22 +165,6 @@ export class VehiclesService {
   async deleteMine(parentUserId: string, vehicleId: string) {
     const parent = await this.getParentOrThrow(parentUserId);
     const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId, parentId: parent.id } });
-    if (!v) throw new NotFoundException('Vehículo no encontrado');
-    await this.vehiclesRepository.delete({ id: vehicleId });
-    return { message: 'Vehículo eliminado', id: vehicleId };
-  }
-
-  /** Admin/Administrativo: desactivar o activar vehículo de cualquier padre. */
-  async adminSetActive(vehicleId: string, isActive: boolean) {
-    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId } });
-    if (!v) throw new NotFoundException('Vehículo no encontrado');
-    v.isActive = isActive;
-    return this.vehiclesRepository.save(v);
-  }
-
-  /** Admin/Administrativo: eliminar vehículo de cualquier padre. */
-  async adminDelete(vehicleId: string) {
-    const v = await this.vehiclesRepository.findOne({ where: { id: vehicleId } });
     if (!v) throw new NotFoundException('Vehículo no encontrado');
     await this.vehiclesRepository.delete({ id: vehicleId });
     return { message: 'Vehículo eliminado', id: vehicleId };

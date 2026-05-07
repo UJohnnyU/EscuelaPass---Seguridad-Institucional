@@ -1313,6 +1313,7 @@ export class SchoolService {
         'u.phone AS phone',
         'u.id AS "userId"',
         'u.avatarPath AS "avatarUrl"',
+        'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
       .orderBy('u.full_name', 'ASC');
@@ -1338,6 +1339,7 @@ export class SchoolService {
         'u.phone AS phone',
         'u.id AS "userId"',
         'u.avatarPath AS "avatarUrl"',
+        'u.canAccessCampus AS "canAccessCampus"',
         'u.status AS "userStatus"'
       ])
       .where('p.id = :id', { id });

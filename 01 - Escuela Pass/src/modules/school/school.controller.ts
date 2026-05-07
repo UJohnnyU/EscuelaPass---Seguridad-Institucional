@@ -36,6 +36,9 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
+import { CreateVehicleDto } from '../vehicles/dto/create-vehicle.dto';
+import { UpdateVehicleDto } from '../vehicles/dto/update-vehicle.dto';
+import { VehiclesService } from '../vehicles/vehicles.service';
 import { TransitionStudentLifecycleDto } from './dto/transition-student-lifecycle.dto';
 import { TransitionTeacherLifecycleDto } from './dto/transition-teacher-lifecycle.dto';
 import { SchoolService } from './school.service';
@@ -46,7 +49,10 @@ type JwtUser = { userId: string; email: string; role: UserRole; schoolId?: strin
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
 export class SchoolController {
-  constructor(private readonly schoolService: SchoolService) {}
+  constructor(
+    private readonly schoolService: SchoolService,
+    private readonly vehiclesService: VehiclesService
+  ) {}
 
   private scopeSchool(user: JwtUser): string | undefined {
     return user.role === UserRole.ADMIN ? undefined : user.schoolId ?? undefined;
@@ -454,6 +460,38 @@ export class SchoolController {
     @Req() req: Request & { user: JwtUser }
   ) {
     return this.schoolService.removeParent(id, this.scopeSchool(req.user));
+  }
+
+  /** Alta de vehículo para un padre/tutor (misma institución que el usuario). */
+  @Post('parents/:parentId/vehicles')
+  async createParentVehicle(
+    @Param('parentId', new ParseUUIDPipe({ version: '4' })) parentId: string,
+    @Body() dto: CreateVehicleDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    await this.schoolService.getParent(parentId, this.scopeSchool(req.user));
+    return this.vehiclesService.staffCreateVehicleForParent(parentId, dto);
+  }
+
+  @Patch('parents/:parentId/vehicles/:vehicleId')
+  async updateParentVehicle(
+    @Param('parentId', new ParseUUIDPipe({ version: '4' })) parentId: string,
+    @Param('vehicleId', new ParseUUIDPipe({ version: '4' })) vehicleId: string,
+    @Body() dto: UpdateVehicleDto,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    await this.schoolService.getParent(parentId, this.scopeSchool(req.user));
+    return this.vehiclesService.staffUpdateVehicleForParent(parentId, vehicleId, dto);
+  }
+
+  @Delete('parents/:parentId/vehicles/:vehicleId')
+  async removeParentVehicle(
+    @Param('parentId', new ParseUUIDPipe({ version: '4' })) parentId: string,
+    @Param('vehicleId', new ParseUUIDPipe({ version: '4' })) vehicleId: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    await this.schoolService.getParent(parentId, this.scopeSchool(req.user));
+    return this.vehiclesService.staffDeleteVehicleForParent(parentId, vehicleId);
   }
 
   @Get('student-parent-links')

@@ -24,8 +24,11 @@ export class VehiclesController {
   /** Admin/Administrativo: listar vehículos de un padre por su ID de perfil (parent entity id). */
   @Get('by-parent/:parentId')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  listByParent(@Param('parentId', new ParseUUIDPipe({ version: '4' })) parentId: string) {
-    return this.vehiclesService.listByParentId(parentId);
+  listByParent(
+    @Param('parentId', new ParseUUIDPipe({ version: '4' })) parentId: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.vehiclesService.listByParentIdForStaff(parentId, req.user);
   }
 
   @Post()
@@ -59,15 +62,19 @@ export class VehiclesController {
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   adminSetActive(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Body() body: { isActive: boolean }
+    @Body() body: { isActive: boolean },
+    @Req() req: Request & { user: JwtUser }
   ) {
-    return this.vehiclesService.adminSetActive(id, body.isActive);
+    return this.vehiclesService.adminSetActiveScoped(id, body.isActive, req.user);
   }
 
   /** Admin/Administrativo: eliminar cualquier vehículo. */
   @Delete(':id/admin')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
-  adminDelete(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.vehiclesService.adminDelete(id);
+  adminDelete(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.vehiclesService.adminDeleteScoped(id, req.user);
   }
 }

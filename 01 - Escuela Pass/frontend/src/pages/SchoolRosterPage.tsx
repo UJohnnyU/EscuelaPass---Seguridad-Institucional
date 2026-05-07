@@ -328,6 +328,7 @@ export function SchoolRosterPage() {
   const [pName, setPName] = useState('');
   const [pPhone, setPPhone] = useState('');
   const [pPrimary, setPPrimary] = useState(false);
+  const [pCanAccessCampus, setPCanAccessCampus] = useState(false);
 
   const [lStudent, setLStudent] = useState('');
   const [lParent, setLParent] = useState('');
@@ -366,6 +367,13 @@ export function SchoolRosterPage() {
   const [vehicleParentId, setVehicleParentId] = useState<string | null>(null);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   const [vehicleActionId, setVehicleActionId] = useState<string | null>(null);
+  const [newVehPlate, setNewVehPlate] = useState('');
+  const [newVehBrand, setNewVehBrand] = useState('');
+  const [newVehModel, setNewVehModel] = useState('');
+  const [newVehColor, setNewVehColor] = useState('');
+  const [newVehYear, setNewVehYear] = useState('');
+  const [newVehDesc, setNewVehDesc] = useState('');
+  const [creatingVehicle, setCreatingVehicle] = useState(false);
 
   const [lifecycleAuditSearch, setLifecycleAuditSearch] = useState('');
   const [groupsTableSearch, setGroupsTableSearch] = useState('');
@@ -1145,7 +1153,8 @@ export function SchoolRosterPage() {
         email: pEmail.trim(),
         password: pPass,
         fullName: pName.trim(),
-        isPrimaryContact: pPrimary
+        isPrimaryContact: pPrimary,
+        canAccessCampus: pCanAccessCampus
       };
       if (pPhone.trim()) body.phone = pPhone.trim();
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
@@ -1155,6 +1164,7 @@ export function SchoolRosterPage() {
       setPName('');
       setPPhone('');
       setPPrimary(false);
+      setPCanAccessCampus(false);
       setMessage('Perfil de padre/tutor creado.');
       await refreshAll();
     } catch (err) {
@@ -1424,9 +1434,25 @@ export function SchoolRosterPage() {
   }
 
   async function loadParentVehicles(parentId: string) {
-    if (vehicleParentId === parentId) { setVehicleParentId(null); setParentVehicles([]); return; }
+    if (vehicleParentId === parentId) {
+      setVehicleParentId(null);
+      setParentVehicles([]);
+      setNewVehPlate('');
+      setNewVehBrand('');
+      setNewVehModel('');
+      setNewVehColor('');
+      setNewVehYear('');
+      setNewVehDesc('');
+      return;
+    }
     setLoadingVehicles(true);
     setVehicleParentId(parentId);
+    setNewVehPlate('');
+    setNewVehBrand('');
+    setNewVehModel('');
+    setNewVehColor('');
+    setNewVehYear('');
+    setNewVehDesc('');
     try {
       const { data } = await api.get<VehicleRow[]>(`/api/v1/parents/vehicles/by-parent/${parentId}`);
       setParentVehicles(Array.isArray(data) ? data : []);
@@ -1454,15 +1480,51 @@ export function SchoolRosterPage() {
   }
 
   async function onVehicleDelete(vehicleId: string) {
+    if (!vehicleParentId) return;
     setVehicleActionId(vehicleId);
     try {
-      await api.delete(`/api/v1/parents/vehicles/${vehicleId}/admin`);
+      await api.delete(`/api/v1/school/parents/${vehicleParentId}/vehicles/${vehicleId}`);
       setMessage('Vehículo eliminado.');
       setParentVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo eliminar el vehículo.'));
     } finally {
       setVehicleActionId(null);
+    }
+  }
+
+  async function onCreateParentVehicle(parentId: string, e?: FormEvent) {
+    e?.preventDefault();
+    const plate = newVehPlate.trim().toUpperCase();
+    if (plate.length < 2) {
+      setError('Indique una placa válida (mínimo 2 caracteres).');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    setCreatingVehicle(true);
+    try {
+      const body: Record<string, unknown> = { plate };
+      if (newVehBrand.trim()) body.brand = newVehBrand.trim();
+      if (newVehModel.trim()) body.model = newVehModel.trim();
+      if (newVehColor.trim()) body.color = newVehColor.trim();
+      const y = parseInt(newVehYear.trim(), 10);
+      if (!Number.isNaN(y) && y >= 1970 && y <= 2100) body.year = y;
+      if (newVehDesc.trim()) body.description = newVehDesc.trim();
+      await api.post(`/api/v1/school/parents/${parentId}/vehicles`, body);
+      setMessage('Vehículo registrado.');
+      setNewVehPlate('');
+      setNewVehBrand('');
+      setNewVehModel('');
+      setNewVehColor('');
+      setNewVehYear('');
+      setNewVehDesc('');
+      const { data } = await api.get<VehicleRow[]>(`/api/v1/parents/vehicles/by-parent/${parentId}`);
+      setParentVehicles(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo registrar el vehículo.'));
+    } finally {
+      setCreatingVehicle(false);
     }
   }
 
@@ -2790,6 +2852,10 @@ export function SchoolRosterPage() {
             <input type="checkbox" checked={pPrimary} onChange={(e) => setPPrimary(e.target.checked)} />
             Contacto principal
           </label>
+          <label className="mt-4 flex items-center gap-2 text-sm sm:col-span-1">
+            <input type="checkbox" checked={pCanAccessCampus} onChange={(e) => setPCanAccessCampus(e.target.checked)} />
+            Acceso al campus (entrada física / credencial)
+          </label>
           <div className="sm:col-span-2">
             <button
               type="submit"
@@ -2868,6 +2934,79 @@ export function SchoolRosterPage() {
                     {vehicleParentId === r.id && (
                       <tr key={`${r.id}-vehicles`}>
                         <td colSpan={7} className="bg-slate-50 px-4 pb-3 pt-2 dark:bg-slate-800/50">
+                          <form
+                            className="mb-4 grid gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-600 dark:bg-slate-900 sm:grid-cols-3"
+                            onSubmit={(e) => void onCreateParentVehicle(r.id, e)}
+                          >
+                            <p className="sm:col-span-3 text-xs font-medium text-slate-700 dark:text-slate-300">
+                              Registrar vehículo para circuito / acceso
+                            </p>
+                            <label className="block text-xs text-slate-700 dark:text-slate-300">
+                              Placa *
+                              <input
+                                required
+                                minLength={2}
+                                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 font-mono text-sm uppercase dark:border-slate-600 dark:bg-slate-800"
+                                value={newVehPlate}
+                                onChange={(e) => setNewVehPlate(e.target.value)}
+                                placeholder="ABC123"
+                              />
+                            </label>
+                            <label className="block text-xs text-slate-700 dark:text-slate-300">
+                              Marca
+                              <input
+                                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                value={newVehBrand}
+                                onChange={(e) => setNewVehBrand(e.target.value)}
+                              />
+                            </label>
+                            <label className="block text-xs text-slate-700 dark:text-slate-300">
+                              Modelo
+                              <input
+                                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                value={newVehModel}
+                                onChange={(e) => setNewVehModel(e.target.value)}
+                              />
+                            </label>
+                            <label className="block text-xs text-slate-700 dark:text-slate-300">
+                              Color
+                              <input
+                                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                value={newVehColor}
+                                onChange={(e) => setNewVehColor(e.target.value)}
+                              />
+                            </label>
+                            <label className="block text-xs text-slate-700 dark:text-slate-300">
+                              Año
+                              <input
+                                type="number"
+                                min={1970}
+                                max={2100}
+                                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                value={newVehYear}
+                                onChange={(e) => setNewVehYear(e.target.value)}
+                                placeholder="Opcional"
+                              />
+                            </label>
+                            <label className="block text-xs text-slate-700 sm:col-span-2 dark:text-slate-300">
+                              Descripción
+                              <input
+                                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                value={newVehDesc}
+                                onChange={(e) => setNewVehDesc(e.target.value)}
+                                placeholder="Opcional"
+                              />
+                            </label>
+                            <div className="flex items-end sm:col-span-3">
+                              <button
+                                type="submit"
+                                disabled={creatingVehicle}
+                                className="rounded bg-brand-900 px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+                              >
+                                {creatingVehicle ? 'Guardando…' : 'Registrar vehículo'}
+                              </button>
+                            </div>
+                          </form>
                           {loadingVehicles ? (
                             <p className="text-xs text-slate-500">Cargando vehículos…</p>
                           ) : parentVehicles.length === 0 ? (
