@@ -32,13 +32,21 @@ function sqlWithoutConflictTargets(sql) {
   return sql.replace(/\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING/gi, 'ON CONFLICT DO NOTHING');
 }
 
+/** Evita BOM UTF-8 en el primer byte (Postgres devuelve `syntax error at or near "`"). */
+function readUtf8SqlNoBom(filePath) {
+  const buf = fs.readFileSync(filePath);
+  const start =
+    buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf ? 3 : 0;
+  return buf.subarray(start).toString('utf8');
+}
+
 async function runSqlFile(
   client,
   relativeFile,
   { stripCreateExtensions = false, stripConflictTargets = false } = {}
 ) {
   const filePath = path.resolve(__dirname, '..', relativeFile);
-  let sql = fs.readFileSync(filePath, 'utf8');
+  let sql = readUtf8SqlNoBom(filePath);
   if (stripCreateExtensions) {
     sql = sqlWithoutExtensionDeps(sql);
   }

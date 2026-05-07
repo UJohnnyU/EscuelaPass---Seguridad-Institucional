@@ -1,6 +1,6 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { readSqlFileUtf8NoBom } from '../read-sql-file-utf8';
 
 /**
  * Primera migración en bases nuevas: aplica el DDL histórico congelado en
@@ -12,7 +12,7 @@ export class BaselineSchema1712050000000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const schemaPath = path.resolve(__dirname, '..', 'baseline', 'typeorm-baseline-v3.sql');
-    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    const schemaSql = readSqlFileUtf8NoBom(schemaPath);
     await queryRunner.query(schemaSql);
   }
 
