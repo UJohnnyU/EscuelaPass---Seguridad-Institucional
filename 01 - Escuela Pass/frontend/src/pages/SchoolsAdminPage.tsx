@@ -85,6 +85,16 @@ type EditDraft = {
   shiftWindows: ShiftWindowsForm;
 };
 
+type SchoolUserSummary = {
+  id: string;
+  email: string;
+  role: string;
+  fullName: string;
+  status: boolean;
+  phone?: string | null;
+  canAccessCampus?: boolean;
+};
+
 export function SchoolsAdminPage() {
   const [schools, setSchools] = useState<School[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -106,6 +116,26 @@ export function SchoolsAdminPage() {
   const [editing, setEditing] = useState<Record<string, EditDraft>>({});
 
   const [schoolsSearch, setSchoolsSearch] = useState('');
+
+  const [adminSchoolId, setAdminSchoolId] = useState<string | null>(null);
+  const [adminUsers, setAdminUsers] = useState<SchoolUserSummary[]>([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [admEmail, setAdmEmail] = useState('');
+  const [admPass, setAdmPass] = useState('');
+  const [admName, setAdmName] = useState('');
+  const [admPhone, setAdmPhone] = useState('');
+  const [admCanCampus, setAdmCanCampus] = useState(true);
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+
+  const [editingAdminUserId, setEditingAdminUserId] = useState<string | null>(null);
+  const [admEditFullName, setAdmEditFullName] = useState('');
+  const [admEditPhone, setAdmEditPhone] = useState('');
+  const [admEditCampus, setAdmEditCampus] = useState(true);
+  const [savingAdminUserId, setSavingAdminUserId] = useState<string | null>(null);
+
+  const [passwordResetUserId, setPasswordResetUserId] = useState<string | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resettingPasswordUserId, setResettingPasswordUserId] = useState<string | null>(null);
 
   const loadSchools = async () => {
     setLoading(true);
@@ -146,6 +176,148 @@ export function SchoolsAdminPage() {
         .includes(q)
     );
   }, [schools, schoolsSearch]);
+
+  const toggleAdminSchool = async (schoolId: string) => {
+    if (adminSchoolId === schoolId) {
+      setAdminSchoolId(null);
+      setEditingAdminUserId(null);
+      setPasswordResetUserId(null);
+      setResetPasswordValue('');
+      return;
+    }
+    setErr(null);
+    setAdminSchoolId(schoolId);
+    setEditingAdminUserId(null);
+    setPasswordResetUserId(null);
+    setResetPasswordValue('');
+    setAdmEmail('');
+    setAdmPass('');
+    setAdmName('');
+    setAdmPhone('');
+    setAdmCanCampus(true);
+    setAdminUsersLoading(true);
+    try {
+      const { data } = await api.get<SchoolUserSummary[]>(`/api/v1/schools/${schoolId}/users`);
+      const list = Array.isArray(data) ? data : [];
+      setAdminUsers(list.filter((u) => u.role === 'ADMINISTRATIVO'));
+    } catch (e) {
+      setAdminUsers([]);
+      setErr(getUserFacingMessage(e, 'No se pudo cargar el personal administrativo.'));
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  };
+
+  const refreshAdminUsersFor = async (schoolId: string) => {
+    const { data } = await api.get<SchoolUserSummary[]>(`/api/v1/schools/${schoolId}/users`);
+    const list = Array.isArray(data) ? data : [];
+    setAdminUsers(list.filter((u) => u.role === 'ADMINISTRATIVO'));
+  };
+
+  const createAdministrative = async (schoolId: string) => {
+    if (!admEmail.trim() || !admPass || !admName.trim()) {
+      setErr('Correo, contraseña y nombre son obligatorios para crear un administrativo.');
+      return;
+    }
+    setErr(null);
+    setOk(null);
+    setCreatingAdmin(true);
+    try {
+      await api.post(`/api/v1/schools/${schoolId}/admin`, {
+        email: admEmail.trim(),
+        password: admPass,
+        fullName: admName.trim(),
+        phone: admPhone.trim() || undefined,
+        canAccessCampus: admCanCampus
+      });
+      setOk('Administrativo creado. Puede iniciar sesión gestionando esta escuela.');
+      setAdmPass('');
+      setAdmEmail('');
+      setAdmName('');
+      setAdmPhone('');
+      await refreshAdminUsersFor(schoolId);
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo crear el administrativo.'));
+    } finally {
+      setCreatingAdmin(false);
+    }
+  };
+
+  function startEditAdministrative(u: SchoolUserSummary) {
+    setEditingAdminUserId(u.id);
+    setPasswordResetUserId(null);
+    setResetPasswordValue('');
+    setAdmEditFullName(u.fullName);
+    setAdmEditPhone(u.phone?.trim() ? u.phone : '');
+    setAdmEditCampus(u.canAccessCampus ?? false);
+  }
+
+  function cancelAdminEdit() {
+    setEditingAdminUserId(null);
+  }
+
+  async function saveAdministrativeEdits(schoolId: string) {
+    if (!editingAdminUserId) return;
+    setSavingAdminUserId(editingAdminUserId);
+    setErr(null);
+    setOk(null);
+    try {
+      const fullNameTrim = admEditFullName.trim();
+      if (!fullNameTrim) {
+        setErr('El nombre completo no puede estar vacío.');
+        return;
+      }
+      await api.patch(`/api/v1/schools/${schoolId}/users/${editingAdminUserId}`, {
+        fullName: fullNameTrim,
+        phone: admEditPhone.trim(),
+        canAccessCampus: admEditCampus
+      });
+      setOk('Datos del administrativo actualizados.');
+      setEditingAdminUserId(null);
+      await refreshAdminUsersFor(schoolId);
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo guardar los cambios.'));
+    } finally {
+      setSavingAdminUserId(null);
+    }
+  }
+
+  async function toggleAdministrativeStatus(schoolId: string, u: SchoolUserSummary) {
+    setErr(null);
+    setOk(null);
+    setSavingAdminUserId(u.id);
+    try {
+      await api.patch(`/api/v1/schools/${schoolId}/users/${u.id}`, { status: !u.status });
+      setOk(u.status ? 'Usuario desactivado.' : 'Usuario activado.');
+      await refreshAdminUsersFor(schoolId);
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo cambiar el estado.'));
+    } finally {
+      setSavingAdminUserId(null);
+    }
+  }
+
+  async function submitPasswordReset(schoolId: string, userId: string) {
+    if (resetPasswordValue.length < 8) {
+      setErr('La nueva contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    setErr(null);
+    setOk(null);
+    setResettingPasswordUserId(userId);
+    try {
+      await api.post(`/api/v1/schools/${schoolId}/users/${userId}/reset-password`, {
+        password: resetPasswordValue
+      });
+      setOk('Contraseña actualizada.');
+      setPasswordResetUserId(null);
+      setResetPasswordValue('');
+    } catch (e) {
+      setErr(getUserFacingMessage(e, 'No se pudo restablecer la contraseña.'));
+    } finally {
+      setResettingPasswordUserId(null);
+    }
+  }
 
   const parseDec2 = (s: string): number | null => {
     const n = Number(s.replace(',', '.'));
@@ -635,6 +807,211 @@ export function SchoolsAdminPage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                  <div className="border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      className="text-xs font-semibold uppercase tracking-wide text-slate-700 hover:text-slate-900"
+                      onClick={() => void toggleAdminSchool(s.id)}
+                    >
+                      Administrativos {adminSchoolId === s.id ? '▲ ocultar' : '▼ mostrar'}
+                    </button>
+                    {adminSchoolId === s.id ? (
+                      <div className="mt-3 rounded border border-slate-100 bg-slate-50/80 p-3">
+                        <p className="text-xs text-slate-600">
+                          Personal con rol ADMINISTRATIVO en esta escuela. Se crea un usuario vinculado y un registro de
+                          personal administrativo.
+                        </p>
+                        {adminUsersLoading ? (
+                          <p className="mt-2 text-xs text-slate-500">Cargando…</p>
+                        ) : adminUsers.length === 0 ? (
+                          <p className="mt-2 text-xs text-slate-500">Aún no hay administrativos en esta institución.</p>
+                        ) : (
+                          <ul className="mt-2 space-y-3 text-xs">
+                            {adminUsers.map((u) => (
+                              <li key={u.id} className="rounded border border-slate-200 bg-white p-3">
+                                {editingAdminUserId === u.id ? (
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    <label className="block text-xs text-slate-700 sm:col-span-2">
+                                      Nombre completo
+                                      <input
+                                        className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                        value={admEditFullName}
+                                        onChange={(e) => setAdmEditFullName(e.target.value)}
+                                      />
+                                    </label>
+                                    <label className="block text-xs text-slate-700 sm:col-span-2">
+                                      Celular
+                                      <input
+                                        className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                        value={admEditPhone}
+                                        onChange={(e) => setAdmEditPhone(e.target.value)}
+                                        placeholder="Opcional"
+                                      />
+                                    </label>
+                                    <label className="flex items-center gap-2 text-xs text-slate-700 sm:col-span-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={admEditCampus}
+                                        onChange={(e) => setAdmEditCampus(e.target.checked)}
+                                      />
+                                      Acceso al campus habilitado
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 sm:col-span-2">
+                                      <button
+                                        type="button"
+                                        disabled={savingAdminUserId === u.id}
+                                        onClick={() => void saveAdministrativeEdits(s.id)}
+                                        className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                      >
+                                        {savingAdminUserId === u.id ? 'Guardando…' : 'Guardar'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={savingAdminUserId === u.id}
+                                        onClick={cancelAdminEdit}
+                                        className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div>
+                                        <p className="font-medium text-slate-800">{u.fullName}</p>
+                                        <p className="text-slate-600">{u.email}</p>
+                                        <p className="mt-1 text-slate-500">
+                                          Cel.: {u.phone?.trim() ? u.phone : '—'} · Campus:{' '}
+                                          {u.canAccessCampus ? 'Sí' : 'No'}
+                                        </p>
+                                      </div>
+                                      <span
+                                        className={
+                                          u.status ? 'shrink-0 text-emerald-700' : 'shrink-0 text-slate-400'
+                                        }
+                                      >
+                                        {u.status ? 'Activo' : 'Inactivo'}
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={savingAdminUserId !== null}
+                                        onClick={() => startEditAdministrative(u)}
+                                        className="text-xs font-medium text-brand-900 underline hover:no-underline disabled:opacity-50"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={savingAdminUserId === u.id}
+                                        onClick={() => void toggleAdministrativeStatus(s.id, u)}
+                                        className="text-xs font-medium text-slate-700 underline hover:no-underline disabled:opacity-50"
+                                      >
+                                        {u.status ? 'Desactivar' : 'Activar'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingAdminUserId(null);
+                                          setPasswordResetUserId((prev) => (prev === u.id ? null : u.id));
+                                          setResetPasswordValue('');
+                                        }}
+                                        className="text-xs font-medium text-slate-700 underline hover:no-underline"
+                                      >
+                                        {passwordResetUserId === u.id ? 'Ocultar contraseña' : 'Nueva contraseña'}
+                                      </button>
+                                    </div>
+                                    {passwordResetUserId === u.id ? (
+                                      <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-2 sm:flex-row sm:items-end">
+                                        <label className="block min-w-[12rem] flex-1 text-xs text-slate-700">
+                                          Nueva contraseña
+                                          <input
+                                            type="password"
+                                            minLength={8}
+                                            autoComplete="new-password"
+                                            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                                            value={resetPasswordValue}
+                                            onChange={(e) => setResetPasswordValue(e.target.value)}
+                                          />
+                                        </label>
+                                        <button
+                                          type="button"
+                                          disabled={resettingPasswordUserId === u.id}
+                                          onClick={() => void submitPasswordReset(s.id, u.id)}
+                                          className="rounded bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-60"
+                                        >
+                                          {resettingPasswordUserId === u.id ? 'Aplicando…' : 'Aplicar'}
+                                        </button>
+                                      </div>
+                                    ) : null}
+                                  </>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <label className="block text-xs text-slate-700 sm:col-span-2">
+                            Correo
+                            <input
+                              type="email"
+                              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={admEmail}
+                              onChange={(e) => setAdmEmail(e.target.value)}
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-700 sm:col-span-2">
+                            Contraseña inicial
+                            <input
+                              type="password"
+                              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={admPass}
+                              onChange={(e) => setAdmPass(e.target.value)}
+                              minLength={8}
+                              autoComplete="new-password"
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-700 sm:col-span-2">
+                            Nombre completo
+                            <input
+                              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={admName}
+                              onChange={(e) => setAdmName(e.target.value)}
+                            />
+                          </label>
+                          <label className="block text-xs text-slate-700 sm:col-span-2">
+                            Celular (opcional)
+                            <input
+                              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={admPhone}
+                              onChange={(e) => setAdmPhone(e.target.value)}
+                            />
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-slate-700 sm:col-span-2">
+                            <input
+                              type="checkbox"
+                              checked={admCanCampus}
+                              onChange={(e) => setAdmCanCampus(e.target.checked)}
+                            />
+                            Acceso al campus habilitado
+                          </label>
+                          <div className="sm:col-span-2">
+                            <button
+                              type="button"
+                              disabled={creatingAdmin}
+                              onClick={() => void createAdministrative(s.id)}
+                              className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                            >
+                              {creatingAdmin ? 'Creando…' : 'Crear administrativo'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </li>
               );

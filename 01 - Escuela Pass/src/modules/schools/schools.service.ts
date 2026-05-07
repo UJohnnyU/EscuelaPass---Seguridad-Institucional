@@ -3,11 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { assertWindowStartBeforeEnd, timeHmToSql } from '../../common/shift-schedule';
 import { SchoolEntity } from '../../database/entities/school.entity';
+import { AdministrativeStaffEntity } from '../../database/entities/administrative-staff.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { AssignUserSchoolDto } from './dto/assign-user-school.dto';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { SchoolShiftWindowsDto } from './dto/school-shift-windows.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
+import { UpdateSchoolAdminUserDto } from './dto/update-school-admin-user.dto';
 
 @Injectable()
 export class SchoolsService {
@@ -15,7 +17,9 @@ export class SchoolsService {
     @InjectRepository(SchoolEntity)
     private readonly schoolsRepository: Repository<SchoolEntity>,
     @InjectRepository(UserEntity)
-    private readonly usersRepository: Repository<UserEntity>
+    private readonly usersRepository: Repository<UserEntity>,
+    @InjectRepository(AdministrativeStaffEntity)
+    private readonly administrativeStaffRepository: Repository<AdministrativeStaffEntity>
   ) {}
 
   private applyShiftWindowsToSchoolOrThrow(school: SchoolEntity, w: SchoolShiftWindowsDto): void {
@@ -126,11 +130,79 @@ export class SchoolsService {
       email: u.email,
       role: u.role,
       fullName: u.fullName,
-      status: u.status
+      status: u.status,
+      phone: u.phone ?? null,
+      canAccessCampus: u.canAccessCampus ?? false
     }));
   }
 
-  async createSchoolAdmin(schoolId: string, payload: { email: string; fullName: string; passwordHash: string }) {
+  async updateSchoolAdministrativeUser(schoolId: string, targetUserId: string, dto: UpdateSchoolAdminUserDto) {
+    const school = await this.get(schoolId);
+    const user = await this.usersRepository.findOne({ where: { id: targetUserId } });
+    if (!user || user.schoolId !== school.id) {
+      throw new NotFoundException('Usuario no encontrado en esta escuela');
+    }
+    if (user.role !== UserRole.ADMINISTRATIVO) {
+      throw new BadRequestException('Solo puede editar personal con rol ADMINISTRATIVO de esta escuela');
+    }
+
+    let changed = false;
+    if (dto.fullName !== undefined) {
+      user.fullName = dto.fullName.trim();
+      changed = true;
+    }
+    if (dto.phone !== undefined) {
+      user.phone = dto.phone?.trim() || null;
+      changed = true;
+    }
+    if (dto.canAccessCampus !== undefined) {
+      user.canAccessCampus = dto.canAccessCampus;
+      changed = true;
+    }
+    if (dto.status !== undefined) {
+      user.status = dto.status;
+      changed = true;
+    }
+    if (!changed) {
+      throw new BadRequestException('Envíe al menos un campo para actualizar');
+    }
+
+    await this.usersRepository.save(user);
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      status: user.status,
+      phone: user.phone,
+      canAccessCampus: user.canAccessCampus
+    };
+  }
+
+  async resetSchoolAdministrativePassword(schoolId: string, targetUserId: string, passwordHash: string) {
+    const school = await this.get(schoolId);
+    const user = await this.usersRepository.findOne({ where: { id: targetUserId } });
+    if (!user || user.schoolId !== school.id) {
+      throw new NotFoundException('Usuario no encontrado en esta escuela');
+    }
+    if (user.role !== UserRole.ADMINISTRATIVO) {
+      throw new BadRequestException('Solo puede restablecer la contraseña de personal ADMINISTRATIVO');
+    }
+    user.passwordHash = passwordHash;
+    await this.usersRepository.save(user);
+    return { id: user.id, email: user.email };
+  }
+
+  async createSchoolAdmin(
+    schoolId: string,
+    payload: {
+      email: string;
+      fullName: string;
+      passwordHash: string;
+      phone?: string | null;
+      canAccessCampus?: boolean;
+    }
+  ) {
     const school = await this.get(schoolId);
     const existing = await this.usersRepository.findOne({ where: { email: payload.email.trim() } });
     if (existing) throw new ConflictException('El correo ya está registrado');
@@ -139,11 +211,16 @@ export class SchoolsService {
       fullName: payload.fullName.trim(),
       passwordHash: payload.passwordHash,
       role: UserRole.ADMINISTRATIVO,
-      canAccessCampus: true,
+      canAccessCampus: payload.canAccessCampus ?? true,
       status: true,
-      schoolId: school.id
+      schoolId: school.id,
+      phone: payload.phone?.trim() || null
     });
     const saved = await this.usersRepository.save(user);
+    const staffRow = await this.administrativeStaffRepository.findOne({ where: { userId: saved.id } });
+    if (!staffRow) {
+      await this.administrativeStaffRepository.save(this.administrativeStaffRepository.create({ userId: saved.id }));
+    }
     return {
       id: saved.id,
       email: saved.email,

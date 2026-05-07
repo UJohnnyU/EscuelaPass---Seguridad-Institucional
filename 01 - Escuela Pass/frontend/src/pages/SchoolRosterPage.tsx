@@ -47,6 +47,7 @@ type TeacherRow = {
   email: string;
   phone?: string | null;
   avatarUrl?: string | null;
+  canAccessCampus?: boolean;
 };
 
 /** Coincide docente por id de fila `teachers` (lo habitual) o por `userId` si el legado guardó el otro UUID. */
@@ -288,6 +289,7 @@ export function SchoolRosterPage() {
   const [tName, setTName] = useState('');
   const [tNum, setTNum] = useState('');
   const [tPhone, setTPhone] = useState('');
+  const [tCanAccessCampus, setTCanAccessCampus] = useState(true);
   const [tSubjectIds, setTSubjectIds] = useState<string[]>([]);
   const [tSubjectQuery, setTSubjectQuery] = useState('');
 
@@ -871,7 +873,8 @@ export function SchoolRosterPage() {
         password: tPass,
         fullName: tName.trim(),
         employeeNumber: tNum.trim(),
-        subjectIds: tSubjectIds
+        subjectIds: tSubjectIds,
+        canAccessCampus: tCanAccessCampus
       };
       if (tPhone.trim()) body.phone = tPhone.trim();
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
@@ -881,6 +884,7 @@ export function SchoolRosterPage() {
       setTName('');
       setTNum('');
       setTPhone('');
+      setTCanAccessCampus(true);
       setTSubjectIds([]);
       setTSubjectQuery('');
       setMessage('Docente registrado.');
@@ -1092,7 +1096,7 @@ export function SchoolRosterPage() {
     setEditLifecycleReason('');
     setEditLifecycleEffectiveDate('');
     setEditCanLeaveAlone(false);
-    setEditCanAccessCampus(false);
+    setEditCanAccessCampus(r.canAccessCampus ?? false);
     setEditIsPrimaryContact(false);
   }
 
@@ -1221,7 +1225,8 @@ export function SchoolRosterPage() {
         await api.patch(`/api/v1/school/teachers/${editTarget.row.id}`, {
           fullName: nextName,
           phone: editPhone.trim() || null,
-          employeeNumber: nextEmployee
+          employeeNumber: nextEmployee,
+          canAccessCampus: editCanAccessCampus
         });
         const prevLifecycle = editTarget.row.lifecycleStatus ?? 'ACTIVO';
         if (editLifecycleStatus !== prevLifecycle) {
@@ -1884,6 +1889,10 @@ export function SchoolRosterPage() {
               placeholder="Ej. +52 555 123 4567"
             />
           </label>
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input type="checkbox" checked={tCanAccessCampus} onChange={(e) => setTCanAccessCampus(e.target.checked)} />
+            Acceso al campus habilitado (entradas, credenciales, escáner)
+          </label>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Asignaturas del docente (una o varias)</span>
             <input
@@ -1980,7 +1989,8 @@ export function SchoolRosterPage() {
                   <th className="py-2 pr-4 font-medium">Asignaturas</th>
                   <th className="py-2 pr-4 font-medium">Celular</th>
                   <th className="py-2 pr-4 font-medium">Estado</th>
-                  <th className="py-2 font-medium">Correo</th>
+                  <th className="py-2 pr-4 font-medium">Campus</th>
+                  <th className="py-2 pr-4 font-medium">Correo</th>
                   <th className="py-2 font-medium">Acciones</th>
                 </tr>
               </thead>
@@ -2007,6 +2017,7 @@ export function SchoolRosterPage() {
                     </td>
                     <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
                     <td className="py-2 pr-4">{lifecycleLabel(r.lifecycleStatus)}</td>
+                    <td className="py-2 pr-4">{r.canAccessCampus ? 'Sí' : 'No'}</td>
                     <td className="py-2">{r.email}</td>
                     <td className="py-2">
                       <div className="flex gap-2">
@@ -2822,10 +2833,21 @@ export function SchoolRosterPage() {
                 </>
               ) : null}
               {editTarget?.kind === 'teacher' ? (
-                <label className="block text-sm">
-                  <span className="text-slate-700">Número de empleado</span>
-                  <input required className="mt-1 w-full rounded border border-slate-300 px-3 py-2" value={editEmployeeNumber} onChange={(ev) => setEditEmployeeNumber(ev.target.value)} />
-                </label>
+                <>
+                  <label className="block text-sm">
+                    <span className="text-slate-700">Número de empleado</span>
+                    <input
+                      required
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      value={editEmployeeNumber}
+                      onChange={(ev) => setEditEmployeeNumber(ev.target.value)}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editCanAccessCampus} onChange={(ev) => setEditCanAccessCampus(ev.target.checked)} />
+                    Acceso al campus habilitado
+                  </label>
+                </>
               ) : null}
               {editTarget?.kind === 'parent' ? (
                 <>

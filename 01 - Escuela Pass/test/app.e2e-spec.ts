@@ -69,6 +69,36 @@ describe('App (e2e)', () => {
 
   const authHeader = (token: string) => ({ Authorization: `Bearer ${token}` });
 
+  const circuitTodayYmd = (): string => {
+    const tz = process.env.APP_TIMEZONE?.trim() || 'America/Mexico_City';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date());
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    if (!y || !m || !d) return new Date().toISOString().slice(0, 10);
+    return `${y}-${m}-${d}`;
+  };
+
+  const registerAttendancePresentToday = async (adminToken: string, studentId: string) => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/attendance/register`)
+      .set(authHeader(adminToken))
+      .send({
+        studentId,
+        status: 'PRESENTE',
+        attendanceDate: circuitTodayYmd(),
+        notes: 'e2e-circuit-presencia'
+      })
+      .expect((res) => {
+        expect([200, 201]).toContain(res.status);
+      });
+  };
+
   const getStudentByEmail = async (token: string, email: string) => {
     const res = await request(app.getHttpServer())
       .get(`/${apiPrefix}/school/students`)
@@ -399,6 +429,8 @@ describe('App (e2e)', () => {
     const parent = await getParentByEmail(admin.accessToken, 'padre1@escuelapass.local');
     const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
 
+    await registerAttendancePresentToday(admin.accessToken, student.id);
+
     // padre crea solicitud circuito
     const created = await request(app.getHttpServer())
       .post(`/${apiPrefix}/circuit-requests`)
@@ -430,6 +462,31 @@ describe('App (e2e)', () => {
       .expect(200);
 
     expect(created.body.requestId).toBeDefined();
+  });
+
+  it('circuit: sin registro presente/tardanza hoy bloquea solicitud del padre', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const parent = await getParentByEmail(admin.accessToken, 'padre1@escuelapass.local');
+    const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
+    const today = circuitTodayYmd();
+
+    await db.query(
+      `DELETE FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`,
+      [student.id, today]
+    );
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/circuit-requests`)
+      .set(authHeader(padre.accessToken))
+      .send({
+        studentId: student.id,
+        requestedByParentId: parent.id,
+        pickupMethod: 'A_PIE'
+      })
+      .expect(400);
+
+    await registerAttendancePresentToday(admin.accessToken, student.id);
   });
 
   it('authz: padre no puede registrar asistencia (403)', async () => {
@@ -578,6 +635,8 @@ describe('App (e2e)', () => {
     const parent = await getParentByEmail(admin.accessToken, 'padre1@escuelapass.local');
     const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
 
+    await registerAttendancePresentToday(admin.accessToken, student.id);
+
     const created = await request(app.getHttpServer())
       .post(`/${apiPrefix}/circuit-requests`)
       .set(authHeader(padre.accessToken))
@@ -625,6 +684,8 @@ describe('App (e2e)', () => {
     const admin = await login('administrativo@escuelapass.local', 'Admin123*');
     const parent = await getParentByEmail(admin.accessToken, 'padre1@escuelapass.local');
     const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
+
+    await registerAttendancePresentToday(admin.accessToken, student.id);
 
     const created = await request(app.getHttpServer())
       .post(`/${apiPrefix}/circuit-requests`)
@@ -1110,6 +1171,7 @@ describe('App (e2e)', () => {
         console.warn('t14: no hay estudiantes para crear circuito');
         return;
       }
+      await registerAttendancePresentToday(admin.accessToken, firstStudent.id);
       // Crear circuito en estado PENDIENTE (requiere parentId vinculado; omitir si no hay vínculo)
       const createRes = await request(app.getHttpServer())
         .post(`/${apiPrefix}/circuit-requests`)

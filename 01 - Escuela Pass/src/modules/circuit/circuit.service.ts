@@ -22,6 +22,10 @@ import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import {
+  AttendanceRecordEntity,
+  AttendanceStatus
+} from '../../database/entities/attendance-record.entity';
 import { CreateBatchCircuitRequestDto } from './dto/create-batch-circuit-request.dto';
 import { CreateCircuitRequestDto } from './dto/create-circuit-request.dto';
 import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
@@ -88,6 +92,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     private readonly notificationsRepository: Repository<NotificationEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
+    @InjectRepository(AttendanceRecordEntity)
+    private readonly attendanceRecordsRepository: Repository<AttendanceRecordEntity>,
     private readonly fcmService: FcmService,
     private readonly settingsService: SettingsService,
     private readonly departureConsentService: DepartureConsentService
@@ -142,6 +148,34 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     const started = new Date();
     req.parentConfirmDeadlineStartedAt = started;
     req.parentConfirmDeadlineAt = new Date(started.getTime() + mins * 60_000);
+  }
+
+  /** Salida rápida si el entorno no captura ingreso/asistencia (todos los métodos de recogida, incl. solo consentimiento). */
+  private skipIngressAttendanceCheck(): boolean {
+    return String(process.env.CIRCUIT_SKIP_INGRESS_ATTENDANCE_CHECK ?? '')
+      .trim()
+      .toLowerCase() === 'true';
+  }
+
+  /**
+   * Recogidas con trayecto físico del padre deben tener al menor registrado como presente o tardanza
+   * en el día operativo (`APP_TIMEZONE`), alineado con `attendance_records.attendance_date`.
+   */
+  private async assertStudentPresentForPickupToday(studentId: string): Promise<void> {
+    const today = todayYmdInCircuitTimezone();
+    const row = await this.attendanceRecordsRepository
+      .createQueryBuilder('ar')
+      .where('ar.studentId = :studentId', { studentId })
+      .andWhere('ar.attendanceDate = :d', { d: today })
+      .andWhere('ar.status IN (:...present)', {
+        present: [AttendanceStatus.PRESENTE, AttendanceStatus.RETARDO]
+      })
+      .getOne();
+    if (!row) {
+      throw new BadRequestException(
+        'No puede iniciar el circuito: el alumno no consta como presente en el ingreso de hoy. Solicite que secretaría registre la asistencia o espere a que se documente.'
+      );
+    }
   }
 
   private isTerminalCircuitStatus(status: CircuitStatus): boolean {
@@ -321,6 +355,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException(
         'Hoy tiene activo el permiso de salida autónoma para este alumno. Desactive el consentimiento en Circuito antes de iniciar una recogida con seguimiento.'
       );
+    }
+    if (!this.skipIngressAttendanceCheck()) {
+      await this.assertStudentPresentForPickupToday(student.id);
     }
     const parent = await this.parentsRepository.findOne({
       where: { id: payload.requestedByParentId }

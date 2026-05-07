@@ -9,6 +9,7 @@ import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity
 import { VehicleEntity } from '../../database/entities/vehicle.entity';
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { FcmModule } from '../fcm/fcm.module';
 import { DepartureConsentModule } from '../departure-consent/departure-consent.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -29,7 +30,8 @@ import { CircuitService } from './circuit.service';
       TeacherEntity,
       TeacherGroupEntity,
       NotificationEntity,
-      UserEntity
+      UserEntity,
+      AttendanceRecordEntity
     ])
   ],
   controllers: [CircuitController],
