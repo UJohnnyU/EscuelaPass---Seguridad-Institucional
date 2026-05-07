@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * Indica si el dispositivo parece adecuado para pasos del circuito padre que usan GPS ("Ya llegué").
+ * Indica si el dispositivo parece adecuado para el mapa en vivo del circuito (GPS preciso).
  * En ordenadores típicos (puntero fino, sin UA móvil) devuelve false: se pide continuar en el móvil.
  */
 export function isParentCircuitGpsSupportedOnThisDevice(): boolean {

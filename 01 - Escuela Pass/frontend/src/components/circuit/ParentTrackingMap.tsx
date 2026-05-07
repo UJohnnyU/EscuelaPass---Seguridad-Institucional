@@ -15,6 +15,7 @@ import {
   mapPinElement,
   mapboxgl
 } from '@/lib/mapbox-basemap';
+import { type AxiosError } from 'axios';
 import { watchCircuitPosition } from '@/lib/geolocation';
 import { api } from '@/lib/api';
 
@@ -65,8 +66,13 @@ export function ParentTrackingMap({
           setInRadius(true);
           onAutoTransitioned?.();
         }
-      } catch {
-        // Errores de red silenciosos — no interrumpir el flujo del padre
+      } catch (e: unknown) {
+        const ax = e as AxiosError<{ message?: string | string[] }>;
+        const m = ax.response?.data?.message;
+        if (typeof m === 'string') setGpsError(m);
+        else if (Array.isArray(m)) setGpsError(m.join('. '));
+        else
+          setGpsError('No se pudo enviar tu ubicación al plantel. Comprueba la conexión y vuelve a intentarlo.');
       } finally {
         sendingRef.current = false;
       }
@@ -113,7 +119,7 @@ export function ParentTrackingMap({
       );
 
       // School marker (pin)
-      const schoolEl = mapPinElement('#dc2626');
+      const schoolEl = mapPinElement('#dc2626', '#991b1b');
       schoolMarkerRef.current = new mapboxgl.Marker({ element: schoolEl })
         .setLngLat([schoolLongitude, schoolLatitude])
         .addTo(map);
@@ -138,7 +144,7 @@ export function ParentTrackingMap({
         const map = mapRef.current;
         if (map) {
           if (!parentMarkerRef.current) {
-            const el = mapPinElement('#16a34a');
+            const el = mapPinElement('#16a34a', '#15803d');
             parentMarkerRef.current = new mapboxgl.Marker({ element: el })
               .setLngLat([longitude, latitude])
               .addTo(map);

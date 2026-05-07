@@ -16,7 +16,6 @@ import {
   TeacherCircuitSignal
 } from '../../database/entities/circuit-request.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
-import { GroupEntity } from '../../database/entities/group.entity';
 import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
@@ -565,7 +564,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     return {
-      message: autoTransitioned ? 'Ubicacion actualizada â€” llegada detectada automaticamente' : 'Ubicacion actualizada',
+      message: autoTransitioned ? 'Ubicación actualizada — llegada detectada automáticamente' : 'Ubicación actualizada',
       id: saved.id,
       parentGpsLatitude: saved.parentGpsLatitude,
       parentGpsLongitude: saved.parentGpsLongitude,
@@ -641,26 +640,65 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('Solo el padre solicitante puede avanzar el circuito');
     }
 
+    const hasGps =
+      dto.parentGpsLatitude != null &&
+      dto.parentGpsLongitude != null &&
+      typeof dto.parentGpsLatitude === 'number' &&
+      typeof dto.parentGpsLongitude === 'number';
+
+    /** Compat: clientes que usan `NOTIFICADO_LLEGADA` + coordenadas en este mismo endpoint. */
+    if (dto.status === CircuitStatus.NOTIFICADO_LLEGADA) {
+      if (!hasGps) {
+        throw new BadRequestException(
+          'La llegada al plantel se confirma con la ubicación: use el seguimiento GPS del circuito o envíe coordenadas en el endpoint /gps.'
+        );
+      }
+      if (req.status !== CircuitStatus.PADRE_EN_CAMINO) {
+        throw new BadRequestException(`Transición de padre no permitida: ${req.status} -> NOTIFICADO_LLEGADA`);
+      }
+      await this.updateParentGps(id, parentUserId, {
+        parentGpsLatitude: dto.parentGpsLatitude!,
+        parentGpsLongitude: dto.parentGpsLongitude!
+      });
+      return this.findByIdForViewer(id, parentUserId, UserRole.PADRE);
+    }
+
     const next = dto.status;
-    if (req.status === next) {
+
+    if (req.status === next && !hasGps) {
       return this.findByIdForViewer(req.id, parentUserId, UserRole.PADRE);
     }
 
-    this.assertParentTransition(req.status, next);
+    if (req.status === next && next === CircuitStatus.PADRE_EN_CAMINO && hasGps) {
+      await this.updateParentGps(id, parentUserId, {
+        parentGpsLatitude: dto.parentGpsLatitude!,
+        parentGpsLongitude: dto.parentGpsLongitude!
+      });
+      return this.findByIdForViewer(id, parentUserId, UserRole.PADRE);
+    }
 
+    if (req.status !== next) {
+      this.assertParentTransition(req.status, next);
+      req.status = next;
+      const saved = await this.circuitRepository.save(req);
 
-    req.status = next;
-    const saved = await this.circuitRepository.save(req);
+      const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
+      const name = await this.studentDisplayName(saved.studentId);
+      const copy = this.circuitPushCopy(next, name);
+      if (copy) {
+        this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+      }
+    }
 
-    const parentUid = await this.parentUserIdByPk(saved.requestedByParentId);
-    const name = await this.studentDisplayName(saved.studentId);
-    const copy = this.circuitPushCopy(next, name);
-    if (copy) {
-      this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
+    if (next === CircuitStatus.PADRE_EN_CAMINO && hasGps) {
+      await this.updateParentGps(id, parentUserId, {
+        parentGpsLatitude: dto.parentGpsLatitude!,
+        parentGpsLongitude: dto.parentGpsLongitude!
+      });
     }
 
     /** Misma forma que GET /circuit-requests/:id (evita estado desincronizado en el cliente tras el PATCH). */
-    return this.findByIdForViewer(saved.id, parentUserId, UserRole.PADRE);
+    return this.findByIdForViewer(id, parentUserId, UserRole.PADRE);
   }
 
   private assertParentTransition(from: CircuitStatus, to: CircuitStatus) {
@@ -687,11 +725,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     const qb = this.circuitRepository
       .createQueryBuilder('cr')
-      .innerJoin(StudentEntity, 'st', 'st.id = cr.student_id')
-      .innerJoin(GroupEntity, 'g', 'g.id = st.group_id')
-      .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
-      .innerJoin(ParentEntity, 'p', 'p.id = cr.requested_by_parent_id')
-      .innerJoin(UserEntity, 'pu', 'pu.id = p.user_id')
+      .innerJoin('students', 'st', 'st.id = cr.student_id')
+      .innerJoin('groups', 'g', 'g.id = st.group_id')
+      .innerJoin('users', 'su', 'su.id = st.user_id')
+      .innerJoin('parents', 'p', 'p.id = cr.requested_by_parent_id')
+      .innerJoin('users', 'pu', 'pu.id = p.user_id')
       .where('(timezone(:tz, cr.request_time))::date = (timezone(:tz, now()))::date', { tz });
 
     const q = searchQ?.trim();
@@ -835,7 +873,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     if (ids.length === 0) return map;
     const rows = await this.studentsRepository
       .createQueryBuilder('st')
-      .innerJoin(UserEntity, 'su', 'su.id = st.user_id')
+      .innerJoin('users', 'su', 'su.id = st.user_id')
       .select('st.id', 'sid')
       .addSelect('st.matricula', 'matricula')
       .addSelect('su.full_name', 'full_name')

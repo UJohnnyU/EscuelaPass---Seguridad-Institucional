@@ -77,7 +77,7 @@ export async function requestGeolocationForCircuitArrival(): Promise<Geolocation
       }
       if (c2 === 2) {
         throw new Error(
-          'No se pudo obtener la ubicación ni por GPS ni por red. Active la ubicación en el dispositivo, acérquese a una ventana o salga unos segundos al exterior y vuelva a pulsar «Ya llegué».'
+          'No se pudo obtener la ubicación ni por GPS ni por red. Active la ubicación en el dispositivo, acérquese a una ventana o salga unos segundos al exterior y pulse de nuevo cuando el navegador solicite posición.'
         );
       }
       try {
@@ -91,7 +91,7 @@ export async function requestGeolocationForCircuitArrival(): Promise<Geolocation
         }
         if (c3 === 2) {
           throw new Error(
-            'No se pudo obtener la ubicación ni por GPS ni por red. Active la ubicación en el dispositivo, acérquese a una ventana o salga unos segundos al exterior y vuelva a pulsar «Ya llegué».'
+            'No se pudo obtener la ubicación ni por GPS ni por red. Active la ubicación en el dispositivo, acérquese a una ventana o salga unos segundos al exterior y pulse de nuevo cuando el navegador solicite posición.'
           );
         }
         if (c3 === 3) {

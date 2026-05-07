@@ -644,7 +644,7 @@ export function CircuitDetailPage() {
               Ubicación declarada por la familia
             </h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              Posición registrada al marcar «Ya llegué». Si la ubicación no es coherente con el protocolo, puede solicitar
+              Posición registrada cuando el sistema detectó la llegada dentro del área autorizada (GPS). Si la ubicación no es coherente con el protocolo, puede solicitar
               una nueva confirmación con GPS (acción bajo el mapa).
             </p>
             <div className="mt-4">

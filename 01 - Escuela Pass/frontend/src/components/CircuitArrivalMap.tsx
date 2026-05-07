@@ -20,7 +20,7 @@ export type MapContextPayload = {
   arrivalSnapshotLatitude: string | null;
   arrivalSnapshotLongitude: string | null;
   arrivalSnapshotAt: string | null;
-  /** Respaldo si la instantánea aún no está en el cliente (misma posición guardada al marcar llegada). */
+  /** Respaldo si la instantánea aún no está en el cliente (última posición GPS en el circuito). */
   parentGpsLatitude?: string | null;
   parentGpsLongitude?: string | null;
   arrivalRadiusKm: number;
@@ -76,9 +76,7 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
       )
       .addTo(map);
 
-    const parentTitle = fromSnapshot
-      ? 'Ubicación al marcar «Ya llegué»'
-      : 'Última ubicación GPS registrada';
+    const parentTitle = fromSnapshot ? 'Ubicación al entrar en el área autorizada' : 'Última ubicación GPS registrada';
     const parentWhen = ctx.arrivalSnapshotAt
       ? `<br/><span style="font-size:12px;color:#64748b">${escapeHtml(new Date(ctx.arrivalSnapshotAt).toLocaleString('es'))}</span>`
       : '';
@@ -182,7 +180,7 @@ export function CircuitArrivalMap({ ctx }: CircuitArrivalMapProps) {
   if (!hasParent) {
     return (
       <p className="text-sm text-slate-600 dark:text-slate-400">
-        Aún no hay una ubicación de llegada registrada. El padre o madre debe marcar «Ya llegué» con el GPS activo.
+        Aún no hay ubicación registrada como llegada. La familia debe acercarse con el GPS activo; al entrar en el área del plantel la posición quedará registrada automáticamente.
       </p>
     );
   }
