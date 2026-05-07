@@ -1,7 +1,7 @@
 /**
- * Geolocalización para «Ya llegué» en circuito de recogida.
- * Prioriza respuesta rápida (red/Wi‑Fi) para no bloquear al padre demasiado tiempo.
- * Si no hay dato útil, intenta GPS preciso como respaldo.
+ * Geolocalización para circuito de recogida.
+ * - requestGeolocationForCircuitArrival: obtención puntual (fallback en cascada).
+ * - watchCircuitPosition: seguimiento continuo con watchPosition para el mapa en vivo.
  */
 
 function getCurrentPosition(options: PositionOptions): Promise<GeolocationPosition> {
@@ -103,4 +103,40 @@ export async function requestGeolocationForCircuitArrival(): Promise<Geolocation
       }
     }
   }
+}
+
+export type WatchPositionCallback = (coords: { latitude: number; longitude: number }) => void;
+export type WatchPositionErrorCallback = (message: string) => void;
+
+/**
+ * Inicia seguimiento continuo de la posición del padre con watchPosition.
+ * Llama onPosition cada vez que se recibe una nueva coordenada.
+ * Devuelve una función para detener el seguimiento (clearWatch).
+ */
+export function watchCircuitPosition(
+  onPosition: WatchPositionCallback,
+  onError?: WatchPositionErrorCallback
+): () => void {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    onError?.('Su navegador no permite obtener la ubicación.');
+    return () => {};
+  }
+
+  const watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      onPosition({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+    },
+    (err) => {
+      if (err.code === 1) {
+        onError?.('Permita el acceso a la ubicación en el navegador para mostrar el mapa en vivo.');
+      } else if (err.code === 2) {
+        onError?.('No se puede obtener la ubicación. Verifique que el GPS esté activo.');
+      } else {
+        onError?.('Tiempo de espera agotado al obtener la ubicación. El mapa se actualizará cuando haya señal.');
+      }
+    },
+    { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }
+  );
+
+  return () => navigator.geolocation.clearWatch(watchId);
 }

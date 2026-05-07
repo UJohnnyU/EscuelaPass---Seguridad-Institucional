@@ -19,8 +19,8 @@ import {
 import { useAuth } from '@/context/useAuth';
 import { isStaff as userIsStaff } from '@/lib/roles';
 import { useParentCircuitGpsOnDevice } from '@/lib/circuit-device-context';
-import { requestGeolocationForCircuitArrival } from '@/lib/geolocation';
 import type { MapContextPayload } from '@/components/CircuitArrivalMap';
+import { ParentTrackingMap } from '@/components/circuit/ParentTrackingMap';
 
 const CircuitArrivalMap = lazy(() =>
   import('@/components/CircuitArrivalMap').then((m) => ({ default: m.CircuitArrivalMap }))
@@ -49,6 +49,9 @@ type CircuitReq = {
 const REMINDER_WINDOW_MIN = 15;
 const CIRCUIT_AUTO_REFRESH_MS = 3000;
 
+/** Datos de escuela recuperados del endpoint /map para mostrar el mapa en vivo del padre. */
+type SchoolGeoCtx = { schoolLatitude: number; schoolLongitude: number; arrivalRadiusKm: number } | null;
+
 export function CircuitDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -60,6 +63,7 @@ export function CircuitDetailPage() {
   const [nowTick, setNowTick] = useState(Date.now());
   const [reminderOpen, setReminderOpen] = useState(false);
   const [mapCtx, setMapCtx] = useState<MapContextPayload | null>(null);
+  const [schoolGeo, setSchoolGeo] = useState<SchoolGeoCtx>(null);
   const [circuitFlowMuted, setCircuitFlowMuted] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(CIRCUIT_FLOW_MUTE_STORAGE_KEY) === '1';
@@ -78,15 +82,21 @@ export function CircuitDetailPage() {
     const cacheBust = { params: { _t: String(Date.now()) } };
     const { data } = await api.get<CircuitReq>(`/api/v1/circuit-requests/${id}`, cacheBust);
     setRow(data);
-    if (isStaff) {
-      try {
-        const { data: m } = await api.get<MapContextPayload>(`/api/v1/circuit-requests/${id}/map`, cacheBust);
-        setMapCtx(m);
-      } catch {
-        setMapCtx(null);
+    try {
+      const { data: m } = await api.get<MapContextPayload>(`/api/v1/circuit-requests/${id}/map`, cacheBust);
+      setMapCtx(m);
+      // Extraemos datos de escuela para el mapa en vivo del padre
+      if (m.schoolLatitude && m.schoolLongitude) {
+        setSchoolGeo({
+          schoolLatitude: m.schoolLatitude,
+          schoolLongitude: m.schoolLongitude,
+          arrivalRadiusKm: m.arrivalRadiusKm ?? 0.3
+        });
       }
+    } catch {
+      setMapCtx(null);
     }
-  }, [id, isStaff]);
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -417,100 +427,101 @@ export function CircuitDetailPage() {
       )}
 
       {isParent && !terminal && (
-        <div className="mt-8 space-y-3">
-          {!(row.status === 'PADRE_EN_CAMINO' && !parentGpsOnThisDevice) && (
-            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              Avanza el circuito cuando corresponda. Al pulsar «Ya llegué» se envía su ubicación en ese momento para
-              revisión en el plantel. Podrás confirmar que ya recibiste a tu hijo o hija solo cuando el plantel haya
-              indicado que va en camino hacia la salida (en tránsito).
-            </p>
-          )}
+        <div className="mt-8 space-y-4">
           {row.status === 'PENDIENTE' && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                runWithCircuitBody(async () => {
-                  const { data } = await api.patch<CircuitReq>(
-                    `/api/v1/circuit-requests/${id}/parent-progress`,
-                    { status: 'PADRE_EN_CAMINO' }
-                  );
-                  return data;
-                })
-              }
-              className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
-            >
-              Voy en camino
-            </button>
+            <>
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                Cuando estés listo para salir, indica que vas en camino. Se activará el mapa en vivo y el plantel
+                recibirá una notificación cuando llegues al radio de la escuela.
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  runWithCircuitBody(async () => {
+                    const { data } = await api.patch<CircuitReq>(
+                      `/api/v1/circuit-requests/${id}/parent-progress`,
+                      { status: 'PADRE_EN_CAMINO' }
+                    );
+                    return data;
+                  })
+                }
+                className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+              >
+                Voy en camino
+              </button>
+            </>
           )}
-          {row.status === 'PADRE_EN_CAMINO' && !parentGpsOnThisDevice && (
-            <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-4 py-5 shadow-sm ring-1 ring-sky-100 dark:border-sky-800/50 dark:from-sky-950/80 dark:to-slate-900 dark:shadow-slate-950/20 dark:ring-sky-900/40">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
-                <div className="mx-auto shrink-0 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 sm:mx-0 dark:bg-white dark:ring-slate-500">
-                  <QRCodeSVG
-                    value={typeof window !== 'undefined' ? window.location.href : ''}
-                    size={132}
-                    level="M"
-                    marginSize={1}
-                    className="block"
-                  />
-                </div>
-                <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
-                  <p className="text-base font-semibold text-sky-950 dark:text-sky-100">Continúe en su teléfono móvil</p>
-                  <p className="text-sm leading-relaxed text-sky-900/90 dark:text-sky-200/90">
-                    Ha indicado que viene hacia el colegio. «Ya llegué» con ubicación solo puede confirmarse desde el
-                    móvil. Abra este mismo enlace en su celular o escanee el código.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(window.location.href);
-                        setMsg('Enlace copiado. Péguelo en el navegador de su móvil.');
-                        setError(null);
-                      } catch {
-                        setMsg(null);
-                        setError('No pudimos copiar al portapapeles. Copie la dirección de la barra del navegador.');
-                      }
-                    }}
-                    className="w-full rounded-lg border border-sky-300 bg-white px-4 py-2.5 text-sm font-medium text-sky-950 hover:bg-sky-50 disabled:opacity-50 sm:w-auto dark:border-sky-600 dark:bg-slate-800 dark:text-sky-100 dark:hover:bg-slate-700"
-                  >
-                    Copiar enlace de esta solicitud
-                  </button>
-                </div>
+
+          {row.status === 'PADRE_EN_CAMINO' && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                Mapa en vivo — tu ubicación se comparte automáticamente
+              </p>
+              {schoolGeo ? (
+                <ParentTrackingMap
+                  circuitRequestId={id}
+                  schoolLatitude={schoolGeo.schoolLatitude}
+                  schoolLongitude={schoolGeo.schoolLongitude}
+                  arrivalRadiusKm={schoolGeo.arrivalRadiusKm}
+                  onAutoTransitioned={() => void reload()}
+                />
+              ) : (
+                !parentGpsOnThisDevice ? (
+                  <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-4 py-5 shadow-sm ring-1 ring-sky-100 dark:border-sky-800/50 dark:from-sky-950/80 dark:to-slate-900">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+                      <div className="mx-auto shrink-0 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 sm:mx-0">
+                        <QRCodeSVG
+                          value={typeof window !== 'undefined' ? window.location.href : ''}
+                          size={132}
+                          level="M"
+                          marginSize={1}
+                          className="block"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
+                        <p className="text-base font-semibold text-sky-950 dark:text-sky-100">Continúe en su teléfono móvil</p>
+                        <p className="text-sm leading-relaxed text-sky-900/90 dark:text-sky-200/90">
+                          El mapa en vivo y la detección automática de llegada requieren GPS del móvil. Abra este
+                          enlace en su celular o escanee el código.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(window.location.href);
+                              setMsg('Enlace copiado. Péguelo en el navegador de su móvil.');
+                            } catch {
+                              setError('No pudimos copiar al portapapeles. Copie la dirección de la barra del navegador.');
+                            }
+                          }}
+                          className="w-full rounded-lg border border-sky-300 bg-white px-4 py-2.5 text-sm font-medium text-sky-950 hover:bg-sky-50 sm:w-auto dark:border-sky-600 dark:bg-slate-800 dark:text-sky-100"
+                        >
+                          Copiar enlace de esta solicitud
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Cargando datos del mapa…</p>
+                )
+              )}
+            </div>
+          )}
+
+          {row.status === 'NOTIFICADO_LLEGADA' && (
+            <div className="flex items-center gap-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 px-4 py-4 dark:border-emerald-400 dark:bg-emerald-950/50">
+              <span className="relative flex h-4 w-4 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-4 w-4 rounded-full bg-emerald-500" />
+              </span>
+              <div>
+                <p className="font-semibold text-emerald-900 dark:text-emerald-100">Llegada confirmada — en el radio del plantel</p>
+                <p className="text-xs text-emerald-800 dark:text-emerald-200">El personal fue notificado. Espera la autorización de salida.</p>
               </div>
             </div>
           )}
-          {row.status === 'PADRE_EN_CAMINO' && parentGpsOnThisDevice && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                runWithCircuitBody(async () => {
-                  const pos = await requestGeolocationForCircuitArrival();
-                  const parentGpsLatitude = Number(pos.coords.latitude);
-                  const parentGpsLongitude = Number(pos.coords.longitude);
-                  await api.patch(`/api/v1/circuit-requests/${id}/gps`, {
-                    parentGpsLatitude,
-                    parentGpsLongitude
-                  });
-                  const { data } = await api.patch<CircuitReq>(
-                    `/api/v1/circuit-requests/${id}/parent-progress`,
-                    {
-                      status: 'NOTIFICADO_LLEGADA',
-                      parentGpsLatitude,
-                      parentGpsLongitude
-                    }
-                  );
-                  return data;
-                })
-              }
-              className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
-            >
-              Ya llegué (con ubicación)
-            </button>
-          )}
+
           {row.status !== 'ENTREGADO' && row.status !== 'CANCELADO' && row.status !== 'CERRADO_SIN_CONFIRMACION_PADRE' && (
             <button
               type="button"
@@ -521,6 +532,7 @@ export function CircuitDetailPage() {
               Cancelar solicitud
             </button>
           )}
+
           {row.status === 'EN_CAMINO' && (
             <button
               type="button"
@@ -649,20 +661,37 @@ export function CircuitDetailPage() {
               )}
             </div>
             {row.status === 'NOTIFICADO_LLEGADA' && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-700/50 dark:bg-emerald-950/35">
+                  <span className="relative flex h-3 w-3 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                  </span>
+                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Padre en radio del plantel</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'AUTORIZADO_SALIR' }))
+                  }
+                  className="w-full rounded bg-brand-800 py-3 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+                >
+                  Autorizar salida del alumno
+                </button>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() =>
                     run(() => api.patch(`/api/v1/circuit-requests/${id}/status`, { status: 'PADRE_EN_CAMINO' }))
                   }
-                  className="w-full rounded border border-amber-600 bg-amber-50 py-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60"
+                  className="w-full rounded border border-amber-600 bg-amber-50 py-2.5 text-sm font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100"
                 >
                   Solicitar nueva verificación de llegada (GPS)
                 </button>
-                <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                  El estado vuelve a «Familia en camino» y el acudiente recibe un aviso para marcar de nuevo «Ya llegué»
-                  con ubicación actualizada.
+                <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  Al autorizar la salida, el alumno queda registrado como en camino a la salida automáticamente.
+                  Solo solicite nueva verificación si la ubicación del padre no es coherente.
                 </p>
               </div>
             )}
@@ -738,10 +767,10 @@ export function CircuitDetailPage() {
                 </p>
               ) : row.status === 'PADRE_EN_CAMINO' ? (
                 <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                  Siguiente paso principal: la familia marca <strong>«Ya llegué»</strong> con ubicación. Cuando lo haga,
-                  podrá autorizar el retiro según el mapa y el protocolo.
+                  El padre está en camino. Cuando entre al radio del plantel, el sistema lo notificará automáticamente
+                  y podrá autorizar el retiro aquí.
                 </p>
-              ) : (
+              ) : row.status === 'NOTIFICADO_LLEGADA' ? null : (
                 !nextPedagogical &&
                 !staffTimeline.isConsentOnly && (
                   <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">

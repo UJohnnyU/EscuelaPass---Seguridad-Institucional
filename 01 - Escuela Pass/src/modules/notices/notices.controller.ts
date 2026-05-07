@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -9,6 +10,8 @@ import { NoticesService } from './notices.service';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
 
+@ApiTags('notices')
+@ApiBearerAuth()
 @Controller('notices')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class NoticesController {

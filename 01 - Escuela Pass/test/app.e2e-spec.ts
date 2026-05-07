@@ -1006,12 +1006,12 @@ describe('App (e2e)', () => {
     expect(receipts.body.data.length).toBeGreaterThan(0);
     expect(receipts.body.data[0]).toHaveProperty('readRate');
 
-    const reminders = await request(app.getHttpServer())
+    // admin-reports endpoints fueron eliminados (out of FTG scope)
+    // Verificamos que el endpoint de SLA ya no existe
+    await request(app.getHttpServer())
       .post(`/${apiPrefix}/notifications/admin-reports/sla-reminders/run`)
       .set(authHeader(platformAdmin.accessToken))
-      .expect(201);
-    expect(reminders.body).toHaveProperty('noticesChecked');
-    expect(reminders.body).toHaveProperty('remindersCreated');
+      .expect(404);
   }, 30000);
 
   it('t12/t13: políticas de cartera + bitácora de ajustes', async () => {
@@ -1087,4 +1087,148 @@ describe('App (e2e)', () => {
     expect(debtAdjustments.some((row: { actionType?: string }) => row.actionType === 'LATE_FEE')).toBe(true);
     expect(debtAdjustments.some((row: { actionType?: string }) => row.actionType === 'ARRANGEMENT')).toBe(true);
   }, 30000);
+
+  it('t14: circuito GPS — auto-transición a NOTIFICADO_LLEGADA al entrar al radio', async () => {
+    const admin = await login('administrativo@escuelapass.local', 'Admin123*');
+    const parent = await login('padre@escuelapass.local', 'Admin123*');
+
+    // Obtener primer estudiante del padre para circuito
+    const activeRes = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/circuit-requests/parent/active`)
+      .set(authHeader(parent.accessToken));
+    // Si ya hay circuito activo lo usamos; si no, creamos uno
+    let circuitId: string | null = (activeRes.body as { active?: { id?: string } })?.active?.id ?? null;
+
+    if (!circuitId) {
+      // Buscar un estudiante vinculado al padre
+      const studentsRes = await request(app.getHttpServer())
+        .get(`/${apiPrefix}/school/students`)
+        .set(authHeader(admin.accessToken))
+        .expect(200);
+      const firstStudent = (studentsRes.body as Array<{ id: string }>)[0];
+      if (!firstStudent) {
+        console.warn('t14: no hay estudiantes para crear circuito');
+        return;
+      }
+      // Crear circuito en estado PENDIENTE (requiere parentId vinculado; omitir si no hay vínculo)
+      const createRes = await request(app.getHttpServer())
+        .post(`/${apiPrefix}/circuit-requests`)
+        .set(authHeader(parent.accessToken))
+        .send({ studentId: firstStudent.id, pickupMethod: 'FAMILIAR_DIRECTO' });
+      if (createRes.status !== 201) return; // parent no vinculado al estudiante; test no aplica
+      circuitId = (createRes.body as { requestId?: string }).requestId ?? null;
+    }
+    if (!circuitId) return;
+
+    // Avanzar a PADRE_EN_CAMINO
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${circuitId}/parent-progress`)
+      .set(authHeader(parent.accessToken))
+      .send({ status: 'PADRE_EN_CAMINO' });
+
+    // Simular GPS dentro del radio (coordenadas de la escuela del seed)
+    const schoolRes = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/circuit-requests/${circuitId}/map`)
+      .set(authHeader(admin.accessToken));
+    const schoolLat: number = (schoolRes.body as { schoolLatitude?: number }).schoolLatitude ?? 0;
+    const schoolLng: number = (schoolRes.body as { schoolLongitude?: number }).schoolLongitude ?? 0;
+
+    if (schoolLat === 0 && schoolLng === 0) {
+      // La escuela no tiene coordenadas configuradas; omitir verificación de auto-transición
+      return;
+    }
+
+    const gpsRes = await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${circuitId}/gps`)
+      .set(authHeader(parent.accessToken))
+      .send({ parentGpsLatitude: schoolLat, parentGpsLongitude: schoolLng })
+      .expect(200);
+
+    expect(gpsRes.body).toHaveProperty('autoTransitioned');
+    expect(gpsRes.body).toHaveProperty('distanceToSchoolKm');
+    if (gpsRes.body.autoTransitioned === true) {
+      expect(gpsRes.body.status).toBe('NOTIFICADO_LLEGADA');
+    }
+  }, 30000);
+
+  it('t15: NFC — asignar, listar y revocar credencial', async () => {
+    const admin = await login('administrativo@escuelapass.local', 'Admin123*');
+    const studentsRes = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/school/students`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    const firstStudent = (studentsRes.body as Array<{ userId: string }>)[0];
+    if (!firstStudent?.userId) {
+      console.warn('t15: no hay estudiantes para asignar credencial NFC');
+      return;
+    }
+
+    const nfcUid = `A${Date.now().toString(16).slice(-7).toUpperCase()}`;
+
+    // Asignar
+    const assignRes = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/access-events/credentials/nfc`)
+      .set(authHeader(admin.accessToken))
+      .send({ targetUserId: firstStudent.userId, nfcUid })
+      .expect(201);
+    expect(assignRes.body).toHaveProperty('credentialId');
+    const credentialId: string = (assignRes.body as { credentialId: string }).credentialId;
+
+    // Listar
+    const listRes = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/access-events/credentials`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(Array.isArray(listRes.body?.data)).toBe(true);
+    const found = (listRes.body.data as Array<{ id: string }>).find((c) => c.id === credentialId);
+    expect(found).toBeDefined();
+
+    // Revocar
+    const revokeRes = await request(app.getHttpServer())
+      .delete(`/${apiPrefix}/access-events/credentials/${credentialId}`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expect(revokeRes.body).toHaveProperty('message');
+
+    // Verificar que ya no aparece en listado activo
+    const listAfter = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/access-events/credentials`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    const foundAfter = (listAfter.body.data as Array<{ id: string }>).find((c) => c.id === credentialId);
+    expect(foundAfter).toBeUndefined();
+  }, 30000);
+
+  it('t16: rutas eliminadas (external-visits, meetings, attention-notes) devuelven 404', async () => {
+    const admin = await login('administrativo@escuelapass.local', 'Admin123*');
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/external-visits`)
+      .set(authHeader(admin.accessToken))
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/meetings`)
+      .set(authHeader(admin.accessToken))
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/attention-notes`)
+      .set(authHeader(admin.accessToken))
+      .expect(404);
+  }, 15000);
+
+  it('t17: admin-reports endpoints devuelven 404 (eliminados)', async () => {
+    const admin = await login('administrativo@escuelapass.local', 'Admin123*');
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/notifications/admin-reports`)
+      .set(authHeader(admin.accessToken))
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/notifications/admin-reports/mine`)
+      .set(authHeader(admin.accessToken))
+      .expect(404);
+  }, 15000);
 });

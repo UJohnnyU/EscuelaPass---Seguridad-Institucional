@@ -1,0 +1,29 @@
+feat: alinear proyecto al 100% con FTG v2 — circuito GPS auto-transicion, NFC, limpieza BD e indices
+
+Bloque A — Limpieza BD y backend:
+- Migracion 1778700000000: DROP external_visits, meetings, student_attention_notes, admin_reports, pickup_authorizations
+- Eliminar modulos ExternalVisits, Meetings, AttentionNotes, EventScheduler del app.module y typeorm.config
+- Strip admin-reports de NoticesModule (service, controller, module)
+
+Bloque B — Circuito GPS (RF3):
+- circuit.service: auto-transicion PADRE_EN_CAMINO -> NOTIFICADO_LLEGADA al entrar al radio
+- notifyStaffParentInRadius: FCM a docentes y admin cuando padre entra al radio
+- updateStatus: merge teacher signal en AUTORIZADO_SALIR
+- DTO: restringir PARENT_NEXT solo a PADRE_EN_CAMINO
+
+Bloque C — Frontend circuito:
+- ParentTrackingMap: mapa Mapbox con watchPosition, polling GPS, overlay visual al entrar al radio
+- CircuitDetailPage: reemplazar boton "Ya llegue" por mapa en vivo; accion unificada para staff
+- App.tsx + navConfig: eliminar rutas/links Visitas, Reuniones, AnotacionesDocente
+
+Bloque D — NFC (RF2):
+- access.service: assignNfcCredential, listCredentials, revokeCredential
+- access.controller: POST/GET/DELETE /credentials/nfc + Swagger
+- assign-nfc-credential.dto: nuevo DTO con validacion
+- EscanerAccesoPage: UI asignacion/revocacion NFC para ADMIN/ADMINISTRATIVO
+
+Bloque E — Rendimiento y calidad:
+- Migracion 1778800000000: indices compuestos en circuit_requests, attendance_records, notifications, access_credentials, access_events
+- Swagger: @ApiTags/@ApiOperation/@ApiResponse en circuit.controller y notices controllers
+- E2E: t14 auto-transicion GPS, t15 NFC CRUD, t16/t17 verificar 404 modulos eliminados
+- Fix IsNull() en notices.service para consulta readAt null-safe

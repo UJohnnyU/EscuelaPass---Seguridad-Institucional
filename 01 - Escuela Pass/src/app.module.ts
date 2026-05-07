@@ -26,9 +26,6 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolModule } from './modules/school/school.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { ExternalVisitsModule } from './modules/external-visits/external-visits.module';
-import { MeetingsModule } from './modules/meetings/meetings.module';
-import { EventSchedulerModule } from './modules/event-scheduler/event-scheduler.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { SchoolCalendarModule } from './modules/school-calendar/school-calendar.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -36,7 +33,6 @@ import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
-import { AttentionNotesModule } from './modules/attention-notes/attention-notes.module';
 import { SchoolsModule } from './modules/schools/schools.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { DepartureConsentModule } from './modules/departure-consent/departure-consent.module';
@@ -76,9 +72,6 @@ import { MailModule } from './modules/mail/mail.module';
     SchoolModule,
     ExportsModule,
     DashboardModule,
-    ExternalVisitsModule,
-    MeetingsModule,
-    EventSchedulerModule,
     SchedulesModule,
     SchoolCalendarModule,
     SettingsModule,
@@ -86,7 +79,6 @@ import { MailModule } from './modules/mail/mail.module';
     DocumentsModule,
     AuditModule,
     PrivacyModule,
-    AttentionNotesModule,
     SchoolsModule,
     UploadsModule,
     DepartureConsentModule

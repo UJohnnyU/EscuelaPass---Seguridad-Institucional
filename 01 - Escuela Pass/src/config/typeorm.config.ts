@@ -7,8 +7,6 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AcademicPeriodEntity } from '../database/entities/academic-period.entity';
 import { ActivityEntity } from '../database/entities/activity.entity';
 import { ActivityGradeEntity } from '../database/entities/activity-grade.entity';
-import { AdminReportCommentEntity } from '../database/entities/admin-report-comment.entity';
-import { AdminReportEntity } from '../database/entities/admin-report.entity';
 import { AttendanceRecordEntity } from '../database/entities/attendance-record.entity';
 import { AccessCredentialEntity } from '../database/entities/access-credential.entity';
 import { AccessEventEntity } from '../database/entities/access-event.entity';
@@ -18,11 +16,6 @@ import { GroupEntity } from '../database/entities/group.entity';
 import { ClassSessionEntity } from '../database/entities/class-session.entity';
 import { ClassScheduleSlotEntity } from '../database/entities/class-schedule-slot.entity';
 import { ImportJobEntity } from '../database/entities/import-job.entity';
-import { MeetingEntity } from '../database/entities/meeting.entity';
-import { MeetingParticipantEntity } from '../database/entities/meeting-participant.entity';
-import { ExternalVisitEntity } from '../database/entities/external-visit.entity';
-import { ExternalVisitGroupEntity } from '../database/entities/external-visit-group.entity';
-import { ExternalVisitStudentEntity } from '../database/entities/external-visit-student.entity';
 import { NoticeEntity } from '../database/entities/notice.entity';
 import { NotificationEntity } from '../database/entities/notification.entity';
 import { DebtEntity } from '../database/entities/debt.entity';
@@ -36,12 +29,10 @@ import { TeacherSubjectEntity } from '../database/entities/teacher-subject.entit
 import { PaymentConceptEntity } from '../database/entities/payment-concept.entity';
 import { PaymentRecordEntity } from '../database/entities/payment-record.entity';
 import { ParentEntity } from '../database/entities/parent.entity';
-import { PickupAuthorizationEntity } from '../database/entities/pickup-authorization.entity';
 import { RefreshTokenEntity } from '../database/entities/refresh-token.entity';
 import { InstitutionSettingEntity } from '../database/entities/institution-setting.entity';
 import { SchoolNonInstructionalDayEntity } from '../database/entities/school-non-instructional-day.entity';
 import { StudentDepartureConsentEntity } from '../database/entities/student-departure-consent.entity';
-import { StudentAttentionNoteEntity } from '../database/entities/student-attention-note.entity';
 import { StudentLifecycleEventEntity } from '../database/entities/student-lifecycle-event.entity';
 import { StudentParentEntity } from '../database/entities/student-parent.entity';
 import { StudentEntity } from '../database/entities/student.entity';
@@ -75,10 +66,8 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       AdministrativeStaffEntity,
       AccessCredentialEntity,
       AccessEventEntity,
-      PickupAuthorizationEntity,
       RefreshTokenEntity,
       StudentDepartureConsentEntity,
-      StudentAttentionNoteEntity,
       CircuitRequestEntity,
       GroupEntity,
       NoticeEntity,
@@ -91,19 +80,12 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       AcademicPeriodEntity,
       ActivityEntity,
       ActivityGradeEntity,
-      AdminReportEntity,
-      AdminReportCommentEntity,
       ReportCardEntity,
       ReportCardSubjectEntity,
       SubjectEntity,
       TeacherGroupEntity,
       TeacherSubjectEntity,
       ImportJobEntity,
-      ExternalVisitEntity,
-      ExternalVisitGroupEntity,
-      ExternalVisitStudentEntity,
-      MeetingEntity,
-      MeetingParticipantEntity,
       ClassScheduleSlotEntity,
       ClassSessionEntity,
       UserFcmTokenEntity,

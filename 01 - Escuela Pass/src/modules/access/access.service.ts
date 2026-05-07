@@ -185,6 +185,89 @@ export class AccessService {
     await this.attendanceRepository.save(created);
   }
 
+  /** RF2 — Asignar credencial NFC a un usuario. Solo puede existir una activa por usuario. */
+  async assignNfcCredential(targetUserId: string, nfcUid: string, assignedByUserId: string) {
+    const user = await this.usersRepository.findOne({ where: { id: targetUserId }, select: ['id', 'fullName', 'schoolId'] });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    const assignedByUser = await this.usersRepository.findOne({ where: { id: assignedByUserId }, select: ['id', 'schoolId'] });
+    if (assignedByUser?.schoolId && user.schoolId && assignedByUser.schoolId !== user.schoolId) {
+      throw new BadRequestException('No puede asignar credenciales a usuarios de otra institución');
+    }
+
+    const normalizedUid = nfcUid.trim().toUpperCase();
+    // Check the NFC UID is not already taken by another active credential
+    const existingForUid = await this.credentialsRepository.findOne({
+      where: { credentialType: CredentialType.NFC, credentialValue: normalizedUid, status: CredentialStatus.ACTIVE }
+    });
+    if (existingForUid && existingForUid.userId !== targetUserId) {
+      throw new BadRequestException('Este UID NFC ya está asignado a otro usuario');
+    }
+
+    // Revoke previous active NFC credential for this user
+    const existingForUser = await this.credentialsRepository.findOne({
+      where: { userId: targetUserId, credentialType: CredentialType.NFC, status: CredentialStatus.ACTIVE }
+    });
+    if (existingForUser) {
+      existingForUser.status = CredentialStatus.REVOKED;
+      await this.credentialsRepository.save(existingForUser);
+    }
+
+    const credential = this.credentialsRepository.create({
+      userId: targetUserId,
+      credentialType: CredentialType.NFC,
+      credentialValue: normalizedUid,
+      status: CredentialStatus.ACTIVE
+    });
+    await this.credentialsRepository.save(credential);
+    return { message: 'Credencial NFC asignada', credentialId: credential.id, nfcUid: normalizedUid, userId: targetUserId };
+  }
+
+  /** RF2 — Listar credenciales activas de una institución. */
+  async listCredentials(schoolId: string | null, page = 1, limit = 50) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const qb = this.credentialsRepository
+      .createQueryBuilder('c')
+      .innerJoin('users', 'u', 'u.id = c.user_id')
+      .select([
+        'c.id AS id',
+        'c.user_id AS "userId"',
+        'c.credential_type AS "credentialType"',
+        'c.credential_value AS "credentialValue"',
+        'c.status AS status',
+        'c.created_at AS "createdAt"',
+        'u.full_name AS "userFullName"',
+        'u.email AS "userEmail"',
+        'u.role AS "userRole"'
+      ])
+      .where('c.status = :status', { status: CredentialStatus.ACTIVE });
+
+    if (schoolId) qb.andWhere('u.school_id = :schoolId', { schoolId });
+    const [rows, total] = await Promise.all([
+      qb.orderBy('c.created_at', 'DESC').offset(skip).limit(take).getRawMany<Record<string, unknown>>(),
+      qb.getCount()
+    ]);
+    return { data: rows, meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) } };
+  }
+
+  /** RF2 — Revocar una credencial por ID. */
+  async revokeCredential(credentialId: string, requestedByUserId: string) {
+    const credential = await this.credentialsRepository.findOne({ where: { id: credentialId } });
+    if (!credential) throw new NotFoundException('Credencial no encontrada');
+    if (credential.status === CredentialStatus.REVOKED) {
+      return { message: 'La credencial ya estaba revocada' };
+    }
+    const user = await this.usersRepository.findOne({ where: { id: requestedByUserId }, select: ['id', 'schoolId'] });
+    const credUser = await this.usersRepository.findOne({ where: { id: credential.userId }, select: ['id', 'schoolId'] });
+    if (user?.schoolId && credUser?.schoolId && user.schoolId !== credUser.schoolId) {
+      throw new BadRequestException('No puede revocar credenciales de otra institución');
+    }
+    credential.status = CredentialStatus.REVOKED;
+    await this.credentialsRepository.save(credential);
+    return { message: 'Credencial revocada', credentialId };
+  }
+
   private async notifyParentsStudentAccess(
     studentUserId: string,
     studentName: string,

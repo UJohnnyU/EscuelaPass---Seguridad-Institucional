@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -545,13 +545,27 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     );
 
     const radiusKm = schoolGeo.radiusKm;
+    let autoTransitioned = false;
+
+    // Auto-transicion: si padre en PADRE_EN_CAMINO entra al radio -> NOTIFICADO_LLEGADA
+    if (req.status === CircuitStatus.PADRE_EN_CAMINO && proximity.distanceKm <= radiusKm) {
+      req.status = CircuitStatus.NOTIFICADO_LLEGADA;
+      req.arrivalSnapshotLatitude = dto.parentGpsLatitude.toString();
+      req.arrivalSnapshotLongitude = dto.parentGpsLongitude.toString();
+      req.arrivalSnapshotAt = new Date();
+      autoTransitioned = true;
+    }
 
     const saved = await this.circuitRepository.save(req);
 
-    /** El estado no cambia por radio/GPS: el padre usa PATCH .../parent-progress para “en camino” y “llegué”. */
+    if (autoTransitioned) {
+      const studentName = await this.studentDisplayName(saved.studentId);
+      await this.notifyStaffParentInRadius(saved, studentName);
+      this.pushCircuitToParent(parentUserId, saved.id, saved.status, 'En el radio del plantel', `Entraste al area de recogida. El personal fue notificado. Espera autorizacion para ${studentName}.`);
+    }
 
     return {
-      message: 'Ubicación actualizada',
+      message: autoTransitioned ? 'Ubicacion actualizada â€” llegada detectada automaticamente' : 'Ubicacion actualizada',
       id: saved.id,
       parentGpsLatitude: saved.parentGpsLatitude,
       parentGpsLongitude: saved.parentGpsLongitude,
@@ -560,8 +574,60 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       distanceToSchoolKm: Number(proximity.distanceKm.toFixed(3)),
       etaMinutes: proximity.durationSeconds ? Math.ceil(proximity.durationSeconds / 60) : null,
       distanceSource: proximity.source,
-      autoTransitioned: false
+      autoTransitioned
     };
+  }
+
+  /** Notifica al personal (docentes del grupo + admin de la escuela) que el padre entro al radio. */
+  private async notifyStaffParentInRadius(req: CircuitRequestEntity, studentName: string): Promise<void> {
+    const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
+    if (!student) return;
+
+    const staffUserIds: string[] = [];
+
+    if (student.groupId) {
+      const teacherLinks = await this.teacherGroupsRepository.find({ where: { groupId: student.groupId } });
+      if (teacherLinks.length > 0) {
+        const teacherIds = [...new Set(teacherLinks.map((t) => t.teacherId))];
+        const teachers = await this.teachersRepository.find({ where: { id: In(teacherIds) } });
+        teachers.forEach((t) => { if (t.userId) staffUserIds.push(t.userId); });
+      }
+    }
+
+    if (student.schoolId) {
+      const admins = await this.usersRepository.find({
+        where: [
+          { schoolId: student.schoolId, role: UserRole.ADMINISTRATIVO, status: true },
+          { schoolId: student.schoolId, role: UserRole.ADMIN, status: true }
+        ],
+        select: ['id']
+      });
+      admins.forEach((u) => staffUserIds.push(u.id));
+    }
+
+    const uniqueStaff = [...new Set(staffUserIds)];
+    if (uniqueStaff.length === 0) return;
+
+    const title = `Padre en radio — ${studentName}`;
+    const body = `El padre/tutor esta en el area de recogida. Autoriza la salida de ${studentName} desde Circuito del dia.`;
+
+    const rows = uniqueStaff.map((userId) =>
+      this.notificationsRepository.create({ userId, title, message: body, deliveryStatus: 'SENT' })
+    );
+    await this.notificationsRepository.save(rows);
+
+    for (const userId of uniqueStaff) {
+      void this.fcmService
+        .sendPushToUser(userId, title, body, {
+          type: 'circuit',
+          route: '/app/circuito/hoy',
+          circuitRequestId: req.id,
+          status: CircuitStatus.NOTIFICADO_LLEGADA
+        })
+        .catch((err: unknown) => {
+          this.logger.warn(`FCM staff radio-circuito no enviado: ${String(err)}`);
+        });
+    }
   }
 
   async advanceParentProgress(id: string, parentUserId: string, dto: UpdateParentCircuitProgressDto) {
@@ -582,28 +648,6 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
     this.assertParentTransition(req.status, next);
 
-    if (next === CircuitStatus.NOTIFICADO_LLEGADA) {
-      const latFromDto =
-        dto.parentGpsLatitude === null || dto.parentGpsLatitude === undefined
-          ? NaN
-          : Number(dto.parentGpsLatitude as number | string);
-      const lngFromDto =
-        dto.parentGpsLongitude === null || dto.parentGpsLongitude === undefined
-          ? NaN
-          : Number(dto.parentGpsLongitude as number | string);
-      const lat = Number.isFinite(latFromDto) ? latFromDto : Number(req.parentGpsLatitude);
-      const lng = Number.isFinite(lngFromDto) ? lngFromDto : Number(req.parentGpsLongitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        throw new BadRequestException(
-          'Debe permitir el acceso a la ubicación y enviar coordenadas al marcar que ya llegó al plantel. Si falla, reintente con GPS activo.'
-        );
-      }
-      req.parentGpsLatitude = lat.toString();
-      req.parentGpsLongitude = lng.toString();
-      req.arrivalSnapshotLatitude = lat.toString();
-      req.arrivalSnapshotLongitude = lng.toString();
-      req.arrivalSnapshotAt = new Date();
-    }
 
     req.status = next;
     const saved = await this.circuitRepository.save(req);
@@ -621,7 +665,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
   private assertParentTransition(from: CircuitStatus, to: CircuitStatus) {
     if (from === CircuitStatus.PENDIENTE && to === CircuitStatus.PADRE_EN_CAMINO) return;
-    if (from === CircuitStatus.PADRE_EN_CAMINO && to === CircuitStatus.NOTIFICADO_LLEGADA) return;
+    // NOTIFICADO_LLEGADA is now triggered automatically by GPS proximity, not manually by the parent
     throw new BadRequestException(`Transición de padre no permitida: ${from} -> ${to}`);
   }
 
@@ -1138,6 +1182,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('No autorizado a cambiar el estado del circuito');
     }
 
+    // NOTIFICADO_LLEGADA is set automatically via GPS proximity; staff cannot set it manually
     if (dto.status === CircuitStatus.NOTIFICADO_LLEGADA) {
       throw new BadRequestException(
         'La llegada al plantel solo la registra el padre o madre con ubicación (acción «Ya llegué»).'
@@ -1173,6 +1218,11 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     req.status = next;
+
+    // Al autorizar salida, se implica que el alumno ya va camino a la salida
+    if (next === CircuitStatus.AUTORIZADO_SALIR) {
+      req.teacherSignal = TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA;
+    }
 
     if (next === CircuitStatus.EN_CAMINO) {
       if (req.teacherSignal !== TeacherCircuitSignal.ALUMNO_CAMINO_A_SALIDA) {

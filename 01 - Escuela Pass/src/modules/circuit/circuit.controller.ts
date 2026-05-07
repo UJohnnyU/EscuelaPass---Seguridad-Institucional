@@ -11,6 +11,7 @@ import {
   Req,
   UseGuards
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
 import { UserRole } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -29,6 +30,8 @@ type JwtUser = { userId: string; email: string; role: UserRole };
 /** Acepta cualquier UUID RFC (v4, v7, etc.); coincide con `uuid` en PostgreSQL. */
 const circuitIdPipe = new ParseUUIDPipe();
 
+@ApiTags('circuit-requests')
+@ApiBearerAuth()
 @Controller('circuit-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CircuitController {
@@ -36,19 +39,22 @@ export class CircuitController {
 
   @Post()
   @Roles(UserRole.PADRE, UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  @ApiOperation({ summary: 'Crear solicitud de circuito de recogida' })
+  @ApiResponse({ status: 201, description: 'Solicitud creada.' })
   create(@Body() payload: CreateCircuitRequestDto) {
     return this.circuitService.create(payload);
   }
 
-  /** Crea solicitudes para múltiples hijos en una sola llamada. */
   @Post('batch')
   @Roles(UserRole.PADRE, UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  @ApiOperation({ summary: 'Crear solicitudes de circuito para múltiples hijos' })
   createBatch(@Body() payload: CreateBatchCircuitRequestDto) {
     return this.circuitService.createBatch(payload);
   }
 
   @Get('today')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  @ApiOperation({ summary: 'Solicitudes de circuito del día (vista staff)' })
   findToday(
     @Req() req: Request & { user: JwtUser },
     @Query('schoolId') schoolId?: string,
@@ -74,6 +80,8 @@ export class CircuitController {
 
   @Patch(':id/gps')
   @Roles(UserRole.PADRE)
+  @ApiOperation({ summary: 'Actualizar GPS del padre — activa auto-transición a NOTIFICADO_LLEGADA al entrar al radio' })
+  @ApiResponse({ status: 200, description: 'Ubicación actualizada. autoTransitioned=true si el padre entró al radio.' })
   updateGps(
     @Param('id', circuitIdPipe) id: string,
     @Body() dto: UpdateCircuitGpsDto,
@@ -84,6 +92,7 @@ export class CircuitController {
 
   @Patch(':id/parent-progress')
   @Roles(UserRole.PADRE)
+  @ApiOperation({ summary: 'Avanzar estado del circuito (padre): solo PADRE_EN_CAMINO es válido; NOTIFICADO_LLEGADA se activa automáticamente por GPS' })
   advanceParentProgress(
     @Param('id', circuitIdPipe) id: string,
     @Body() dto: UpdateParentCircuitProgressDto,
@@ -124,6 +133,7 @@ export class CircuitController {
 
   @Patch(':id/status')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  @ApiOperation({ summary: 'Cambiar estado del circuito (staff). Al pasar a AUTORIZADO_SALIR, se establece teacherSignal=ALUMNO_CAMINO_A_SALIDA automáticamente.' })
   updateStatus(
     @Param('id', circuitIdPipe) id: string,
     @Body() dto: UpdateCircuitStatusDto,

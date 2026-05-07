@@ -4,6 +4,19 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { QrScanResultModal, type ScanResponse } from '@/components/QrScanResultModal';
 import { Panel } from '@/components/ValueView';
+import { useAuth } from '@/context/useAuth';
+
+type NfcCredential = {
+  id: string;
+  userId: string;
+  credentialType: string;
+  credentialValue: string;
+  status: string;
+  createdAt: string;
+  userFullName: string | null;
+  userEmail: string | null;
+  userRole: string | null;
+};
 
 const READER_ID = 'escaner-qr-region';
 
@@ -54,6 +67,9 @@ function extractNfcCredentialValue(event: NDEFReadingEvent): string {
 }
 
 export function EscanerAccesoPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const nfcAbortRef = useRef<AbortController | null>(null);
 
@@ -64,6 +80,29 @@ export function EscanerAccesoPage() {
   const [nfcScanning, setNfcScanning] = useState(false);
   const [nfcErr, setNfcErr] = useState<string | null>(null);
   const [nfcInfo, setNfcInfo] = useState<string | null>(null);
+
+  // NFC credential management (ADMIN/ADMINISTRATIVO only)
+  const [nfcCredentials, setNfcCredentials] = useState<NfcCredential[]>([]);
+  const [credBusy, setCredBusy] = useState(false);
+  const [credErr, setCredErr] = useState<string | null>(null);
+  const [credMsg, setCredMsg] = useState<string | null>(null);
+  const [assignUserId, setAssignUserId] = useState('');
+  const [assignNfcUid, setAssignNfcUid] = useState('');
+  const [showCredPanel, setShowCredPanel] = useState(false);
+
+  const loadCredentials = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const { data } = await api.get<{ data: NfcCredential[] }>('/api/v1/access-events/credentials');
+      setNfcCredentials(data.data);
+    } catch {
+      // silencioso
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (showCredPanel) void loadCredentials();
+  }, [showCredPanel, loadCredentials]);
 
   const stopCamera = useCallback(async () => {
     const s = scannerRef.current;
@@ -346,6 +385,153 @@ export function EscanerAccesoPage() {
           }}
         />
       ) : null}
+
+      {isAdmin && (
+        <details
+          open={showCredPanel}
+          onToggle={(e) => setShowCredPanel((e.currentTarget as HTMLDetailsElement).open)}
+          className="group rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 text-sm font-semibold text-slate-800 outline-none marker:content-none dark:text-slate-100 [&::-webkit-details-marker]:hidden">
+            <span>Gestión de credenciales NFC</span>
+            <span className="text-xs font-normal text-slate-500 group-open:rotate-180 dark:text-slate-400" aria-hidden>▼</span>
+          </summary>
+          <div className="space-y-6 border-t border-slate-200 px-5 py-5 dark:border-slate-700">
+            {/* Asignar credencial NFC */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Asignar tarjeta NFC a usuario</h3>
+              {credErr && (
+                <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                  {credErr}
+                </p>
+              )}
+              {credMsg && (
+                <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                  {credMsg}
+                </p>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">UUID del usuario</label>
+                  <input
+                    type="text"
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    value={assignUserId}
+                    onChange={(e) => setAssignUserId(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">UID NFC (hexadecimal)</label>
+                  <input
+                    type="text"
+                    placeholder="A1B2C3D4"
+                    value={assignNfcUid}
+                    onChange={(e) => setAssignNfcUid(e.target.value.toUpperCase())}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={credBusy || !assignUserId.trim() || !assignNfcUid.trim()}
+                onClick={async () => {
+                  setCredErr(null);
+                  setCredMsg(null);
+                  setCredBusy(true);
+                  try {
+                    await api.post('/api/v1/access-events/credentials/nfc', {
+                      targetUserId: assignUserId.trim(),
+                      nfcUid: assignNfcUid.trim()
+                    });
+                    setCredMsg('Credencial NFC asignada correctamente.');
+                    setAssignUserId('');
+                    setAssignNfcUid('');
+                    await loadCredentials();
+                  } catch (e) {
+                    setCredErr(getUserFacingMessage(e));
+                  } finally {
+                    setCredBusy(false);
+                  }
+                }}
+                className="rounded-lg bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+              >
+                {credBusy ? 'Asignando…' : 'Asignar credencial NFC'}
+              </button>
+            </div>
+
+            {/* Listado de credenciales activas */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Credenciales NFC activas</h3>
+                <button
+                  type="button"
+                  onClick={() => void loadCredentials()}
+                  className="text-xs text-brand-800 hover:underline dark:text-brand-300"
+                >
+                  Actualizar
+                </button>
+              </div>
+              {nfcCredentials.length === 0 ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400">No hay credenciales NFC activas.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Usuario</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Rol</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">UID NFC</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Asignado</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nfcCredentials
+                        .filter((c) => c.credentialType === 'NFC')
+                        .map((cred) => (
+                          <tr key={cred.id} className="border-t border-slate-200 dark:border-slate-700">
+                            <td className="px-3 py-2 text-slate-800 dark:text-slate-100">
+                              {cred.userFullName ?? cred.userEmail ?? cred.userId.slice(0, 8)}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{cred.userRole}</td>
+                            <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{cred.credentialValue}</td>
+                            <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                              {new Date(cred.createdAt).toLocaleDateString('es')}
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                disabled={credBusy}
+                                onClick={async () => {
+                                  setCredErr(null);
+                                  setCredMsg(null);
+                                  setCredBusy(true);
+                                  try {
+                                    await api.delete(`/api/v1/access-events/credentials/${cred.id}`);
+                                    setCredMsg('Credencial revocada.');
+                                    await loadCredentials();
+                                  } catch (e) {
+                                    setCredErr(getUserFacingMessage(e));
+                                  } finally {
+                                    setCredBusy(false);
+                                  }
+                                }}
+                                className="rounded border border-red-300 bg-red-50 px-2 py-1 text-red-800 hover:bg-red-100 disabled:opacity-50 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200"
+                              >
+                                Revocar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </details>
+      )}
     </div>
   );
 }

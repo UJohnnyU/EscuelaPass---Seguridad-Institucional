@@ -28,12 +28,9 @@ import {
   ComunicacionPage,
   FinanzasPage
 } from '@/pages/modulos/Operativos';
-import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
 import { BoletinesPage } from '@/pages/modulos/BoletinesPage';
 import { CalificacionesDocentePage } from '@/pages/modulos/CalificacionesDocentePage';
 import { MisCalificacionesPage } from '@/pages/modulos/MisCalificacionesPage';
-import { ReunionesPage } from '@/pages/modulos/ReunionesPage';
-import { VisitasPage } from '@/pages/modulos/VisitasPage';
 import { PeriodosAcademicosPage } from '@/pages/PeriodosAcademicosPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
@@ -125,16 +122,6 @@ export default function App() {
               </RoleGate>
             }
           />
-          <Route
-            path="modulos/anotaciones-docente"
-            element={
-              <RoleGate allow={['DOCENTE', 'ADMIN', 'ADMINISTRATIVO']}>
-                <AnotacionesDocentePage />
-              </RoleGate>
-            }
-          />
-          <Route path="modulos/visitas" element={<VisitasPage />} />
-          <Route path="modulos/reuniones" element={<ReunionesPage />} />
           <Route
             path="modulos/administracion"
             element={
