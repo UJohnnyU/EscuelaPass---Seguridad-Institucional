@@ -45,6 +45,11 @@ function nfcIsSupported(): boolean {
   return typeof window !== 'undefined' && 'NDEFReader' in window;
 }
 
+/** Sin separadores y en mayúsculas; alinea lectores USB/keyboard wedge, pegado manual y UIDs guardados en el sistema. */
+function normalizeNfcUidInput(raw: string): string {
+  return raw.trim().replace(/[:-]/g, '').toUpperCase();
+}
+
 function extractNfcCredentialValue(event: NDEFReadingEvent): string {
   for (const record of event.message.records) {
     if (record.recordType === 'text') {
@@ -80,6 +85,9 @@ export function EscanerAccesoPage() {
   const [nfcScanning, setNfcScanning] = useState(false);
   const [nfcErr, setNfcErr] = useState<string | null>(null);
   const [nfcInfo, setNfcInfo] = useState<string | null>(null);
+  const [manualUid, setManualUid] = useState('');
+  const [manualErr, setManualErr] = useState<string | null>(null);
+  const [manualBusy, setManualBusy] = useState(false);
 
   // NFC credential management (ADMIN/ADMINISTRATIVO only)
   const [nfcCredentials, setNfcCredentials] = useState<NfcCredential[]>([]);
@@ -165,6 +173,30 @@ export function EscanerAccesoPage() {
     }
   }
 
+  async function handleManualUidScan() {
+    const normalized = normalizeNfcUidInput(manualUid);
+    if (!normalized) {
+      setManualErr('Ingrese el UID de la tarjeta o el valor leído.');
+      return;
+    }
+    setManualErr(null);
+    setManualBusy(true);
+    setResult(null);
+    try {
+      const { data } = await api.post<ScanResponse>('/api/v1/access-events/scan', {
+        method: 'MANUAL',
+        credentialValue: normalized,
+        eventType
+      });
+      setResult(data);
+      setManualUid('');
+    } catch (e) {
+      setManualErr(getUserFacingMessage(e));
+    } finally {
+      setManualBusy(false);
+    }
+  }
+
   async function startCamera() {
     setErr(null);
     setResult(null);
@@ -235,8 +267,8 @@ export function EscanerAccesoPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Control de acceso</p>
         <h1 className="mt-1 font-serif text-3xl font-semibold tracking-tight">Escáner de acceso</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
-          Use la cámara para leer el código QR, o acerque una tarjeta NFC al dispositivo para registrar el ingreso o
-          la salida de estudiantes, docentes y personal autorizado.
+          Use la cámara para el código QR, el campo de UID para cualquier navegador (incluye lectores USB en modo
+          teclado), o Web NFC en Chrome para Android si el dispositivo lo permite.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs text-white/90">
@@ -331,11 +363,57 @@ export function EscanerAccesoPage() {
       </Panel>
 
       <Panel
+        title="UID NFC (todos los navegadores)"
+        description="Escriba o pegue el UID hexadecimal de la tarjeta (el mismo que figura en la gestión de credenciales). Los lectores NFC USB en modo teclado pueden enfocar este campo: al terminar de &ldquo;escribir&rdquo; el UID, pulse Intro o use el botón."
+      >
+        {manualErr && (
+          <div className="mb-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+            {manualErr}
+          </div>
+        )}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="manual-nfc-uid">
+              UID / valor NFC
+            </label>
+            <input
+              id="manual-nfc-uid"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={manualUid}
+              onChange={(e) => setManualUid(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleManualUidScan();
+                }
+              }}
+              placeholder="Ej. A1B2C3D4 o A1:B2:C3:D4"
+              className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 font-mono text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={manualBusy}
+            onClick={() => void handleManualUidScan()}
+            className="shrink-0 rounded-xl bg-brand-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 disabled:opacity-50"
+          >
+            {manualBusy ? 'Registrando…' : 'Registrar acceso'}
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          En móviles sin Web NFC puede dictar o transcribir el UID; en escritorio suele usarse un lector NFC USB que
+          emula teclado.
+        </p>
+      </Panel>
+
+      <Panel
         title="Lectura con tarjeta NFC"
         description={
           nfcIsSupported()
             ? 'Acerque la tarjeta NFC al lector del dispositivo Android. La tarjeta debe estar registrada en el sistema.'
-            : 'NFC requiere Chrome en Android con NFC activado. No disponible en este navegador o dispositivo.'
+            : 'Lectura por chip integrada (Web NFC): solo en Chrome para Android con NFC activado. Use el bloque «UID NFC» arriba en otros navegadores o con lector USB.'
         }
       >
         {nfcErr && (
@@ -370,7 +448,8 @@ export function EscanerAccesoPage() {
         </div>
         {!nfcIsSupported() && (
           <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            Para usar NFC, abra esta página en Chrome para Android en un dispositivo con NFC habilitado.
+            El UID manual (bloque anterior) cubre Firefox, Safari, escritorio y lectores USB. Web NFC en esta sección
+            requiere Chrome en Android con NFC habilitado.
           </p>
         )}
       </Panel>

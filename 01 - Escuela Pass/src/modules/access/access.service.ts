@@ -64,11 +64,18 @@ export class AccessService {
 
   async scanAccess(payload: RegisterAccessEventDto) {
     const credentialType =
-      payload.method === 'NFC' ? CredentialType.NFC : CredentialType.QR;
+      payload.method === AccessMethod.NFC || payload.method === AccessMethod.MANUAL
+        ? CredentialType.NFC
+        : CredentialType.QR;
+    const trimmed = payload.credentialValue.trim();
+    const credentialValueForLookup =
+      payload.method === AccessMethod.MANUAL
+        ? trimmed.replace(/[:-]/g, '').toUpperCase()
+        : trimmed;
     const credential = await this.credentialsRepository.findOne({
       where: {
         credentialType,
-        credentialValue: payload.credentialValue,
+        credentialValue: credentialValueForLookup,
         status: CredentialStatus.ACTIVE
       }
     });
@@ -195,7 +202,10 @@ export class AccessService {
       throw new BadRequestException('No puede asignar credenciales a usuarios de otra institución');
     }
 
-    const normalizedUid = nfcUid.trim().toUpperCase();
+    const normalizedUid = nfcUid.trim().replace(/[:-]/g, '').toUpperCase();
+    if (!normalizedUid) {
+      throw new BadRequestException('UID NFC no válido');
+    }
     // Check the NFC UID is not already taken by another active credential
     const existingForUid = await this.credentialsRepository.findOne({
       where: { credentialType: CredentialType.NFC, credentialValue: normalizedUid, status: CredentialStatus.ACTIVE }
@@ -288,7 +298,12 @@ export class AccessService {
       payload.eventType === AccessEventType.ENTRY ? 'entró a' : 'salió de';
     const title =
       payload.eventType === AccessEventType.ENTRY ? 'Entrada registrada' : 'Salida registrada';
-    const methodLabel = payload.method === AccessMethod.NFC ? 'NFC' : 'QR';
+    const methodLabel =
+      payload.method === AccessMethod.NFC
+        ? 'NFC'
+        : payload.method === AccessMethod.MANUAL
+          ? 'UID manual'
+          : 'QR';
     const message = `${studentName} ${verb} la institución (${methodLabel}).`;
 
     for (const row of parentRows) {
