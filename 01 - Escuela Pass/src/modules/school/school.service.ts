@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -42,6 +43,7 @@ import { TransitionStudentLifecycleDto } from './dto/transition-student-lifecycl
 import { TransitionTeacherLifecycleDto } from './dto/transition-teacher-lifecycle.dto';
 import { UpdateStudentParentLinkDto } from './dto/update-student-parent-link.dto';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
+import { AccessService } from '../access/access.service';
 
 type ImportCreateResult = {
   totalRows: number;
@@ -76,6 +78,7 @@ type LifecycleEventListItem = {
 
 @Injectable()
 export class SchoolService {
+  private readonly logger = new Logger(SchoolService.name);
   constructor(
     @InjectRepository(GroupEntity)
     private readonly groupsRepository: Repository<GroupEntity>,
@@ -103,7 +106,8 @@ export class SchoolService {
     private readonly studentLifecycleEventsRepository: Repository<StudentLifecycleEventEntity>,
     @InjectRepository(TeacherLifecycleEventEntity)
     private readonly teacherLifecycleEventsRepository: Repository<TeacherLifecycleEventEntity>,
-    private readonly settingsService: SettingsService
+    private readonly settingsService: SettingsService,
+    private readonly accessService: AccessService
   ) {}
 
   private getLogoExtensionForExcel(absPath: string): 'png' | 'jpeg' | 'gif' {
@@ -651,6 +655,11 @@ export class SchoolService {
       lifecycleStatus: StudentLifecycleStatus.ACTIVO
     });
     const savedStudent = await this.studentsRepository.save(student);
+    try {
+      await this.accessService.getOrCreateNfcForUser(savedUser.id);
+    } catch (e) {
+      this.logger.warn(`No se pudo crear credencial NFC para el alumno (usuario ${savedUser.id}): ${String(e)}`);
+    }
     return this.getStudent(savedStudent.id, schoolId);
   }
 

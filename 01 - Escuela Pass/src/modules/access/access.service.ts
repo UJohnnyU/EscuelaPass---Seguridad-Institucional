@@ -62,6 +62,79 @@ export class AccessService {
     return { qrValue: row.credentialValue };
   }
 
+  /**
+   * Credencial NFC de acceso (hex) como el QR: se crea al registrar al alumno.
+   * Valor único de 32 hex; si luego se asigna tarjeta física, `assignNfcCredential` sustituye este UID.
+   */
+  async getOrCreateNfcForUser(userId: string): Promise<{ nfcUid: string }> {
+    const existing = await this.credentialsRepository.findOne({
+      where: {
+        userId,
+        credentialType: CredentialType.NFC,
+        status: CredentialStatus.ACTIVE
+      }
+    });
+    if (existing) {
+      return { nfcUid: existing.credentialValue };
+    }
+    const value = randomUUID().replace(/-/g, '').toUpperCase();
+    const row = this.credentialsRepository.create({
+      userId,
+      credentialType: CredentialType.NFC,
+      credentialValue: value,
+      status: CredentialStatus.ACTIVE
+    });
+    await this.credentialsRepository.save(row);
+    return { nfcUid: row.credentialValue };
+  }
+
+  /** Usuarios de la institución para asignar/reemplazar credencial NFC (búsqueda). */
+  async searchAssignableUsers(schoolId: string | null, q: string | undefined, limit = 24) {
+    const take = Math.min(Math.max(limit, 1), 50);
+    const qb = this.usersRepository
+      .createQueryBuilder('u')
+      .leftJoin('students', 's', 's.user_id = u.id AND u.role = :alumno', { alumno: UserRole.ALUMNO })
+      .where('u.status = :st', { st: true })
+      .andWhere('u.role IN (:...roles)', {
+        roles: [UserRole.ALUMNO, UserRole.DOCENTE, UserRole.ADMINISTRATIVO, UserRole.PADRE]
+      })
+      .select([
+        'u.id AS id',
+        'u.full_name AS full_name',
+        'u.email AS email',
+        'u.role AS role',
+        's.matricula AS matricula'
+      ])
+      .orderBy('u.full_name', 'ASC')
+      .take(take);
+
+    if (schoolId) {
+      qb.andWhere('u.school_id = :sid', { sid: schoolId });
+    }
+    const term = q?.trim();
+    if (term) {
+      qb.andWhere(
+        '(u.full_name ILIKE :t OR u.email ILIKE :t OR s.matricula ILIKE :t)',
+        { t: `%${term}%` }
+      );
+    }
+
+    const rows = await qb.getRawMany<{
+      id: string;
+      full_name: string | null;
+      email: string | null;
+      role: UserRole;
+      matricula: string | null;
+    }>();
+    return rows.map((r) => ({
+      userId: r.id,
+      fullName: r.full_name?.trim() || '',
+      email: r.email?.trim() || null,
+      role: r.role,
+      matricula: r.matricula?.trim() || null
+    }));
+  }
+
   async scanAccess(payload: RegisterAccessEventDto) {
     const credentialType =
       payload.method === AccessMethod.NFC || payload.method === AccessMethod.MANUAL
@@ -69,7 +142,7 @@ export class AccessService {
         : CredentialType.QR;
     const trimmed = payload.credentialValue.trim();
     const credentialValueForLookup =
-      payload.method === AccessMethod.MANUAL
+      payload.method === AccessMethod.MANUAL || payload.method === AccessMethod.NFC
         ? trimmed.replace(/[:-]/g, '').toUpperCase()
         : trimmed;
     const credential = await this.credentialsRepository.findOne({
@@ -233,32 +306,58 @@ export class AccessService {
     return { message: 'Credencial NFC asignada', credentialId: credential.id, nfcUid: normalizedUid, userId: targetUserId };
   }
 
-  /** RF2 — Listar credenciales activas de una institución. */
-  async listCredentials(schoolId: string | null, page = 1, limit = 50) {
-    const take = Math.min(Math.max(limit, 1), 100);
+  /** RF2 — Listar credenciales activas de una institución (filtros opcionales). */
+  async listCredentials(
+    schoolId: string | null,
+    page = 1,
+    limit = 50,
+    opts?: { search?: string | null; credentialType?: CredentialType | null; userRole?: UserRole | null }
+  ) {
+    const take = Math.min(Math.max(limit, 1), 200);
     const skip = (Math.max(page, 1) - 1) * take;
     const qb = this.credentialsRepository
       .createQueryBuilder('c')
       .innerJoin('users', 'u', 'u.id = c.user_id')
-      .select([
-        'c.id AS id',
-        'c.user_id AS "userId"',
-        'c.credential_type AS "credentialType"',
-        'c.credential_value AS "credentialValue"',
-        'c.status AS status',
-        'c.created_at AS "createdAt"',
-        'u.full_name AS "userFullName"',
-        'u.email AS "userEmail"',
-        'u.role AS "userRole"'
-      ])
+      .leftJoin('students', 'st', 'st.user_id = u.id')
       .where('c.status = :status', { status: CredentialStatus.ACTIVE });
 
     if (schoolId) qb.andWhere('u.school_id = :schoolId', { schoolId });
+    if (opts?.credentialType) {
+      qb.andWhere('c.credential_type = :ctype', { ctype: opts.credentialType });
+    }
+    if (opts?.userRole) {
+      qb.andWhere('u.role = :urole', { urole: opts.userRole });
+    }
+    const term = opts?.search?.trim();
+    if (term) {
+      qb.andWhere(
+        '(u.full_name ILIKE :q OR u.email ILIKE :q OR c.credential_value ILIKE :q OR st.matricula ILIKE :q)',
+        { q: `%${term}%` }
+      );
+    }
+
+    const countQb = qb.clone();
     const [rows, total] = await Promise.all([
-      qb.orderBy('c.created_at', 'DESC').offset(skip).limit(take).getRawMany<Record<string, unknown>>(),
-      qb.getCount()
+      qb
+        .select([
+          'c.id AS id',
+          'c.user_id AS "userId"',
+          'c.credential_type AS "credentialType"',
+          'c.credential_value AS "credentialValue"',
+          'c.status AS status',
+          'c.created_at AS "createdAt"',
+          'u.full_name AS "userFullName"',
+          'u.email AS "userEmail"',
+          'u.role AS "userRole"',
+          'st.matricula AS "matricula"'
+        ])
+        .orderBy('c.created_at', 'DESC')
+        .offset(skip)
+        .limit(take)
+        .getRawMany<Record<string, unknown>>(),
+      countQb.getCount()
     ]);
-    return { data: rows, meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) } };
+    return { data: rows, meta: { total, page: Math.max(page, 1), limit: take, pages: Math.ceil(total / take) || 1 } };
   }
 
   /** RF2 — Revocar una credencial por ID. */

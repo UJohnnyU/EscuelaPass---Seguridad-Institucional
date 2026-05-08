@@ -16,6 +16,7 @@ import { UserEntity } from '../../database/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { SettingsModule } from '../settings/settings.module';
 import { VehiclesModule } from '../vehicles/vehicles.module';
+import { AccessModule } from '../access/access.module';
 import { SchoolController } from './school.controller';
 import { SchoolService } from './school.service';
 
@@ -24,6 +25,7 @@ import { SchoolService } from './school.service';
     AuthModule,
     SettingsModule,
     VehiclesModule,
+    AccessModule,
     TypeOrmModule.forFeature([
       GroupEntity,
       SubjectEntity,

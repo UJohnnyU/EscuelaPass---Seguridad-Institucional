@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { QrScanResultModal, type ScanResponse } from '@/components/QrScanResultModal';
 import { Panel } from '@/components/ValueView';
+import { SmartSelect, type SmartSelectOption } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
 
 type NfcCredential = {
@@ -16,6 +17,17 @@ type NfcCredential = {
   userFullName: string | null;
   userEmail: string | null;
   userRole: string | null;
+  matricula?: string | null;
+};
+
+type CredListMeta = { total: number; page: number; limit: number; pages: number };
+
+const ROLE_LABEL: Record<string, string> = {
+  ALUMNO: 'Alumno',
+  DOCENTE: 'Docente',
+  ADMINISTRATIVO: 'Administrativo',
+  PADRE: 'Padre / familia',
+  ADMIN: 'Administrador'
 };
 
 const READER_ID = 'escaner-qr-region';
@@ -91,26 +103,85 @@ export function EscanerAccesoPage() {
 
   // NFC credential management (ADMIN/ADMINISTRATIVO only)
   const [nfcCredentials, setNfcCredentials] = useState<NfcCredential[]>([]);
+  const [credMeta, setCredMeta] = useState<CredListMeta | null>(null);
   const [credBusy, setCredBusy] = useState(false);
   const [credErr, setCredErr] = useState<string | null>(null);
   const [credMsg, setCredMsg] = useState<string | null>(null);
   const [assignUserId, setAssignUserId] = useState('');
   const [assignNfcUid, setAssignNfcUid] = useState('');
   const [showCredPanel, setShowCredPanel] = useState(false);
+  const [credSearchQ, setCredSearchQ] = useState('');
+  const [credRole, setCredRole] = useState('');
+  const [credListLoading, setCredListLoading] = useState(false);
+
+  const roleFilterOptions = useMemo<SmartSelectOption[]>(
+    () => [
+      { value: '', label: 'Todos los roles' },
+      { value: 'ALUMNO', label: 'Alumnos' },
+      { value: 'DOCENTE', label: 'Docentes' },
+      { value: 'ADMINISTRATIVO', label: 'Administrativos' },
+      { value: 'PADRE', label: 'Padres / familia' }
+    ],
+    []
+  );
+
+  const loadAssignableUsers = useCallback(async (query: string, signal: AbortSignal) => {
+    const { data } = await api.get<
+      Array<{
+        userId: string;
+        fullName: string;
+        email: string | null;
+        role: string;
+        matricula: string | null;
+      }>
+    >('/api/v1/access-events/credentials/assignable-users', {
+      params: { q: query.trim(), limit: 40 },
+      signal
+    });
+    return data.map(
+      (u): SmartSelectOption => ({
+        value: u.userId,
+        label: [u.fullName || u.email || u.userId, u.matricula ? `Mat. ${u.matricula}` : null].filter(Boolean).join(' · '),
+        searchText: `${u.email ?? ''} ${u.role} ${u.matricula ?? ''}`
+      })
+    );
+  }, []);
 
   const loadCredentials = useCallback(async () => {
     if (!isAdmin) return;
+    setCredListLoading(true);
     try {
-      const { data } = await api.get<{ data: NfcCredential[] }>('/api/v1/access-events/credentials');
-      setNfcCredentials(data.data);
+      const { data } = await api.get<{ data: NfcCredential[]; meta: CredListMeta }>(
+        '/api/v1/access-events/credentials',
+        {
+          params: {
+            type: 'NFC',
+            q: credSearchQ.trim() || undefined,
+            role: credRole.trim() || undefined,
+            limit: 200,
+            page: 1
+          }
+        }
+      );
+      setNfcCredentials(
+        data.data.filter((c) => c.credentialType === 'NFC')
+      );
+      setCredMeta(data.meta);
     } catch {
-      // silencioso
+      /* silencioso */
+    } finally {
+      setCredListLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, credSearchQ, credRole]);
 
   useEffect(() => {
-    if (showCredPanel) void loadCredentials();
-  }, [showCredPanel, loadCredentials]);
+    if (!showCredPanel || !isAdmin) return;
+    const delay = credSearchQ === '' && credRole === '' ? 0 : 280;
+    const t = window.setTimeout(() => {
+      void loadCredentials();
+    }, delay);
+    return () => window.clearTimeout(t);
+  }, [showCredPanel, isAdmin, credSearchQ, credRole, loadCredentials]);
 
   const stopCamera = useCallback(async () => {
     const s = scannerRef.current;
@@ -476,38 +547,50 @@ export function EscanerAccesoPage() {
             <span className="text-xs font-normal text-slate-500 group-open:rotate-180 dark:text-slate-400" aria-hidden>▼</span>
           </summary>
           <div className="space-y-6 border-t border-slate-200 px-5 py-5 dark:border-slate-700">
-            {/* Asignar credencial NFC */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Asignar tarjeta NFC a usuario</h3>
+            <p className="rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-xs leading-relaxed text-slate-600 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+              Los <strong>alumnos nuevos</strong> reciben automáticamente un valor NFC interno (32 caracteres hex) al darse
+              de alta, igual que el QR. Use <strong>«Vincular chip físico»</strong> para sustituir ese valor por el UID de
+              la tarjeta / llavero real; el acceso por lector seguirá validando contra el valor activo.
+            </p>
+
+            {/* Vincular UID de tarjeta física */}
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-sm dark:border-slate-600 dark:from-slate-900 dark:to-slate-900/80">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Vincular chip físico (UID de tarjeta)</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Busque a la persona y pegue o escanee el UID hexadecimal del dispositivo NFC.
+              </p>
               {credErr && (
-                <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
                   {credErr}
                 </p>
               )}
               {credMsg && (
-                <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
                   {credMsg}
                 </p>
               )}
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">UUID del usuario</label>
-                  <input
-                    type="text"
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    value={assignUserId}
-                    onChange={(e) => setAssignUserId(e.target.value)}
-                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                  />
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">Usuario</label>
+                  <div className="mt-1">
+                    <SmartSelect
+                      loadOptions={loadAssignableUsers}
+                      value={assignUserId}
+                      onChange={setAssignUserId}
+                      placeholder="Buscar nombre, correo o matrícula…"
+                      emptyLabel="Escriba para buscar usuarios"
+                      noResultsLabel="Sin coincidencias en su institución"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">UID NFC (hexadecimal)</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">UID NFC (hex, del chip)</label>
                   <input
                     type="text"
-                    placeholder="A1B2C3D4"
+                    placeholder="Ej. A1B2C3D4E5F6…"
                     value={assignNfcUid}
                     onChange={(e) => setAssignNfcUid(e.target.value.toUpperCase())}
-                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 font-mono text-sm shadow-inner dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -523,7 +606,7 @@ export function EscanerAccesoPage() {
                       targetUserId: assignUserId.trim(),
                       nfcUid: assignNfcUid.trim()
                     });
-                    setCredMsg('Credencial NFC asignada correctamente.');
+                    setCredMsg('Credencial NFC vinculada correctamente.');
                     setAssignUserId('');
                     setAssignNfcUid('');
                     await loadCredentials();
@@ -533,52 +616,96 @@ export function EscanerAccesoPage() {
                     setCredBusy(false);
                   }
                 }}
-                className="rounded-lg bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-50"
+                className="mt-4 rounded-xl bg-brand-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-900 disabled:opacity-50"
               >
-                {credBusy ? 'Asignando…' : 'Asignar credencial NFC'}
+                {credBusy ? 'Guardando…' : 'Vincular UID al usuario'}
               </button>
             </div>
 
-            {/* Listado de credenciales activas */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+            {/* Tabla con filtros */}
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Credenciales NFC activas</h3>
                 <button
                   type="button"
                   onClick={() => void loadCredentials()}
-                  className="text-xs text-brand-800 hover:underline dark:text-brand-300"
+                  className="self-start rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-brand-300 dark:hover:bg-slate-700"
                 >
-                  Actualizar
+                  Actualizar listado
                 </button>
               </div>
-              {nfcCredentials.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-400">No hay credenciales NFC activas.</p>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                <div className="min-w-0 flex-1">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">Filtrar</label>
+                  <input
+                    type="search"
+                    value={credSearchQ}
+                    onChange={(e) => setCredSearchQ(e.target.value)}
+                    placeholder="Nombre, correo, matrícula o UID…"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+                <div className="w-full lg:w-56">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">Rol</label>
+                  <div className="mt-1">
+                    <SmartSelect options={roleFilterOptions} value={credRole} onChange={setCredRole} placeholder="Rol" />
+                  </div>
+                </div>
+              </div>
+              {credMeta ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {credListLoading
+                    ? 'Cargando…'
+                    : `${credMeta.total} registro${credMeta.total !== 1 ? 's' : ''} · mostrando hasta ${credMeta.limit} por consulta`}
+                </p>
+              ) : null}
+              {nfcCredentials.length === 0 && !credListLoading ? (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:bg-slate-800/40 dark:text-slate-400">
+                  No hay credenciales NFC con los filtros actuales.
+                </p>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-                  <table className="min-w-full text-xs">
-                    <thead className="bg-slate-50 dark:bg-slate-800">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Usuario</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Rol</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">UID NFC</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Asignado</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {nfcCredentials
-                        .filter((c) => c.credentialType === 'NFC')
-                        .map((cred) => (
-                          <tr key={cred.id} className="border-t border-slate-200 dark:border-slate-700">
-                            <td className="px-3 py-2 text-slate-800 dark:text-slate-100">
-                              {cred.userFullName ?? cred.userEmail ?? cred.userId.slice(0, 8)}
+                <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm dark:border-slate-700">
+                  <div className="max-h-[min(56vh,540px)] overflow-auto">
+                    <table className="min-w-full text-left text-xs">
+                      <thead className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-100/95 backdrop-blur dark:border-slate-600 dark:bg-slate-800/95">
+                        <tr>
+                          <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Usuario</th>
+                          <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Rol</th>
+                          <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Matrícula</th>
+                          <th className="min-w-[8rem] px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Valor NFC</th>
+                          <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Alta</th>
+                          <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200"> </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
+                        {nfcCredentials.map((cred) => (
+                          <tr
+                            key={cred.id}
+                            className="bg-white transition hover:bg-slate-50/90 dark:bg-slate-900/40 dark:hover:bg-slate-800/50"
+                          >
+                            <td className="max-w-[200px] px-4 py-2.5 text-slate-800 dark:text-slate-100">
+                              <span className="block truncate font-medium">
+                                {cred.userFullName ?? cred.userEmail ?? '—'}
+                              </span>
+                              {cred.userEmail && cred.userFullName ? (
+                                <span className="mt-0.5 block truncate text-[11px] text-slate-500 dark:text-slate-400">{cred.userEmail}</span>
+                              ) : null}
                             </td>
-                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{cred.userRole}</td>
-                            <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{cred.credentialValue}</td>
-                            <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
-                              {new Date(cred.createdAt).toLocaleDateString('es')}
+                            <td className="whitespace-nowrap px-4 py-2.5 text-slate-600 dark:text-slate-300">
+                              {cred.userRole ? ROLE_LABEL[cred.userRole] ?? cred.userRole : '—'}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="whitespace-nowrap px-4 py-2.5 font-mono text-slate-600 dark:text-slate-300">
+                              {cred.matricula?.trim() || '—'}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <code className="break-all rounded-md bg-slate-100 px-2 py-1 text-[11px] text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                                {cred.credentialValue}
+                              </code>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                              {new Date(cred.createdAt).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-2.5">
                               <button
                                 type="button"
                                 disabled={credBusy}
@@ -596,15 +723,16 @@ export function EscanerAccesoPage() {
                                     setCredBusy(false);
                                   }
                                 }}
-                                className="rounded border border-red-300 bg-red-50 px-2 py-1 text-red-800 hover:bg-red-100 disabled:opacity-50 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200"
+                                className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-950/80"
                               >
                                 Revocar
                               </button>
                             </td>
                           </tr>
                         ))}
-                    </tbody>
-                  </table>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>

@@ -25,6 +25,7 @@ import { AccessService } from './access.service';
     ])
   ],
   controllers: [AccessController],
-  providers: [AccessService]
+  providers: [AccessService],
+  exports: [AccessService]
 })
 export class AccessModule {}

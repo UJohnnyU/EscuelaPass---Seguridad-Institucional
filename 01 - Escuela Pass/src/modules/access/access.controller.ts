@@ -8,6 +8,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { AccessService } from './access.service';
 import { RegisterAccessEventDto } from './dto/register-access-event.dto';
 import { AssignNfcCredentialDto } from './dto/assign-nfc-credential.dto';
+import { CredentialType } from '../../database/entities/access-credential.entity';
 
 type JwtReq = Request & { user: { userId: string; email: string; role: UserRole; schoolId?: string | null } };
 
@@ -44,6 +45,15 @@ export class AccessController {
     return this.accessService.assignNfcCredential(dto.targetUserId, dto.nfcUid, req.user.userId);
   }
 
+  @Get('credentials/assignable-users')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
+  @ApiOperation({ summary: 'Buscar usuarios para asignar credencial NFC' })
+  assignableUsers(@Req() req: JwtReq, @Query('q') q?: string, @Query('limit') limitRaw?: string) {
+    const take = Math.min(50, Math.max(1, Number.parseInt(limitRaw ?? '24', 10) || 24));
+    const schoolId = (req.user as { schoolId?: string | null }).schoolId ?? null;
+    return this.accessService.searchAssignableUsers(schoolId, q, take);
+  }
+
   /** RF2 — Listar credenciales activas de la institución. */
   @Get('credentials')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
@@ -52,12 +62,28 @@ export class AccessController {
   listCredentials(
     @Req() req: JwtReq,
     @Query('page') page?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('type') type?: string,
+    @Query('role') role?: string
   ) {
     const p = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
-    const l = Math.min(100, Math.max(1, Number.parseInt(limit ?? '50', 10) || 50));
+    const l = Math.min(200, Math.max(1, Number.parseInt(limit ?? '50', 10) || 50));
     const schoolId = (req.user as { schoolId?: string | null }).schoolId ?? null;
-    return this.accessService.listCredentials(schoolId, p, l);
+    const credentialType =
+      type?.trim().toUpperCase() === 'NFC'
+        ? CredentialType.NFC
+        : type?.trim().toUpperCase() === 'QR'
+          ? CredentialType.QR
+          : undefined;
+    const r = role?.trim().toUpperCase();
+    const userRole =
+      r && (Object.values(UserRole) as string[]).includes(r) ? (r as UserRole) : undefined;
+    return this.accessService.listCredentials(schoolId, p, l, {
+      search: q?.trim() || null,
+      credentialType,
+      userRole
+    });
   }
 
   /** RF2 — Revocar credencial por ID. */
@@ -67,7 +93,7 @@ export class AccessController {
   @ApiResponse({ status: 200, description: 'Credencial revocada.' })
   @ApiResponse({ status: 404, description: 'Credencial no encontrada.' })
   revokeCredential(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: JwtReq
   ) {
     return this.accessService.revokeCredential(id, req.user.userId);
