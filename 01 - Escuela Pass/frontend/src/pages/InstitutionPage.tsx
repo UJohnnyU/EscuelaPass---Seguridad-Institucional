@@ -43,7 +43,8 @@ export function InstitutionPage() {
   const [isEditing, setIsEditing] = useState(false);
   /** Evita depender solo de JSON.stringify(profile); el objeto de la API y form podían compartir referencia o diverger en decimales. */
   const [formDirty, setFormDirty] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+  const [pendingLogoPreviewUrl, setPendingLogoPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -52,6 +53,12 @@ export function InstitutionPage() {
   const schoolEditOptions = useMemo(
     () => schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})`, searchText: s.code })),
     [schools]
+  );
+
+  /** Escuela destino del logo: select para admin de plataforma, `user.schoolId` para admin de escuela. */
+  const logoTargetSchoolId = useMemo(
+    () => (platformAdmin ? selectedSchoolId : user?.schoolId ?? ''),
+    [platformAdmin, selectedSchoolId, user?.schoolId]
   );
 
   useEffect(() => {
@@ -100,6 +107,11 @@ export function InstitutionPage() {
           setForm({ ...data });
           setIsEditing(false);
           setFormDirty(false);
+          setPendingLogoFile(null);
+          setPendingLogoPreviewUrl((prevUrl) => {
+            if (prevUrl) URL.revokeObjectURL(prevUrl);
+            return null;
+          });
         }
       } catch (e) {
         if (!cancelled) setError(getUserFacingMessage(e, 'No se pudo cargar el perfil institucional.'));
@@ -114,7 +126,7 @@ export function InstitutionPage() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (!canEdit || !isEditing || !formDirty) return;
+    if (!canEdit || !isEditing || (!formDirty && !pendingLogoFile)) return;
     if (platformAdmin && !selectedSchoolId) {
       setError('Seleccione una escuela para guardar.');
       return;
@@ -173,11 +185,44 @@ export function InstitutionPage() {
       const params =
         user?.role === 'ADMIN' && selectedSchoolId ? { schoolId: selectedSchoolId } : undefined;
       const { data } = await api.patch<Profile>('/api/v1/settings/institution', payload, { params });
-      setProfile(data);
-      setForm({ ...data });
+
+      let finalLogoUrl: string | null | undefined = data.logoUrl;
+      let logoUploadError: string | null = null;
+      if (pendingLogoFile) {
+        if (!logoTargetSchoolId) {
+          setError(
+            platformAdmin
+              ? 'Seleccione una escuela para subir el logo.'
+              : 'No se pudo determinar la escuela para subir el logo.'
+          );
+          setSaving(false);
+          return;
+        }
+        try {
+          const res = await uploadSchoolLogo(logoTargetSchoolId, pendingLogoFile);
+          finalLogoUrl = res.logoUrl;
+        } catch (e) {
+          logoUploadError = getUserFacingMessage(e, 'No se pudo subir el logo.');
+        }
+      }
+
+      setPendingLogoPreviewUrl((prevUrl) => {
+        if (prevUrl) URL.revokeObjectURL(prevUrl);
+        return null;
+      });
+      setPendingLogoFile(null);
+
+      const merged: Profile = { ...data, logoUrl: finalLogoUrl ?? data.logoUrl ?? null };
+      setProfile(merged);
+      setForm({ ...merged });
       setIsEditing(false);
       setFormDirty(false);
-      setMessage('Cambios guardados correctamente.');
+      if (logoUploadError) {
+        setError(logoUploadError);
+        setMessage('Los datos se guardaron; el logo no se pudo actualizar. Intente «Editar datos» y guardar de nuevo.');
+      } else {
+        setMessage('Cambios guardados correctamente.');
+      }
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudieron guardar los cambios.'));
     } finally {
@@ -185,21 +230,23 @@ export function InstitutionPage() {
     }
   }
 
-  async function onLogoPick(file: File) {
-    if (!canEditLocationAndLogo || !isEditing || !selectedSchoolId) return;
-    setUploadingLogo(true);
+  function onLogoSelected(file: File) {
+    if (!canEditLocationAndLogo || !isEditing || !logoTargetSchoolId) return;
     setError(null);
     setMessage(null);
-    try {
-      const res = await uploadSchoolLogo(selectedSchoolId, file);
-      setProfile((p) => (p ? { ...p, logoUrl: res.logoUrl } : p));
-      setForm((f) => ({ ...f, logoUrl: res.logoUrl }));
-      setMessage('Logo actualizado correctamente.');
-    } catch (e) {
-      setError(getUserFacingMessage(e, 'No se pudo actualizar el logo.'));
-    } finally {
-      setUploadingLogo(false);
-    }
+    setPendingLogoPreviewUrl((prevUrl) => {
+      if (prevUrl) URL.revokeObjectURL(prevUrl);
+      return URL.createObjectURL(file);
+    });
+    setPendingLogoFile(file);
+  }
+
+  function clearPendingLogo() {
+    setPendingLogoFile(null);
+    setPendingLogoPreviewUrl((prevUrl) => {
+      if (prevUrl) URL.revokeObjectURL(prevUrl);
+      return null;
+    });
   }
 
   if (!schoolsReady || loading) {
@@ -226,7 +273,11 @@ export function InstitutionPage() {
     );
   }
 
-  const logoSrc = profile?.logoUrl ? publicAssetUrl(profile.logoUrl) : null;
+  const logoSrc = pendingLogoPreviewUrl
+    ? pendingLogoPreviewUrl
+    : profile?.logoUrl
+      ? publicAssetUrl(profile.logoUrl)
+      : null;
 
   return (
     <div className="mx-auto max-w-5xl animate-slide-up">
@@ -308,6 +359,11 @@ export function InstitutionPage() {
                     setFormDirty(false);
                     setMessage(null);
                     setError(null);
+                    setPendingLogoFile(null);
+                    setPendingLogoPreviewUrl((prevUrl) => {
+                      if (prevUrl) URL.revokeObjectURL(prevUrl);
+                      return null;
+                    });
                   }}
                   className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
@@ -323,6 +379,11 @@ export function InstitutionPage() {
                     setFormDirty(false);
                     setMessage('Edición cancelada. Se conservaron los datos actuales.');
                     setError(null);
+                    setPendingLogoFile(null);
+                    setPendingLogoPreviewUrl((prevUrl) => {
+                      if (prevUrl) URL.revokeObjectURL(prevUrl);
+                      return null;
+                    });
                   }}
                   className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
@@ -432,30 +493,41 @@ export function InstitutionPage() {
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/60">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Logo institucional</h3>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Imagen oficial para portada, informes y documentos.
+                  Elija una imagen y pulse <strong>Guardar cambios</strong> para aplicarla. Mientras tanto solo verá una vista
+                  previa.
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <label
                     className={`rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 ${
-                      isEditing && !uploadingLogo && selectedSchoolId
+                      isEditing && !saving && logoTargetSchoolId
                         ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800'
                         : 'cursor-not-allowed opacity-60'
                     }`}
                   >
-                    {uploadingLogo ? 'Subiendo logo…' : 'Subir nuevo logo'}
+                    Elegir imagen…
                     <input
                       type="file"
                       className="sr-only"
                       accept="image/jpeg,image/png,image/webp"
-                      disabled={uploadingLogo || !selectedSchoolId || !isEditing}
+                      disabled={saving || !logoTargetSchoolId || !isEditing}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         e.target.value = '';
-                        if (f) void onLogoPick(f);
+                        if (f) onLogoSelected(f);
                       }}
                     />
                   </label>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">Formatos: JPG, PNG o WEBP.</span>
+                  {pendingLogoFile ? (
+                    <button
+                      type="button"
+                      onClick={clearPendingLogo}
+                      disabled={saving || !isEditing}
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Quitar imagen elegida
+                    </button>
+                  ) : null}
+                  <span className="text-xs text-slate-500 dark:text-slate-400">JPG, PNG o WEBP.</span>
                 </div>
               </div>
             </>
@@ -472,7 +544,13 @@ export function InstitutionPage() {
           )}
           <button
             type="submit"
-            disabled={saving || !isEditing || !formDirty || (platformAdmin && !selectedSchoolId)}
+            disabled={
+              saving ||
+              !isEditing ||
+              (!formDirty && !pendingLogoFile) ||
+              (platformAdmin && !selectedSchoolId) ||
+              (!!pendingLogoFile && !logoTargetSchoolId)
+            }
             className="rounded-xl bg-brand-600 px-6 py-2.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
           >
             {saving ? 'Guardando…' : 'Guardar cambios'}
