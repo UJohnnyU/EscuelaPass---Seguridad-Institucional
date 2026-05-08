@@ -204,7 +204,7 @@ export function PerfilPage() {
         </div>
       ) : null}
 
-      <div className="mt-8 flex max-w-xl flex-col items-center rounded-xl border border-slate-200 bg-white p-8 shadow-sm sm:flex-row sm:items-start sm:gap-8">
+      <div className="mx-auto mt-8 flex max-w-xl flex-col items-center rounded-xl border border-slate-200 bg-white p-8 shadow-sm sm:flex-row sm:items-start sm:gap-8">
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-slate-900" aria-hidden>
           {avatarSrc ? (
             <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
@@ -228,6 +228,28 @@ export function PerfilPage() {
         </dl>
       </div>
 
+      {qrValue && (
+        <div className="mx-auto mt-10 max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="font-serif text-lg font-semibold text-slate-900">Mi código QR</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Muestre este código al personal del plantel para registrar su ingreso o salida. Si la pantalla es pequeña,
+            ábralo en pantalla completa para que se lea mejor.
+          </p>
+          <div className="mt-6 flex flex-col items-center gap-4">
+            <div className="rounded border border-slate-100 bg-white p-4">
+              <QRCodeSVG value={qrValue} size={200} level="M" includeMargin />
+            </div>
+            <button
+              type="button"
+              onClick={() => setFullscreen(true)}
+              className="rounded border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            >
+              Pantalla completa
+            </button>
+          </div>
+        </div>
+      )}
+
       {me?.contactSections?.length
         ? me.contactSections.map((section) => {
             const filter = (contactFilters[section.title] ?? '').trim().toLowerCase();
@@ -244,6 +266,7 @@ export function PerfilPage() {
             const visibleItems = shouldPaginate ? filteredItems.slice(0, CONTACT_PAGE_SIZE) : filteredItems;
             const useVirtualList = visibleItems.length > CONTACT_VIRTUAL_THRESHOLD;
             const listHeight = Math.min(560, visibleItems.length * CONTACT_ROW_HEIGHT);
+            const listColumnWidth = Math.min(Math.max(320, contentWidth), 42 * 16);
             return (
             <section key={section.title} className="mt-10">
               <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -266,23 +289,27 @@ export function PerfilPage() {
               {filteredItems.length === 0 ? (
                 <p className="text-sm text-slate-500">Ningún contacto coincide con esa búsqueda.</p>
               ) : useVirtualList ? (
-                <FixedSizeList
-                  height={listHeight}
-                  width={Math.max(320, contentWidth)}
-                  itemCount={visibleItems.length}
-                  itemSize={CONTACT_ROW_HEIGHT}
-                  itemData={{ items: visibleItems }}
-                  overscanCount={4}
-                >
-                  {VirtualContactRow}
-                </FixedSizeList>
+                <div className="flex w-full justify-center">
+                  <FixedSizeList
+                    height={listHeight}
+                    width={listColumnWidth}
+                    itemCount={visibleItems.length}
+                    itemSize={CONTACT_ROW_HEIGHT}
+                    itemData={{ items: visibleItems }}
+                    overscanCount={4}
+                  >
+                    {VirtualContactRow}
+                  </FixedSizeList>
+                </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="flex flex-wrap justify-center gap-4">
                   {visibleItems.map((item) => (
-                    <ContactArticleCard
+                    <div
                       key={`${item.fullName}|${item.subtitle ?? ''}|${item.phone ?? ''}`}
-                      item={item}
-                    />
+                      className="w-full shrink-0 sm:w-72 md:w-80"
+                    >
+                      <ContactArticleCard item={item} />
+                    </div>
                   ))}
                 </div>
               )}
@@ -316,28 +343,6 @@ export function PerfilPage() {
           );
           })
         : null}
-
-      {qrValue && (
-        <div className="mt-10 max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Mi código QR</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Muestre este código al personal del plantel para registrar su ingreso o salida. Si la pantalla es pequeña,
-            ábralo en pantalla completa para que se lea mejor.
-          </p>
-          <div className="mt-6 flex flex-col items-center gap-4">
-            <div className="rounded border border-slate-100 bg-white p-4">
-              <QRCodeSVG value={qrValue} size={200} level="M" includeMargin />
-            </div>
-            <button
-              type="button"
-              onClick={() => setFullscreen(true)}
-              className="rounded border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-            >
-              Pantalla completa
-            </button>
-          </div>
-        </div>
-      )}
 
       <section className="mt-10 rounded-xl border border-slate-200 bg-slate-50 p-5">
         <details open={policyOpen} onToggle={(e) => setPolicyOpen((e.currentTarget as HTMLDetailsElement).open)}>
