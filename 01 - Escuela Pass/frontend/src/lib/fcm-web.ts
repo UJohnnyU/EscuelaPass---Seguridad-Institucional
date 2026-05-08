@@ -10,11 +10,7 @@ import {
 } from 'firebase/messaging';
 
 import { API_BASE_URL, api } from '@/lib/api';
-import {
-  FCM_FOREGROUND_PUSH_EVENT,
-  NOTIFICATIONS_REFRESH_REQUEST_EVENT,
-  type FcmForegroundPushDetail
-} from '@/lib/notifications-sync';
+import { NOTIFICATIONS_REFRESH_REQUEST_EVENT } from '@/lib/notifications-sync';
 
 const STORAGE_LAST_TOKEN = 'ep-fcm-registration-token';
 const STORAGE_LAST_REGISTER_USER = 'ep-fcm-register-user-id';
@@ -80,26 +76,8 @@ function attachForegroundListener(messaging: Messaging): void {
   if (foregroundListenerAttached) return;
   /** Marcador antes de `onMessage`: evita doble registro si `ensureWebPushRegistered` corre en paralelo. */
   foregroundListenerAttached = true;
-  onMessage(messaging, (payload) => {
+  onMessage(messaging, (_payload) => {
     requestRefreshSoon();
-    if (typeof window === 'undefined') return;
-    const data = (payload.data ?? {}) as Record<string, string>;
-    const title =
-      (payload.notification?.title?.trim()) ||
-      data.title?.trim() ||
-      'Escuela Pass';
-    const body =
-      (payload.notification?.body?.trim()) ||
-      data.body?.trim() ||
-      '';
-    let openPath = data.openPath?.trim() ?? '';
-    if (!openPath) {
-      const cid = data.circuitRequestId?.trim();
-      if (cid) openPath = `/app/circuito/${cid}`;
-    }
-    const notifTag = data.notifTag?.trim() || undefined;
-    const detail: FcmForegroundPushDetail = { title, body, openPath, notifTag };
-    window.dispatchEvent(new CustomEvent<FcmForegroundPushDetail>(FCM_FOREGROUND_PUSH_EVENT, { detail }));
   });
 }
 

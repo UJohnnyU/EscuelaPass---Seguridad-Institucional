@@ -626,7 +626,7 @@ La lista exacta de rutas HTTP por controlador debe consultarse en el código y e
 
 ### 7.6 Notificaciones web
 
-`FcmBootstrap` solicita permiso, obtiene token y registra en backend; `NotifToast` muestra avisos en primer plano.
+`FcmBootstrap` solicita permiso, obtiene token y registra en backend; con la pestaña activa, los pushes en primer plano actualizan la bandeja (campana) vía `onMessage`, y en segundo plano interviene el service worker de Firebase.
 
 ### 7.7 Páginas modulares y navegación operativa
 

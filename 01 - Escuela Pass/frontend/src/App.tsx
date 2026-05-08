@@ -4,7 +4,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthProvider';
 import { FcmBootstrap } from '@/components/FcmBootstrap';
-import { NotifToast } from '@/components/NotifToast';
 import { useAuth } from '@/context/useAuth';
 import { AppShell } from '@/components/AppShell';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -48,7 +47,6 @@ export default function App() {
   return (
     <AuthProvider>
       <FcmBootstrap />
-      <NotifToast />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
