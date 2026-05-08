@@ -1559,6 +1559,12 @@ function HomePlatformAdmin() {
   const usersByRole = summary?.entities?.usersByRole ?? {};
   const circuitByDay = panel?.circuits?.byDay ?? [];
   const maxCircuitDay = Math.max(1, ...circuitByDay.map((d) => Number(d.total ?? 0)));
+  /** Incluye gap-2 y padding horizontal del contenedor; evita que el fondo se corte al hacer scroll. */
+  const nCircuitDays = circuitByDay.length;
+  const circuitTrendChartWidthPx = Math.max(
+    320,
+    24 + nCircuitDays * 32 + Math.max(0, nCircuitDays - 1) * 8
+  );
 
   const pendingVoucher = Number(summary?.payments?.pendingWithVoucher ?? 0);
   const overdueDebts = Number(summary?.payments?.overdueDebts ?? 0);
@@ -1704,16 +1710,16 @@ function HomePlatformAdmin() {
           {circuitByDay.length === 0 ? (
             <p className="text-slate-500">Sin datos disponibles.</p>
           ) : (
-            <div className="mt-1 max-w-full overflow-x-auto">
+            <div className="mt-1 min-w-0 max-w-full overflow-x-auto">
               <div
-                className="flex h-40 min-w-full items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800"
-                style={{ width: `${Math.max(320, circuitByDay.length * 32)}px` }}
+                className="flex h-40 items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800"
+                style={{ width: `${circuitTrendChartWidthPx}px` }}
               >
                 {circuitByDay.map((d) => {
                   const total = Number(d.total ?? 0);
                   const h = Math.max(6, Math.round((total / maxCircuitDay) * 100));
                   return (
-                    <div key={d.date} className="flex min-w-[2rem] flex-1 flex-col items-center gap-1">
+                    <div key={d.date} className="flex w-8 shrink-0 flex-col items-center gap-1">
                       <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">{total}</span>
                       <div className="flex h-24 w-full items-end">
                         <div className="w-full rounded-t bg-emerald-500/90" style={{ height: `${h}%` }} />
