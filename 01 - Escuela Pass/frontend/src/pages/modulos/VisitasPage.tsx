@@ -57,6 +57,14 @@ function toLocalInputValue(iso: string): string {
   }
 }
 
+function bumpDatetimeLocal(value: string, addMs: number): string {
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return value;
+  const next = new Date(d.getTime() + addMs);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}T${pad(next.getHours())}:${pad(next.getMinutes())}`;
+}
+
 function nowLocalInputValue(): string {
   return toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000).toISOString());
 }
@@ -92,6 +100,15 @@ export function VisitasPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<VisitRow | null>(null);
   const [detailErr, setDetailErr] = useState<string | null>(null);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<{
+    id: string;
+    title: string;
+    currentVisitDatetime: string;
+  } | null>(null);
+  const [rescheduleStartAt, setRescheduleStartAt] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+  const [rescheduleErr, setRescheduleErr] = useState<string | null>(null);
   const [groupNameMap, setGroupNameMap] = useState<Record<string, string>>({});
   const [studentNameMap, setStudentNameMap] = useState<Record<string, string>>({});
   const [schools, setSchools] = useState<SchoolOption[]>([]);
@@ -295,27 +312,52 @@ export function VisitasPage() {
     }
   };
 
+  const closeRescheduleModal = () => {
+    if (rescheduleSaving) return;
+    setRescheduleOpen(false);
+    setRescheduleTarget(null);
+    setRescheduleErr(null);
+  };
+
+  const openVisitReschedule = (id: string) => {
+    const v = organized.find((x) => x.id === id) ?? mine.find((x) => x.id === id);
+    if (!v) return;
+    setRescheduleTarget({ id: v.id, title: v.title, currentVisitDatetime: v.visitDatetime });
+    setRescheduleStartAt(toLocalInputValue(v.visitDatetime));
+    setRescheduleErr(null);
+    setRescheduleOpen(true);
+  };
+
+  const confirmVisitReschedule = async () => {
+    if (!rescheduleTarget) return;
+    const d = new Date(rescheduleStartAt);
+    if (!Number.isFinite(d.getTime())) {
+      setRescheduleErr('Indique una fecha y hora válidas.');
+      return;
+    }
+    setRescheduleSaving(true);
+    setRescheduleErr(null);
+    try {
+      await api.post(`/api/v1/external-visits/${rescheduleTarget.id}/reschedule`, {
+        visitDatetime: d.toISOString()
+      });
+      setMsg('Visita reprogramada.');
+      setRescheduleOpen(false);
+      setRescheduleTarget(null);
+      setRescheduleErr(null);
+      await reloadAll();
+    } catch (e) {
+      setRescheduleErr(getUserFacingMessage(e));
+    } finally {
+      setRescheduleSaving(false);
+    }
+  };
+
   const actionCancel = async (id: string) => {
     const reason = window.prompt('Motivo de cancelación (opcional)', '') ?? undefined;
     try {
       await api.post(`/api/v1/external-visits/${id}/cancel`, { reason });
       setMsg('Visita cancelada.');
-      await reloadAll();
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    }
-  };
-
-  const actionReschedule = async (id: string) => {
-    const current = organized.find((x) => x.id === id) ?? mine.find((x) => x.id === id);
-    const hint = current ? toLocalInputValue(current.visitDatetime) : '';
-    const next = window.prompt('Nueva fecha y hora (YYYY-MM-DDTHH:MM)', hint);
-    if (!next) return;
-    try {
-      await api.post(`/api/v1/external-visits/${id}/reschedule`, {
-        visitDatetime: new Date(next).toISOString()
-      });
-      setMsg('Visita reprogramada.');
       await reloadAll();
     } catch (e) {
       setErr(getUserFacingMessage(e));
@@ -463,7 +505,7 @@ export function VisitasPage() {
               detail={currentDetail}
               canModify={canModifyCurrent}
               onCancel={() => actionCancel(currentDetail.id)}
-              onReschedule={() => actionReschedule(currentDetail.id)}
+              onReschedule={() => openVisitReschedule(currentDetail.id)}
               onRealized={() => actionRealized(currentDetail.id)}
             />
           ) : null
@@ -476,6 +518,87 @@ export function VisitasPage() {
             groupNames={currentGroupNames}
             studentNames={currentStudentNames}
           />
+        ) : null}
+      </DetailModal>
+
+      <DetailModal
+        open={rescheduleOpen && !!rescheduleTarget}
+        overlayZClass="z-[100]"
+        title="Reprogramar visita"
+        subtitle={rescheduleTarget?.title ?? null}
+        onClose={closeRescheduleModal}
+        footer={
+          <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={rescheduleSaving}
+              onClick={closeRescheduleModal}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={rescheduleSaving}
+              onClick={() => void confirmVisitReschedule()}
+              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-50"
+            >
+              {rescheduleSaving ? 'Guardando…' : 'Confirmar nueva fecha'}
+            </button>
+          </div>
+        }
+      >
+        {rescheduleTarget ? (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Horario actual</p>
+              <p className="mt-1 font-medium text-slate-900">
+                {formatDateLong(rescheduleTarget.currentVisitDatetime)}
+              </p>
+            </div>
+            {rescheduleErr ? (
+              <div
+                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+                role="alert"
+              >
+                {rescheduleErr}
+              </div>
+            ) : null}
+            <label className="block text-sm">
+              <span className="font-medium text-slate-800">Nueva fecha y hora</span>
+              <input
+                type="datetime-local"
+                value={rescheduleStartAt}
+                onChange={(e) => setRescheduleStartAt(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 shadow-sm outline-none ring-brand-500/20 focus:border-brand-500 focus:ring-4"
+              />
+            </label>
+            <div>
+              <p className="text-xs font-medium text-slate-500">Ajuste rápido</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(
+                  [
+                    { label: '+30 min', ms: 30 * 60 * 1000 },
+                    { label: '+1 h', ms: 60 * 60 * 1000 },
+                    { label: '+1 día', ms: 24 * 60 * 60 * 1000 }
+                  ] as const
+                ).map(({ label, ms }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled={rescheduleSaving}
+                    onClick={() => setRescheduleStartAt((prev) => bumpDatetimeLocal(prev, ms))}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-brand-300 hover:bg-brand-50 disabled:opacity-50"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs leading-relaxed text-slate-500">
+              Quienes deban ser notificados recibirán avisos según la configuración de recordatorios de la institución.
+            </p>
+          </div>
         ) : null}
       </DetailModal>
     </div>
@@ -599,6 +722,8 @@ function VisitActions({
   );
 }
 
+type VisitScopePick = { id: string; label: string };
+
 function CreateVisitPanel({
   onCreated,
   docenteOnly,
@@ -623,8 +748,8 @@ function CreateVisitPanel({
   const [visitDatetime, setVisitDatetime] = useState(nowLocalInputValue());
   const [duration, setDuration] = useState('60');
   const [scope, setScope] = useState<AudienceScope>(docenteOnly ? 'GROUPS' : 'SCHOOL');
-  const [groupIds, setGroupIds] = useState<string[]>([]);
-  const [studentIds, setStudentIds] = useState<string[]>([]);
+  const [pickedGroups, setPickedGroups] = useState<VisitScopePick[]>([]);
+  const [pickedStudents, setPickedStudents] = useState<VisitScopePick[]>([]);
   const [currentGroupPick, setCurrentGroupPick] = useState('');
   const [currentStudentPick, setCurrentStudentPick] = useState('');
 
@@ -683,8 +808,8 @@ function CreateVisitPanel({
         durationMinutes: Number(duration) || 60,
         audienceScope: scope
       };
-      if (scope === 'GROUPS') payload.groupIds = groupIds;
-      if (scope === 'STUDENTS') payload.studentIds = studentIds;
+      if (scope === 'GROUPS') payload.groupIds = pickedGroups.map((p) => p.id);
+      if (scope === 'STUDENTS') payload.studentIds = pickedStudents.map((p) => p.id);
       const params: Record<string, string> = {};
       if (schoolId) params.schoolId = schoolId;
       await api.post('/api/v1/external-visits', payload, { params });
@@ -695,8 +820,8 @@ function CreateVisitPanel({
       setLocation('');
       setVisitDatetime(nowLocalInputValue());
       setDuration('60');
-      setGroupIds([]);
-      setStudentIds([]);
+      setPickedGroups([]);
+      setPickedStudents([]);
       setOpen(false);
       await onCreated();
     } catch (e2) {
@@ -784,7 +909,7 @@ function CreateVisitPanel({
             <input
               type="datetime-local"
               required
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 shadow-sm outline-none ring-brand-500/20 focus:border-brand-500 focus:ring-4"
               value={visitDatetime}
               onChange={(e) => setVisitDatetime(e.target.value)}
             />
@@ -803,9 +928,14 @@ function CreateVisitPanel({
           <label className="text-sm">
             <span className="text-slate-700">Alcance</span>
             <select
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
               value={scope}
-              onChange={(e) => setScope(e.target.value as AudienceScope)}
+              onChange={(e) => {
+                const next = e.target.value as AudienceScope;
+                setScope(next);
+                setPickedGroups([]);
+                setPickedStudents([]);
+              }}
             >
               {!docenteOnly && <option value="SCHOOL">Toda la escuela</option>}
               <option value="GROUPS">Grupos específicos</option>
@@ -820,8 +950,10 @@ function CreateVisitPanel({
                   <SmartSelect
                     loadOptions={loadGroups}
                     value={currentGroupPick}
-                    onChange={(v) => {
-                      if (v && !groupIds.includes(v)) setGroupIds([...groupIds, v]);
+                    onChange={(v, opt) => {
+                      if (v && !pickedGroups.some((p) => p.id === v)) {
+                        setPickedGroups([...pickedGroups, { id: v, label: opt?.label ?? v }]);
+                      }
                       setCurrentGroupPick('');
                     }}
                     placeholder="— Buscar grupo —"
@@ -830,15 +962,17 @@ function CreateVisitPanel({
               </div>
               <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
                 <ul className="flex flex-wrap gap-2 py-0.5">
-                  {groupIds.map((id) => (
+                  {pickedGroups.map((p) => (
                     <li
-                      key={id}
+                      key={p.id}
                       className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                     >
-                      {id.slice(0, 8)}…
+                      <span className="max-w-[min(100%,18rem)] truncate" title={p.label}>
+                        {p.label}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => setGroupIds(groupIds.filter((x) => x !== id))}
+                        onClick={() => setPickedGroups(pickedGroups.filter((x) => x.id !== p.id))}
                         className="text-slate-500 hover:text-slate-800"
                       >
                         ×
@@ -857,8 +991,10 @@ function CreateVisitPanel({
                   <SmartSelect
                     loadOptions={loadStudents}
                     value={currentStudentPick}
-                    onChange={(v) => {
-                      if (v && !studentIds.includes(v)) setStudentIds([...studentIds, v]);
+                    onChange={(v, opt) => {
+                      if (v && !pickedStudents.some((p) => p.id === v)) {
+                        setPickedStudents([...pickedStudents, { id: v, label: opt?.label ?? v }]);
+                      }
                       setCurrentStudentPick('');
                     }}
                     placeholder="— Buscar estudiante —"
@@ -867,15 +1003,17 @@ function CreateVisitPanel({
               </div>
               <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
                 <ul className="flex flex-wrap gap-2 py-0.5">
-                  {studentIds.map((id) => (
+                  {pickedStudents.map((p) => (
                     <li
-                      key={id}
+                      key={p.id}
                       className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                     >
-                      {id.slice(0, 8)}…
+                      <span className="max-w-[min(100%,18rem)] truncate" title={p.label}>
+                        {p.label}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => setStudentIds(studentIds.filter((x) => x !== id))}
+                        onClick={() => setPickedStudents(pickedStudents.filter((x) => x.id !== p.id))}
                         className="text-slate-500 hover:text-slate-800"
                       >
                         ×

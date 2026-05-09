@@ -19,7 +19,8 @@ type SmartSelectProps = {
   loadOptions?: (query: string, signal: AbortSignal) => Promise<SmartSelectOption[]>;
   debounceMs?: number;
   value: string;
-  onChange: (value: string) => void;
+  /** Al elegir una fila: valor y opción completa (p. ej. etiqueta para chips fuera del select). */
+  onChange: (value: string, option?: SmartSelectOption) => void;
   placeholder?: string;
   disabled?: boolean;
   emptyLabel?: string;
@@ -164,7 +165,7 @@ export function SmartSelect({
 
   const commit = useCallback(
     (opt: SmartSelectOption) => {
-      onChange(opt.value);
+      onChange(opt.value, opt);
       setPicked({ value: opt.value, label: opt.label });
       setOpen(false);
       setQuery('');

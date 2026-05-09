@@ -67,6 +67,15 @@ function toLocalInputValue(iso: string): string {
   }
 }
 
+/** Suma milisegundos a un valor `datetime-local` interpretado en hora local. */
+function bumpDatetimeLocal(value: string, addMs: number): string {
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return value;
+  const next = new Date(d.getTime() + addMs);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}T${pad(next.getHours())}:${pad(next.getMinutes())}`;
+}
+
 function nowLocalInputValue(): string {
   return toLocalInputValue(new Date(Date.now() + 60 * 60 * 1000).toISOString());
 }
@@ -129,6 +138,15 @@ export function ReunionesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Meeting | null>(null);
   const [detailErr, setDetailErr] = useState<string | null>(null);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<{
+    id: string;
+    title: string;
+    currentStartAt: string;
+  } | null>(null);
+  const [rescheduleStartAt, setRescheduleStartAt] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+  const [rescheduleErr, setRescheduleErr] = useState<string | null>(null);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
@@ -302,25 +320,50 @@ export function ReunionesPage() {
     }
   };
 
+  const closeRescheduleModal = () => {
+    if (rescheduleSaving) return;
+    setRescheduleOpen(false);
+    setRescheduleTarget(null);
+    setRescheduleErr(null);
+  };
+
+  const openReschedule = (id: string) => {
+    const m = mine.find((x) => x.id === id) ?? organized.find((x) => x.id === id);
+    if (!m) return;
+    setRescheduleTarget({ id: m.id, title: m.title, currentStartAt: m.startAt });
+    setRescheduleStartAt(toLocalInputValue(m.startAt));
+    setRescheduleErr(null);
+    setRescheduleOpen(true);
+  };
+
+  const confirmReschedule = async () => {
+    if (!rescheduleTarget) return;
+    const d = new Date(rescheduleStartAt);
+    if (!Number.isFinite(d.getTime())) {
+      setRescheduleErr('Indique una fecha y hora válidas.');
+      return;
+    }
+    setRescheduleSaving(true);
+    setRescheduleErr(null);
+    try {
+      await api.post(`/api/v1/meetings/${rescheduleTarget.id}/reschedule`, { startAt: d.toISOString() });
+      setMsg('Reunión reprogramada.');
+      setRescheduleOpen(false);
+      setRescheduleTarget(null);
+      setRescheduleErr(null);
+      await reloadAll();
+    } catch (e) {
+      setRescheduleErr(getUserFacingMessage(e));
+    } finally {
+      setRescheduleSaving(false);
+    }
+  };
+
   const actionCancel = async (id: string) => {
     const reason = window.prompt('Motivo de cancelación (opcional)', '') ?? undefined;
     try {
       await api.post(`/api/v1/meetings/${id}/cancel`, { reason });
       setMsg('Reunión cancelada.');
-      await reloadAll();
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    }
-  };
-
-  const actionReschedule = async (id: string) => {
-    const current = mine.find((x) => x.id === id) ?? organized.find((x) => x.id === id);
-    const hint = current ? toLocalInputValue(current.startAt) : '';
-    const next = window.prompt('Nueva fecha y hora (YYYY-MM-DDTHH:MM)', hint);
-    if (!next) return;
-    try {
-      await api.post(`/api/v1/meetings/${id}/reschedule`, { startAt: new Date(next).toISOString() });
-      setMsg('Reunión reprogramada.');
       await reloadAll();
     } catch (e) {
       setErr(getUserFacingMessage(e));
@@ -497,7 +540,7 @@ export function ReunionesPage() {
               isOrganizer={currentIsOrganizer}
               isParticipant={Boolean(currentMyPart)}
               onCancel={() => actionCancel(currentDetail.id)}
-              onReschedule={() => actionReschedule(currentDetail.id)}
+              onReschedule={() => openReschedule(currentDetail.id)}
               onInProgress={() => actionStatus(currentDetail.id, 'IN_PROGRESS')}
               onRealized={() => actionStatus(currentDetail.id, 'REALIZED')}
               onRsvp={(r) => actionRsvp(currentDetail.id, r)}
@@ -506,6 +549,90 @@ export function ReunionesPage() {
         }
       >
         {currentDetail ? <MeetingDetailView detail={currentDetail} detailErr={detailErr} /> : null}
+      </DetailModal>
+
+      <DetailModal
+        open={rescheduleOpen && !!rescheduleTarget}
+        overlayZClass="z-[100]"
+        title="Reprogramar reunión"
+        subtitle={rescheduleTarget?.title ?? null}
+        onClose={closeRescheduleModal}
+        footer={
+          <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={rescheduleSaving}
+              onClick={closeRescheduleModal}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={rescheduleSaving}
+              onClick={() => void confirmReschedule()}
+              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-50"
+            >
+              {rescheduleSaving ? 'Guardando…' : 'Confirmar nueva fecha'}
+            </button>
+          </div>
+        }
+      >
+        {rescheduleTarget ? (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-600 dark:bg-slate-800/80">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Horario actual
+              </p>
+              <p className="mt-1 font-medium text-slate-900 dark:text-slate-100">
+                {formatDateLong(rescheduleTarget.currentStartAt)}
+              </p>
+            </div>
+            {rescheduleErr ? (
+              <div
+                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-100"
+                role="alert"
+              >
+                {rescheduleErr}
+              </div>
+            ) : null}
+            <label className="block text-sm">
+              <span className="font-medium text-slate-800 dark:text-slate-200">Nueva fecha y hora</span>
+              <input
+                type="datetime-local"
+                value={rescheduleStartAt}
+                onChange={(e) => setRescheduleStartAt(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 shadow-sm outline-none ring-brand-500/20 focus:border-brand-500 focus:ring-4 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-brand-400"
+              />
+            </label>
+            <div>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Ajuste rápido</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(
+                  [
+                    { label: '+30 min', ms: 30 * 60 * 1000 },
+                    { label: '+1 h', ms: 60 * 60 * 1000 },
+                    { label: '+1 día', ms: 24 * 60 * 60 * 1000 }
+                  ] as const
+                ).map(({ label, ms }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled={rescheduleSaving}
+                    onClick={() => setRescheduleStartAt((prev) => bumpDatetimeLocal(prev, ms))}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-brand-300 hover:bg-brand-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500/50 dark:hover:bg-brand-950/50"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              Los invitados volverán a estado pendiente de confirmación (salvo quienes ya habían declinado). Se enviarán
+              avisos según la configuración de recordatorios de la institución.
+            </p>
+          </div>
+        ) : null}
       </DetailModal>
     </div>
   );
@@ -672,6 +799,7 @@ function MeetingActions({
 }
 
 type InviteItem = { userId: string; label: string; studentContextId?: string };
+type PresetGroupPick = { id: string; label: string };
 
 function CreateMeetingPanel({
   onCreated,
@@ -697,7 +825,7 @@ function CreateMeetingPanel({
   const [startAt, setStartAt] = useState(nowLocalInputValue());
   const [duration, setDuration] = useState('30');
   const [invitees, setInvitees] = useState<InviteItem[]>([]);
-  const [presetParents, setPresetParents] = useState<string[]>([]);
+  const [presetParents, setPresetParents] = useState<PresetGroupPick[]>([]);
   const [presetAllTeachers, setPresetAllTeachers] = useState(false);
   const [presetAllAdmins, setPresetAllAdmins] = useState(false);
   const [userPick, setUserPick] = useState('');
@@ -725,6 +853,7 @@ function CreateMeetingPanel({
   }, [docenteOnly, schoolId]);
 
   const loadUsers = useCallback(async (q: string, signal: AbortSignal) => {
+    if (docenteOnly) return [];
     const params: Record<string, string | number | undefined> = { q: q.trim() || undefined, limit: 50 };
     if (schoolId) params.schoolId = schoolId;
     const out: SmartSelectOption[] = [];
@@ -767,11 +896,13 @@ function CreateMeetingPanel({
         meetingLink: meetingLink.trim() || undefined,
         startAt: new Date(startAt).toISOString(),
         durationMinutes: Number(duration) || 30,
-        invitees: invitees.map((i) => ({
-          userId: i.userId,
-          ...(i.studentContextId ? { studentContextId: i.studentContextId } : {})
-        })),
-        presetAllParentsOfGroupIds: presetParents
+        invitees: docenteOnly
+          ? []
+          : invitees.map((i) => ({
+              userId: i.userId,
+              ...(i.studentContextId ? { studentContextId: i.studentContextId } : {})
+            })),
+        presetAllParentsOfGroupIds: presetParents.map((p) => p.id)
       };
       if (!docenteOnly) {
         payload.presetAllTeachersOfSchool = presetAllTeachers;
@@ -929,8 +1060,13 @@ function CreateMeetingPanel({
                 <SmartSelect
                   loadOptions={loadGroups}
                   value={groupPick}
-                  onChange={(v) => {
-                    if (v && !presetParents.includes(v)) setPresetParents([...presetParents, v]);
+                  onChange={(v, opt) => {
+                    if (v && !presetParents.some((p) => p.id === v)) {
+                      setPresetParents([
+                        ...presetParents,
+                        { id: v, label: opt?.label ?? v }
+                      ]);
+                    }
                     setGroupPick('');
                   }}
                   placeholder="— Buscar grupo —"
@@ -938,15 +1074,17 @@ function CreateMeetingPanel({
               </div>
               <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
                 <ul className="flex flex-wrap gap-2 py-0.5">
-                  {presetParents.map((id) => (
+                  {presetParents.map((p) => (
                     <li
-                      key={id}
+                      key={p.id}
                       className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                     >
-                      {id.slice(0, 8)}…
+                      <span className="max-w-[min(100%,18rem)] truncate" title={p.label}>
+                        {p.label}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => setPresetParents(presetParents.filter((x) => x !== id))}
+                        onClick={() => setPresetParents(presetParents.filter((x) => x.id !== p.id))}
                         className="text-slate-500 hover:text-slate-800"
                       >
                         ×
@@ -958,40 +1096,44 @@ function CreateMeetingPanel({
             </div>
           </fieldset>
 
-          <div className="text-sm sm:col-span-2">
-            <span className="text-slate-700">Invitados específicos</span>
-            <div className="mt-1">
-              <SmartSelect
-                loadOptions={loadUsers}
-                value={userPick}
-                onChange={(v) => {
-                  if (v && !invitees.some((x) => x.userId === v))
-                    setInvitees([...invitees, { userId: v, label: v.slice(0, 8) }]);
-                  setUserPick('');
-                }}
-                placeholder="— Buscar usuario —"
-              />
-            </div>
-            <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
-              <ul className="flex flex-wrap gap-2 py-0.5">
-                {invitees.map((i) => (
-                  <li
-                    key={i.userId}
-                    className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
-                  >
-                    {i.label}
-                    <button
-                      type="button"
-                      onClick={() => setInvitees(invitees.filter((x) => x.userId !== i.userId))}
-                      className="text-slate-500 hover:text-slate-800"
+          {!docenteOnly ? (
+            <div className="text-sm sm:col-span-2">
+              <span className="text-slate-700">Invitados específicos</span>
+              <div className="mt-1">
+                <SmartSelect
+                  loadOptions={loadUsers}
+                  value={userPick}
+                  onChange={(v, opt) => {
+                    if (v && !invitees.some((x) => x.userId === v))
+                      setInvitees([...invitees, { userId: v, label: opt?.label ?? v }]);
+                    setUserPick('');
+                  }}
+                  placeholder="— Buscar usuario —"
+                />
+              </div>
+              <div className={`mt-2 ${SCROLLABLE_PANEL_BODY}`}>
+                <ul className="flex flex-wrap gap-2 py-0.5">
+                  {invitees.map((i) => (
+                    <li
+                      key={i.userId}
+                      className="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs"
                     >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      <span className="max-w-[min(100%,18rem)] truncate" title={i.label}>
+                        {i.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setInvitees(invitees.filter((x) => x.userId !== i.userId))}
+                        className="text-slate-500 hover:text-slate-800"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="sm:col-span-2">
             <button

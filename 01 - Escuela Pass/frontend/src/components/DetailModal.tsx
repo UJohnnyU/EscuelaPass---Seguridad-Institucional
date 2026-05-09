@@ -8,7 +8,9 @@ export function DetailModal({
   badge,
   onClose,
   children,
-  footer
+  footer,
+  /** z-index de la capa overlay (p. ej. `z-[100]` para abrir encima de otro modal). */
+  overlayZClass = 'z-[90]'
 }: {
   open: boolean;
   title: string;
@@ -17,6 +19,7 @@ export function DetailModal({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  overlayZClass?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -34,7 +37,7 @@ export function DetailModal({
 
   if (!open) return null;
   const modal = (
-    <div className="modal-overlay-enter fixed inset-0 z-[90] overflow-y-auto bg-slate-950/60 backdrop-blur-sm">
+    <div className={`modal-overlay-enter fixed inset-0 ${overlayZClass} overflow-y-auto bg-slate-950/60 backdrop-blur-sm`}>
       <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
         <div
           className="modal-card-enter relative my-auto w-full max-w-2xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/5"
