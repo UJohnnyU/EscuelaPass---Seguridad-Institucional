@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SmartSelect } from '@/components/SmartSelect';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -65,6 +66,8 @@ function canReopenClosedPeriodThisCalendarYear(p: Period): boolean {
   return new Date(p.closedAt).getFullYear() === new Date().getFullYear();
 }
 
+type PeriodPendingAction = { kind: 'close' | 'reopen' | 'delete'; id: string };
+
 function reopenAutoCloseDeadlineYear(p: Period): number | null {
   if (!p.reopenedAt) return null;
   return new Date(p.reopenedAt).getFullYear() + 1;
@@ -87,6 +90,8 @@ export function PeriodosAcademicosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(emptyEditForm);
   const [policy, setPolicy] = useState<EffectivePolicy | null>(null);
+  const [periodDialog, setPeriodDialog] = useState<PeriodPendingAction | null>(null);
+  const [periodDialogBusy, setPeriodDialogBusy] = useState(false);
 
   useEffect(() => {
     if (!platformAdmin) return;
@@ -231,60 +236,65 @@ export function PeriodosAcademicosPage() {
     }
   };
 
-  const closePeriod = async (id: string) => {
-    if (
-      !window.confirm(
-        '¿Cerrar este periodo? Todas las actividades abiertas se cerrarán (los alumnos sin nota reciben 0) y se generarán los boletines del periodo.'
-      )
-    )
-      return;
+  const periodDialogCopy = useMemo(() => {
+    if (!periodDialog) return null;
+    switch (periodDialog.kind) {
+      case 'close':
+        return {
+          title: 'Cerrar periodo académico',
+          description:
+            '¿Cerrar este periodo? Todas las actividades abiertas se cerrarán (los alumnos sin nota reciben 0) y se generarán los boletines del periodo.',
+          confirmLabel: 'Cerrar periodo',
+          confirmTone: 'danger' as const
+        };
+      case 'reopen':
+        return {
+          title: 'Reabrir periodo académico',
+          description:
+            '¿Reabrir este periodo? Volverá a ACTIVO para que los docentes puedan trabajar calificaciones. Debe cerrarlo de nuevo a mano antes del 1 de enero del año siguiente; si no, el sistema lo cerrará automáticamente esa fecha (misma lógica que el cierre manual: actividades y boletines).',
+          confirmLabel: 'Reabrir periodo',
+          confirmTone: 'primary' as const
+        };
+      case 'delete':
+        return {
+          title: 'Eliminar periodo',
+          description: '¿Eliminar este periodo? Solo se permite si no tiene actividades vinculadas.',
+          confirmLabel: 'Eliminar periodo',
+          confirmTone: 'danger' as const
+        };
+    }
+  }, [periodDialog]);
+
+  const confirmPeriodDialog = async () => {
+    if (!periodDialog) return;
+    const { kind, id } = periodDialog;
+    setPeriodDialogBusy(true);
     setBusyId(id);
     setErr(null);
     try {
-      await api.post(`/api/v1/academic-periods/${id}/close`);
-      setOk('Periodo cerrado y boletines generados.');
+      if (kind === 'close') {
+        await api.post(`/api/v1/academic-periods/${id}/close`);
+        setOk('Periodo cerrado y boletines generados.');
+      } else if (kind === 'reopen') {
+        await api.post(`/api/v1/academic-periods/${id}/reopen`);
+        setOk('Periodo reabierto. Recuerde cerrarlo de nuevo antes del 1 de enero del año siguiente.');
+      } else {
+        await api.delete(`/api/v1/academic-periods/${id}`);
+        setOk('Periodo eliminado.');
+      }
+      setPeriodDialog(null);
       await loadPeriods();
     } catch (e) {
       setErr(getUserFacingMessage(e));
     } finally {
+      setPeriodDialogBusy(false);
       setBusyId(null);
     }
   };
 
-  const reopenPeriod = async (id: string) => {
-    if (
-      !window.confirm(
-        '¿Reabrir este periodo? Volverá a ACTIVO para que los docentes puedan trabajar calificaciones. Debe cerrarlo de nuevo a mano antes del 1 de enero del año siguiente; si no, el sistema lo cerrará automáticamente esa fecha (misma lógica que el cierre manual: actividades y boletines).'
-      )
-    )
-      return;
-    setBusyId(id);
-    setErr(null);
-    try {
-      await api.post(`/api/v1/academic-periods/${id}/reopen`);
-      setOk('Periodo reabierto. Recuerde cerrarlo de nuevo antes del 1 de enero del año siguiente.');
-      await loadPeriods();
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const removePeriod = async (id: string) => {
-    if (!window.confirm('¿Eliminar este periodo? Solo se permite si no tiene actividades vinculadas.')) return;
-    setBusyId(id);
-    setErr(null);
-    try {
-      await api.delete(`/api/v1/academic-periods/${id}`);
-      setOk('Periodo eliminado.');
-      await loadPeriods();
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    } finally {
-      setBusyId(null);
-    }
-  };
+  const requestClosePeriod = (id: string) => setPeriodDialog({ kind: 'close', id });
+  const requestReopenPeriod = (id: string) => setPeriodDialog({ kind: 'reopen', id });
+  const requestRemovePeriod = (id: string) => setPeriodDialog({ kind: 'delete', id });
 
   const startEdit = (p: Period) => {
     setErr(null);
@@ -346,7 +356,19 @@ export function PeriodosAcademicosPage() {
   };
 
   return (
-    <div className="max-w-5xl animate-fade-in space-y-6">
+    <>
+      <ConfirmDialog
+        open={periodDialog !== null}
+        title={periodDialogCopy?.title ?? ''}
+        description={periodDialogCopy?.description ?? ''}
+        confirmLabel={periodDialogCopy?.confirmLabel}
+        confirmTone={periodDialogCopy?.confirmTone ?? 'danger'}
+        cancelLabel="Cancelar"
+        busy={periodDialogBusy}
+        onCancel={() => !periodDialogBusy && setPeriodDialog(null)}
+        onConfirm={() => void confirmPeriodDialog()}
+      />
+      <div className="max-w-5xl animate-fade-in space-y-6">
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Periodos académicos</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
@@ -635,7 +657,7 @@ export function PeriodosAcademicosPage() {
                                 {p.status === 'ACTIVE' && (
                                   <button
                                     type="button"
-                                    onClick={() => void closePeriod(p.id)}
+                                    onClick={() => requestClosePeriod(p.id)}
                                     disabled={busyId === p.id}
                                     className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                                   >
@@ -645,7 +667,7 @@ export function PeriodosAcademicosPage() {
                                 {p.status === 'CLOSED' && canReopenClosedPeriodThisCalendarYear(p) && (
                                   <button
                                     type="button"
-                                    onClick={() => void reopenPeriod(p.id)}
+                                    onClick={() => requestReopenPeriod(p.id)}
                                     disabled={busyId === p.id}
                                     className="rounded border border-amber-600 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-60"
                                   >
@@ -655,7 +677,7 @@ export function PeriodosAcademicosPage() {
                                 {p.status !== 'CLOSED' && (
                                   <button
                                     type="button"
-                                    onClick={() => void removePeriod(p.id)}
+                                    onClick={() => requestRemovePeriod(p.id)}
                                     disabled={busyId === p.id}
                                     className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50 disabled:opacity-60"
                                   >
@@ -676,6 +698,7 @@ export function PeriodosAcademicosPage() {
         )}
       </section>
     </div>
+    </>
   );
 }
 

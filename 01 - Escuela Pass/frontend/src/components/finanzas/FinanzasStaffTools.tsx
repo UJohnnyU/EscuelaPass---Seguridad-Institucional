@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DetailModal } from '@/components/DetailModal';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { publicAssetUrl } from '@/lib/asset-url';
@@ -51,6 +52,22 @@ type DebtAdjustmentRow = {
   changedByName?: string | null;
 };
 type DebtAdjustmentsResponse = { data: DebtAdjustmentRow[]; meta?: { total: number; page: number; limit: number } };
+
+function debtAdjustmentActionTypeLabelEs(actionType: DebtAdjustmentRow['actionType']): string {
+  switch (actionType) {
+    case 'STATUS_CHANGE':
+      return 'Cambio de estado';
+    case 'LATE_FEE':
+      return 'Recargo por mora';
+    case 'ARRANGEMENT':
+      return 'Convenio';
+    case 'MANUAL_ADJUSTMENT':
+      return 'Ajuste manual';
+    default: {
+      return actionType;
+    }
+  }
+}
 
 type DebtObligationsTab =
   | 'todos'
@@ -110,6 +127,8 @@ export function FinanzasStaffTools() {
   const [pendingReject, setPendingReject] = useState<{ id: string; label: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectBusy, setRejectBusy] = useState(false);
+  const [pendingArrangement, setPendingArrangement] = useState<{ id: string; label: string } | null>(null);
+  const [arrangementReason, setArrangementReason] = useState('Convenio administrativo');
   const [debtActionBusy, setDebtActionBusy] = useState<string | null>(null);
 
   const [conceptListSearch, setConceptListSearch] = useState('');
@@ -403,18 +422,24 @@ export function FinanzasStaffTools() {
     }
   }
 
-  async function applyArrangement(debtId: string) {
-    const reason = window.prompt('Motivo del convenio (obligatorio):', 'Convenio administrativo');
-    if (!reason || reason.trim().length < 5) return;
-    setDebtActionBusy(debtId);
+  async function submitArrangement() {
+    if (!pendingArrangement) return;
+    const reason = arrangementReason.trim();
+    if (reason.length < 5) {
+      setError('El motivo del convenio debe tener al menos 5 caracteres.');
+      return;
+    }
+    setDebtActionBusy(pendingArrangement.id);
     setMessage(null);
     setError(null);
     try {
-      await api.post(`/api/v1/payments/debts/${debtId}/arrangement`, {
+      await api.post(`/api/v1/payments/debts/${pendingArrangement.id}/arrangement`, {
         discountPercent: 10,
-        reason: reason.trim()
+        reason
       });
       setMessage('Convenio aplicado (10%).');
+      setPendingArrangement(null);
+      setArrangementReason('Convenio administrativo');
       await Promise.all([refreshDebts(), refreshAdjustments()]);
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo aplicar el convenio.'));
@@ -532,6 +557,7 @@ export function FinanzasStaffTools() {
         a.studentName,
         a.matricula,
         a.actionType,
+        debtAdjustmentActionTypeLabelEs(a.actionType),
         a.previousAmount,
         a.deltaAmount,
         a.nextAmount,
@@ -1051,7 +1077,14 @@ export function FinanzasStaffTools() {
                             <button
                               type="button"
                               disabled={debtActionBusy === d.id}
-                              onClick={() => void applyArrangement(d.id)}
+                              onClick={() => {
+                                setPendingArrangement({
+                                  id: d.id,
+                                  label: `${d.conceptName} · ${d.studentName ?? ''} · ${moneyEs(d.amount)}`
+                                });
+                                setArrangementReason('Convenio administrativo');
+                                setError(null);
+                              }}
                               className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
                             >
                               {debtActionBusy === d.id ? '…' : 'Aplicar convenio 10%'}
@@ -1110,7 +1143,7 @@ export function FinanzasStaffTools() {
                   <td className="py-2 pr-3">
                     {a.studentName ? `${a.studentName}${a.matricula ? ` (${a.matricula})` : ''}` : '—'}
                   </td>
-                  <td className="py-2 pr-3">{a.actionType}</td>
+                  <td className="py-2 pr-3">{debtAdjustmentActionTypeLabelEs(a.actionType)}</td>
                   <td className="py-2 pr-3">{moneyEs(a.previousAmount)}</td>
                   <td className="py-2 pr-3">{moneyEs(a.deltaAmount)}</td>
                   <td className="py-2 pr-3">{moneyEs(a.nextAmount)}</td>
@@ -1128,7 +1161,7 @@ export function FinanzasStaffTools() {
       </section>
 
       {pendingReject ? (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/45 px-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
           <div
             role="dialog"
             aria-modal="true"
@@ -1170,6 +1203,67 @@ export function FinanzasStaffTools() {
           </div>
         </div>
       ) : null}
+
+      <DetailModal
+        open={!!pendingArrangement}
+        overlayZClass="z-[120]"
+        title="Aplicar convenio del 10%"
+        subtitle={pendingArrangement?.label ?? null}
+        onClose={() => {
+          if (debtActionBusy) return;
+          setPendingArrangement(null);
+          setArrangementReason('Convenio administrativo');
+        }}
+        footer={
+          <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={!!debtActionBusy}
+              onClick={() => {
+                setPendingArrangement(null);
+                setArrangementReason('Convenio administrativo');
+              }}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={!!debtActionBusy || arrangementReason.trim().length < 5}
+              onClick={() => void submitArrangement()}
+              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {debtActionBusy ? 'Aplicando…' : 'Aplicar convenio 10%'}
+            </button>
+          </div>
+        }
+      >
+        {pendingArrangement ? (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/90 px-4 py-3 text-sm text-slate-700">
+              <p>
+                Se aplicará un <strong className="text-indigo-950">descuento del 10%</strong> sobre el saldo vigente de
+                esta obligación. El texto del motivo quedará asentado en la bitácora de ajustes para auditoría.
+              </p>
+            </div>
+            <label className="block text-sm">
+              <span className="font-medium text-slate-900">Motivo del convenio</span>
+              <span className="font-normal text-slate-500"> (obligatorio, mínimo 5 caracteres)</span>
+              <textarea
+                className="mt-2 min-h-[108px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none ring-brand-500/15 focus:border-indigo-500 focus:ring-4"
+                value={arrangementReason}
+                onChange={(e) => setArrangementReason(e.target.value)}
+                placeholder="Ej.: Convenio administrativo acordado con la familia por situación económica temporal."
+                maxLength={2000}
+                aria-invalid={arrangementReason.trim().length > 0 && arrangementReason.trim().length < 5}
+              />
+            </label>
+            {arrangementReason.trim().length > 0 && arrangementReason.trim().length < 5 ? (
+              <p className="text-xs text-amber-800">Escriba al menos 5 caracteres para poder confirmar.</p>
+            ) : null}
+          </div>
+        ) : null}
+      </DetailModal>
     </div>
     </>
   );

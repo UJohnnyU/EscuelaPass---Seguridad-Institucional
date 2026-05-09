@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { DetailModal } from '@/components/DetailModal';
+import { PromptDialog } from '@/components/PromptDialog';
 import { SCROLLABLE_PANEL_BODY, DATA_TABLE_SEARCH_INPUT } from '@/components/DataTableScroll';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
@@ -147,6 +148,8 @@ export function ReunionesPage() {
   const [rescheduleStartAt, setRescheduleStartAt] = useState('');
   const [rescheduleSaving, setRescheduleSaving] = useState(false);
   const [rescheduleErr, setRescheduleErr] = useState<string | null>(null);
+  const [cancelPrompt, setCancelPrompt] = useState<{ id: string; title: string } | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
@@ -359,14 +362,20 @@ export function ReunionesPage() {
     }
   };
 
-  const actionCancel = async (id: string) => {
-    const reason = window.prompt('Motivo de cancelación (opcional)', '') ?? undefined;
+  const submitCancelMeeting = async (reasonRaw: string) => {
+    if (!cancelPrompt) return;
+    const reason = reasonRaw.trim() || undefined;
+    setCancelBusy(true);
+    setErr(null);
     try {
-      await api.post(`/api/v1/meetings/${id}/cancel`, { reason });
+      await api.post(`/api/v1/meetings/${cancelPrompt.id}/cancel`, { reason });
       setMsg('Reunión cancelada.');
+      setCancelPrompt(null);
       await reloadAll();
     } catch (e) {
       setErr(getUserFacingMessage(e));
+    } finally {
+      setCancelBusy(false);
     }
   };
 
@@ -539,7 +548,7 @@ export function ReunionesPage() {
               detail={currentDetail}
               isOrganizer={currentIsOrganizer}
               isParticipant={Boolean(currentMyPart)}
-              onCancel={() => actionCancel(currentDetail.id)}
+              onCancel={() => setCancelPrompt({ id: currentDetail.id, title: currentDetail.title })}
               onReschedule={() => openReschedule(currentDetail.id)}
               onInProgress={() => actionStatus(currentDetail.id, 'IN_PROGRESS')}
               onRealized={() => actionStatus(currentDetail.id, 'REALIZED')}
@@ -550,6 +559,23 @@ export function ReunionesPage() {
       >
         {currentDetail ? <MeetingDetailView detail={currentDetail} detailErr={detailErr} /> : null}
       </DetailModal>
+
+      <PromptDialog
+        open={cancelPrompt !== null}
+        overlayZClass="z-[120]"
+        title="Cancelar reunión"
+        subtitle={cancelPrompt?.title ?? null}
+        description="Si lo desea, indique un motivo breve. Las personas invitadas verán que el encuentro quedó cancelado."
+        label="Motivo de cancelación"
+        placeholder="Ej.: reprogramación institucional, cambio de disponibilidad…"
+        confirmLabel="Confirmar cancelación"
+        danger
+        busy={cancelBusy}
+        onCancel={() => {
+          if (!cancelBusy) setCancelPrompt(null);
+        }}
+        onConfirm={(v) => void submitCancelMeeting(v)}
+      />
 
       <DetailModal
         open={rescheduleOpen && !!rescheduleTarget}

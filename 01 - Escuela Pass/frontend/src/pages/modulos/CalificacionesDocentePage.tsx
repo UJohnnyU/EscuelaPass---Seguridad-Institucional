@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTableScroll, DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { SmartSelect } from '@/components/SmartSelect';
 import { api } from '@/lib/api';
@@ -66,6 +67,11 @@ type ActivityRow = {
   schoolId: string | null;
   schoolName: string | null;
 };
+
+type ActivityPending =
+  | { kind: 'close'; activityId: string }
+  | { kind: 'reopen'; activityId: string }
+  | { kind: 'delete'; activityId: string; description: string };
 
 type BoardResponse = {
   activity: {
@@ -154,6 +160,8 @@ export function CalificacionesDocentePage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savingAll, setSavingAll] = useState(false);
   const [busyAction, setBusyAction] = useState(false);
+  const [activityDialog, setActivityDialog] = useState<ActivityPending | null>(null);
+  const [activityDialogBusy, setActivityDialogBusy] = useState(false);
 
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -537,52 +545,79 @@ export function CalificacionesDocentePage() {
     }
   };
 
-  const closeActivity = async () => {
-    if (!board) return;
-    if (!window.confirm('¿Cerrar la actividad? Las notas quedarán bloqueadas hasta que la reabras.')) return;
-    setBusyAction(true);
+  const activityDialogCopy = useMemo(() => {
+    if (!activityDialog) return null;
+    switch (activityDialog.kind) {
+      case 'close':
+        return {
+          title: 'Cerrar actividad',
+          description: '¿Cerrar la actividad? Las notas quedarán bloqueadas hasta que la reabras.',
+          confirmLabel: 'Cerrar actividad',
+          confirmTone: 'danger' as const
+        };
+      case 'reopen':
+        return {
+          title: 'Reabrir actividad',
+          description: '¿Reabrir la actividad para editar calificaciones?',
+          confirmLabel: 'Reabrir actividad',
+          confirmTone: 'primary' as const
+        };
+      case 'delete':
+        return {
+          title: 'Eliminar actividad',
+          description: activityDialog.description,
+          confirmLabel: 'Eliminar',
+          confirmTone: 'danger' as const
+        };
+    }
+  }, [activityDialog]);
+
+  const confirmActivityDialog = async () => {
+    if (!activityDialog) return;
+    const { kind, activityId } = activityDialog;
+    setActivityDialogBusy(true);
+    if (kind !== 'delete') setBusyAction(true);
     setErr(null);
     try {
-      await api.post(`/api/v1/activities/${board.activity.id}/close`);
-      setInfo('Actividad cerrada. Las calificaciones quedan publicadas.');
-      await loadBoard(board.activity.id);
+      if (kind === 'close') {
+        await api.post(`/api/v1/activities/${activityId}/close`);
+        setInfo('Actividad cerrada. Las calificaciones quedan publicadas.');
+      } else if (kind === 'reopen') {
+        await api.post(`/api/v1/activities/${activityId}/reopen`);
+        setInfo('Actividad reabierta. Puedes editar calificaciones.');
+      } else {
+        await api.delete(`/api/v1/activities/${activityId}`);
+        setInfo('Actividad eliminada.');
+        await loadActivities();
+      }
+      setActivityDialog(null);
+      if (kind !== 'delete') {
+        await loadBoard(activityId);
+      }
     } catch (e) {
       setErr(getUserFacingMessage(e));
     } finally {
+      setActivityDialogBusy(false);
       setBusyAction(false);
     }
   };
 
-  const reopenActivity = async () => {
+  const requestCloseActivity = () => {
     if (!board) return;
-    if (!window.confirm('¿Reabrir la actividad para editar calificaciones?')) return;
-    setBusyAction(true);
-    setErr(null);
-    try {
-      await api.post(`/api/v1/activities/${board.activity.id}/reopen`);
-      setInfo('Actividad reabierta. Puedes editar calificaciones.');
-      await loadBoard(board.activity.id);
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    } finally {
-      setBusyAction(false);
-    }
+    setActivityDialog({ kind: 'close', activityId: board.activity.id });
   };
 
-  const deleteActivityFromList = async (id: string, gradedCount: number) => {
+  const requestReopenActivity = () => {
+    if (!board) return;
+    setActivityDialog({ kind: 'reopen', activityId: board.activity.id });
+  };
+
+  const requestDeleteActivityFromList = (id: string, gradedCount: number) => {
     const hasGrades = gradedCount > 0;
-    const msg = hasGrades
+    const description = hasGrades
       ? '¿Eliminar esta actividad y todas las calificaciones asociadas? Esta acción no se puede deshacer.'
       : '¿Eliminar esta actividad? Esta acción no se puede deshacer.';
-    if (!window.confirm(msg)) return;
-    setErr(null);
-    try {
-      await api.delete(`/api/v1/activities/${id}`);
-      setInfo('Actividad eliminada.');
-      await loadActivities();
-    } catch (e) {
-      setErr(getUserFacingMessage(e));
-    }
+    setActivityDialog({ kind: 'delete', activityId: id, description });
   };
 
   const updateDraft = (studentId: string, patch: Partial<RowDraft>) => {
@@ -599,7 +634,19 @@ export function CalificacionesDocentePage() {
   const isClosed = board?.activity.status === 'CLOSED';
 
   return (
-    <div className="max-w-6xl animate-fade-in space-y-8">
+    <>
+      <ConfirmDialog
+        open={activityDialog !== null}
+        title={activityDialogCopy?.title ?? ''}
+        description={activityDialogCopy?.description ?? ''}
+        confirmLabel={activityDialogCopy?.confirmLabel}
+        confirmTone={activityDialogCopy?.confirmTone ?? 'danger'}
+        cancelLabel="Cancelar"
+        busy={activityDialogBusy}
+        onCancel={() => !activityDialogBusy && setActivityDialog(null)}
+        onConfirm={() => void confirmActivityDialog()}
+      />
+      <div className="max-w-6xl animate-fade-in space-y-8">
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Actividades y calificaciones</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
@@ -757,7 +804,8 @@ export function CalificacionesDocentePage() {
                       {(a.gradedCount === 0 || canDeleteActivityWithGrades) && (
                         <button
                           type="button"
-                          onClick={() => void deleteActivityFromList(a.id, a.gradedCount)}
+                          onClick={() => requestDeleteActivityFromList(a.id, a.gradedCount)}
+                          disabled={activityDialogBusy}
                           className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
                         >
                           Eliminar
@@ -812,8 +860,8 @@ export function CalificacionesDocentePage() {
                 {board.activity.status === 'OPEN' ? (
                   <button
                     type="button"
-                    disabled={busyAction}
-                    onClick={() => void closeActivity()}
+                    disabled={busyAction || activityDialogBusy}
+                    onClick={requestCloseActivity}
                     className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                   >
                     {busyAction ? 'Procesando…' : 'Cerrar actividad'}
@@ -821,8 +869,8 @@ export function CalificacionesDocentePage() {
                 ) : (
                   <button
                     type="button"
-                    disabled={busyAction}
-                    onClick={() => void reopenActivity()}
+                    disabled={busyAction || activityDialogBusy}
+                    onClick={requestReopenActivity}
                     className="rounded border border-amber-600 bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-60"
                   >
                     {busyAction ? 'Procesando…' : 'Reabrir actividad'}
@@ -1048,6 +1096,7 @@ export function CalificacionesDocentePage() {
         </div>
       )}
     </div>
+    </>
   );
 }
 

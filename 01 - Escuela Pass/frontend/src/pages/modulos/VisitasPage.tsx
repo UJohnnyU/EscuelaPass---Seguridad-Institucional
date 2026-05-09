@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { DetailModal } from '@/components/DetailModal';
+import { PromptDialog } from '@/components/PromptDialog';
 import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
 import { useAuth } from '@/context/useAuth';
@@ -109,6 +110,8 @@ export function VisitasPage() {
   const [rescheduleStartAt, setRescheduleStartAt] = useState('');
   const [rescheduleSaving, setRescheduleSaving] = useState(false);
   const [rescheduleErr, setRescheduleErr] = useState<string | null>(null);
+  const [cancelPrompt, setCancelPrompt] = useState<{ id: string; title: string } | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
   const [groupNameMap, setGroupNameMap] = useState<Record<string, string>>({});
   const [studentNameMap, setStudentNameMap] = useState<Record<string, string>>({});
   const [schools, setSchools] = useState<SchoolOption[]>([]);
@@ -353,14 +356,20 @@ export function VisitasPage() {
     }
   };
 
-  const actionCancel = async (id: string) => {
-    const reason = window.prompt('Motivo de cancelación (opcional)', '') ?? undefined;
+  const submitCancelVisit = async (reasonRaw: string) => {
+    if (!cancelPrompt) return;
+    const reason = reasonRaw.trim() || undefined;
+    setCancelBusy(true);
+    setErr(null);
     try {
-      await api.post(`/api/v1/external-visits/${id}/cancel`, { reason });
+      await api.post(`/api/v1/external-visits/${cancelPrompt.id}/cancel`, { reason });
       setMsg('Visita cancelada.');
+      setCancelPrompt(null);
       await reloadAll();
     } catch (e) {
       setErr(getUserFacingMessage(e));
+    } finally {
+      setCancelBusy(false);
     }
   };
 
@@ -504,7 +513,7 @@ export function VisitasPage() {
             <VisitActions
               detail={currentDetail}
               canModify={canModifyCurrent}
-              onCancel={() => actionCancel(currentDetail.id)}
+              onCancel={() => setCancelPrompt({ id: currentDetail.id, title: currentDetail.title })}
               onReschedule={() => openVisitReschedule(currentDetail.id)}
               onRealized={() => actionRealized(currentDetail.id)}
             />
@@ -520,6 +529,23 @@ export function VisitasPage() {
           />
         ) : null}
       </DetailModal>
+
+      <PromptDialog
+        open={cancelPrompt !== null}
+        overlayZClass="z-[120]"
+        title="Cancelar visita"
+        subtitle={cancelPrompt?.title ?? null}
+        description="Si lo desea, indique un motivo breve. Las personas relacionadas verán que la visita quedó cancelada."
+        label="Motivo de cancelación"
+        placeholder="Ej.: cambio de agenda, visitante no disponible…"
+        confirmLabel="Confirmar cancelación"
+        danger
+        busy={cancelBusy}
+        onCancel={() => {
+          if (!cancelBusy) setCancelPrompt(null);
+        }}
+        onConfirm={(v) => void submitCancelVisit(v)}
+      />
 
       <DetailModal
         open={rescheduleOpen && !!rescheduleTarget}
