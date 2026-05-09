@@ -191,9 +191,15 @@ export function CalificacionesDocentePage() {
     [assignments]
   );
 
+  const filterAssignmentFirstOptionLabel = useMemo(() => {
+    if (platformAdmin) return 'Todos los grupos/materias (según escuela elegida arriba)';
+    if (user?.role === 'ADMINISTRATIVO') return 'Todos los grupos/materias de la institución';
+    return 'Todos mis grupos/materias';
+  }, [platformAdmin, user?.role]);
+
   const filterAssignmentOptions = useMemo(
-    () => [{ value: '', label: 'Todos mis grupos/materias' }, ...assignmentSelectOptions],
-    [assignmentSelectOptions]
+    () => [{ value: '', label: filterAssignmentFirstOptionLabel }, ...assignmentSelectOptions],
+    [assignmentSelectOptions, filterAssignmentFirstOptionLabel]
   );
 
   useEffect(() => {

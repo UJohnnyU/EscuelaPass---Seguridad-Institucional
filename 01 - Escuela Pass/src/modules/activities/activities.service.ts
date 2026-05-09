@@ -911,6 +911,29 @@ export class ActivitiesService {
       );
     }
 
+    if (role === UserRole.ADMINISTRATIVO) {
+      const schoolId = await this.resolveSchoolIdForAdministrativeUser(userId);
+      return this.studentsRepository.manager.query<TeacherAssignmentRow[]>(
+        `SELECT
+           g.id AS "groupId",
+           g.name AS "groupName",
+           g.grade AS "grade",
+           g.school_year AS "schoolYear",
+           s.id AS "subjectId",
+           s.name AS "subjectName",
+           g.school_id AS "schoolId",
+           sch.name AS "schoolName",
+           sch.max_grade_scale::text AS "schoolMaxGradeScale"
+         FROM groups g
+         INNER JOIN subjects s ON s.school_id = g.school_id
+         LEFT JOIN schools sch ON sch.id = g.school_id
+         WHERE g.school_id IS NOT NULL
+           AND g.school_id = $1::uuid
+         ORDER BY sch.name ASC NULLS LAST, g.name ASC NULLS LAST, s.name ASC`,
+        [schoolId]
+      );
+    }
+
     const teacher = await this.ensureTeacherProfile(userId);
 
     return this.studentsRepository.manager.query<TeacherAssignmentRow[]>(
@@ -932,6 +955,19 @@ export class ActivitiesService {
        ORDER BY sch.name ASC NULLS LAST, g.name ASC NULLS LAST, s.name ASC`,
       [teacher.id]
     );
+  }
+
+  /** Escuela del usuario administrativo (misma regla que en list() de actividades). */
+  private async resolveSchoolIdForAdministrativeUser(userId: string): Promise<string> {
+    const rows = await this.studentsRepository.manager.query<{ school_id: string | null }[]>(
+      `SELECT school_id FROM users WHERE id = $1::uuid`,
+      [userId]
+    );
+    const schoolId = rows[0]?.school_id?.trim();
+    if (!schoolId) {
+      throw new ForbiddenException('Tu usuario administrativo no tiene una escuela asignada');
+    }
+    return schoolId;
   }
 
   /**
