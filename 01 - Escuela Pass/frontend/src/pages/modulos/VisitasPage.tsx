@@ -48,6 +48,20 @@ function formatDateLong(iso: string): string {
   }
 }
 
+/** Etiqueta legible para el alcance (el API usa códigos en inglés). */
+function audienceScopeLabel(scope: string): string {
+  switch (scope) {
+    case 'SCHOOL':
+      return 'Toda la escuela';
+    case 'GROUPS':
+      return 'Grupos específicos';
+    case 'STUDENTS':
+      return 'Estudiantes específicos';
+    default:
+      return scope;
+  }
+}
+
 function toLocalInputValue(iso: string): string {
   try {
     const d = new Date(iso);
@@ -230,7 +244,8 @@ export function VisitasPage() {
         v.location,
         v.status,
         formatDateLong(v.visitDatetime),
-        v.audienceScope
+        v.audienceScope,
+        audienceScopeLabel(v.audienceScope)
       ]
         .filter(Boolean)
         .join(' ')
@@ -695,7 +710,7 @@ function VisitDetailView({
         </p>
       </div>
       <p className="text-slate-700">
-        <span className="font-medium text-slate-900">Alcance:</span> {detail.audienceScope}
+        <span className="font-medium text-slate-900">Alcance:</span> {audienceScopeLabel(detail.audienceScope)}
         {detail.audienceScope === 'GROUPS' ? ` · ${detail.groupIds.length} grupo(s)` : ''}
         {detail.audienceScope === 'STUDENTS' ? ` · ${detail.studentIds.length} estudiante(s)` : ''}
       </p>

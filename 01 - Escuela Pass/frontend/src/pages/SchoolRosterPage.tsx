@@ -10,6 +10,41 @@ import { uploadUserAvatar } from '@/lib/uploads-api';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin, isStaff } from '@/lib/roles';
 
+/** Padding y alineación homogéneos en las tablas de esta página */
+const RTH =
+  'px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4 dark:text-slate-400';
+const RTH_NUM =
+  'px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4 dark:text-slate-400';
+const RTH_CTR =
+  'px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4 dark:text-slate-400';
+const RTH_FOTO =
+  'w-28 px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 dark:text-slate-400';
+const RTH_ACT =
+  'px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4 dark:text-slate-400';
+
+const RTD =
+  'px-3 py-2.5 align-middle text-sm text-slate-800 first:pl-4 last:pr-4 dark:text-slate-200';
+const RTD_NUM =
+  'px-3 py-2.5 align-middle text-right text-sm tabular-nums text-slate-800 first:pl-4 last:pr-4 dark:text-slate-200';
+const RTD_CTR =
+  'px-3 py-2.5 align-middle text-center text-sm text-slate-800 first:pl-4 last:pr-4 dark:text-slate-200';
+const RTD_ACT =
+  'px-3 py-2.5 align-middle text-right text-sm text-slate-800 first:pl-4 last:pr-4 dark:text-slate-200';
+const RTD_FOTO =
+  'w-28 px-2 py-2.5 align-middle text-center first:pl-3 dark:text-slate-200';
+
+/** Tablas compactas anidadas (p. ej. vehículos en padres/tutores) */
+const VTH =
+  'px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4 dark:text-slate-400';
+const VTH_CTR =
+  'px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4 dark:text-slate-400';
+const VTH_ACT =
+  'px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4 dark:text-slate-400';
+const VTD =
+  'px-3 py-2 align-middle text-xs text-slate-800 first:pl-4 last:pr-4 dark:text-slate-200';
+const VTD_ACT =
+  'px-3 py-2 align-middle text-right text-xs text-slate-800 first:pl-4 last:pr-4 dark:text-slate-200';
+
 type SchoolRow = { id: string; name: string; code: string };
 
 type GroupRow = {
@@ -1619,28 +1654,28 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="py-2 pr-4 font-medium">Fecha</th>
-                  <th className="py-2 pr-4 font-medium">Tipo</th>
-                  <th className="py-2 pr-4 font-medium">Persona</th>
-                  <th className="py-2 pr-4 font-medium">Transición</th>
-                  <th className="py-2 pr-4 font-medium">Motivo</th>
-                  <th className="py-2 font-medium">Responsable</th>
+                  <th className={`whitespace-nowrap ${RTH}`}>Fecha</th>
+                  <th className={RTH_CTR}>Tipo</th>
+                  <th className={RTH}>Persona</th>
+                  <th className={RTH}>Transición</th>
+                  <th className={RTH}>Motivo</th>
+                  <th className={RTH}>Responsable</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLifecycleEvents.map((row) => (
                   <tr key={row.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-4">{new Date(row.createdAt).toLocaleString()}</td>
-                    <td className="py-2 pr-4">{row.entityType === 'student' ? 'Alumno' : 'Docente'}</td>
-                    <td className="py-2 pr-4">{row.personName}</td>
-                    <td className="py-2 pr-4">
+                    <td className={`whitespace-nowrap ${RTD}`}>{new Date(row.createdAt).toLocaleString()}</td>
+                    <td className={RTD_CTR}>{row.entityType === 'student' ? 'Alumno' : 'Docente'}</td>
+                    <td className={RTD}>{row.personName}</td>
+                    <td className={RTD}>
                       {lifecycleLabel(row.fromStatus)} {'->'} {lifecycleLabel(row.toStatus)}
                     </td>
-                    <td className="py-2 pr-4">{row.reason}</td>
-                    <td className="py-2">{row.changedByName}</td>
+                    <td className={RTD}>{row.reason}</td>
+                    <td className={RTD}>{row.changedByName}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1736,33 +1771,33 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="py-2 pr-4 font-medium">Nombre</th>
-                  <th className="py-2 pr-4 font-medium">Grado</th>
-                  <th className="py-2 pr-4 font-medium">Turno</th>
-                  <th className="py-2 pr-4 font-medium">Ciclo</th>
-                  <th className="py-2 pr-4 font-medium">Aula</th>
-                  <th className="py-2 pr-4 font-medium">Estado</th>
-                  <th className="py-2 font-medium">Acciones</th>
+                  <th className={RTH}>Nombre</th>
+                  <th className={RTH_CTR}>Grado</th>
+                  <th className={RTH}>Turno</th>
+                  <th className={RTH_CTR}>Ciclo</th>
+                  <th className={RTH_CTR}>Aula</th>
+                  <th className={RTH_CTR}>Estado</th>
+                  <th className={RTH_ACT}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredGroupsTable.map((r) => (
                   <tr key={r.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-4">{r.name}</td>
-                    <td className="py-2 pr-4">{r.grade ?? '—'}</td>
-                    <td className="py-2 pr-4">{shiftLabel(r.shift)}</td>
-                    <td className="py-2 pr-4">{r.schoolYear}</td>
-                    <td className="py-2 pr-4">{r.classroom ?? '—'}</td>
-                    <td className="py-2 pr-4">
+                    <td className={RTD}>{r.name}</td>
+                    <td className={RTD_CTR}>{r.grade ?? '—'}</td>
+                    <td className={RTD}>{shiftLabel(r.shift)}</td>
+                    <td className={RTD_CTR}>{r.schoolYear}</td>
+                    <td className={RTD_CTR}>{r.classroom ?? '—'}</td>
+                    <td className={RTD_CTR}>
                       <span className={r.status !== false ? 'text-emerald-700' : 'text-slate-500'}>
                         {r.status !== false ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
-                    <td className="py-2">
-                      <div className="flex gap-2">
+                    <td className={RTD_ACT}>
+                      <div className="flex flex-wrap justify-end gap-2">
                         <button type="button" className="text-xs text-brand-800 underline" onClick={() => onEditGroup(r)}>
                           Editar
                         </button>
@@ -1790,26 +1825,32 @@ export function SchoolRosterPage() {
 
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Alumnos</h2>
-        <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateStudent}>
+        <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateStudent} autoComplete="off">
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Correo</span>
             <input
               type="email"
+              name="ep-school-roster-new-student-email"
               required
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={sEmail}
               onChange={(e) => setSEmail(e.target.value)}
+              autoComplete="off"
             />
           </label>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Contraseña inicial</span>
             <input
-              type="password"
+              type="text"
+              name="ep-school-roster-new-student-password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm"
               value={sPass}
               onChange={(e) => setSPass(e.target.value)}
+              autoComplete="new-password"
+              spellCheck={false}
+              autoCapitalize="off"
             />
           </label>
           <label className="text-sm">
@@ -1899,24 +1940,24 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="w-28 py-2 pr-2 font-medium">Foto</th>
-                  <th className="py-2 pr-4 font-medium">Nombre</th>
-                  <th className="py-2 pr-4 font-medium">Matrícula</th>
-                  <th className="py-2 pr-4 font-medium">Celular</th>
-                  <th className="py-2 pr-4 font-medium">Estado</th>
-                  <th className="py-2 pr-4 font-medium">Sale solo</th>
-                  <th className="py-2 pr-4 font-medium">Acceso</th>
-                  <th className="min-w-[14rem] py-2 font-medium">Grupo</th>
-                  <th className="py-2 font-medium">Acciones</th>
+                  <th className={RTH_FOTO}>Foto</th>
+                  <th className={RTH}>Nombre</th>
+                  <th className={RTH_NUM}>Matrícula</th>
+                  <th className={RTH_NUM}>Celular</th>
+                  <th className={RTH_CTR}>Estado</th>
+                  <th className={RTH_CTR}>Sale solo</th>
+                  <th className={RTH_CTR}>Acceso</th>
+                  <th className={`min-w-[14rem] ${RTH}`}>Grupo</th>
+                  <th className={RTH_ACT}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudentsTable.map((r) => (
                   <tr key={r.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-2 align-middle">
+                    <td className={RTD_FOTO}>
                       <RosterAvatar
                         fullName={r.fullName}
                         avatarUrl={r.avatarUrl}
@@ -1925,13 +1966,13 @@ export function SchoolRosterPage() {
                         onPick={(file) => void onUserAvatarFile(r.userId, file)}
                       />
                     </td>
-                    <td className="py-2 pr-4 align-middle">{r.fullName}</td>
-                    <td className="py-2 pr-4 align-middle">{r.matricula}</td>
-                    <td className="py-2 pr-4 align-middle">{r.phone?.trim() ? r.phone : '—'}</td>
-                    <td className="py-2 pr-4 align-middle">{lifecycleLabel(r.lifecycleStatus)}</td>
-                    <td className="py-2 pr-4 align-middle">{r.canLeaveAlone ? 'Sí' : 'No'}</td>
-                    <td className="py-2 pr-4 align-middle">{r.canAccessCampus ? 'Sí' : 'No'}</td>
-                    <td className="py-2 align-middle">
+                    <td className={RTD}>{r.fullName}</td>
+                    <td className={RTD_NUM}>{r.matricula}</td>
+                    <td className={RTD_NUM}>{r.phone?.trim() ? r.phone : '—'}</td>
+                    <td className={RTD_CTR}>{lifecycleLabel(r.lifecycleStatus)}</td>
+                    <td className={RTD_CTR}>{r.canLeaveAlone ? 'Sí' : 'No'}</td>
+                    <td className={RTD_CTR}>{r.canAccessCampus ? 'Sí' : 'No'}</td>
+                    <td className={RTD}>
                       {(() => {
                         const selectableGroups = groupCapacityRows.filter(
                           (g) => !g.isFull || g.id === r.groupId
@@ -1958,8 +1999,8 @@ export function SchoolRosterPage() {
                         );
                       })()}
                     </td>
-                    <td className="py-2 align-middle">
-                      <div className="flex gap-2">
+                    <td className={RTD_ACT}>
+                      <div className="flex flex-wrap justify-end gap-2">
                         <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditStudent(r)}>
                           Editar
                         </button>
@@ -2003,21 +2044,21 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="py-2 pr-4 font-medium">Grupo</th>
-                  <th className="py-2 pr-4 font-medium">Turno</th>
-                  <th className="py-2 pr-4 font-medium">Capacidad</th>
-                  <th className="py-2 pr-4 font-medium">Ocupados</th>
-                  <th className="py-2 pr-4 font-medium">Disponibles</th>
-                  <th className="py-2 font-medium">Uso</th>
+                  <th className={RTH}>Grupo</th>
+                  <th className={RTH}>Turno</th>
+                  <th className={RTH_NUM}>Capacidad</th>
+                  <th className={RTH_NUM}>Ocupados</th>
+                  <th className={RTH_CTR}>Disponibles</th>
+                  <th className={RTH_CTR}>Uso</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredGroupCapacityRows.map((g) => (
                   <tr key={g.id} className="border-b border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900">
-                    <td className="py-2 pr-4">
+                    <td className={RTD}>
                       <div>
                         <p className="font-medium text-slate-900 dark:text-slate-100">{g.name}</p>
                         <p className="text-xs text-slate-500">
@@ -2025,17 +2066,17 @@ export function SchoolRosterPage() {
                         </p>
                       </div>
                     </td>
-                    <td className="py-2 pr-4">{shiftLabel(g.shift)}</td>
-                    <td className="py-2 pr-4">{g.capacity ?? 'Sin límite'}</td>
-                    <td className="py-2 pr-4">{g.occupied}</td>
-                    <td className="py-2 pr-4">
+                    <td className={RTD}>{shiftLabel(g.shift)}</td>
+                    <td className={RTD_NUM}>{g.capacity ?? 'Sin límite'}</td>
+                    <td className={RTD_NUM}>{g.occupied}</td>
+                    <td className={RTD_CTR}>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                         {g.available ?? 'Ilimitado'}
                       </span>
                     </td>
-                    <td className="py-2">
+                    <td className={RTD_CTR}>
                       {g.ratio != null ? (
-                        <div className="w-36">
+                        <div className="mx-auto max-w-[9rem]">
                           <div className="h-2 overflow-hidden rounded-full bg-slate-200">
                             <div
                               className={`h-full rounded-full ${g.ratio >= 85 ? 'bg-amber-500' : 'bg-brand-700'}`}
@@ -2063,26 +2104,32 @@ export function SchoolRosterPage() {
 
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Docentes</h2>
-        <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateTeacher}>
+        <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateTeacher} autoComplete="off">
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Correo</span>
             <input
               type="email"
+              name="ep-school-roster-new-teacher-email"
               required
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={tEmail}
               onChange={(e) => setTEmail(e.target.value)}
+              autoComplete="off"
             />
           </label>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Contraseña inicial</span>
             <input
-              type="password"
+              type="text"
+              name="ep-school-roster-new-teacher-password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm"
               value={tPass}
               onChange={(e) => setTPass(e.target.value)}
+              autoComplete="new-password"
+              spellCheck={false}
+              autoCapitalize="off"
             />
           </label>
           <label className="text-sm">
@@ -2204,24 +2251,24 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="w-28 py-2 pr-2 font-medium">Foto</th>
-                  <th className="py-2 pr-4 font-medium">Nombre</th>
-                  <th className="py-2 pr-4 font-medium">No. empleado</th>
-                  <th className="py-2 pr-4 font-medium">Asignaturas</th>
-                  <th className="py-2 pr-4 font-medium">Celular</th>
-                  <th className="py-2 pr-4 font-medium">Estado</th>
-                  <th className="py-2 pr-4 font-medium">Campus</th>
-                  <th className="py-2 pr-4 font-medium">Correo</th>
-                  <th className="py-2 font-medium">Acciones</th>
+                  <th className={RTH_FOTO}>Foto</th>
+                  <th className={RTH}>Nombre</th>
+                  <th className={RTH_NUM}>No. empleado</th>
+                  <th className={RTH}>Asignaturas</th>
+                  <th className={RTH_NUM}>Celular</th>
+                  <th className={RTH_CTR}>Estado</th>
+                  <th className={RTH_CTR}>Campus</th>
+                  <th className={RTH}>Correo</th>
+                  <th className={RTH_ACT}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTeachersTable.map((r) => (
                   <tr key={r.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-2 align-middle">
+                    <td className={RTD_FOTO}>
                       <RosterAvatar
                         fullName={r.fullName}
                         avatarUrl={r.avatarUrl}
@@ -2230,21 +2277,23 @@ export function SchoolRosterPage() {
                         onPick={(file) => void onUserAvatarFile(r.userId, file)}
                       />
                     </td>
-                    <td className="py-2 pr-4">{r.fullName}</td>
-                    <td className="py-2 pr-4">{r.employeeNumber}</td>
-                    <td className="py-2 pr-4">
+                    <td className={RTD}>{r.fullName}</td>
+                    <td className={RTD_NUM}>{r.employeeNumber}</td>
+                    <td className={RTD}>
                       {(teacherSubjectByTeacher.get(r.id) ?? []).length > 0
                         ? (teacherSubjectByTeacher.get(r.id) ?? [])
                             .map((x) => `${x.subjectCode} · ${x.subjectName}`)
                             .join(', ')
                         : '—'}
                     </td>
-                    <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
-                    <td className="py-2 pr-4">{lifecycleLabel(r.lifecycleStatus)}</td>
-                    <td className="py-2 pr-4">{r.canAccessCampus ? 'Sí' : 'No'}</td>
-                    <td className="py-2">{r.email}</td>
-                    <td className="py-2">
-                      <div className="flex gap-2">
+                    <td className={RTD_NUM}>{r.phone?.trim() ? r.phone : '—'}</td>
+                    <td className={RTD_CTR}>{lifecycleLabel(r.lifecycleStatus)}</td>
+                    <td className={RTD_CTR}>{r.canAccessCampus ? 'Sí' : 'No'}</td>
+                    <td className={`max-w-[14rem] truncate ${RTD}`} title={r.email}>
+                      {r.email}
+                    </td>
+                    <td className={RTD_ACT}>
+                      <div className="flex flex-wrap justify-end gap-2">
                         <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditTeacher(r)}>
                           Editar
                         </button>
@@ -2278,11 +2327,12 @@ export function SchoolRosterPage() {
             <span className="font-medium text-slate-800 dark:text-slate-200">&quot;Administrativos&quot;</span> en{' '}
             <span className="font-medium">Escuelas</span>, integrada aquí junto al resto del personal.
           </p>
-          <form className="mt-4 grid gap-2 sm:grid-cols-2" onSubmit={onCreateAdministrativeStaff}>
+          <form className="mt-4 grid gap-2 sm:grid-cols-2" onSubmit={onCreateAdministrativeStaff} autoComplete="off">
             <label className="block text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
               Correo
               <input
                 type="email"
+                name="ep-school-roster-new-admstaff-email"
                 required
                 className="mt-1 w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
                 value={admStaffEmail}
@@ -2293,13 +2343,16 @@ export function SchoolRosterPage() {
             <label className="block text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
               Contraseña inicial
               <input
-                type="password"
+                type="text"
+                name="ep-school-roster-new-admstaff-password"
                 required
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm dark:border-slate-600 dark:bg-slate-800"
                 value={admStaffPass}
                 onChange={(e) => setAdmStaffPass(e.target.value)}
                 minLength={8}
                 autoComplete="new-password"
+                spellCheck={false}
+                autoCapitalize="off"
               />
             </label>
             <label className="block text-sm text-slate-700 dark:text-slate-300">
@@ -2354,32 +2407,34 @@ export function SchoolRosterPage() {
           ) : (
             <>
               <DataTableScroll>
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-sm">
                   <thead className={DATA_TABLE_HEAD}>
                     <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                      <th className="py-2 pr-4 font-medium">Nombre</th>
-                      <th className="py-2 pr-4 font-medium">Correo</th>
-                      <th className="py-2 pr-4 font-medium">Celular</th>
-                      <th className="py-2 pr-4 font-medium">Estado</th>
-                      <th className="py-2 pr-4 font-medium">Campus</th>
-                      <th className="py-2 font-medium">Acciones</th>
+                      <th className={RTH}>Nombre</th>
+                      <th className={RTH}>Correo</th>
+                      <th className={RTH_NUM}>Celular</th>
+                      <th className={RTH_CTR}>Estado</th>
+                      <th className={RTH_CTR}>Campus</th>
+                      <th className={RTH_ACT}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredAdministrativesTable.map((u) => (
                       <Fragment key={u.id}>
                         <tr className="border-b border-slate-100 dark:border-slate-700">
-                          <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{u.fullName}</td>
-                          <td className="py-2 pr-4">{u.email}</td>
-                          <td className="py-2 pr-4">{u.phone?.trim() ? u.phone : '—'}</td>
-                          <td className="py-2 pr-4">
+                          <td className={`font-medium text-slate-900 dark:text-slate-100 ${RTD}`}>{u.fullName}</td>
+                          <td className={`max-w-[12rem] truncate ${RTD}`} title={u.email}>
+                            {u.email}
+                          </td>
+                          <td className={RTD_NUM}>{u.phone?.trim() ? u.phone : '—'}</td>
+                          <td className={RTD_CTR}>
                             <span className={u.status ? 'text-emerald-700' : 'text-slate-400'}>
                               {u.status ? 'Activo' : 'Inactivo'}
                             </span>
                           </td>
-                          <td className="py-2 pr-4">{u.canAccessCampus ? 'Sí' : 'No'}</td>
-                          <td className="py-2">
-                            <div className="flex flex-wrap gap-2">
+                          <td className={RTD_CTR}>{u.canAccessCampus ? 'Sí' : 'No'}</td>
+                          <td className={RTD_ACT}>
+                            <div className="flex flex-wrap justify-end gap-2">
                               <button
                                 type="button"
                                 disabled={savingAdmStaffUserId !== null}
@@ -2412,7 +2467,7 @@ export function SchoolRosterPage() {
                         </tr>
                         {editingAdmStaffUserId === u.id ? (
                           <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
-                            <td colSpan={6} className="px-2 py-3">
+                            <td colSpan={6} className="px-4 py-4 sm:px-5">
                               <div className="grid gap-2 sm:grid-cols-2">
                                 <label className="block text-xs text-slate-700 dark:text-slate-300 sm:col-span-2">
                                   Nombre completo
@@ -2463,15 +2518,17 @@ export function SchoolRosterPage() {
                         ) : null}
                         {admStaffPasswordResetUserId === u.id && editingAdmStaffUserId !== u.id ? (
                           <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
-                            <td colSpan={6} className="px-2 py-3">
+                            <td colSpan={6} className="px-4 py-4 sm:px-5">
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                                 <label className="block min-w-[12rem] flex-1 text-xs text-slate-700 dark:text-slate-300">
                                   Nueva contraseña
                                   <input
-                                    type="password"
+                                    type="text"
                                     minLength={8}
                                     autoComplete="new-password"
-                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+                                    spellCheck={false}
+                                    autoCapitalize="off"
+                                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 font-mono text-sm dark:border-slate-600 dark:bg-slate-800"
                                     value={admStaffResetPass}
                                     onChange={(e) => setAdmStaffResetPass(e.target.value)}
                                   />
@@ -2589,24 +2646,24 @@ export function SchoolRosterPage() {
               </label>
             </div>
             <DataTableScroll>
-              <table className="min-w-full text-left text-sm">
+              <table className="min-w-full text-sm">
                 <thead className={DATA_TABLE_HEAD}>
                   <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                    <th className="py-2 pr-4 font-medium">Codigo</th>
-                    <th className="py-2 pr-4 font-medium">Nombre</th>
-                    <th className="py-2 pr-4 font-medium">Nivel</th>
-                    <th className="py-2 pr-4 font-medium">Grado</th>
-                    <th className="py-2 font-medium">Area</th>
+                    <th className={RTH_NUM}>Codigo</th>
+                    <th className={RTH}>Nombre</th>
+                    <th className={RTH_CTR}>Nivel</th>
+                    <th className={RTH_CTR}>Grado</th>
+                    <th className={RTH}>Area</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSubjectsTable.map((s) => (
                     <tr key={s.id} className="border-b border-slate-100">
-                      <td className="py-2 pr-4 font-medium text-slate-900">{s.code}</td>
-                      <td className="py-2 pr-4">{s.name}</td>
-                      <td className="py-2 pr-4">{s.educationLevel ?? '—'}</td>
-                      <td className="py-2 pr-4">{s.gradeScope ?? '—'}</td>
-                      <td className="py-2">{s.area ?? '—'}</td>
+                      <td className={`font-medium text-slate-900 ${RTD_NUM}`}>{s.code}</td>
+                      <td className={RTD}>{s.name}</td>
+                      <td className={RTD_CTR}>{s.educationLevel ?? '—'}</td>
+                      <td className={RTD_CTR}>{s.gradeScope ?? '—'}</td>
+                      <td className={RTD}>{s.area ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2778,13 +2835,13 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="py-2 pr-4 font-medium">Docente</th>
-                  <th className="py-2 pr-4 font-medium">Grupo</th>
-                  <th className="py-2 pr-4 font-medium">Asignatura</th>
-                  <th className="py-2 font-medium" />
+                  <th className={RTH}>Docente</th>
+                  <th className={RTH}>Grupo</th>
+                  <th className={RTH}>Asignatura</th>
+                  <th className={RTH_ACT} aria-label="Acciones" />
                 </tr>
               </thead>
               <tbody>
@@ -2794,10 +2851,10 @@ export function SchoolRosterPage() {
                   const sb = subjects.find((s) => s.id === r.subjectId);
                   return (
                     <tr key={r.id} className="border-b border-slate-100">
-                      <td className="py-2 pr-4">{te?.fullName ?? r.teacherId}</td>
-                      <td className="py-2 pr-4">{gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}</td>
-                      <td className="py-2 pr-4">{sb ? `${sb.code} · ${sb.name}` : r.subjectId ?? '—'}</td>
-                      <td className="py-2">
+                      <td className={RTD}>{te?.fullName ?? r.teacherId}</td>
+                      <td className={RTD}>{gr ? `${gr.name} (${gr.schoolYear})` : r.groupId}</td>
+                      <td className={RTD}>{sb ? `${sb.code} · ${sb.name}` : r.subjectId ?? '—'}</td>
+                      <td className={RTD_ACT}>
                         <button
                           type="button"
                           className="text-sm text-red-700 underline hover:text-red-900"
@@ -2828,26 +2885,32 @@ export function SchoolRosterPage() {
 
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Padres y tutores</h2>
-        <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateParent}>
+        <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onCreateParent} autoComplete="off">
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Correo</span>
             <input
               type="email"
+              name="ep-school-roster-new-parent-email"
               required
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={pEmail}
               onChange={(e) => setPEmail(e.target.value)}
+              autoComplete="off"
             />
           </label>
           <label className="text-sm sm:col-span-2">
             <span className="text-slate-700">Contraseña inicial</span>
             <input
-              type="password"
+              type="text"
+              name="ep-school-roster-new-parent-password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm"
               value={pPass}
               onChange={(e) => setPPass(e.target.value)}
+              autoComplete="new-password"
+              spellCheck={false}
+              autoCapitalize="off"
             />
           </label>
           <label className="text-sm">
@@ -2900,23 +2963,23 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="w-28 py-2 pr-2 font-medium">Foto</th>
-                  <th className="py-2 pr-4 font-medium">Nombre</th>
-                  <th className="py-2 pr-4 font-medium">Correo</th>
-                  <th className="py-2 pr-4 font-medium">Celular</th>
-                  <th className="py-2 pr-4 font-medium">Principal</th>
-                  <th className="py-2 pr-4 font-medium">Acceso</th>
-                  <th className="py-2 font-medium">Acciones</th>
+                  <th className={RTH_FOTO}>Foto</th>
+                  <th className={RTH}>Nombre</th>
+                  <th className={`max-w-[14rem] ${RTH}`}>Correo</th>
+                  <th className={RTH_NUM}>Celular</th>
+                  <th className={RTH_CTR}>Principal</th>
+                  <th className={RTH_CTR}>Acceso</th>
+                  <th className={RTH_ACT}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredParentsTable.map((r) => (
                   <Fragment key={r.id}>
                     <tr className="border-b border-slate-100">
-                      <td className="py-2 pr-2 align-middle">
+                      <td className={RTD_FOTO}>
                         <RosterAvatar
                           fullName={r.fullName}
                           avatarUrl={r.avatarUrl}
@@ -2925,13 +2988,15 @@ export function SchoolRosterPage() {
                           onPick={(file) => void onUserAvatarFile(r.userId, file)}
                         />
                       </td>
-                      <td className="py-2 pr-4">{r.fullName}</td>
-                      <td className="py-2 pr-4">{r.email}</td>
-                      <td className="py-2 pr-4">{r.phone?.trim() ? r.phone : '—'}</td>
-                      <td className="py-2 pr-4">{r.isPrimaryContact ? 'Sí' : '—'}</td>
-                      <td className="py-2 pr-4">{r.canAccessCampus ? 'Sí' : 'No'}</td>
-                      <td className="py-2">
-                        <div className="flex flex-wrap gap-2">
+                      <td className={RTD}>{r.fullName}</td>
+                      <td className={`max-w-[14rem] truncate ${RTD}`} title={r.email}>
+                        {r.email}
+                      </td>
+                      <td className={RTD_NUM}>{r.phone?.trim() ? r.phone : '—'}</td>
+                      <td className={RTD_CTR}>{r.isPrimaryContact ? 'Sí' : '—'}</td>
+                      <td className={RTD_CTR}>{r.canAccessCampus ? 'Sí' : 'No'}</td>
+                      <td className={RTD_ACT}>
+                        <div className="flex flex-wrap justify-end gap-2">
                           <button type="button" className="text-xs text-brand-800 underline" onClick={() => void onEditParent(r)}>
                             Editar
                           </button>
@@ -3034,29 +3099,29 @@ export function SchoolRosterPage() {
                             <p className="text-xs text-slate-500">Este padre/tutor no tiene vehículos registrados.</p>
                           ) : (
                             <div className="max-h-48 overflow-auto rounded border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-900">
-                              <table className="w-full text-xs">
+                              <table className="min-w-full text-xs">
                                 <thead className={DATA_TABLE_HEAD}>
                                   <tr className="border-b border-slate-200 text-slate-500 dark:border-slate-600">
-                                    <th className="py-1 pr-3 font-medium text-left">Placa</th>
-                                    <th className="py-1 pr-3 font-medium text-left">Marca / Modelo</th>
-                                    <th className="py-1 pr-3 font-medium text-left">Color / Año</th>
-                                    <th className="py-1 pr-3 font-medium text-left">Estado</th>
-                                    <th className="py-1 font-medium text-left">Acciones</th>
+                                    <th className={VTH}>Placa</th>
+                                    <th className={VTH}>Marca / Modelo</th>
+                                    <th className={VTH}>Color / Año</th>
+                                    <th className={VTH_CTR}>Estado</th>
+                                    <th className={VTH_ACT}>Acciones</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {parentVehicles.map((v) => (
                                     <tr key={v.id} className="border-b border-slate-100">
-                                      <td className="py-1 pr-3 font-mono font-semibold">{v.plate}</td>
-                                      <td className="py-1 pr-3">{[v.brand, v.model].filter(Boolean).join(' ') || '—'}</td>
-                                      <td className="py-1 pr-3">{[v.color, v.year ? String(v.year) : null].filter(Boolean).join(', ') || '—'}</td>
-                                      <td className="py-1 pr-3">
+                                      <td className={`font-mono font-semibold tabular-nums ${VTD}`}>{v.plate}</td>
+                                      <td className={VTD}>{[v.brand, v.model].filter(Boolean).join(' ') || '—'}</td>
+                                      <td className={VTD}>{[v.color, v.year ? String(v.year) : null].filter(Boolean).join(', ') || '—'}</td>
+                                      <td className={`text-center ${VTD}`}>
                                         <span className={v.isActive ? 'text-emerald-700' : 'text-red-600'}>
                                           {v.isActive ? 'Activo' : 'Inactivo'}
                                         </span>
                                       </td>
-                                      <td className="py-1">
-                                        <div className="flex gap-2">
+                                      <td className={VTD_ACT}>
+                                        <div className="flex flex-wrap justify-end gap-2">
                                           <button
                                             type="button"
                                             disabled={vehicleActionId === v.id}
@@ -3163,27 +3228,27 @@ export function SchoolRosterPage() {
             </label>
           </div>
           <DataTableScroll>
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-sm">
               <thead className={DATA_TABLE_HEAD}>
                 <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-600">
-                  <th className="py-2 pr-4 font-medium">Alumno</th>
-                  <th className="py-2 pr-4 font-medium">Padre / tutor</th>
-                  <th className="py-2 pr-4 font-medium">Parentesco</th>
-                  <th className="py-2 pr-4 font-medium">Recogida</th>
-                  <th className="py-2 pr-4 font-medium">Principal</th>
-                  <th className="py-2 font-medium" />
+                  <th className={RTH}>Alumno</th>
+                  <th className={RTH}>Padre / tutor</th>
+                  <th className={RTH}>Parentesco</th>
+                  <th className={RTH_CTR}>Recogida</th>
+                  <th className={RTH_CTR}>Principal</th>
+                  <th className={RTH_ACT} aria-label="Acciones" />
                 </tr>
               </thead>
               <tbody>
                 {filteredLinksTable.map((r) => (
                   <tr key={r.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-4">{r.studentFullName}</td>
-                    <td className="py-2 pr-4">{r.parentFullName}</td>
-                    <td className="py-2 pr-4">{r.relationship}</td>
-                    <td className="py-2 pr-4">{r.canPickup ? 'Sí' : 'No'}</td>
-                    <td className="py-2 pr-4">{r.isPrimary ? 'Sí' : '—'}</td>
-                    <td className="py-2">
-                      <div className="flex gap-2">
+                    <td className={RTD}>{r.studentFullName}</td>
+                    <td className={RTD}>{r.parentFullName}</td>
+                    <td className={RTD}>{r.relationship}</td>
+                    <td className={RTD_CTR}>{r.canPickup ? 'Sí' : 'No'}</td>
+                    <td className={RTD_CTR}>{r.isPrimary ? 'Sí' : '—'}</td>
+                    <td className={RTD_ACT}>
+                      <div className="flex flex-wrap justify-end gap-2">
                         <button
                           type="button"
                           className="text-xs text-brand-800 underline"

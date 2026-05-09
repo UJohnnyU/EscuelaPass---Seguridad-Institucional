@@ -34,6 +34,12 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out forwards',
         'slide-up': 'slideUp 0.45s ease-out forwards',
+        /** Entrada auth (login / recuperar contraseña): suave y con “pop” leve. */
+        'auth-in': 'authContentIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'auth-in-delay-sm': 'authContentIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both',
+        'auth-in-delay-md': 'authContentIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
+        /** Resplandor muy lento en fondos de autenticación. */
+        'auth-ambient': 'authAmbient 14s ease-in-out infinite',
         'bubble-drift': 'bubbleDrift 22s ease-in-out infinite',
         /** Paso activo en protocolo de circuito UI (plantel). */
         'circuit-step-live': 'circuitStepLive 2.2s ease-in-out infinite',
@@ -47,6 +53,14 @@ export default {
         slideUp: {
           '0%': { opacity: '0', transform: 'translateY(12px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' }
+        },
+        authContentIn: {
+          '0%': { opacity: '0', transform: 'translateY(0.875rem)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' }
+        },
+        authAmbient: {
+          '0%, 100%': { opacity: '0.18', transform: 'scale(1)' },
+          '50%': { opacity: '0.38', transform: 'scale(1.07)' }
         },
         bubbleDrift: {
           '0%, 100%': { transform: 'translate(0, 0) scale(1)' },

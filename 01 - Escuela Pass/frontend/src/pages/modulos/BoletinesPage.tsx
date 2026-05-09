@@ -7,6 +7,23 @@ import { hasRole, isPlatformAdmin } from '@/lib/roles';
 import { DataTableScroll, DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { SmartSelect, type SmartSelectOption } from '@/components/SmartSelect';
 
+/** CORS solo expone cabeceras listadas en `exposedHeaders`; lectura tolerante (AxiosHeaders vs objeto). */
+function readBulletinCountFromHeaders(headers: unknown): number {
+  if (headers && typeof headers === 'object' && 'get' in headers && typeof (headers as { get: unknown }).get === 'function') {
+    const v = (headers as { get: (n: string) => string | undefined }).get('x-bulletin-count');
+    if (v != null && v !== '') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+  }
+  if (!headers || typeof headers !== 'object') return 0;
+  const h = headers as Record<string, string | string[] | undefined>;
+  const raw = h['x-bulletin-count'] ?? h['X-Bulletin-Count'];
+  const s = Array.isArray(raw) ? raw[0] : raw;
+  const n = Number(s ?? '0');
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 type ReportCardType = 'PERIOD' | 'FINAL';
 type ReportCardStatus = 'DRAFT' | 'PUBLISHED';
 type PromotionStatus = 'APROBADO' | 'APROBADO_CON_PENDIENTES' | 'REPROBADO';
@@ -692,7 +709,7 @@ function BulkDownloadPanel({
         responseType: 'blob'
       });
       const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'application/pdf' });
-      const count = Number(res.headers['x-bulletin-count'] ?? '0') || 0;
+      const count = readBulletinCountFromHeaders(res.headers);
       const fileLabel =
         scope === 'STUDENT'
           ? 'alumno'

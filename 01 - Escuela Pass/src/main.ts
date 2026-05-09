@@ -76,7 +76,9 @@ async function bootstrap() {
     .filter(Boolean);
   app.enableCors({
     origin: corsOrigins.length <= 1 ? corsOrigins[0] ?? true : corsOrigins,
-    credentials: true
+    credentials: true,
+    /** Permite leer `X-Bulletin-Count` en el cliente (p. ej. mensaje tras descarga masiva de boletines). */
+    exposedHeaders: ['X-Bulletin-Count', 'Content-Disposition']
   });
 
   const apiPrefix = process.env.API_PREFIX ?? 'api/v1';

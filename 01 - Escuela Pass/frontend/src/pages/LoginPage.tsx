@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
 import { BubbleField } from '@/components/login/BubbleField';
+import { MailIcon, LockIcon } from '@/components/login/AuthFormIcons';
 import { API_BASE_URL } from '@/lib/api';
 import logoUrl from '@/assets/landing/logo.png';
 
@@ -55,45 +56,6 @@ const ROLE_CARDS = [
     style: { background: 'rgba(30,58,138,0.30)', borderColor: 'rgba(59,130,246,0.30)', color: 'rgba(239,246,255,1)' }
   }
 ];
-
-function MailIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
-function LockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M7 11V7a5 5 0 0110 0v4" />
-    </svg>
-  );
-}
 
 function EyeIcon({ className }: { className?: string }) {
   return (
@@ -168,18 +130,33 @@ export function LoginPage() {
       <div className="login-grain-overlay z-[1]" />
       <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-brand-950/80 via-transparent to-brand-900/30" />
 
+      <div
+        className="pointer-events-none absolute -left-32 top-[15%] z-[3] h-72 w-72 rounded-full bg-sky-400/15 blur-3xl motion-safe:animate-auth-ambient motion-reduce:animate-none"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -right-24 bottom-[10%] z-[3] h-64 w-64 rounded-full bg-brand-500/20 blur-3xl motion-safe:animate-auth-ambient motion-reduce:animate-none [animation-delay:-7s]"
+        aria-hidden
+      />
+
       <div className="relative z-10 flex min-h-screen flex-col lg:grid lg:grid-cols-2">
         {/* Columna formulario */}
         <div className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-10 lg:px-14 xl:px-20">
           <div className="mx-auto w-full max-w-md">
-            <Link to="/" className="inline-flex items-center gap-2.5 text-white/90 transition hover:text-white">
+            <Link
+              to="/"
+              className="inline-flex origin-left items-center gap-2.5 text-white/90 transition-all duration-200 hover:text-white motion-safe:animate-auth-in motion-reduce:animate-none hover:scale-[1.02] active:scale-[0.98]"
+            >
               <img src={logoUrl} alt="" className="h-9 w-auto object-contain sm:h-10" aria-hidden />
               <span className="text-lg font-semibold tracking-tight">Escuela Pass</span>
             </Link>
 
-            <h1 className="mt-10 text-3xl font-bold tracking-tight text-white sm:text-4xl">Iniciar sesión</h1>
-            <p className="mt-2 text-sm text-brand-100/80">Acceda con el correo institucional asignado por su colegio.</p>
+            <div className="motion-safe:animate-auth-in-delay-sm motion-reduce:animate-none">
+              <h1 className="mt-10 text-3xl font-bold tracking-tight text-white sm:text-4xl">Iniciar sesión</h1>
+              <p className="mt-2 text-sm text-brand-100/80">Acceda con el correo institucional asignado por su colegio.</p>
+            </div>
 
+            <div className="motion-safe:animate-auth-in-delay-md motion-reduce:animate-none">
             {import.meta.env.PROD && !API_BASE_URL && (
               <div
                 className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-50"
@@ -280,7 +257,7 @@ export function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-2xl bg-brand-950 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand-950/40 ring-1 ring-white/10 transition hover:bg-brand-900 disabled:opacity-60"
+                className="w-full rounded-2xl bg-brand-950 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand-950/40 ring-1 ring-white/10 transition hover:bg-brand-900 active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100"
               >
                 {loading ? 'Entrando…' : 'Entrar'}
               </button>
@@ -295,6 +272,7 @@ export function LoginPage() {
                 Volver al sitio público
               </Link>
             </p>
+            </div>
           </div>
         </div>
 
@@ -310,7 +288,7 @@ export function LoginPage() {
             />
           </div>
 
-          <div className="relative z-[1] max-w-md">
+          <div className="relative z-[1] max-w-md motion-safe:animate-auth-in-delay-sm motion-reduce:animate-none">
             <h2 className="text-3xl font-bold leading-tight text-white xl:text-4xl">Bienvenido a Escuela Pass</h2>
             <p className="mt-5 text-base leading-relaxed text-brand-100/75">
               Software para la operación diaria del plantel: accesos, recogida de alumnos y comunicación con familias y
@@ -322,7 +300,7 @@ export function LoginPage() {
             </p>
           </div>
 
-          <div className="relative z-[1] mt-12 rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-black/20">
+          <div className="relative z-[1] mt-12 rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-black/20 motion-safe:animate-auth-in-delay-md motion-reduce:animate-none">
             <p className="text-sm font-medium text-white">Un mismo entorno para familias y equipo</p>
             <p className="mt-2 text-xs leading-relaxed text-brand-200/60">
               Cada perfil dispone de las pantallas que corresponden a su función en la institución.
@@ -346,7 +324,7 @@ export function LoginPage() {
         </div>
 
         {/* Resumen móvil bajo el formulario */}
-        <div className="col-span-2 border-t border-white/10 bg-slate-950/40 px-5 py-8 backdrop-blur-sm lg:hidden">
+        <div className="col-span-2 border-t border-white/10 bg-slate-950/40 px-5 py-8 backdrop-blur-sm motion-safe:animate-fade-in motion-reduce:animate-none lg:hidden">
           <p className="text-center text-sm font-medium text-white">Escuela Pass</p>
           <p className="mx-auto mt-2 max-w-sm text-center text-xs leading-relaxed text-brand-200/65">
             Plataforma institucional para accesos, recogida y comunicación operativa.
