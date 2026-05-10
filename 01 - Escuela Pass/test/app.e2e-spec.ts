@@ -10,7 +10,14 @@ jest.setTimeout(20000);
 async function buildGroupsImportXlsx(schoolYear: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Grupos');
-  ws.addRow(['name', 'grade', 'shift', 'schoolYear', 'classroom', 'capacity']);
+  ws.addRow([
+    'Nombre del grupo',
+    'Grado',
+    'Turno',
+    'Año escolar',
+    'Aula',
+    'Cupo'
+  ]);
   ws.addRow(['E2E-GRUPO', '1', 'MATUTINO', schoolYear, 'A-1', '25']);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -19,18 +26,12 @@ async function buildGroupsImportXlsx(schoolYear: string): Promise<Buffer> {
 async function buildTeacherAssignmentsImportXlsx(
   teacherId: string,
   groupId: string,
-  subjectId: string
+  subjectId?: string
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Asignaciones');
-  ws.addRow([
-    'teacherId',
-    'groupId',
-    'subjectId',
-    'isMainTeacher',
-    'canAuthorizeDepartures'
-  ]);
-  ws.addRow([teacherId, groupId, subjectId, 'true', 'true']);
+  ws.addRow(['Id docente', 'Id grupo', 'Asignatura', 'Docente titular', 'Autoriza salidas']);
+  ws.addRow([teacherId, groupId, subjectId ?? '', 'Si', 'Si']);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
 }
@@ -797,6 +798,16 @@ describe('App (e2e)', () => {
     expect(imported.body.totalRows).toBe(1);
     expect(imported.body.created).toBe(1);
     expect(imported.body.errors.length).toBe(0);
+
+    const xlsxSinMateria = await buildTeacherAssignmentsImportXlsx(teacher.id, group.id);
+    const importedSin = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/school/import/teacher-assignments/xlsx`)
+      .set(authHeader(admin.accessToken))
+      .attach('file', xlsxSinMateria, 'assignments-no-subject.xlsx')
+      .expect(201);
+    expect(importedSin.body.totalRows).toBe(1);
+    expect(importedSin.body.created).toBe(1);
+    expect(importedSin.body.errors.length).toBe(0);
 
     const tpl = await request(app.getHttpServer())
       .get(`/${apiPrefix}/school/import/templates/teacher-assignments.xlsx`)

@@ -53,17 +53,43 @@ export class ExportsService {
 
   private static readonly EXPORT_HEADER_LABELS: Record<string, string> = {
     matricula: 'Matrícula',
-    full_name: 'Estudiante',
-    attendance_date: 'Fecha de asistencia',
+    full_name: 'Nombre del estudiante',
+    attendance_date: 'Día',
     status: 'Estado',
     notes: 'Observaciones',
     subject: 'Asignatura',
-    period: 'Período',
-    assessment_name: 'Actividad evaluada',
+    period: 'Período académico',
+    assessment_name: 'Actividad o instrumento',
     score: 'Calificación',
     max_score: 'Puntaje máximo',
-    graded_at: 'Fecha'
+    graded_at: 'Fecha y hora de registro'
   };
+
+  /** Fecha corta legible (sin ISO 8601 en celdas). */
+  private formatExportDateOnly(value: unknown): string {
+    if (value == null || value === '') return '';
+    if (value instanceof Date) {
+      if (!Number.isFinite(value.getTime())) return '';
+      return value.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    const s = String(value).trim();
+    const d = new Date(s.includes('T') ? s : `${s}T12:00:00`);
+    if (!Number.isFinite(d.getTime())) return s;
+    return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  private formatExportDateTime(value: unknown): string {
+    if (value == null || value === '') return '';
+    const d = value instanceof Date ? value : new Date(String(value));
+    if (!Number.isFinite(d.getTime())) return String(value);
+    return d.toLocaleString('es-MX', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
 
   private attendanceStatusLabel(status: string): string {
     const v = String(status ?? '').trim().toUpperCase();
@@ -88,7 +114,7 @@ export class ExportsService {
     const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Asistencia', {
       institution,
       reportTitle: 'Reporte de asistencia',
-      subtitle: `Fecha: ${date}`
+      subtitle: `Día: ${this.formatExportDateOnly(`${date}T12:00:00`)}`
     });
     return { buffer, filename: `asistencia-${date}.xlsx` };
   }
@@ -188,7 +214,7 @@ export class ExportsService {
     const rows = raw.map((r) => ({
       matricula: r.matricula,
       full_name: r.full_name,
-      attendance_date: r.attendance_date,
+      attendance_date: this.formatExportDateOnly(r.attendance_date),
       status: this.attendanceStatusLabel(r.status),
       notes: r.notes
     }));
@@ -267,7 +293,7 @@ export class ExportsService {
       score: r.score ?? '',
       max_score: r.max_score,
       notes: r.notes,
-      graded_at: r.graded_at ? new Date(r.graded_at).toISOString() : ''
+      graded_at: r.graded_at ? this.formatExportDateTime(r.graded_at) : ''
     }));
     return { headers, rows };
   }

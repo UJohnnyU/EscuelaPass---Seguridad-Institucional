@@ -9,9 +9,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { readFileSync } from 'fs';
-import ExcelJS from 'exceljs';
+import ExcelJS, { DataValidation } from 'exceljs';
 import { extname } from 'path';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { resolveUploadFile } from '../../lib/uploads-path';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
@@ -127,10 +127,12 @@ export class SchoolService {
     'email',
     'correo',
     'correoelectronico',
+    'correo_electronico',
     'password',
     'contrasena',
     'fullname',
     'nombrecompleto',
+    'nombre_completo',
     'nombreyapellido',
     'matricula',
     'groupid',
@@ -139,10 +141,13 @@ export class SchoolService {
     'canaccesscampus',
     'accesoalcampus',
     'accesoacampus',
+    'acceso_al_campus',
     'canleavealone',
     'puedesalirsolo',
+    'puede_salir_solo',
     'name',
     'nombre',
+    'nombredelgrupo',
     'grade',
     'grado',
     'nivel',
@@ -160,18 +165,28 @@ export class SchoolService {
     'capacidad',
     'employeenumber',
     'numeroempleado',
+    'numerodeempleado',
     'nroempleado',
     'teacherid',
     'iddocente',
+    'docenteid',
     'subjectid',
+    'subject_id',
     'idasignatura',
+    'id_asignatura',
     'idmateria',
+    'asignatura',
+    'materia',
     'ismainteacher',
     'esdocenteprincipal',
+    'docenteprincipal',
     'canauthorizedepartures',
     'puedeautorizarsalidas',
+    'autorizasalidas',
     'grupo_id',
     'nombre_grupo',
+    'nombredegrupo',
+    'nombredelgrupo',
     'grado',
     'turno',
     'anio_escolar'
@@ -270,8 +285,8 @@ export class SchoolService {
       .filter((x) => String(x ?? '').trim().length > 0)
       .join(' · ');
     ws.getCell(3, 1).value = infoLine
-      ? `${infoLine}. No elimine ni renombre la fila de encabezados.`
-      : 'No elimine ni renombre la fila de encabezados (nombres de columnas en la primera fila de datos).';
+      ? `${infoLine}. No elimine ni renombre la fila de encabezados. La fila de ejemplo debajo puede sustituirse o borrarse antes de cargar. En columnas de permisos use Si o No.`
+      : 'No elimine ni renombre la fila de encabezados. La fila de ejemplo puede borrarse o sustituirse. En permisos y accesos use Si o No (no true/false).';
     ws.getCell(3, 1).font = { size: 10, color: { argb: 'FF444444' } };
     ws.getCell(3, 1).alignment = { horizontal: 'center', wrapText: true };
 
@@ -284,6 +299,7 @@ export class SchoolService {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ñ/g, 'n')
       .replace(/[^\w]+/g, '_')
       .replace(/^_+|_+$/g, '');
   }
@@ -317,12 +333,20 @@ export class SchoolService {
       puede_salir_solo: 'canLeaveAlone',
       id_docente: 'teacherId',
       docente_id: 'teacherId',
-      id_asignatura: 'subjectId',
-      materia_id: 'subjectId',
-      id_materia: 'subjectId',
+      subject_id: 'subjectImport',
+      subjectid: 'subjectImport',
+      id_asignatura: 'subjectImport',
+      materia_id: 'subjectImport',
+      id_materia: 'subjectImport',
+      asignatura: 'subjectImport',
+      materia: 'subjectImport',
       es_docente_principal: 'isMainTeacher',
+      docente_principal: 'isMainTeacher',
+      docente_titular: 'isMainTeacher',
       puede_autorizar_salidas: 'canAuthorizeDepartures',
-      grupo: 'nombre_grupo'
+      autoriza_salidas: 'canAuthorizeDepartures',
+      nombre_del_grupo: 'name',
+      matricula: 'matricula'
     };
     return aliases[token] ?? raw.trim();
   }
@@ -1271,14 +1295,18 @@ export class SchoolService {
     if (!teacher) throw new NotFoundException('Docente no encontrado');
     const group = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
     if (!group) throw new NotFoundException('Grupo no encontrado');
-    const sub = await this.subjectsRepository.findOne({ where: { id: dto.subjectId, schoolId } });
+
+    const subjectIdOpt = dto.subjectId?.trim() ? dto.subjectId.trim() : null;
+    if (subjectIdOpt) {
+      const sub = await this.subjectsRepository.findOne({ where: { id: subjectIdOpt, schoolId } });
       if (!sub) throw new NotFoundException('Materia no encontrada');
+    }
 
     const existing = await this.teacherGroupsRepository.findOne({
       where: {
         teacherId: dto.teacherId,
         groupId: dto.groupId,
-        subjectId: dto.subjectId
+        subjectId: subjectIdOpt ? subjectIdOpt : IsNull()
       }
     });
     if (existing) {
@@ -1290,7 +1318,7 @@ export class SchoolService {
     const row = this.teacherGroupsRepository.create({
       teacherId: dto.teacherId,
       groupId: dto.groupId,
-      subjectId: dto.subjectId ?? null,
+      subjectId: subjectIdOpt,
       isMainTeacher: dto.isMainTeacher ?? false,
       canAuthorizeDepartures: dto.canAuthorizeDepartures ?? false
     });
@@ -1516,10 +1544,10 @@ export class SchoolService {
     dryRun = false,
     scopeSchoolId?: string | null
   ): Promise<ImportCreateResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const { rows, headerRowIndex } = await this.parseXlsxFirstSheetToRows(buffer);
     const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
-      const line = i + 2;
+      const line = headerRowIndex + 1 + i;
       const row = rows[i];
       try {
         const dto: CreateGroupDto = {
@@ -1545,17 +1573,17 @@ export class SchoolService {
     dryRun = false,
     scopeSchoolId?: string | null
   ): Promise<ImportCreateResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const { rows, headerRowIndex } = await this.parseXlsxFirstSheetToRows(buffer);
     const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
-      const line = i + 2;
+      const line = headerRowIndex + 1 + i;
       const row = rows[i];
       try {
         const dto: CreateStudentDto = {
           email: this.required(row, 'email'),
           password: this.required(row, 'password'),
           fullName: this.required(row, 'fullName'),
-          matricula: this.required(row, 'matricula'),
+          matricula: this.optional(row, 'matricula'),
           groupId: this.optional(row, 'groupId'),
           canAccessCampus: this.parseBoolOptional(this.optional(row, 'canAccessCampus')),
           canLeaveAlone: this.parseBoolOptional(this.optional(row, 'canLeaveAlone'))
@@ -1575,10 +1603,10 @@ export class SchoolService {
     dryRun = false,
     scopeSchoolId?: string | null
   ): Promise<ImportCreateResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const { rows, headerRowIndex } = await this.parseXlsxFirstSheetToRows(buffer);
     const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
     for (let i = 0; i < rows.length; i++) {
-      const line = i + 2;
+      const line = headerRowIndex + 1 + i;
       const row = rows[i];
       try {
         const dto: CreateTeacherDto = {
@@ -1603,19 +1631,34 @@ export class SchoolService {
     dryRun = false,
     scopeSchoolId?: string | null
   ): Promise<ImportCreateResult> {
-    const rows = await this.parseXlsxFirstSheetToRows(buffer);
+    const { rows, headerRowIndex } = await this.parseXlsxFirstSheetToRows(buffer);
     const result: ImportCreateResult = { totalRows: rows.length, created: 0, errors: [], dryRun };
+    const subjectCache = new Map<string, SubjectEntity[]>();
     for (let i = 0; i < rows.length; i++) {
-      const line = i + 2;
       const row = rows[i];
+      const line = headerRowIndex + 1 + i;
       try {
+        const groupId = this.required(row, 'groupId');
+        const group = await this.groupsRepository.findOne({
+          where: scopeSchoolId ? { id: groupId, schoolId: scopeSchoolId } : { id: groupId }
+        });
+        if (!group) throw new Error('Grupo no encontrado');
+
+        const subjectImport =
+          this.optional(row, 'subjectImport') ?? this.optional(row, 'subjectId');
+        const subjectIdResolved = await this.resolveSubjectImportValue(
+          group.schoolId,
+          subjectImport,
+          subjectCache
+        );
+
         const dto: AssignTeacherGroupDto = {
           teacherId: this.required(row, 'teacherId'),
-          groupId: this.required(row, 'groupId'),
-          subjectId: this.required(row, 'subjectId'),
+          groupId,
           isMainTeacher: this.parseBoolOptional(this.optional(row, 'isMainTeacher')),
           canAuthorizeDepartures: this.parseBoolOptional(this.optional(row, 'canAuthorizeDepartures'))
         };
+        if (subjectIdResolved) dto.subjectId = subjectIdResolved;
         if (!dryRun) await this.assignTeacherGroup(dto, scopeSchoolId);
         result.created += 1;
       } catch (error) {
@@ -1688,7 +1731,9 @@ export class SchoolService {
     });
 
     if (!colByField.has('matricula')) {
-      throw new BadRequestException('El archivo debe incluir una fila de encabezados con la columna "matricula"');
+      throw new BadRequestException(
+        'El archivo debe incluir una fila de encabezados con la columna «Matrícula» del alumno.'
+      );
     }
 
     const result: XlsxAssignResult = {
@@ -1733,21 +1778,22 @@ export class SchoolService {
   async buildStudentsToGroupsTemplateXlsx(schoolId: string | null): Promise<Buffer> {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Asignacion');
-    const headers = ['matricula', 'id_grupo', 'nombre_grupo', 'grado', 'turno', 'anio_escolar'];
+    const ws = wb.addWorksheet('Asignación');
+    const headers = ['Matrícula', 'Id grupo', 'Nombre grupo', 'Grado', 'Turno', 'Año escolar'];
     const headerRow = this.applyImportTemplateBranding(
       ws,
       wb,
       institution,
       headers.length,
-      'Plantilla de asignación de alumnos a grupos'
+      'Plantilla de asignación de alumnos ya dados de alta a grupos'
     );
     const hr = ws.getRow(headerRow);
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    this.styleTemplateHeaderRow(ws, headerRow, [22, 40, 26, 14, 14, 18]);
-    ws.addRow(['ALUMNO-0001', '', '1A', '1', 'Mañana', '2026-2027']);
+    this.styleTemplateHeaderRow(ws, headerRow, [14, 38, 22, 12, 14, 14]);
+    ws.addRow(['MAT-0001', '', '1° A', '1', 'Mañana', '2026-2027']);
+    this.styleTemplateExampleRow(ws, headerRow + 1, headers.length);
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -1783,7 +1829,7 @@ export class SchoolService {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Grupos');
-    const headers = ['nombre', 'grado', 'turno', 'anio_escolar', 'aula', 'cupo'];
+    const headers = ['Nombre del grupo', 'Grado', 'Turno', 'Año escolar', 'Aula', 'Cupo'];
     const headerRow = this.applyImportTemplateBranding(
       ws,
       wb,
@@ -1795,8 +1841,9 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    this.styleTemplateHeaderRow(ws, headerRow, [26, 14, 14, 18, 16, 12]);
-    ws.addRow(['1A', '1', 'Mañana', '2026-2027', 'A-101', '30']);
+    this.styleTemplateHeaderRow(ws, headerRow, [26, 12, 14, 16, 14, 10]);
+    ws.addRow(['1° A', '1', 'Mañana', '2026-2027', 'A-101', '30']);
+    this.styleTemplateExampleRow(ws, headerRow + 1, headers.length);
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -1807,13 +1854,12 @@ export class SchoolService {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Alumnos');
     const headers = [
-      'correo',
-      'contrasena',
-      'nombre_completo',
-      'matricula',
-      'id_grupo',
-      'acceso_al_campus',
-      'puede_salir_solo'
+      'Correo electrónico',
+      'Contraseña',
+      'Nombre completo',
+      'Id grupo',
+      'Acceso al campus',
+      'Puede salir solo'
     ];
     const headerRow = this.applyImportTemplateBranding(
       ws,
@@ -1826,16 +1872,16 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    this.styleTemplateHeaderRow(ws, headerRow, [30, 22, 28, 20, 40, 18, 18]);
+    this.styleTemplateHeaderRow(ws, headerRow, [32, 22, 30, 38, 18, 18]);
     ws.addRow([
-      'alumno.nuevo@escuelapass.local',
-      'Alumno123*',
-      'Alumno Nuevo',
-      'MAT-1001',
+      'alumno.ejemplo@mi-institucion.edu',
+      'ContraseñaSegura8',
+      'María López García',
       '',
-      'false',
-      'false'
+      'No',
+      'No'
     ]);
+    this.styleTemplateExampleRow(ws, headerRow + 1, headers.length);
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -1845,7 +1891,7 @@ export class SchoolService {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Docentes');
-    const headers = ['correo', 'contrasena', 'nombre_completo', 'numero_empleado', 'acceso_al_campus'];
+    const headers = ['Correo electrónico', 'Contraseña', 'Nombre completo', 'Número de empleado', 'Acceso al campus'];
     const headerRow = this.applyImportTemplateBranding(
       ws,
       wb,
@@ -1857,8 +1903,9 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    this.styleTemplateHeaderRow(ws, headerRow, [30, 22, 28, 20, 18]);
-    ws.addRow(['docente.nuevo@escuelapass.local', 'Docente123*', 'Docente Nuevo', 'EMP-1001', 'true']);
+    this.styleTemplateHeaderRow(ws, headerRow, [32, 22, 30, 22, 18]);
+    ws.addRow(['docente.ejemplo@mi-institucion.edu', 'ContraseñaSegura8', 'Juan Pérez Ruiz', 'EMP-0100', 'Si']);
+    this.styleTemplateExampleRow(ws, headerRow + 1, headers.length);
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -1868,13 +1915,21 @@ export class SchoolService {
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(schoolId);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Asignaciones');
-    const headers = [
-      'id_docente',
-      'id_grupo',
-      'id_asignatura',
-      'es_docente_principal',
-      'puede_autorizar_salidas'
-    ];
+    const subjects = schoolId
+      ? await this.subjectsRepository.find({
+          where: { schoolId },
+          order: { code: 'ASC', name: 'ASC' }
+        })
+      : [];
+
+    if (subjects.length) {
+      const listWs = wb.addWorksheet('Lista_asignaturas', { state: 'hidden' });
+      subjects.forEach((subj, i) => {
+        listWs.getCell(i + 1, 1).value = `${subj.code} · ${subj.name}`;
+      });
+    }
+
+    const headers = ['Id docente', 'Id grupo', 'Asignatura', 'Docente titular', 'Autoriza salidas'];
     const headerRow = this.applyImportTemplateBranding(
       ws,
       wb,
@@ -1886,14 +1941,32 @@ export class SchoolService {
     headers.forEach((h, i) => {
       hr.getCell(i + 1).value = h;
     });
-    this.styleTemplateHeaderRow(ws, headerRow, [40, 40, 40, 24, 26]);
+    this.styleTemplateHeaderRow(ws, headerRow, [40, 40, 38, 18, 18]);
+
+    const exampleSubject =
+      subjects.length > 0 ? `${subjects[0].code} · ${subjects[0].name}` : '';
     ws.addRow([
       '11111111-1111-4111-8111-111111111111',
       '22222222-2222-4222-8222-222222222222',
-      '',
-      'true',
-      'false'
+      exampleSubject,
+      'No',
+      'Si'
     ]);
+    this.styleTemplateExampleRow(ws, headerRow + 1, headers.length);
+    if (subjects.length) {
+      const wsDv = ws as ExcelJS.Worksheet & {
+        dataValidations: { add: (address: string, validation: DataValidation) => void };
+      };
+      wsDv.dataValidations.add(`C${headerRow + 1}:C2000`, {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`Lista_asignaturas!$A$1:$A$${subjects.length}`],
+        showErrorMessage: true,
+        errorTitle: 'Asignatura',
+        error:
+          'Elija un valor de la lista institucional o deje la celda vacía si la asignación no lleva materia concreta.'
+      });
+    }
     ws.views = [{ state: 'frozen', ySplit: headerRow }];
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
@@ -1907,6 +1980,7 @@ export class SchoolService {
       group_id: 'grupo_id',
       id_grupo: 'grupo_id',
       nombre_grupo: 'nombre_grupo',
+      nombre_de_grupo: 'nombre_grupo',
       grupo: 'nombre_grupo',
       grado: 'grado',
       nivel: 'grado',
@@ -1955,6 +2029,27 @@ export class SchoolService {
     };
   }
 
+  /** Fila de demostración bajo encabezados (italic, fondo suave). */
+  private styleTemplateExampleRow(ws: ExcelJS.Worksheet, rowIndex: number, columnCount: number) {
+    const row = ws.getRow(rowIndex);
+    row.height = 22;
+    for (let c = 1; c <= columnCount; c++) {
+      const cell = row.getCell(c);
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' }
+      };
+      cell.font = { italic: true, color: { argb: 'FF475569' } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      };
+    }
+  }
+
   private async resolveGroupForExcelRow(
     fields: Record<string, string>,
     line: number,
@@ -1998,7 +2093,87 @@ export class SchoolService {
     );
   }
 
-  private async parseXlsxFirstSheetToRows(buffer: Buffer): Promise<Array<Record<string, string>>> {
+  private readonly subjectImportUuidRe =
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
+  private foldSubjectLabel(s: string): string {
+    return s
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Resuelve texto de importación (UUID, "código·nombre", código o nombre) al id de materia en la escuela del grupo.
+   * Cadena vacía → sin materia (`null`).
+   */
+  private async resolveSubjectImportValue(
+    schoolId: string,
+    raw: string | undefined,
+    cache: Map<string, SubjectEntity[]>
+  ): Promise<string | null> {
+    const t = raw?.trim();
+    if (!t) return null;
+
+    let list = cache.get(schoolId);
+    if (!list) {
+      list = await this.subjectsRepository.find({
+        where: { schoolId },
+        order: { code: 'ASC', name: 'ASC' }
+      });
+      cache.set(schoolId, list);
+    }
+
+    if (this.subjectImportUuidRe.test(t)) {
+      const hit = list.find((s) => s.id === t);
+      if (hit) return hit.id;
+      const one = await this.subjectsRepository.findOne({ where: { id: t, schoolId } });
+      if (one) return one.id;
+      throw new Error('UUID de asignatura no válido para esta institución');
+    }
+
+    const md = '·';
+    const mdIdx = t.indexOf(md);
+    if (mdIdx !== -1) {
+      const codePart = t.slice(0, mdIdx).trim();
+      const namePart = t.slice(mdIdx + md.length).trim();
+      const foldedName = this.foldSubjectLabel(namePart);
+      const pairHits = list.filter(
+        (s) =>
+          s.code.trim().toLowerCase() === codePart.toLowerCase() &&
+          this.foldSubjectLabel(s.name) === foldedName
+      );
+      if (pairHits.length === 1) return pairHits[0]!.id;
+      if (pairHits.length > 1) {
+        throw new Error('Varias asignaturas coinciden con código y nombre; use el UUID.');
+      }
+    }
+
+    const byCode = list.filter((s) => s.code.trim().toLowerCase() === t.toLowerCase());
+    if (byCode.length === 1) return byCode[0]!.id;
+    if (byCode.length > 1) {
+      throw new Error(`El código "${t}" está duplicado en el catálogo; use formato código·nombre o UUID.`);
+    }
+
+    const foldNeedle = this.foldSubjectLabel(t);
+    const byName = list.filter((s) => this.foldSubjectLabel(s.name) === foldNeedle);
+    if (byName.length === 1) return byName[0]!.id;
+    if (byName.length > 1) {
+      throw new Error(
+        `Varias asignaturas se llaman "${t}". Use el código con nombre (código·nombre) o el UUID.`
+      );
+    }
+
+    throw new Error(
+      `No se encontró la asignatura "${t}". Déjelo vacío si no aplica, o use la lista de la plantilla o el UUID.`
+    );
+  }
+
+  private async parseXlsxFirstSheetToRows(
+    buffer: Buffer
+  ): Promise<{ rows: Array<Record<string, string>>; headerRowIndex: number }> {
     const workbook = new ExcelJS.Workbook();
     try {
       await workbook.xlsx.load(buffer as never);
@@ -2031,7 +2206,7 @@ export class SchoolService {
         rows.push(obj);
       }
     }
-    return rows;
+    return { rows, headerRowIndex };
   }
 
 
@@ -2067,11 +2242,17 @@ export class SchoolService {
   }
 
   private parseBoolOptional(value: string | undefined): boolean | undefined {
-    if (!value) return undefined;
-    const normalized = value.toLowerCase();
-    if (normalized === 'true' || normalized === '1' || normalized === 'si' || normalized === 'sí') return true;
-    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
-    throw new Error(`Valor booleano inválido: ${value}`);
+    if (value == null) return undefined;
+    const t = String(value).trim();
+    if (!t) return undefined;
+    const n = t
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    if (['true', '1', 'si', 'sí', 'yes', 'verdadero', 'activo', 'activa', 'on'].includes(n)) return true;
+    if (['false', '0', 'no', 'falso', 'inactivo', 'inactiva', 'off'].includes(n)) return false;
+    throw new Error(`Use Si o No en esta columna (valor recibido: "${value}")`);
   }
 
   private errorMessage(error: unknown) {

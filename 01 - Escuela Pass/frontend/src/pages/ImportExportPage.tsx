@@ -291,10 +291,12 @@ export function ImportExportPage() {
   return (
     <div className="max-w-3xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Importar y exportar información</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Importar y exportar información</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-          Descargue las <strong>plantillas oficiales</strong> para preparar listas de alumnos, docentes o grupos, y
-          obtenga <strong>exportaciones</strong> en Excel con la información de cada grupo.
+          Descargue las <strong>plantillas oficiales</strong> (columnas en español, con una fila de ejemplo) para altas y
+          asignaciones. Al importar alumnos, la <strong>matrícula se asigna sola</strong> si no incluye esa columna. En
+          permisos y accesos use <strong>Si</strong> o <strong>No</strong> (también acepta true/false por compatibilidad).
+          Las exportaciones de calificaciones y boletín muestran fechas en formato legible.
         </p>
       </div>
       {err && (
@@ -304,7 +306,7 @@ export function ImportExportPage() {
 
       <Panel
         title="Plantillas para importar (Excel)"
-        description="Use estos archivos como base: complételos con los datos y luego cárguelos al sistema. Todas las plantillas oficiales están estandarizadas en formato .xlsx."
+        description="Cada plantilla incluye cabecera institucional (y logo si aplica), encabezados de columnas y una fila de ejemplo en cursiva. No cambie los nombres de las columnas. Para docente–grupo–materia use los Id (UUID) de docente y grupo; la columna de asignatura admite el valor de la lista desplegable de la plantilla (al elegir institución), código, nombre o UUID."
       >
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
           {platformAdmin ? (

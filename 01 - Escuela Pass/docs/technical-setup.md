@@ -416,10 +416,11 @@ Ejemplos:
 
 Cabeceras esperadas (columnas en la primera fila):
 
-- Grupos: `name,grade,shift,schoolYear,classroom,capacity`
-- Alumnos: `email,password,fullName,matricula,groupId,canAccessCampus,canLeaveAlone`
-- Docentes: `email,password,fullName,employeeNumber,canAccessCampus`
-- Asignaciones: `teacherId,groupId,subjectId,isMainTeacher,canAuthorizeDepartures`
+- Grupos: `Nombre del grupo`, `Grado`, `Turno`, `Año escolar`, `Aula`, `Cupo` (también se aceptan encabezados en inglés heredados).
+- Alumnos: `Correo electrónico`, `Contraseña`, `Nombre completo`, opcional `Id grupo`; sin columna de matrícula (el sistema la genera). Permisos: **Si** / **No** (o true/false).
+- Docentes: `Correo electrónico`, `Contraseña`, `Nombre completo`, `Número de empleado`, `Acceso al campus` (Si/No).
+- Asignaciones: `Id docente`, `Id grupo`, **Asignatura** (opcional: lista `código · nombre`, código, nombre o UUID; vacío si no aplica materia), `Docente titular`, `Autoriza salidas` (Si/No). Sigue admitiéndose la columna `Id asignatura` como alias.
+- Asignar alumnos existentes a grupos: `Matrícula` y datos para ubicar el grupo (`Id grupo` o nombre y año, etc.).
 
 ---
 
