@@ -308,6 +308,60 @@ async function tableExists(client, tableName) {
   return r.rows[0].e === true;
 }
 
+/**
+ * Alinea `schools` con la migración TypeORM SchoolShiftWindows (BD antigua / sin migraciones).
+ * Igual que en `src/database/migrations/1778400000000-SchoolShiftWindows.ts`.
+ */
+async function ensureSchoolShiftColumns(client) {
+  await client.query(
+    `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_matutino_start time NULL`
+  );
+  await client.query(
+    `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_matutino_end time NULL`
+  );
+  await client.query(
+    `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_vespertino_start time NULL`
+  );
+  await client.query(
+    `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_vespertino_end time NULL`
+  );
+  await client.query(
+    `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_nocturno_start time NULL`
+  );
+  await client.query(
+    `ALTER TABLE schools ADD COLUMN IF NOT EXISTS shift_nocturno_end time NULL`
+  );
+}
+
+/** Alinea `users` con migración UserPasswordResetTokens (BD sin migraciones). */
+async function ensureUserPasswordResetColumns(client) {
+  await client.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token varchar(128) NULL`
+  );
+  await client.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at timestamptz NULL`
+  );
+  await client.query(
+    `CREATE INDEX IF NOT EXISTS ix_users_password_reset_token ON users (password_reset_token) WHERE password_reset_token IS NOT NULL`
+  );
+}
+
+/** Tabla de la migración SubjectsAndTeacherSpecialties (BD vaciada o sin migraciones completas). */
+async function ensureTeacherSubjectsTable(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS teacher_subjects (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+      subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await client.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_subjects_teacher_subject
+    ON teacher_subjects (teacher_id, subject_id)
+  `);
+}
+
 // ──────────────────────────────────────────────
 // TRUNCATE
 // ──────────────────────────────────────────────
@@ -1177,7 +1231,10 @@ async function main() {
   console.log('[seed] Conexión a la BD establecida.');
 
   try {
+    await ensureSchoolShiftColumns(client);
+    await ensureUserPasswordResetColumns(client);
     await truncateAll(client);
+    await ensureTeacherSubjectsTable(client);
     const policyId = await createPrivacyPolicy(client);
     const globalAdminIds = await createGlobalAdmins(client, hash, policyId);
 

@@ -91,6 +91,12 @@ CREATE TABLE IF NOT EXISTS schools (
     latitude NUMERIC(10,8),
     longitude NUMERIC(11,8),
     logo_path VARCHAR(500),
+    shift_matutino_start TIME,
+    shift_matutino_end TIME,
+    shift_vespertino_start TIME,
+    shift_vespertino_end TIME,
+    shift_nocturno_start TIME,
+    shift_nocturno_end TIME,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -107,9 +113,14 @@ CREATE TABLE IF NOT EXISTS users (
     status BOOLEAN NOT NULL DEFAULT TRUE,
     school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
     avatar_path VARCHAR(500),
+    password_reset_token VARCHAR(128),
+    password_reset_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS ix_users_password_reset_token
+  ON users (password_reset_token) WHERE password_reset_token IS NOT NULL;
 
 -- Grupos escolares
 CREATE TABLE IF NOT EXISTS groups (
@@ -126,6 +137,21 @@ CREATE TABLE IF NOT EXISTS groups (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (name, school_year, school_id)
 );
+
+-- Compatibilidad: grupos sin school_id (ver 1776700000000-SchoolScopedAcademicData).
+ALTER TABLE groups
+  ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id) ON DELETE RESTRICT;
+UPDATE groups g
+SET school_id = u.school_id
+FROM students s
+JOIN users u ON u.id = s.user_id
+WHERE s.group_id = g.id
+  AND g.school_id IS NULL
+  AND u.school_id IS NOT NULL;
+UPDATE groups
+SET school_id = (SELECT id FROM schools ORDER BY created_at ASC LIMIT 1)
+WHERE school_id IS NULL
+  AND EXISTS (SELECT 1 FROM schools);
 
 -- Docentes
 CREATE TABLE IF NOT EXISTS teachers (
@@ -174,6 +200,14 @@ CREATE TABLE IF NOT EXISTS subjects (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Compatibilidad: materias creadas antes de school_id (ver 1776700000000-SchoolScopedAcademicData).
+ALTER TABLE subjects
+  ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id) ON DELETE RESTRICT;
+UPDATE subjects s
+SET school_id = (SELECT id FROM schools ORDER BY name LIMIT 1)
+WHERE s.school_id IS NULL
+  AND EXISTS (SELECT 1 FROM schools);
 
 -- Compatibilidad con bases antiguas (antes UNIQUE(name) global)
 ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_name_key;
@@ -305,12 +339,14 @@ CREATE TABLE IF NOT EXISTS notifications (
     message TEXT NOT NULL,
     read_at TIMESTAMPTZ,
     sent_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    delivery_status VARCHAR(20) NOT NULL DEFAULT 'SENT'
+    delivery_status VARCHAR(20) NOT NULL DEFAULT 'SENT',
+    link_path VARCHAR(480)
 );
 
 CREATE TABLE IF NOT EXISTS payment_concepts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(100) UNIQUE NOT NULL,
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
     description TEXT,
     is_base BOOLEAN NOT NULL DEFAULT FALSE,
     default_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
@@ -320,6 +356,54 @@ CREATE TABLE IF NOT EXISTS payment_concepts (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Compatibilidad: conceptos de pago sin school_id (ver 1778200000000-PaymentConceptsSchoolScope).
+ALTER TABLE payment_concepts
+  ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id) ON DELETE CASCADE;
+DO $$
+DECLARE
+  sole_school_id uuid;
+  school_count integer;
+BEGIN
+  SELECT count(*) INTO school_count FROM schools WHERE status = true;
+  IF school_count = 1 THEN
+    SELECT id INTO sole_school_id FROM schools WHERE status = true LIMIT 1;
+    UPDATE payment_concepts
+    SET school_id = sole_school_id
+    WHERE school_id IS NULL AND is_base = false;
+  END IF;
+END $$;
+DO $$
+DECLARE con_name text;
+BEGIN
+  SELECT c.conname INTO con_name
+  FROM pg_constraint c
+  JOIN pg_class t ON t.oid = c.conrelid
+  JOIN pg_namespace n ON n.oid = t.relnamespace
+  WHERE n.nspname = current_schema()
+    AND t.relname = 'payment_concepts'
+    AND c.contype = 'u'
+    AND array_length(c.conkey, 1) = 1
+    AND (
+      SELECT a.attname FROM pg_attribute a
+      WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+    ) = 'name'
+  LIMIT 1;
+  IF con_name IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE payment_concepts DROP CONSTRAINT %I', con_name);
+  END IF;
+END $$;
+DROP INDEX IF EXISTS payment_concepts_name_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_concepts_school_name
+  ON payment_concepts (school_id, lower(name))
+  WHERE school_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_concepts_global_name
+  ON payment_concepts (lower(name))
+  WHERE school_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS ix_payment_concepts_school ON payment_concepts (school_id);
 
 CREATE TABLE IF NOT EXISTS debts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -378,6 +462,30 @@ CREATE TABLE IF NOT EXISTS school_non_instructional_days (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_non_instr_global_has_school CHECK (group_id IS NOT NULL OR school_id IS NOT NULL)
 );
+
+-- Compatibilidad: tabla antigua sin school_id (ver 1775700000000 / 1776900000000).
+ALTER TABLE school_non_instructional_days
+  ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id) ON DELETE CASCADE;
+UPDATE school_non_instructional_days d
+SET school_id = g.school_id
+FROM groups g
+WHERE d.group_id = g.id AND d.school_id IS NULL;
+UPDATE school_non_instructional_days d
+SET school_id = (SELECT id FROM schools ORDER BY name LIMIT 1)
+WHERE d.group_id IS NULL AND d.school_id IS NULL
+  AND EXISTS (SELECT 1 FROM schools);
+DELETE FROM school_non_instructional_days WHERE group_id IS NULL AND school_id IS NULL;
+DROP INDEX IF EXISTS uniq_school_non_instr_global;
+DO $$
+BEGIN
+  BEGIN
+    ALTER TABLE school_non_instructional_days
+    ADD CONSTRAINT chk_non_instr_global_has_school
+    CHECK (group_id IS NOT NULL OR school_id IS NOT NULL);
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+  END;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_school_non_instr_school_date
 ON school_non_instructional_days (school_id, exception_date)

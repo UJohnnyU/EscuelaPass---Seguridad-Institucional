@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -1424,10 +1424,19 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
        LIMIT 1`,
       [req.studentId]
     );
-    const lat = Number(row[0]?.school_latitude);
-    const lng = Number(row[0]?.school_longitude);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      return { latitude: lat, longitude: lng, radiusKm: this.getSchoolRadiusKm() };
+    const rawLat = row[0]?.school_latitude;
+    const rawLng = row[0]?.school_longitude;
+    const hasCoords =
+      rawLat != null &&
+      rawLng != null &&
+      String(rawLat).trim() !== '' &&
+      String(rawLng).trim() !== '';
+    if (hasCoords) {
+      const lat = Number(rawLat);
+      const lng = Number(rawLng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { latitude: lat, longitude: lng, radiusKm: this.getSchoolRadiusKm() };
+      }
     }
     return {
       latitude: this.defaultSchoolLatitude(),

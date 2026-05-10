@@ -20,6 +20,15 @@ function directPostgresUrl() {
   return null;
 }
 
+/**
+ * Conectar por DB_HOST/DB_USER/… aunque .env tenga DATABASE_URL (p. ej. Railway para Nest).
+ * En `.env.e2e`: E2E_USE_DB_HOST=1 y las variables DB_* de la BD solo para pruebas.
+ */
+function shouldUseHostVarsForE2e() {
+  const v = process.env.E2E_USE_DB_HOST;
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 function sqlWithoutExtensionDeps(sql) {
   return sql
     .split(/\r?\n/)
@@ -59,8 +68,16 @@ async function runSqlFile(
 }
 
 async function main() {
-  const url = directPostgresUrl();
-  const ssl = url && url.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined;
+  const url = shouldUseHostVarsForE2e() ? null : directPostgresUrl();
+
+  const sslFromUrl = url && url.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined;
+  const sslFromEnv =
+    process.env.E2E_DB_SSL === '1' ||
+    process.env.E2E_DB_SSL === 'true' ||
+    process.env.PGSSLMODE === 'require'
+      ? { rejectUnauthorized: false }
+      : undefined;
+  const ssl = url ? sslFromUrl : sslFromEnv;
 
   const client = url
     ? new Client({ connectionString: url, ssl })
@@ -69,10 +86,11 @@ async function main() {
         port: Number(process.env.DB_PORT ?? 5432),
         user: required('DB_USER'),
         password: required('DB_PASS'),
-        database: required('DB_NAME')
+        database: required('DB_NAME'),
+        ssl
       });
 
-  const dbLabel = url ? '(DATABASE_URL)' : required('DB_NAME');
+  const dbLabel = url ? '(DATABASE_URL)' : `${required('DB_HOST')}/${required('DB_NAME')} (DB_*)`;
   try {
     await client.connect();
   } catch (err) {
@@ -132,6 +150,24 @@ async function main() {
         ADD COLUMN IF NOT EXISTS school_id uuid NULL;
     `);
     await client.query(`
+      ALTER TABLE IF EXISTS users
+        ADD COLUMN IF NOT EXISTS password_reset_token varchar(128) NULL,
+        ADD COLUMN IF NOT EXISTS password_reset_expires_at timestamptz NULL;
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ix_users_password_reset_token
+        ON users (password_reset_token) WHERE password_reset_token IS NOT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE IF EXISTS schools
+        ADD COLUMN IF NOT EXISTS shift_matutino_start time NULL,
+        ADD COLUMN IF NOT EXISTS shift_matutino_end time NULL,
+        ADD COLUMN IF NOT EXISTS shift_vespertino_start time NULL,
+        ADD COLUMN IF NOT EXISTS shift_vespertino_end time NULL,
+        ADD COLUMN IF NOT EXISTS shift_nocturno_start time NULL,
+        ADD COLUMN IF NOT EXISTS shift_nocturno_end time NULL;
+    `);
+    await client.query(`
       ALTER TABLE IF EXISTS groups
         ADD COLUMN IF NOT EXISTS school_id uuid NULL;
     `);
@@ -155,6 +191,59 @@ async function main() {
       ALTER TABLE IF EXISTS students
         ALTER COLUMN school_id DROP NOT NULL;
     `);
+    await client.query(`
+      ALTER TABLE IF EXISTS notifications
+        ADD COLUMN IF NOT EXISTS link_path varchar(480) NULL;
+    `);
+    await client.query(`ALTER TABLE payment_concepts ADD COLUMN IF NOT EXISTS school_id uuid NULL`);
+    await client.query(`
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE payment_concepts
+            ADD CONSTRAINT fk_payment_concepts_school_id
+            FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE;
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      DECLARE con_name text;
+      BEGIN
+        SELECT c.conname INTO con_name
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE n.nspname = current_schema()
+          AND t.relname = 'payment_concepts'
+          AND c.contype = 'u'
+          AND array_length(c.conkey, 1) = 1
+          AND (
+            SELECT a.attname FROM pg_attribute a
+            WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+          ) = 'name'
+        LIMIT 1;
+        IF con_name IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE payment_concepts DROP CONSTRAINT %I', con_name);
+        END IF;
+      END $$;
+    `);
+    await client.query(`DROP INDEX IF EXISTS payment_concepts_name_key`);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_concepts_school_name
+      ON payment_concepts (school_id, lower(name))
+      WHERE school_id IS NOT NULL
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_concepts_global_name
+      ON payment_concepts (lower(name))
+      WHERE school_id IS NULL
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS ix_payment_concepts_school ON payment_concepts (school_id)`
+    );
     await runSqlFile(client, 'scripts/database/seed_dev.sql', { stripConflictTargets: true });
     await client.query(`
       INSERT INTO users (email, password_hash, role, full_name, can_access_campus, school_id)

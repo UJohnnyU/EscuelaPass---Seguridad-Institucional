@@ -648,10 +648,17 @@ describe('App (e2e)', () => {
       })
       .expect(201);
 
+    const mapCtx = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/circuit-requests/${created.body.requestId}/map`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    const schoolLat = Number((mapCtx.body as { schoolLatitude?: number }).schoolLatitude);
+    const schoolLng = Number((mapCtx.body as { schoolLongitude?: number }).schoolLongitude);
+
     const patch = await request(app.getHttpServer())
       .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/gps`)
       .set(authHeader(padre.accessToken))
-      .send({ parentGpsLatitude: 4.6097, parentGpsLongitude: -74.0817 })
+      .send({ parentGpsLatitude: schoolLat, parentGpsLongitude: schoolLng })
       .expect(200);
 
     expect(patch.body.parentGpsLatitude).toBeDefined();
@@ -673,8 +680,8 @@ describe('App (e2e)', () => {
       .set(authHeader(padre.accessToken))
       .send({
         status: 'NOTIFICADO_LLEGADA',
-        parentGpsLatitude: 4.6097,
-        parentGpsLongitude: -74.0817
+        parentGpsLatitude: schoolLat,
+        parentGpsLongitude: schoolLng
       })
       .expect(200);
     expect(p2.body.status).toBe('NOTIFICADO_LLEGADA');
@@ -700,6 +707,13 @@ describe('App (e2e)', () => {
 
     const requestId = created.body.requestId as string;
 
+    const mapCtx = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/circuit-requests/${requestId}/map`)
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    const schoolLat = Number((mapCtx.body as { schoolLatitude?: number }).schoolLatitude);
+    const schoolLng = Number((mapCtx.body as { schoolLongitude?: number }).schoolLongitude);
+
     await request(app.getHttpServer())
       .patch(`/${apiPrefix}/circuit-requests/${requestId}/parent-progress`)
       .set(authHeader(padre.accessToken))
@@ -710,8 +724,8 @@ describe('App (e2e)', () => {
       .set(authHeader(padre.accessToken))
       .send({
         status: 'NOTIFICADO_LLEGADA',
-        parentGpsLatitude: 4.6097,
-        parentGpsLongitude: -74.0817
+        parentGpsLatitude: schoolLat,
+        parentGpsLongitude: schoolLng
       })
       .expect(200);
 
@@ -1162,7 +1176,7 @@ describe('App (e2e)', () => {
 
   it('t14: circuito GPS — auto-transición a NOTIFICADO_LLEGADA al entrar al radio', async () => {
     const admin = await login('administrativo@escuelapass.local', 'Admin123*');
-    const parent = await login('padre@escuelapass.local', 'Admin123*');
+    const parent = await login('padre1@escuelapass.local', 'Padre123*');
 
     // Obtener primer estudiante del padre para circuito
     const activeRes = await request(app.getHttpServer())
@@ -1287,7 +1301,7 @@ describe('App (e2e)', () => {
       .expect(200);
     expect(Array.isArray(meetingsList.body)).toBe(true);
 
-    const parent = await login('padre@escuelapass.local', 'Admin123*');
+    const parent = await login('padre1@escuelapass.local', 'Padre123*');
     const notes = await request(app.getHttpServer())
       .get(`/${apiPrefix}/attention-notes/parent/my-children`)
       .set(authHeader(parent.accessToken))
