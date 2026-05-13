@@ -734,7 +734,7 @@ export function CalificacionesDocentePage() {
                 type="button"
                 onClick={openCreate}
                 disabled={assignments.length === 0}
-                className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-600 dark:text-white dark:shadow-md dark:shadow-brand-950/30 dark:hover:bg-brand-500 dark:hover:border-brand-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
               >
                 Crear actividad
               </button>
@@ -803,7 +803,7 @@ export function CalificacionesDocentePage() {
                       <button
                         type="button"
                         onClick={() => void openActivity(a.id)}
-                        className="rounded border border-brand-800 bg-white px-3 py-1.5 text-xs font-medium text-brand-900 hover:bg-slate-50"
+                        className="rounded border border-brand-800 bg-white px-3 py-1.5 text-xs font-medium text-brand-900 shadow-sm hover:bg-slate-50 dark:border-brand-400 dark:bg-slate-800 dark:text-brand-100 dark:shadow-slate-950/20 dark:hover:border-brand-300 dark:hover:bg-slate-700"
                       >
                         {a.status === 'OPEN' ? 'Calificar' : 'Ver notas'}
                       </button>
@@ -1093,7 +1093,7 @@ export function CalificacionesDocentePage() {
                 type="button"
                 onClick={() => void submitCreate()}
                 disabled={creating}
-                className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-slate-800 disabled:opacity-60 dark:border-brand-500 dark:bg-brand-600 dark:text-white dark:shadow-md dark:shadow-brand-950/30 dark:hover:bg-brand-500 dark:hover:border-brand-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
               >
                 {creating ? 'Creando…' : 'Crear actividad'}
               </button>

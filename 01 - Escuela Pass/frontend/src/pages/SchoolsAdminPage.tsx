@@ -627,7 +627,7 @@ export function SchoolsAdminPage() {
               type="button"
               onClick={() => void createSchool()}
               disabled={!!logoUploadingId}
-              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800 disabled:opacity-60 dark:border-brand-500 dark:bg-brand-600 dark:text-white dark:shadow-md dark:shadow-brand-950/30 dark:hover:bg-brand-500 dark:hover:border-brand-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
             >
               {logoUploadingId ? 'Subiendo escudo…' : 'Crear escuela'}
             </button>
@@ -759,7 +759,7 @@ export function SchoolsAdminPage() {
                       type="button"
                       onClick={() => void saveConfig(s)}
                       disabled={savingId === s.id}
-                      className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                      className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-slate-800 disabled:opacity-60 dark:border-brand-500 dark:bg-brand-600 dark:text-white dark:shadow-md dark:shadow-brand-950/30 dark:hover:bg-brand-500 dark:hover:border-brand-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
                     >
                       {savingId === s.id ? 'Guardando…' : 'Guardar reglas'}
                     </button>
@@ -862,7 +862,7 @@ export function SchoolsAdminPage() {
                                         type="button"
                                         disabled={savingAdminUserId === u.id}
                                         onClick={() => void saveAdministrativeEdits(s.id)}
-                                        className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                        className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-slate-800 disabled:opacity-60 dark:border-brand-500 dark:bg-brand-600 dark:text-white dark:shadow-md dark:shadow-brand-950/30 dark:hover:bg-brand-500 dark:hover:border-brand-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
                                       >
                                         {savingAdminUserId === u.id ? 'Guardando…' : 'Guardar'}
                                       </button>
@@ -1004,7 +1004,7 @@ export function SchoolsAdminPage() {
                               type="button"
                               disabled={creatingAdmin}
                               onClick={() => void createAdministrative(s.id)}
-                              className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                              className="rounded border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-slate-800 disabled:opacity-60 dark:border-brand-500 dark:bg-brand-600 dark:text-white dark:shadow-md dark:shadow-brand-950/30 dark:hover:bg-brand-500 dark:hover:border-brand-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
                             >
                               {creatingAdmin ? 'Creando…' : 'Crear administrativo'}
                             </button>

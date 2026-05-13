@@ -369,11 +369,11 @@ export function AnotacionesDocentePage() {
               <button
                 type="submit"
                 disabled={saving || !studentId}
-                className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-600 dark:text-white dark:shadow-md dark:shadow-brand-950/30 dark:hover:bg-brand-500 dark:hover:border-brand-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
               >
                 {saving ? 'Guardando…' : 'Registrar y notificar familia'}
               </button>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Si no hay tutor vinculado al alumno, la anotación queda guardada sin envío de aviso.
               </span>
             </div>
