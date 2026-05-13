@@ -262,7 +262,6 @@ export class ClassSessionsService {
       .where('cs.schoolId = :schoolId', { schoolId: input.schoolId })
       .andWhere('cs.academicPeriodId = :periodId', { periodId: input.academicPeriodId })
       .andWhere('cs.weekday = :weekday', { weekday: input.weekday })
-      .andWhere('cs.isActive = true')
       .andWhere('cs.startTime < :newEnd AND cs.endTime > :newStart', {
         newEnd: input.endTime,
         newStart: input.startTime

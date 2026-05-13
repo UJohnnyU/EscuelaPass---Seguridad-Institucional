@@ -15,7 +15,7 @@ export async function migrateUploadsToVolume(targetRoot: string): Promise<void> 
   if (!existsSync(legacyRoot)) return;
   if (legacyRoot === targetRoot) return;
 
-  const subdirs = ['comprobantes', 'avatars', 'school-logos', 'excuses'];
+  const subdirs = ['comprobantes', 'avatars', 'school-logos', 'excuses', 'reports', 'report-evidence'];
   let copied = 0;
   for (const sub of subdirs) {
     const src = join(legacyRoot, sub);

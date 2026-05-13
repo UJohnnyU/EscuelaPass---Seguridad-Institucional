@@ -8,12 +8,14 @@ import { StudentEntity } from '../../database/entities/student.entity';
 import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { AcademicNotificationsModule } from '../academic-notifications/academic-notifications.module';
 import { AuthModule } from '../auth/auth.module';
+import { AuditModule } from '../audit/audit.module';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 
 @Module({
   imports: [
     AuthModule,
+    AuditModule,
     AcademicNotificationsModule,
     TypeOrmModule.forFeature([
       ActivityEntity,

@@ -60,6 +60,7 @@ export class SchedulesService {
       throw new BadRequestException('Debe indicar asignatura y docente para crear la sesion');
     }
     await this.assertSubjectTeacherInsideSchool(group.schoolId, subjectId, teacherId);
+    await this.assertTeacherAssignedToGroupSubject(teacherId, group.id, subjectId);
     const period = await this.resolvePeriodForGroup(group.schoolId, group.schoolYear);
     const startTime = this.normalizePgTime(dto.startTime);
     const endTime = this.normalizePgTime(dto.endTime);
@@ -337,6 +338,7 @@ export class SchedulesService {
     const nextSubjectId = dto.subjectId ?? session.subjectId;
     const nextTeacherId = dto.teacherId ?? session.teacherId;
     await this.assertSubjectTeacherInsideSchool(group.schoolId, nextSubjectId, nextTeacherId);
+    await this.assertTeacherAssignedToGroupSubject(nextTeacherId, group.id, nextSubjectId);
 
     const nextWeekday = dto.weekday ?? session.weekday;
     const nextStart = this.normalizePgTime(dto.startTime ?? session.startTime);
@@ -504,6 +506,25 @@ export class SchedulesService {
     }
   }
 
+  private async assertTeacherAssignedToGroupSubject(teacherId: string, groupId: string, subjectId: string) {
+    const assignment = await this.classSessionsRepository.query(
+      `
+      SELECT 1
+      FROM teacher_groups
+      WHERE teacher_id = $1
+        AND group_id = $2
+        AND subject_id = $3
+      LIMIT 1
+      `,
+      [teacherId, groupId, subjectId]
+    );
+    if (!Array.isArray(assignment) || assignment.length === 0) {
+      throw new BadRequestException(
+        'Primero asigne el docente a este grupo y asignatura antes de crear la sesion de horario'
+      );
+    }
+  }
+
   private async resolvePeriodForGroup(schoolId: string, schoolYear: string): Promise<AcademicPeriodEntity> {
     const active = await this.periodsRepository.findOne({
       where: { schoolId, schoolYear, status: AcademicPeriodStatus.ACTIVE },
@@ -541,7 +562,6 @@ export class SchedulesService {
       .where('cs.schoolId = :schoolId', { schoolId: input.schoolId })
       .andWhere('cs.academicPeriodId = :periodId', { periodId: input.periodId })
       .andWhere('cs.weekday = :weekday', { weekday: input.weekday })
-      .andWhere('cs.isActive = true')
       .andWhere('cs.startTime < :newEnd AND cs.endTime > :newStart', {
         newEnd: input.endTime,
         newStart: input.startTime

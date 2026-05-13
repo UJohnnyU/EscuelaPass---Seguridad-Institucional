@@ -12,6 +12,7 @@ import {
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { getCircuitTimezone, todayYmdInCircuitTimezone } from '../circuit/circuit-calendar';
 
 @Injectable()
 export class DepartureConsentService {
@@ -31,7 +32,7 @@ export class DepartureConsentService {
   ) {}
 
   private todayStr(): string {
-    return new Date().toISOString().slice(0, 10);
+    return todayYmdInCircuitTimezone();
   }
 
   /** Indica si el estudiante tiene consentimiento de salida autónoma (SALIDA_SOLO) vigente en la fecha. */
@@ -193,7 +194,7 @@ export class DepartureConsentService {
       .update(CircuitRequestEntity)
       .set({ status: CircuitStatus.CANCELADO })
       .where('student_id = :sid', { sid: studentId })
-      .andWhere('DATE(request_time) = :d', { d: dateStr })
+      .andWhere('(timezone(:tz, request_time))::date = :d::date', { tz: getCircuitTimezone(), d: dateStr })
       .andWhere('status NOT IN (:...t)', { t: terminal })
       .execute();
   }

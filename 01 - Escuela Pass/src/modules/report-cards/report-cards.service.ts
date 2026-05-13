@@ -621,7 +621,41 @@ export class ReportCardsService {
       if (!u || u.schoolId !== card.schoolId) {
         throw new ForbiddenException('No puedes acceder a este boletín');
       }
-    } else if (role !== UserRole.ADMIN && role !== UserRole.DOCENTE) {
+    } else if (role === UserRole.DOCENTE) {
+      // Multi-tenant: el docente solo puede ver boletines de su misma escuela
+      // y unicamente de alumnos cuyo grupo le este asignado en teacher_groups.
+      const teacherRows = await this.dataSource.query<
+        { teacher_id: string; teacher_school_id: string | null; group_id: string | null }[]
+      >(
+        `SELECT t.id AS teacher_id,
+                u.school_id AS teacher_school_id,
+                st.group_id AS group_id
+           FROM teachers t
+           INNER JOIN users u ON u.id = t.user_id
+           LEFT JOIN students st ON st.id = $2
+          WHERE t.user_id = $1
+          LIMIT 1`,
+        [requesterUserId, card.studentId]
+      );
+      const teacher = teacherRows[0];
+      if (
+        !teacher ||
+        teacher.teacher_school_id !== card.schoolId ||
+        !teacher.group_id
+      ) {
+        throw new ForbiddenException('No autorizado para ver este boletin.');
+      }
+      const link = await this.dataSource.query<{ ok: boolean }[]>(
+        `SELECT EXISTS (
+           SELECT 1 FROM teacher_groups
+            WHERE teacher_id = $1 AND group_id = $2
+         ) AS ok`,
+        [teacher.teacher_id, teacher.group_id]
+      );
+      if (!link[0]?.ok) {
+        throw new ForbiddenException('No autorizado para ver este boletin.');
+      }
+    } else if (role !== UserRole.ADMIN) {
       throw new ForbiddenException('No autorizado');
     }
 

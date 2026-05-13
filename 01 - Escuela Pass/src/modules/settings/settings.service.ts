@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +11,8 @@ import { InstitutionSettingEntity } from '../../database/entities/institution-se
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { formatTimeForDisplay } from '../../common/shift-schedule';
+import { AuditService } from '../audit/audit.service';
+import { FcmService } from '../fcm/fcm.service';
 import { UpdateInstitutionProfileDto } from './dto/update-institution-profile.dto';
 
 export const CIRCUIT_ENABLED_KEY = 'circuit.enabled';
@@ -50,10 +53,12 @@ export type InstitutionProfile = {
   } | null;
 };
 
-type JwtLike = { role: UserRole; schoolId?: string | null };
+type JwtLike = { userId?: string | null; role: UserRole; schoolId?: string | null };
 
 @Injectable()
 export class SettingsService {
+  private readonly logger = new Logger(SettingsService.name);
+
   static shiftWindowsFromSchool(school: SchoolEntity): InstitutionProfile['shiftWindows'] {
     const pair = (a: string | null, b: string | null): InstitutionShiftWindow => ({
       start: formatTimeForDisplay(a),
@@ -77,7 +82,9 @@ export class SettingsService {
     @InjectRepository(InstitutionSettingEntity)
     private readonly settingsRepository: Repository<InstitutionSettingEntity>,
     @InjectRepository(SchoolEntity)
-    private readonly schoolsRepository: Repository<SchoolEntity>
+    private readonly schoolsRepository: Repository<SchoolEntity>,
+    private readonly auditService: AuditService,
+    private readonly fcmService: FcmService
   ) {}
 
   private async getGlobalInstitutionProfile(): Promise<InstitutionProfile> {
@@ -294,10 +301,77 @@ export class SettingsService {
     const schoolId = await this.resolveSchoolIdForCircuit(user, querySchoolId);
     const school = await this.schoolsRepository.findOne({ where: { id: schoolId } });
     if (!school) throw new NotFoundException('Escuela no encontrada');
+    const wasEnabled = school.circuitEnabled !== false;
     school.circuitEnabled = Boolean(dto.enabled);
     await this.schoolsRepository.save(school);
+    if (wasEnabled && school.circuitEnabled === false) {
+      const cancelled = await this.cancelOpenCircuitRequestsForSchool(school.id);
+      await this.auditService
+        .log(user.userId ?? null, 'school.circuit_module.disabled', 'schools', school.id, {
+          schoolId: school.id,
+          cancelledCount: cancelled.length
+        })
+        .catch(() => undefined);
+      await this.notifyParentsCircuitDisabled(cancelled);
+    }
     return {
       enabled: school.circuitEnabled !== false
     };
+  }
+
+  private async cancelOpenCircuitRequestsForSchool(
+    schoolId: string
+  ): Promise<Array<{ id: string; student_id: string; parent_user_id: string | null }>> {
+    const raw = await this.schoolsRepository.manager.query<
+      | Array<{ id: string; student_id: string; parent_user_id: string | null }>
+      | [Array<{ id: string; student_id: string; parent_user_id: string | null }>, number]
+    >(
+      `WITH cancelled AS (
+         UPDATE circuit_requests cr
+         SET status = 'CANCELADO'::circuit_status,
+             teacher_signal = NULL,
+             parent_confirm_deadline_at = NULL,
+             parent_confirm_deadline_started_at = NULL
+         FROM students st
+         WHERE st.id = cr.student_id
+           AND st.school_id = $1
+           AND cr.status = ANY($2::circuit_status[])
+         RETURNING cr.id, cr.student_id, cr.requested_by_parent_id
+       )
+       SELECT c.id, c.student_id, p.user_id AS parent_user_id
+       FROM cancelled c
+       LEFT JOIN parents p ON p.id = c.requested_by_parent_id`,
+      [
+        schoolId,
+        ['PENDIENTE', 'PADRE_EN_CAMINO', 'NOTIFICADO_LLEGADA', 'AUTORIZADO_SALIR', 'EN_CAMINO']
+      ]
+    );
+    if (Array.isArray(raw) && raw.length === 2 && typeof raw[1] === 'number' && Array.isArray(raw[0])) {
+      return raw[0];
+    }
+    return raw as Array<{ id: string; student_id: string; parent_user_id: string | null }>;
+  }
+
+  private async notifyParentsCircuitDisabled(
+    rows: Array<{ id: string; student_id: string; parent_user_id: string | null }>
+  ): Promise<void> {
+    for (const row of rows) {
+      if (!row.parent_user_id) continue;
+      void this.fcmService
+        .sendPushToUser(
+          row.parent_user_id,
+          'Circuito del día deshabilitado',
+          'La institución deshabilitó el módulo de Circuito del día. Tu solicitud abierta fue cancelada.',
+          {
+            type: 'circuit',
+            circuitRequestId: row.id,
+            status: 'CANCELADO',
+            openPath: `/app/circuito/${row.id}`
+          }
+        )
+        .catch((err: unknown) => {
+          this.logger.warn(`No se pudo notificar cancelación por desactivación de circuito: ${String(err)}`);
+        });
+    }
   }
 }

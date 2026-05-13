@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as admin from 'firebase-admin';
 import { readFileSync } from 'fs';
@@ -18,9 +18,10 @@ const FCM_TOKEN_INVALID_CODES = new Set([
 ]);
 
 @Injectable()
-export class FcmService implements OnModuleInit {
+export class FcmService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FcmService.name);
   private messaging: admin.messaging.Messaging | null = null;
+  private purgeInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     @InjectRepository(UserFcmTokenEntity)
@@ -45,6 +46,19 @@ export class FcmService implements OnModuleInit {
       this.logger.log('Firebase Admin inicializado para Cloud Messaging.');
     } catch (err) {
       this.logger.error('No se pudo inicializar Firebase Admin', err);
+    }
+    this.purgeInterval = setInterval(() => {
+      void this.purgeOldDeviceTokens().catch((error: unknown) => {
+        this.logger.warn(`FCM: no se pudieron purgar tokens antiguos: ${String(error)}`);
+      });
+    }, 24 * 60 * 60 * 1000);
+    void this.purgeOldDeviceTokens().catch(() => undefined);
+  }
+
+  onModuleDestroy() {
+    if (this.purgeInterval) {
+      clearInterval(this.purgeInterval);
+      this.purgeInterval = null;
     }
   }
 
@@ -164,10 +178,37 @@ export class FcmService implements OnModuleInit {
 
     for (let i = 0; i < uniqueTokens.length; i += FCM_BATCH) {
       const chunk = uniqueTokens.slice(i, i + FCM_BATCH);
+      const res = await this.sendMulticastWithBackoff(chunk, dataOnly, webPushLink);
+      const successful = chunk.filter((_, idx) => res.responses[idx]?.success);
+      if (successful.length > 0) {
+        // TODO Fase 7: agregar last_used_at; por ahora updated_at actúa como última actividad conservadora.
+        void this.tokenRepository
+          .createQueryBuilder()
+          .update(UserFcmTokenEntity)
+          .set({ updatedAt: new Date() })
+          .where('token IN (:...tokens)', { tokens: successful })
+          .execute()
+          .catch(() => undefined);
+      }
+    }
+  }
+
+  private async sendMulticastWithBackoff(
+    initialTokens: string[],
+    dataOnly: Record<string, string>,
+    webPushLink: string | undefined
+  ): Promise<admin.messaging.BatchResponse> {
+    let tokens = initialTokens;
+    const allResponses = new Map<string, admin.messaging.SendResponse>();
+    const retryDelays = [500, 1500, 4500];
+
+    for (let attempt = 0; attempt <= retryDelays.length && tokens.length > 0; attempt++) {
+      if (attempt > 0) {
+        await this.delay(retryDelays[attempt - 1] ?? 4500);
+      }
       try {
-        /** Solo `data` + webpush.link: click y pestañas en segundo plano; el SW abre `openPath` al pulsar. */
-        const res = await this.messaging.sendEachForMulticast({
-          tokens: chunk,
+        const res = await this.messaging!.sendEachForMulticast({
+          tokens,
           data: dataOnly,
           webpush: webPushLink
             ? {
@@ -175,21 +216,69 @@ export class FcmService implements OnModuleInit {
               }
             : undefined
         });
+        const retryable: string[] = [];
+        res.responses.forEach((response, idx) => {
+          const token = tokens[idx];
+          if (!token) return;
+          if (response.success) {
+            allResponses.set(token, response);
+            return;
+          }
+          const code = response.error?.code;
+          if (code && FCM_TOKEN_INVALID_CODES.has(code)) {
+            allResponses.set(token, response);
+            void this.tokenRepository.delete({ token }).catch(() => undefined);
+          } else if (attempt < retryDelays.length) {
+            retryable.push(token);
+          } else {
+            allResponses.set(token, response);
+          }
+        });
         if (res.failureCount > 0) {
           const firstFail = res.responses.find((r) => !r.success);
           this.logger.warn(
-            `FCM: ${res.failureCount}/${chunk.length} envíos fallidos${firstFail?.error?.message ? ` (ej.: ${firstFail.error.message})` : ''}`
+            `FCM: ${res.failureCount}/${tokens.length} envíos fallidos${firstFail?.error?.message ? ` (ej.: ${firstFail.error.message})` : ''}`
           );
-          res.responses.forEach((r, idx) => {
-            if (!r.success && r.error?.code && FCM_TOKEN_INVALID_CODES.has(r.error.code)) {
-              void this.tokenRepository.delete({ token: chunk[idx] }).catch(() => undefined);
-            }
-          });
         }
+        tokens = retryable;
       } catch (err) {
-        this.logger.warn(`Error enviando FCM multicast: ${String(err)}`);
+        if (attempt >= retryDelays.length) {
+          this.logger.warn(`Error enviando FCM multicast: ${String(err)}`);
+          for (const token of tokens) {
+            allResponses.set(token, {
+              success: false,
+              error: err as admin.FirebaseError
+            });
+          }
+          tokens = [];
+        }
       }
     }
+
+    const responses = initialTokens.map(
+      (token) => allResponses.get(token) ?? { success: false }
+    ) as admin.messaging.SendResponse[];
+    return {
+      responses,
+      successCount: responses.filter((r) => r.success).length,
+      failureCount: responses.filter((r) => !r.success).length
+    };
+  }
+
+  private async purgeOldDeviceTokens(): Promise<void> {
+    const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    const res = await this.tokenRepository
+      .createQueryBuilder()
+      .delete()
+      .where('updated_at < :cutoff', { cutoff })
+      .execute();
+    if ((res.affected ?? 0) > 0) {
+      this.logger.log(`FCM: ${res.affected} token(es) antiguos purgados.`);
+    }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private loadServiceAccount(): admin.ServiceAccount | null {

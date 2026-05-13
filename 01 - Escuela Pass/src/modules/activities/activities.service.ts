@@ -2,10 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -13,6 +15,7 @@ import {
 import { ActivityEntity, ActivityStatus } from '../../database/entities/activity.entity';
 import { ActivityGradeEntity } from '../../database/entities/activity-grade.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
+import { ReportCardStatus } from '../../database/entities/report-card.entity';
 import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
@@ -98,8 +101,11 @@ export class ActivitiesService {
     private readonly parentsRepository: Repository<ParentEntity>,
     @InjectRepository(AcademicPeriodEntity)
     private readonly periodsRepository: Repository<AcademicPeriodEntity>,
-    private readonly notifications: AcademicNotificationsService
+    private readonly notifications: AcademicNotificationsService,
+    private readonly auditService: AuditService
   ) {}
+
+  private readonly logger = new Logger(ActivitiesService.name);
 
   private normText(s: string): string {
     return s.trim().replace(/\s+/g, ' ');
@@ -781,11 +787,32 @@ export class ActivitiesService {
         'La actividad está cerrada. Reábrela para modificar las calificaciones.'
       );
     }
+    const publishedReportCardIds = await this.findPublishedReportCardsForActivity(
+      activity,
+      dto.entries.map((entry) => entry.studentId)
+    );
+    if (publishedReportCardIds.length > 0) {
+      if (dto.force !== true) {
+        throw new BadRequestException(
+          'El boletín del periodo ya está publicado. Use force=true para recalcular bajo autorización.'
+        );
+      }
+      if (role !== UserRole.ADMIN) {
+        throw new ForbiddenException('Solo ADMIN puede forzar cambios sobre boletines publicados.');
+      }
+    }
 
     const maxScore = Number(activity.maxScore);
     if (!Number.isFinite(maxScore) || maxScore <= 0) {
       throw new BadRequestException('La actividad no tiene un puntaje máximo válido');
     }
+
+    const changes: Array<{
+      studentId: string;
+      previousScore: string | null;
+      nextScore: string;
+      action: 'create' | 'update';
+    }> = [];
 
     await this.dataSource.transaction(async (mgr) => {
       const gradeRepo = mgr.getRepository(ActivityGradeEntity);
@@ -815,12 +842,26 @@ export class ActivitiesService {
         });
 
         if (existing) {
+          if (existing.score !== scoreFixed) {
+            changes.push({
+              studentId: entry.studentId,
+              previousScore: existing.score ?? null,
+              nextScore: scoreFixed,
+              action: 'update'
+            });
+          }
           existing.score = scoreFixed;
           existing.notes = entry.notes?.trim() ? this.normText(entry.notes) : null;
           existing.gradedBy = userId;
           existing.gradedAt = new Date();
           await gradeRepo.save(existing);
         } else {
+          changes.push({
+            studentId: entry.studentId,
+            previousScore: null,
+            nextScore: scoreFixed,
+            action: 'create'
+          });
           const row = gradeRepo.create({
             activityId: id,
             studentId: entry.studentId,
@@ -834,7 +875,47 @@ export class ActivitiesService {
       }
     });
 
+    if (changes.length > 0) {
+      await this.auditService
+        .log(userId, 'grades.activity.save', 'activities', id, {
+          activityId: id,
+          groupId: activity.groupId,
+          subjectId: activity.subjectId,
+          force: dto.force === true,
+          reportCardsNeedingRecalc: publishedReportCardIds,
+          changes
+        })
+        .catch((err) =>
+          this.logger.error('No se pudo registrar auditoría de calificaciones', err as Error)
+        );
+      if (publishedReportCardIds.length > 0) {
+        // TODO Fase 7: agregar estado/columna RECALCULO_PENDIENTE en report_cards.
+        this.logger.warn(
+          `Boletines publicados requieren recálculo tras force=true. reportCardIds=${publishedReportCardIds.join(',')}`
+        );
+      }
+    }
+
     return { ok: true, count: dto.entries.length };
+  }
+
+  private async findPublishedReportCardsForActivity(
+    activity: ActivityEntity,
+    studentIds: string[]
+  ): Promise<string[]> {
+    if (!activity.periodId || studentIds.length === 0) return [];
+    const uniqueStudentIds = [...new Set(studentIds.filter(Boolean))];
+    if (uniqueStudentIds.length === 0) return [];
+    const rows = await this.studentsRepository.manager.query<{ id: string }[]>(
+      `SELECT rc.id
+       FROM report_cards rc
+       WHERE rc.period_id = $1::uuid
+         AND rc.status = $2
+         AND rc.student_id = ANY($3::uuid[])
+       ORDER BY rc.generated_at DESC`,
+      [activity.periodId, ReportCardStatus.PUBLISHED, uniqueStudentIds]
+    );
+    return rows.map((row) => row.id);
   }
 
   /**
@@ -869,19 +950,67 @@ export class ActivitiesService {
       filters.studentId ? [parent.id, filters.studentId] : [parent.id]
     );
 
-    const out: (ActivityListRow & {
-      myScore: string | null;
-      myNotes: string | null;
-      studentId: string;
-    })[] = [];
-    for (const child of children) {
-      if (!child.group_id) continue;
-      const rows = await this.fetchActivitiesForStudent(child.id, child.group_id, {
-        periodId: filters.periodId ?? null
-      });
-      rows.forEach((r) => out.push({ ...r, studentId: child.id }));
+    const groupIds = [...new Set(children.map((child) => child.group_id).filter((v): v is string => Boolean(v)))];
+    if (groupIds.length === 0) return [];
+    const studentIds = children.map((child) => child.id);
+
+    const params: unknown[] = [groupIds, studentIds];
+    let where = `a.group_id = ANY($1::uuid[]) AND st.id = ANY($2::uuid[]) AND (a.status = 'OPEN' OR a.published_at IS NOT NULL)`;
+    if (filters.periodId) {
+      params.push(filters.periodId);
+      where += ` AND a.period_id = $${params.length}`;
     }
-    return out;
+
+    const rows = await this.studentsRepository.manager.query<
+      (Parameters<typeof this.mapListRow>[0] & {
+        student_id: string;
+        my_score: string | null;
+        my_notes: string | null;
+      })[]
+    >(
+      `SELECT
+         a.id,
+         a.teacher_id,
+         a.group_id,
+         g.name AS group_name,
+         g.grade,
+         g.school_year,
+         a.subject_id,
+         a.subject_name,
+         a.title,
+         a.period,
+         a.period_id,
+         ap.name AS period_name,
+         a.max_score::text AS max_score,
+         a.due_date::text AS due_date,
+         a.status,
+         a.closed_at,
+         a.reopened_at,
+         a.published_at,
+         a.created_at,
+         a.updated_at,
+         g.school_id,
+         sch.name AS school_name,
+         st.id AS student_id,
+         ag.score::text AS my_score,
+         ag.notes AS my_notes
+       FROM activities a
+       INNER JOIN groups g ON g.id = a.group_id
+       INNER JOIN students st ON st.group_id = a.group_id
+       LEFT JOIN schools sch ON sch.id = g.school_id
+       LEFT JOIN academic_periods ap ON ap.id = a.period_id
+       LEFT JOIN activity_grades ag ON ag.activity_id = a.id AND ag.student_id = st.id
+       WHERE ${where}
+       ORDER BY a.period, a.created_at DESC`,
+      params
+    );
+
+    return rows.map((row) => ({
+      ...this.mapListRow(row),
+      myScore: row.my_score,
+      myNotes: row.my_notes,
+      studentId: row.student_id
+    }));
   }
 
   async listTeacherAssignments(

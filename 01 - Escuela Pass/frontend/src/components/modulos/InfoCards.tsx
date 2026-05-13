@@ -2,10 +2,10 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { publicAssetUrl } from '@/lib/asset-url';
 import { DATA_TABLE_SEARCH_INPUT, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import { DetailModal } from '@/components/DetailModal';
 import { emitNotificationRead } from '@/lib/notifications-sync';
+import { openProtectedFile } from '@/lib/protected-files';
 
 function todayISODateLocal(): string {
   const n = new Date();
@@ -625,8 +625,7 @@ function debtRowPresentation(d: Debt) {
     d.status !== 'COMPROBANTE_RECHAZADO';
   const st = statusStyle(d.status, isOverdue);
   const expiredNoUpload = debtIsExpiredForParentVoucher(d);
-  const voucherUrl = d.voucherPath ? publicAssetUrl(d.voucherPath) : null;
-  return { isOverdue, st, expiredNoUpload, voucherUrl };
+  return { isOverdue, st, expiredNoUpload };
 }
 
 function DebtDetailPanel({
@@ -638,7 +637,7 @@ function DebtDetailPanel({
   canUpload: boolean;
   onUpdated: (next: Partial<Debt>) => void;
 }) {
-  const { isOverdue, st, expiredNoUpload, voucherUrl } = debtRowPresentation(d);
+  const { isOverdue, st, expiredNoUpload } = debtRowPresentation(d);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -749,15 +748,18 @@ function DebtDetailPanel({
                 ? 'Comprobante verificado.'
                 : 'Comprobante en revisión por la institución.'}
           </span>
-          {voucherUrl ? (
-            <a
-              href={voucherUrl}
-              target="_blank"
-              rel="noreferrer"
+          {d.voucherPath ? (
+            <button
+              type="button"
+              onClick={() =>
+                void openProtectedFile(d.voucherPath!).catch((e) =>
+                  setErrMsg(getUserFacingMessage(e, 'No se pudo abrir el comprobante.'))
+                )
+              }
               className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
             >
               Ver comprobante
-            </a>
+            </button>
           ) : null}
         </div>
       ) : null}
@@ -1003,6 +1005,19 @@ export type AttendanceChild = {
   };
 };
 
+type ClassAttendanceRecord = {
+  id: string;
+  classSessionId: string;
+  attendanceDate: string;
+  status: 'PRESENTE' | 'AUSENTE' | 'RETARDO';
+  isJustified?: boolean | null;
+  notes?: string | null;
+  subjectName?: string | null;
+  teacherName?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+};
+
 export function ParentExcuseForm({
   students,
   onSuccess
@@ -1142,6 +1157,45 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
     }
     return [];
   }, [data]);
+  const [classRecordsByStudent, setClassRecordsByStudent] = useState<Record<string, ClassAttendanceRecord[]>>({});
+  const [classRecordsLoading, setClassRecordsLoading] = useState(false);
+
+  useEffect(() => {
+    if (children.length === 0) {
+      setClassRecordsByStudent({});
+      return;
+    }
+    let alive = true;
+    const to = todayISODateLocal();
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - 14);
+    const from = [
+      fromDate.getFullYear(),
+      String(fromDate.getMonth() + 1).padStart(2, '0'),
+      String(fromDate.getDate()).padStart(2, '0')
+    ].join('-');
+
+    setClassRecordsLoading(true);
+    // Una sola llamada al endpoint agregado en lugar de N llamadas en paralelo (5.5)
+    api
+      .get<Record<string, ClassAttendanceRecord[]>>('/api/v1/class-attendance/parent/me', {
+        params: { from, to }
+      })
+      .then((res) => {
+        if (!alive) return;
+        setClassRecordsByStudent(res.data ?? {});
+      })
+      .catch(() => {
+        if (!alive) return;
+        setClassRecordsByStudent({});
+      })
+      .finally(() => {
+        if (alive) setClassRecordsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [children]);
 
   if (children.length === 0) {
     return (
@@ -1168,8 +1222,8 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
             {recordsForDisplay.length > 0 ? (
               <div className={`mt-3 ${SCROLLABLE_PANEL_BODY}`}>
               <ul className="divide-y divide-slate-100">
-                {recordsForDisplay.map((r, i) => (
-                  <li key={`${r.attendanceDate}-${i}`} className="flex items-center justify-between py-2 text-sm">
+                {recordsForDisplay.map((r) => (
+                  <li key={r.attendanceDate} className="flex items-center justify-between py-2 text-sm">
                     <span className="text-slate-700">{fmtDate(r.attendanceDate)}</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
@@ -1188,8 +1242,55 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
               </ul>
               </div>
             ) : (
-              <p className="mt-3 text-sm text-slate-500">Sin asistencias registradas por el docente.</p>
+              <p className="mt-3 text-sm text-slate-500">Sin registro diario de ingreso a la jornada.</p>
             )}
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Asistencia por clase</p>
+                  <p className="text-xs text-slate-500">
+                    Confirmada por cada docente en su sesión; es independiente del ingreso por QR/NFC.
+                  </p>
+                </div>
+                {classRecordsLoading ? (
+                  <span className="text-[11px] text-slate-400">Cargando…</span>
+                ) : null}
+              </div>
+              {(classRecordsByStudent[ch.studentId] ?? []).length > 0 ? (
+                <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-100 bg-slate-50/60 px-3">
+                  {(classRecordsByStudent[ch.studentId] ?? []).slice(0, 8).map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-800">
+                          {r.subjectName ?? 'Clase'}
+                          {r.teacherName ? <span className="font-normal text-slate-500"> · {r.teacherName}</span> : null}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {fmtDate(r.attendanceDate)}
+                          {r.startTime ? ` · ${r.startTime.slice(0, 5)}${r.endTime ? `-${r.endTime.slice(0, 5)}` : ''}` : ''}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          r.status === 'PRESENTE'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : r.status === 'RETARDO'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {r.status === 'PRESENTE' ? 'Presente' : r.status === 'RETARDO' ? 'Retardo' : 'Ausente'}
+                        {r.isJustified ? ' · justificado' : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                  Aún no hay asistencias por clase registradas para este estudiante.
+                </p>
+              )}
+            </div>
           </div>
         );
       })}

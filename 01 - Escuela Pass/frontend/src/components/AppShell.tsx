@@ -3,8 +3,8 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/useAuth';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { publicAssetUrl } from '@/lib/asset-url';
 import { uploadReportEvidence } from '@/lib/uploads-api';
+import { AuthImage } from '@/components/AuthImage';
 import { navVisibleForRole, SIDEBAR_NAV } from '@/navigation/navConfig';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationsBadge } from '@/components/NotificationsBadge';
@@ -36,7 +36,6 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const role = user?.role;
   const canReportProblem = role !== 'ADMIN';
-  const avatarSrc = publicAssetUrl(user?.avatarUrl ?? null);
   const navItems = SIDEBAR_NAV.filter((item) => navVisibleForRole(item, role));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -248,8 +247,17 @@ export function AppShell() {
         <header className="hidden items-center justify-between gap-4 border-b border-slate-200/80 bg-white px-8 py-4 lg:flex">
           <div className="flex min-w-0 items-center gap-3">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-slate-200">
-              {avatarSrc ? (
-                <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+              {user?.avatarUrl ? (
+                <AuthImage
+                  src={user.avatarUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  fallback={
+                    <div className="flex h-full w-full items-center justify-center bg-slate-900 text-xs font-semibold text-white">
+                      {user?.fullName ? headerInitials(user.fullName) : '—'}
+                    </div>
+                  }
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-slate-900 text-xs font-semibold text-white">
                   {user?.fullName ? headerInitials(user.fullName) : '—'}
@@ -349,7 +357,7 @@ export function AppShell() {
                 <span className="text-slate-700">Capturas (opcional, hasta 5)</span>
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
                   multiple
                   className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
                   onChange={(e) => {

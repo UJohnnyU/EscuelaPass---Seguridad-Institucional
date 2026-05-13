@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +15,7 @@ import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/t
 import { UserRole } from '../../database/entities/user.entity';
 import { RegisterAttendanceDto } from './dto/register-attendance.dto';
 import { RegisterBulkAttendanceDto } from './dto/register-bulk-attendance.dto';
+import { AuditService } from '../audit/audit.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 import { todayLocalISODate } from '../../common/local-date';
 
@@ -50,6 +52,7 @@ function enumerateISODates(from: string, to: string): string[] {
 
 @Injectable()
 export class AttendanceService {
+  private readonly logger = new Logger(AttendanceService.name);
   private justificationColumnKnown = false;
   private justificationColumnExists = false;
 
@@ -64,7 +67,8 @@ export class AttendanceService {
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(ParentEntity)
     private readonly parentsRepository: Repository<ParentEntity>,
-    private readonly schoolCalendarService: SchoolCalendarService
+    private readonly schoolCalendarService: SchoolCalendarService,
+    private readonly auditService: AuditService
   ) {}
 
   /** Evita error 500 si la BD aún no tiene la migración de is_justified. */
@@ -128,6 +132,14 @@ export class AttendanceService {
       registeredByUserId,
       role
     );
+    await this.assertAcademicPeriodOpenForAttendance(
+      student.schoolId,
+      dateStr,
+      role,
+      dto.force === true,
+      registeredByUserId,
+      student.id
+    );
     const cal = await this.schoolCalendarService.getNonInstructionalForDate(
       dateStr,
       student.groupId ?? null
@@ -139,6 +151,7 @@ export class AttendanceService {
     });
 
     if (existing) {
+      const previousStatus = existing.status;
       existing.status = dto.status;
       existing.notes = dto.notes ?? null;
       existing.registeredBy = registeredByUserId;
@@ -146,6 +159,20 @@ export class AttendanceService {
       existing.classSessionId = classSessionId;
       const saved = await this.attendanceRepository.save(existing);
       await this.setJustificationForRecord(saved.id, dto.status, dto.isJustified);
+      if (previousStatus !== saved.status || dto.isJustified !== undefined) {
+        await this.auditService
+          .log(registeredByUserId, 'attendance.daily.update', 'attendance_records', saved.id, {
+            studentId: saved.studentId,
+            attendanceDate: saved.attendanceDate,
+            previousStatus,
+            nextStatus: saved.status,
+            isJustified: dto.isJustified ?? null,
+            role
+          })
+          .catch((err) =>
+            this.logger.error('No se pudo registrar auditoría de asistencia diaria', err as Error)
+          );
+      }
       return saved;
     }
 
@@ -225,6 +252,7 @@ export class AttendanceService {
           attendanceDate: dateStr,
           notes: entry.notes,
           isJustified: entry.isJustified,
+          force: dto.force,
           classSessionId: dto.classSessionId
         },
         registeredByUserId,
@@ -461,11 +489,52 @@ export class AttendanceService {
       )
       .getMany();
 
-    const flags = await Promise.all(
-      children.map((st) =>
-        this.schoolCalendarService.getNonInstructionalForDate(date, st.groupId ?? null)
-      )
-    );
+    const groupIds = [...new Set(children.map((st) => st.groupId).filter((v): v is string => Boolean(v)))];
+    const schoolIds = [...new Set(children.map((st) => st.schoolId).filter((v): v is string => Boolean(v)))];
+    const flagsByGroup = new Map<string, { nonInstructional: boolean; reasons: string[] }>();
+    if (groupIds.length > 0) {
+      const rows = await this.studentsRepository.manager.query<
+        { group_id: string | null; reason: string | null }[]
+      >(
+        `SELECT d.group_id, d.reason
+         FROM school_non_instructional_days d
+         WHERE d.exception_date = $1::date
+           AND (
+             d.group_id = ANY($2::uuid[])
+             OR (d.group_id IS NULL AND d.school_id = ANY($3::uuid[]))
+           )`,
+        [date, groupIds, schoolIds.length > 0 ? schoolIds : ['00000000-0000-0000-0000-000000000000']]
+      );
+      for (const groupId of groupIds) {
+        flagsByGroup.set(groupId, { nonInstructional: false, reasons: [] });
+      }
+      for (const row of rows) {
+        if (!row.group_id) continue;
+        const current = flagsByGroup.get(row.group_id) ?? { nonInstructional: false, reasons: [] };
+        current.nonInstructional = true;
+        if (row.reason?.trim()) current.reasons.push(row.reason.trim());
+        flagsByGroup.set(row.group_id, current);
+      }
+      const globalRows = rows.filter((row) => row.group_id == null);
+      if (globalRows.length > 0) {
+        const globalReasons = [
+          ...new Set(globalRows.map((row) => row.reason?.trim()).filter((v): v is string => Boolean(v)))
+        ];
+        for (const student of children) {
+          if (!student.groupId || !student.schoolId) continue;
+          const current = flagsByGroup.get(student.groupId) ?? { nonInstructional: false, reasons: [] };
+          const appliesGlobal = schoolIds.includes(student.schoolId);
+          if (!appliesGlobal) continue;
+          current.nonInstructional = true;
+          current.reasons = [...new Set([...current.reasons, ...globalReasons])];
+          flagsByGroup.set(student.groupId, current);
+        }
+      }
+    }
+    const flags = children.map((student) => {
+      if (!student.groupId) return { nonInstructional: false, reasons: [] as string[] };
+      return flagsByGroup.get(student.groupId) ?? { nonInstructional: false, reasons: [] };
+    });
     const nonInstructionalDay =
       children.length > 0 && flags.length > 0 && flags.every((f) => f.nonInstructional);
     const reasonsMerged = [...new Set(flags.flatMap((f) => f.reasons))];
@@ -485,10 +554,10 @@ export class AttendanceService {
           .getMany()
       : [];
 
-    const childrenPayload = await Promise.all(
-      children.map(async (s) => {
-        const su = await this.studentsRepository.manager.query<
+    const childrenMeta = studentIds.length
+      ? await this.studentsRepository.manager.query<
           {
+            student_id: string;
             full_name: string;
             matricula: string;
             avatar_path: string | null;
@@ -498,6 +567,7 @@ export class AttendanceService {
           }[]
         >(
           `SELECT
+             st.id AS student_id,
              u.full_name,
              st.matricula,
              u.avatar_path,
@@ -507,36 +577,45 @@ export class AttendanceService {
            FROM students st
            LEFT JOIN users u ON u.id = st.user_id
            LEFT JOIN groups g ON g.id = st.group_id
-           WHERE st.id = $1
-           LIMIT 1`,
-          [s.id]
-        );
-        const recs = recentRows.filter((r) => r.studentId === s.id);
-        const summary = {
-          presente: recs.filter((r) => r.status === AttendanceStatus.PRESENTE).length,
-          ausente: recs.filter((r) => r.status === AttendanceStatus.AUSENTE).length,
-          retardo: recs.filter((r) => r.status === AttendanceStatus.RETARDO).length,
-          total: recs.length
-        };
-        return {
-          studentId: s.id,
-          studentName: su[0]?.full_name ?? '',
-          matricula: su[0]?.matricula ?? '',
-          avatarUrl: su[0]?.avatar_path ?? null,
-          group: {
-            name: su[0]?.group_name ?? null,
-            grade: su[0]?.group_grade ?? null,
-            schoolYear: su[0]?.group_school_year ?? null
-          },
-          records: recs.map((r) => ({
-            attendanceDate: r.attendanceDate,
-            status: r.status,
-            notes: r.notes
-          })),
-          summary
-        };
-      })
-    );
+           WHERE st.id = ANY($1::uuid[])`,
+          [studentIds]
+        )
+      : [];
+    const metaByStudent = new Map(childrenMeta.map((row) => [row.student_id, row]));
+    const recordsByStudent = new Map<string, typeof recentRows>();
+    for (const row of recentRows) {
+      const bucket = recordsByStudent.get(row.studentId) ?? [];
+      bucket.push(row);
+      recordsByStudent.set(row.studentId, bucket);
+    }
+
+    const childrenPayload = children.map((student) => {
+      const meta = metaByStudent.get(student.id);
+      const recs = recordsByStudent.get(student.id) ?? [];
+      const summary = {
+        presente: recs.filter((r) => r.status === AttendanceStatus.PRESENTE).length,
+        ausente: recs.filter((r) => r.status === AttendanceStatus.AUSENTE).length,
+        retardo: recs.filter((r) => r.status === AttendanceStatus.RETARDO).length,
+        total: recs.length
+      };
+      return {
+        studentId: student.id,
+        studentName: meta?.full_name ?? '',
+        matricula: meta?.matricula ?? '',
+        avatarUrl: meta?.avatar_path ?? null,
+        group: {
+          name: meta?.group_name ?? null,
+          grade: meta?.group_grade ?? null,
+          schoolYear: meta?.group_school_year ?? null
+        },
+        records: recs.map((r) => ({
+          attendanceDate: r.attendanceDate,
+          status: r.status,
+          notes: r.notes
+        })),
+        summary
+      };
+    });
 
     return {
       date,
@@ -641,6 +720,46 @@ export class AttendanceService {
       }
     }
     return session.id;
+  }
+
+  private async assertAcademicPeriodOpenForAttendance(
+    schoolId: string | null,
+    dateStr: string,
+    role: UserRole,
+    force: boolean,
+    actorUserId: string,
+    studentId: string
+  ): Promise<void> {
+    if (!schoolId) return;
+    const rows = await this.studentsRepository.manager.query<
+      { id: string; name: string; status: string }[]
+    >(
+      `SELECT id, name, status
+       FROM academic_periods
+       WHERE school_id = $1::uuid
+         AND start_date <= $2::date
+         AND end_date >= $2::date
+         AND status = 'CLOSED'
+       ORDER BY order_index ASC
+       LIMIT 1`,
+      [schoolId, dateStr]
+    );
+    const period = rows[0];
+    if (!period) return;
+    if (role === UserRole.ADMIN && force) {
+      await this.auditService
+        .log(actorUserId, 'attendance.force_closed_period', 'academic_periods', period.id, {
+          schoolId,
+          studentId,
+          attendanceDate: dateStr,
+          periodName: period.name
+        })
+        .catch((err) =>
+          this.logger.error('No se pudo registrar auditoría de override de periodo cerrado', err as Error)
+        );
+      return;
+    }
+    throw new ForbiddenException('El periodo académico está cerrado. No se pueden registrar asistencias.');
   }
 
   private async assertCanRegisterForClassSession(

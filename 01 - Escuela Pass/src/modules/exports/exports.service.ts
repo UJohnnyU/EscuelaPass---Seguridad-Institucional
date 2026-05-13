@@ -2,6 +2,10 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
 import { readFileSync } from 'fs';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { AttendanceRecordEntity } from '../../database/entities/attendance-record.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
@@ -18,6 +22,13 @@ type AttendanceExportRow = {
   attendance_date: string;
   status: string;
   notes: string | null;
+};
+
+type ClassAttendanceExportRow = AttendanceExportRow & {
+  subject: string;
+  teacher: string;
+  class_time: string;
+  is_justified: string;
 };
 
 type GradesExportRow = {
@@ -57,6 +68,9 @@ export class ExportsService {
     attendance_date: 'Día',
     status: 'Estado',
     notes: 'Observaciones',
+    teacher: 'Docente',
+    class_time: 'Horario',
+    is_justified: 'Justificada',
     subject: 'Asignatura',
     period: 'Período académico',
     assessment_name: 'Actividad o instrumento',
@@ -108,15 +122,40 @@ export class ExportsService {
   }
 
   async exportAttendanceXlsx(groupId: string, userId: string, role: UserRole, dateStr?: string) {
-    const { headers, rows, date } = await this.loadAttendanceExport(groupId, userId, role, dateStr);
+    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    await this.assertCanViewGroup(userId, role, groupId);
+    const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
+    if (cal.nonInstructional) {
+      throw new BadRequestException(
+        'La fecha está marcada como día sin clases; no aplica exportación de asistencia para ese día.'
+      );
+    }
     const groupRow = await this.groupsRepository.findOne({ where: { id: groupId } });
     const institution = await this.settingsService.getInstitutionProfileForSchoolId(groupRow?.schoolId ?? null);
-    const buffer = await this.buildXlsxBuffer(headers, rows as Record<string, string | number | null | undefined>[], 'Asistencia', {
+    const filename = `asistencia-${date}.xlsx`;
+    const filePath = await this.buildAttendanceXlsxTempFile(groupId, date, {
       institution,
       reportTitle: 'Reporte de asistencia',
       subtitle: `Día: ${this.formatExportDateOnly(`${date}T12:00:00`)}`
     });
-    return { buffer, filename: `asistencia-${date}.xlsx` };
+    return { filePath, filename };
+  }
+
+  async exportClassAttendanceXlsx(groupId: string, userId: string, role: UserRole, dateStr?: string) {
+    const { headers, rows, date } = await this.loadClassAttendanceExport(groupId, userId, role, dateStr);
+    const groupRow = await this.groupsRepository.findOne({ where: { id: groupId } });
+    const institution = await this.settingsService.getInstitutionProfileForSchoolId(groupRow?.schoolId ?? null);
+    const buffer = await this.buildXlsxBuffer(
+      headers,
+      rows as Record<string, string | number | null | undefined>[],
+      'Asistencia por clase',
+      {
+        institution,
+        reportTitle: 'Reporte de asistencia por clase',
+        subtitle: `Día: ${this.formatExportDateOnly(`${date}T12:00:00`)}`
+      }
+    );
+    return { buffer, filename: `asistencia-por-clase-${date}.xlsx` };
   }
 
   async exportGradesXlsx(
@@ -216,6 +255,169 @@ export class ExportsService {
       full_name: r.full_name,
       attendance_date: this.formatExportDateOnly(r.attendance_date),
       status: this.attendanceStatusLabel(r.status),
+      notes: r.notes
+    }));
+    return { date, headers, rows };
+  }
+
+  private async buildAttendanceXlsxTempFile(
+    groupId: string,
+    date: string,
+    branding: SheetBranding
+  ): Promise<string> {
+    const tempPath = join(tmpdir(), `escuela-pass-attendance-${randomUUID()}.xlsx`);
+    const wb = new ExcelJS.stream.xlsx.WorkbookWriter({
+      filename: tempPath,
+      useStyles: true
+    });
+    const headers = ['matricula', 'full_name', 'attendance_date', 'status', 'notes'];
+    const ws = wb.addWorksheet('Asistencia', {
+      views: [{ state: 'frozen', ySplit: 4 }]
+    });
+
+    ws.mergeCells(1, 1, 1, headers.length);
+    ws.getCell(1, 1).value = branding.institution.name;
+    ws.getCell(1, 1).font = { bold: true, size: 14 };
+    ws.getCell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(2, 1, 2, headers.length);
+    ws.getCell(2, 1).value = branding.reportTitle;
+    ws.getCell(2, 1).font = { bold: true, size: 12 };
+    ws.getCell(2, 1).alignment = { horizontal: 'center' };
+
+    ws.mergeCells(3, 1, 3, headers.length);
+    ws.getCell(3, 1).value = branding.subtitle ?? '';
+    ws.getCell(3, 1).font = { size: 10, color: { argb: 'FF444444' } };
+    ws.getCell(3, 1).alignment = { horizontal: 'center', wrapText: true };
+
+    const headerRow = ws.addRow(headers.map((h) => ExportsService.EXPORT_HEADER_LABELS[h] ?? h));
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE8EEF5' }
+    };
+    headerRow.commit();
+
+    ws.columns = [
+      { width: 20 },
+      { width: 34 },
+      { width: 18 },
+      { width: 16 },
+      { width: 42 }
+    ];
+
+    const chunkSize = 1000;
+    let offset = 0;
+    while (true) {
+      const chunk = await this.attendanceRepository.manager.query<
+        { matricula: string; full_name: string; attendance_date: string; status: string; notes: string | null }[]
+      >(
+        `SELECT
+           s.matricula,
+           u.full_name,
+           a.attendance_date,
+           a.status::text AS status,
+           a.notes
+         FROM attendance_records a
+         INNER JOIN students s ON s.id = a.student_id
+         INNER JOIN users u ON u.id = s.user_id
+         WHERE s.group_id = $1::uuid
+           AND a.attendance_date = $2::date
+         ORDER BY u.full_name ASC, s.id ASC
+         LIMIT $3 OFFSET $4`,
+        [groupId, date, chunkSize, offset]
+      );
+      if (chunk.length === 0) break;
+      for (const row of chunk) {
+        const x = ws.addRow([
+          row.matricula,
+          row.full_name,
+          this.formatExportDateOnly(row.attendance_date),
+          this.attendanceStatusLabel(row.status),
+          row.notes
+        ]);
+        x.commit();
+      }
+      offset += chunk.length;
+    }
+
+    ws.commit();
+    await wb.commit();
+    await fs.access(tempPath);
+    return tempPath;
+  }
+
+  private async loadClassAttendanceExport(
+    groupId: string,
+    userId: string,
+    role: UserRole,
+    dateStr?: string
+  ): Promise<{
+    date: string;
+    headers: string[];
+    rows: ClassAttendanceExportRow[];
+  }> {
+    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    await this.assertCanViewGroup(userId, role, groupId);
+
+    const raw = await this.groupsRepository.manager.query<
+      {
+        matricula: string;
+        full_name: string;
+        attendance_date: string;
+        status: string;
+        notes: string | null;
+        subject: string | null;
+        teacher: string | null;
+        start_time: string;
+        end_time: string;
+        is_justified: boolean;
+      }[]
+    >(
+      `SELECT s.matricula,
+              u.full_name,
+              car.attendance_date,
+              car.status::text AS status,
+              car.notes,
+              sub.name AS subject,
+              tu.full_name AS teacher,
+              cs.start_time,
+              cs.end_time,
+              car.is_justified
+       FROM class_attendance_records car
+       JOIN students s ON s.id = car.student_id
+       JOIN users u ON u.id = s.user_id
+       JOIN class_sessions cs ON cs.id = car.class_session_id
+       LEFT JOIN subjects sub ON sub.id = cs.subject_id
+       LEFT JOIN teachers t ON t.id = cs.teacher_id
+       LEFT JOIN users tu ON tu.id = t.user_id
+       WHERE s.group_id = $1
+         AND car.attendance_date = $2::date
+       ORDER BY cs.start_time ASC, u.full_name ASC`,
+      [groupId, date]
+    );
+
+    const headers = [
+      'matricula',
+      'full_name',
+      'attendance_date',
+      'subject',
+      'teacher',
+      'class_time',
+      'status',
+      'is_justified',
+      'notes'
+    ];
+    const rows = raw.map((r) => ({
+      matricula: r.matricula,
+      full_name: r.full_name,
+      attendance_date: this.formatExportDateOnly(r.attendance_date),
+      subject: r.subject ?? 'Clase',
+      teacher: r.teacher ?? '',
+      class_time: `${String(r.start_time).slice(0, 5)}-${String(r.end_time).slice(0, 5)}`,
+      status: this.attendanceStatusLabel(r.status),
+      is_justified: r.is_justified ? 'Sí' : 'No',
       notes: r.notes
     }));
     return { date, headers, rows };

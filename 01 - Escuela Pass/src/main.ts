@@ -16,7 +16,7 @@ import { uploadsRootDir, uploadsSubDir } from './lib/uploads-path';
 
 async function bootstrap() {
   const uploadsRoot = uploadsRootDir();
-  for (const sub of ['comprobantes', 'avatars', 'school-logos', 'excuses']) {
+  for (const sub of ['comprobantes', 'avatars', 'school-logos', 'excuses', 'reports']) {
     uploadsSubDir(sub);
   }
   await migrateUploadsToVolume(uploadsRoot);
@@ -41,19 +41,19 @@ async function bootstrap() {
     logger.error('No se pudo garantizar el esquema en tiempo de arranque', err as Error);
   }
 
-  // Sirve uploads desde el storage principal y, si no existe allí, intenta
-  // en la ruta legacy ./uploads para evitar imágenes rotas tras migraciones.
+  // Solo exponemos logos institucionales de forma pública.
+  // Los buckets sensibles se sirven por endpoint autenticado (/files/...).
   app.use(
-    '/uploads',
-    express.static(uploadsRoot, {
+    '/uploads/school-logos',
+    express.static(uploadsSubDir('school-logos'), {
       fallthrough: true,
       index: false,
       maxAge: '7d'
     })
   );
   app.use(
-    '/uploads',
-    express.static(join(process.cwd(), 'uploads'), {
+    '/uploads/school-logos',
+    express.static(join(process.cwd(), 'uploads', 'school-logos'), {
       fallthrough: true,
       index: false,
       maxAge: '7d'
@@ -84,23 +84,33 @@ async function bootstrap() {
   const apiPrefix = process.env.API_PREFIX ?? 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Escuela Pass API')
-    .setDescription('API backend para control escolar, accesos y circuito vial')
-    .setVersion('1.0.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT'
-      },
-      'access-token'
-    )
-    .addSecurityRequirements('access-token')
-    .build();
+  // Swagger queda desactivado por defecto en produccion para no exponer toda la
+  // superficie de la API (endpoints, DTOs, requisitos de auth). Para habilitarlo
+  // en un entorno productivo concreto, exponer `ENABLE_SWAGGER=true` y, mejor,
+  // montarlo detras de una capa de auth basica con SWAGGER_USER / SWAGGER_PASSWORD.
+  const swaggerEnabled =
+    process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true';
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Escuela Pass API')
+      .setDescription('API backend para control escolar, accesos y circuito vial')
+      .setVersion('1.0.0')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        },
+        'access-token'
+      )
+      .addSecurityRequirements('access-token')
+      .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document);
+  } else {
+    new Logger('Swagger').log('Swagger deshabilitado en produccion');
+  }
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);

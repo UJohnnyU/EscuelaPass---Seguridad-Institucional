@@ -32,6 +32,7 @@ export default {
         }
       },
       animation: {
+        'progress-bar': 'progressBar 1.6s ease-in-out infinite',
         'fade-in': 'fadeIn 0.4s ease-out forwards',
         'slide-up': 'slideUp 0.45s ease-out forwards',
         /** Entrada auth (login / recuperar contraseña): suave y con “pop” leve. */
@@ -46,6 +47,11 @@ export default {
         'circuit-step-title': 'circuitStepTitle 3.2s ease-in-out infinite'
       },
       keyframes: {
+        progressBar: {
+          '0%': { transform: 'translateX(-100%)' },
+          '60%': { transform: 'translateX(40%)' },
+          '100%': { transform: 'translateX(100%)' }
+        },
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' }

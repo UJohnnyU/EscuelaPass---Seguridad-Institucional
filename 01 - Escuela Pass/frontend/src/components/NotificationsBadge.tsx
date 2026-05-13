@@ -8,6 +8,7 @@ import {
   emitNotificationRead,
   emitNotificationsReadAll
 } from '@/lib/notifications-sync';
+import { useAdaptivePolling } from '@/hooks/use-adaptive-polling';
 
 type UnknownObj = Record<string, unknown>;
 type NotifRow = {
@@ -117,28 +118,18 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
-
-    async function refresh() {
+    const refresh = async (signal?: AbortSignal) => {
       try {
-        const res = await api.get('/api/v1/notifications/me?limit=50');
+        const res = await api.get('/api/v1/notifications/me?limit=50', { signal });
         if (cancelled) return;
         const rows = extractArray<NotifRow>(res.data);
         setItems(rows);
       } catch {
         // si falla, no bloqueamos la UI
       }
-    }
+    };
 
     void refresh();
-    const tickMs = 5000;
-    const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      void refresh();
-    }, tickMs);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void refresh();
-    };
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
     const onFcmRefresh = () => {
       void refresh();
     };
@@ -147,13 +138,26 @@ export function NotificationsBadge({ compact = false }: { compact?: boolean }) {
     }
     return () => {
       cancelled = true;
-      if (timer) clearInterval(timer);
-      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
       if (typeof window !== 'undefined') {
         window.removeEventListener(NOTIFICATIONS_REFRESH_REQUEST_EVENT, onFcmRefresh);
       }
     };
   }, []);
+
+  useAdaptivePolling({
+    enabled: true,
+    intervalFocused: 30000,
+    intervalBlurred: 120000,
+    onPoll: async ({ signal }) => {
+      try {
+        const res = await api.get('/api/v1/notifications/me?limit=50', { signal });
+        const rows = extractArray<NotifRow>(res.data);
+        setItems(rows);
+      } catch {
+        // si falla, no bloqueamos la UI
+      }
+    }
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

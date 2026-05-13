@@ -28,7 +28,7 @@ export class SettingsController {
     @Query('schoolId') schoolId: string | undefined
   ) {
     return this.settingsService.getInstitutionProfile(
-      { role: req.user.role, schoolId: req.user.schoolId },
+      { userId: req.user.userId, role: req.user.role, schoolId: req.user.schoolId },
       schoolId
     );
   }
@@ -40,7 +40,11 @@ export class SettingsController {
     @Query('schoolId') schoolId: string | undefined,
     @Body() dto: UpdateInstitutionProfileDto
   ) {
-    return this.settingsService.setInstitutionProfile({ role: req.user.role, schoolId: req.user.schoolId }, dto, schoolId);
+    return this.settingsService.setInstitutionProfile(
+      { userId: req.user.userId, role: req.user.role, schoolId: req.user.schoolId },
+      dto,
+      schoolId
+    );
   }
 
   @Get('circuit')
@@ -49,7 +53,10 @@ export class SettingsController {
     @Req() req: Request & { user: JwtUser },
     @Query('schoolId') schoolId: string | undefined
   ) {
-    return this.settingsService.getCircuitSetting({ role: req.user.role, schoolId: req.user.schoolId }, schoolId);
+    return this.settingsService.getCircuitSetting(
+      { userId: req.user.userId, role: req.user.role, schoolId: req.user.schoolId },
+      schoolId
+    );
   }
 
   @Patch('circuit')
@@ -60,7 +67,7 @@ export class SettingsController {
     @Body() dto: UpdateCircuitSettingDto
   ) {
     return this.settingsService.setCircuitSettings(
-      { role: req.user.role, schoolId: req.user.schoolId },
+      { userId: req.user.userId, role: req.user.role, schoolId: req.user.schoolId },
       dto,
       schoolId
     );

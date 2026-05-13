@@ -16,6 +16,7 @@ import { AdministrativeStaffEntity } from '../database/entities/administrative-s
 import { CircuitRequestEntity } from '../database/entities/circuit-request.entity';
 import { GroupEntity } from '../database/entities/group.entity';
 import { ClassSessionEntity } from '../database/entities/class-session.entity';
+import { ClassAttendanceRecordEntity } from '../database/entities/class-attendance-record.entity';
 import { ClassScheduleSlotEntity } from '../database/entities/class-schedule-slot.entity';
 import { ImportJobEntity } from '../database/entities/import-job.entity';
 import { MeetingEntity } from '../database/entities/meeting.entity';
@@ -86,6 +87,7 @@ export function buildTypeOrmConfig(): TypeOrmModuleOptions {
       DebtAdjustmentEntity,
       PaymentRecordEntity,
       AttendanceRecordEntity,
+      ClassAttendanceRecordEntity,
       AcademicPeriodEntity,
       ActivityEntity,
       AdminReportCommentEntity,

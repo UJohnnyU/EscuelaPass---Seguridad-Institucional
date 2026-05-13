@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Param,
   ParseUUIDPipe,
@@ -18,6 +19,8 @@ import { avatarMulterOptions, reportEvidenceMulterOptions, schoolLogoMulterOptio
 import { UploadsService } from './uploads.service';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
+const IMAGE_UPLOAD_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const EVIDENCE_UPLOAD_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'];
 
 @Controller('uploads')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,6 +38,10 @@ export class UploadsController {
     if (!file?.filename) {
       return { avatarUrl: null };
     }
+    const valid = await this.uploadsService.validateUploadedFile(file, IMAGE_UPLOAD_MIMES);
+    if (!valid) {
+      throw new BadRequestException('Tipo de archivo invalido (firma no coincide).');
+    }
     return this.uploadsService.setUserAvatar(req.user.userId, req.user.role, userId, file.filename);
   }
 
@@ -48,14 +55,32 @@ export class UploadsController {
     if (!file?.filename) {
       return { logoUrl: null };
     }
+    const valid = await this.uploadsService.validateUploadedFile(file, IMAGE_UPLOAD_MIMES);
+    if (!valid) {
+      throw new BadRequestException('Tipo de archivo invalido (firma no coincide).');
+    }
     return this.uploadsService.setSchoolLogo(schoolId, file.filename);
   }
 
+  // Lo usan TODOS los roles autenticados desde el widget "Reportar problema"
+  // del AppShell y desde Operativos, asi que listamos los roles explicitamente
+  // para no depender de "ausencia de @Roles" como mecanismo de autorizacion.
   @Post('reports/evidence')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.ADMINISTRATIVO,
+    UserRole.DOCENTE,
+    UserRole.PADRE,
+    UserRole.ALUMNO
+  )
   @UseInterceptors(FileInterceptor('file', reportEvidenceMulterOptions))
   async uploadReportEvidence(@UploadedFile() file: Express.Multer.File) {
     if (!file?.filename) {
       return { evidenceUrl: null };
+    }
+    const valid = await this.uploadsService.validateUploadedFile(file, EVIDENCE_UPLOAD_MIMES);
+    if (!valid) {
+      throw new BadRequestException('Tipo de archivo invalido (firma no coincide).');
     }
     return this.uploadsService.uploadReportEvidence(file.filename);
   }

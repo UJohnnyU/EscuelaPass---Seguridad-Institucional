@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SmartSelect } from '@/components/SmartSelect';
 import { DetailModal } from '@/components/DetailModal';
 import { SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
+import { Skeleton } from '@/components/Skeleton';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { useAuth } from '@/context/useAuth';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useAbortable } from '@/hooks/use-abortable';
 
 type ActivityStatus = 'OPEN' | 'CLOSED';
 
@@ -60,6 +63,7 @@ export function MisCalificacionesPage() {
 
   const [rows, setRows] = useState<ActivityRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [filterChild, setFilterChild] = useState('');
   const [filterPeriod, setFilterPeriod] = useState('');
@@ -67,24 +71,36 @@ export function MisCalificacionesPage() {
   const [openRow, setOpenRow] = useState<ActivityRow | null>(null);
   const [allPeriods, setAllPeriods] = useState<PeriodOption[]>([]);
 
+  // Debounce de filterPeriod ~250 ms para no disparar fetch en cada pulsación (5.4)
+  const debouncedFilterPeriod = useDebouncedValue(filterPeriod, 250);
+
   const endpoint = isParent ? '/api/v1/activities/parent/my-children' : '/api/v1/activities/student/me';
 
+  const { signal, abort } = useAbortable();
+  const hasDataRef = useRef(false);
+
   const load = useCallback(async () => {
-    setLoading(true);
+    abort();
     setErr(null);
+    if (!hasDataRef.current) setLoading(true);
+    else setRefreshing(true);
     try {
       const params: Record<string, string> = {};
       if (isParent && filterChild) params.studentId = filterChild;
-      if (filterPeriod) params.periodId = filterPeriod;
-      const { data } = await api.get<ActivityRow[]>(endpoint, { params });
+      if (debouncedFilterPeriod) params.periodId = debouncedFilterPeriod;
+      const { data } = await api.get<ActivityRow[]>(endpoint, { params, signal });
       setRows(Array.isArray(data) ? data : []);
+      hasDataRef.current = true;
     } catch (e) {
+      if ((e as { name?: string })?.name === 'CanceledError') return;
       setErr(getUserFacingMessage(e));
-      setRows([]);
+      if (!hasDataRef.current) setRows([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [endpoint, filterChild, filterPeriod, isParent]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpoint, filterChild, debouncedFilterPeriod, isParent]);
 
   useEffect(() => {
     void load();
@@ -164,10 +180,10 @@ export function MisCalificacionesPage() {
 
   // Agrupar por materia para mostrar promedio local (solo actividades cerradas / publicadas)
   const groupedBySubject = useMemo(() => {
-    const groups = new Map<string, { subjectName: string; items: ActivityRow[] }>();
+    const groups = new Map<string, { subjectId: string; subjectName: string; items: ActivityRow[] }>();
     for (const r of visibleRows) {
       const key = r.subjectId;
-      const g = groups.get(key) ?? { subjectName: r.subjectName, items: [] };
+      const g = groups.get(key) ?? { subjectId: r.subjectId, subjectName: r.subjectName, items: [] };
       g.items.push(r);
       groups.set(key, g);
     }
@@ -229,9 +245,20 @@ export function MisCalificacionesPage() {
         </div>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-4" aria-busy={refreshing || loading}>
+        {/* Barra de progreso discreta para refrescos (SWR) */}
+        <div
+          className={`h-px w-full overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-100' : 'opacity-0'}`}
+          aria-hidden="true"
+        >
+          <div className="h-full w-1/2 animate-progress-bar bg-brand-500/70" />
+        </div>
         {loading ? (
-          <p className="text-sm text-slate-500">Cargando…</p>
+          <div className="space-y-3" aria-label="Cargando calificaciones">
+            <Skeleton.Card height={120} />
+            <Skeleton.Card height={120} />
+            <Skeleton.Card height={120} />
+          </div>
         ) : groupedBySubject.length === 0 ? (
           <div className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
             Aún no hay calificaciones publicadas para mostrar.
@@ -253,7 +280,7 @@ export function MisCalificacionesPage() {
             );
             return (
               <div
-                key={g.subjectName}
+                key={g.subjectId}
                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">

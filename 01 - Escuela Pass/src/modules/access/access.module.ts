@@ -6,6 +6,7 @@ import { AttendanceRecordEntity } from '../../database/entities/attendance-recor
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { StudentEntity } from '../../database/entities/student.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { AuditModule } from '../audit/audit.module';
 import { FcmModule } from '../fcm/fcm.module';
 import { SchoolCalendarModule } from '../school-calendar/school-calendar.module';
 import { AccessController } from './access.controller';
@@ -13,6 +14,7 @@ import { AccessService } from './access.service';
 
 @Module({
   imports: [
+    AuditModule,
     SchoolCalendarModule,
     FcmModule,
     TypeOrmModule.forFeature([

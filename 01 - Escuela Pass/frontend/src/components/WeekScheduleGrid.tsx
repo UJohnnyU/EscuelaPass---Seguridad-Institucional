@@ -52,19 +52,30 @@ const WEEKDAY_LONG = [
 
 const WEEKDAY_SHORT = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
 
-const ROW_HEIGHT_PX = 56;
+/** Height in px for each full hour row. Larger value = more breathing room per event. */
+const ROW_HEIGHT_PX = 72;
 
-const COLOR_PALETTE: { bg: string; ring: string; text: string }[] = [
-  { bg: 'bg-sky-500/90', ring: 'ring-sky-700', text: 'text-white' },
-  { bg: 'bg-amber-500/90', ring: 'ring-amber-700', text: 'text-amber-950' },
-  { bg: 'bg-emerald-500/90', ring: 'ring-emerald-700', text: 'text-white' },
-  { bg: 'bg-rose-500/90', ring: 'ring-rose-700', text: 'text-white' },
-  { bg: 'bg-violet-500/90', ring: 'ring-violet-700', text: 'text-white' },
-  { bg: 'bg-orange-500/90', ring: 'ring-orange-700', text: 'text-white' },
-  { bg: 'bg-cyan-500/90', ring: 'ring-cyan-700', text: 'text-white' },
-  { bg: 'bg-fuchsia-500/90', ring: 'ring-fuchsia-700', text: 'text-white' },
-  { bg: 'bg-lime-500/90', ring: 'ring-lime-700', text: 'text-lime-950' },
-  { bg: 'bg-indigo-500/90', ring: 'ring-indigo-700', text: 'text-white' }
+/** Width of the time-label column in px. */
+const TIME_COL_PX = 56;
+
+/**
+ * Modern palette: light tinted background + vivid left-border accent.
+ * bg     = card fill (very light tint)
+ * border = left accent strip
+ * text   = primary text color
+ * time   = de-emphasized time text
+ */
+const COLOR_PALETTE: { bg: string; border: string; text: string; time: string }[] = [
+  { bg: 'bg-sky-50',     border: 'border-sky-500',     text: 'text-sky-900',     time: 'text-sky-600' },
+  { bg: 'bg-amber-50',   border: 'border-amber-500',   text: 'text-amber-900',   time: 'text-amber-600' },
+  { bg: 'bg-emerald-50', border: 'border-emerald-500', text: 'text-emerald-900', time: 'text-emerald-600' },
+  { bg: 'bg-rose-50',    border: 'border-rose-500',    text: 'text-rose-900',    time: 'text-rose-600' },
+  { bg: 'bg-violet-50',  border: 'border-violet-500',  text: 'text-violet-900',  time: 'text-violet-600' },
+  { bg: 'bg-orange-50',  border: 'border-orange-500',  text: 'text-orange-900',  time: 'text-orange-600' },
+  { bg: 'bg-cyan-50',    border: 'border-cyan-500',    text: 'text-cyan-900',    time: 'text-cyan-600' },
+  { bg: 'bg-fuchsia-50', border: 'border-fuchsia-500', text: 'text-fuchsia-900', time: 'text-fuchsia-600' },
+  { bg: 'bg-lime-50',    border: 'border-lime-500',    text: 'text-lime-900',    time: 'text-lime-600' },
+  { bg: 'bg-indigo-50',  border: 'border-indigo-500',  text: 'text-indigo-900',  time: 'text-indigo-600' },
 ];
 
 function timeToMinutes(t: string): number {
@@ -80,7 +91,7 @@ function minutesToHHMM(total: number): string {
   return `${h}:${m}`;
 }
 
-function colorForKey(key: string | null | undefined): { bg: string; ring: string; text: string } {
+function colorForKey(key: string | null | undefined): { bg: string; border: string; text: string; time: string } {
   const safe = (key ?? '').trim();
   if (!safe) return COLOR_PALETTE[0];
   let hash = 0;
@@ -93,13 +104,10 @@ function colorForKey(key: string | null | undefined): { bg: string; ring: string
 type LaidOutEvent = WeekScheduleEvent & {
   startMinutes: number;
   endMinutes: number;
-  /** Lane asignado dentro del cluster de solapamiento. */
   laneIndex: number;
-  /** Total de lanes del cluster (para calcular ancho). */
   laneCount: number;
 };
 
-/** Algoritmo de "lanes" tipo Google Calendar: agrupa eventos solapados y reparte columnas. */
 function layoutDay(events: WeekScheduleEvent[]): LaidOutEvent[] {
   const sorted = events
     .map((e) => ({
@@ -142,6 +150,25 @@ function layoutDay(events: WeekScheduleEvent[]): LaidOutEvent[] {
   flush();
 
   return laidOut;
+}
+
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      className={className ?? 'h-3 w-3'}
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        d="M8 1.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9ZM2 6a6 6 0 1 1 10.743 3.684l2.537 2.537a.75.75 0 1 1-1.06 1.06l-2.538-2.537A6 6 0 0 1 2 6Z"
+        clipRule="evenodd"
+      />
+      <path d="M8 7.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z" />
+    </svg>
+  );
 }
 
 export function WeekScheduleGrid({
@@ -205,36 +232,59 @@ export function WeekScheduleGrid({
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="min-w-[760px]">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div style={{ minWidth: `${TIME_COL_PX + orderedDays.length * 110}px` }}>
+
+        {/* ── Header row ── */}
         <div
-          className="grid border-b border-slate-200 bg-slate-50"
-          style={{ gridTemplateColumns: `64px repeat(${orderedDays.length}, minmax(0, 1fr))` }}
+          className="grid border-b border-slate-200 bg-slate-50/80"
+          style={{ gridTemplateColumns: `${TIME_COL_PX}px repeat(${orderedDays.length}, minmax(0, 1fr))` }}
         >
-          <div className="px-2 py-3 text-[10px] font-medium uppercase tracking-widest text-slate-500">
-            Hora
+          {/* Time column header */}
+          <div className="flex items-end justify-end px-2 pb-2 pt-3">
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">hr</span>
           </div>
+
           {orderedDays.map((d) => {
             const isTodayCol = d.dateISO ? d.dateISO === todayISO : d.weekday === todayWeekday;
             return (
               <div
                 key={d.weekday}
-                className={`border-l border-slate-200 px-2 py-2 text-center text-xs ${
-                  isTodayCol ? 'bg-brand-50/70 text-brand-900' : 'text-slate-700'
+                className={`border-l border-slate-200 px-2 pb-2 pt-3 text-center ${
+                  isTodayCol ? 'bg-brand-50/60' : ''
                 }`}
               >
-                <div className="text-[10px] font-semibold uppercase tracking-widest">
+                {/* Day abbreviation */}
+                <div
+                  className={`text-[10px] font-bold uppercase tracking-widest ${
+                    isTodayCol ? 'text-brand-600' : 'text-slate-400'
+                  }`}
+                >
                   {WEEKDAY_SHORT[d.weekday]}
                 </div>
+
+                {/* Date number or long name */}
                 {d.dateISO ? (
-                  <div className="mt-0.5 text-base font-semibold tabular-nums">
-                    {Number.parseInt(d.dateISO.slice(8, 10), 10)}
+                  <div className="mt-1 flex items-center justify-center">
+                    {isTodayCol ? (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white shadow-sm">
+                        {Number.parseInt(d.dateISO.slice(8, 10), 10)}
+                      </span>
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-slate-700">
+                        {Number.parseInt(d.dateISO.slice(8, 10), 10)}
+                      </span>
+                    )}
                   </div>
                 ) : (
-                  <div className="mt-0.5 text-sm font-medium capitalize">{WEEKDAY_LONG[d.weekday]}</div>
+                  <div className={`mt-1 text-xs font-medium capitalize ${isTodayCol ? 'text-brand-700' : 'text-slate-600'}`}>
+                    {WEEKDAY_LONG[d.weekday]}
+                  </div>
                 )}
+
+                {/* Off-day badge */}
                 {d.isOff ? (
-                  <div className="mx-auto mt-1 inline-block max-w-full rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-900/70 dark:text-amber-100">
+                  <div className="mx-auto mt-1.5 inline-block max-w-full rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                     Sin clases{d.offReason ? ` · ${d.offReason}` : ''}
                   </div>
                 ) : null}
@@ -243,25 +293,43 @@ export function WeekScheduleGrid({
           })}
         </div>
 
+        {/* ── Body: time axis + day columns ── */}
         <div
           className="relative grid"
           style={{
-            gridTemplateColumns: `64px repeat(${orderedDays.length}, minmax(0, 1fr))`,
+            gridTemplateColumns: `${TIME_COL_PX}px repeat(${orderedDays.length}, minmax(0, 1fr))`,
             height: `${totalHeight}px`
           }}
         >
-          <div className="relative">
+          {/* Time labels column */}
+          <div className="relative bg-slate-50/60">
             {hours.map((h, i) => (
               <div
                 key={h}
-                className="absolute inset-x-0 flex items-start justify-end pr-2 text-[11px] tabular-nums text-slate-500"
-                style={{ top: `${i * ROW_HEIGHT_PX}px`, height: `${ROW_HEIGHT_PX}px` }}
+                className="absolute inset-x-0 flex justify-end pr-2"
+                style={{ top: `${i * ROW_HEIGHT_PX}px` }}
               >
-                <span className="-translate-y-1.5">{minutesToHHMM(h * 60)}</span>
+                {/* Label sits right on the hour line */}
+                <span
+                  className="relative -top-2.5 text-[10px] font-medium tabular-nums text-slate-400"
+                  style={{ lineHeight: 1 }}
+                >
+                  {minutesToHHMM(h * 60)}
+                </span>
               </div>
             ))}
+            {/* Bottom boundary label */}
+            <div
+              className="absolute inset-x-0 flex justify-end pr-2"
+              style={{ top: `${totalHeight}px` }}
+            >
+              <span className="relative -top-2.5 text-[10px] font-medium tabular-nums text-slate-400" style={{ lineHeight: 1 }}>
+                {minutesToHHMM(endHour * 60)}
+              </span>
+            </div>
           </div>
 
+          {/* Day columns */}
           {orderedDays.map((d) => {
             const dayEvents = layoutDay(eventsByDay.get(d.weekday) ?? []);
             const isTodayCol = d.dateISO ? d.dateISO === todayISO : d.weekday === todayWeekday;
@@ -269,54 +337,95 @@ export function WeekScheduleGrid({
               <div
                 key={d.weekday}
                 className={`relative border-l border-slate-200 ${
-                  d.isOff ? 'bg-amber-50/40 dark:bg-amber-950/25' : isTodayCol ? 'bg-brand-50/30 dark:bg-brand-900/20' : 'bg-white'
+                  d.isOff
+                    ? 'bg-amber-50/30'
+                    : isTodayCol
+                    ? 'bg-brand-50/20'
+                    : 'bg-white'
                 }`}
               >
+                {/* Full-hour dividers */}
                 {hours.map((h, i) => (
                   <div
                     key={h}
-                    className={`absolute inset-x-0 ${
-                      i === hours.length - 1 ? '' : 'border-b border-slate-100'
-                    }`}
-                    style={{ top: `${i * ROW_HEIGHT_PX}px`, height: `${ROW_HEIGHT_PX}px` }}
+                    className="absolute inset-x-0 border-t border-slate-100"
+                    style={{ top: `${i * ROW_HEIGHT_PX}px` }}
                   />
                 ))}
 
+                {/* Half-hour dividers (dashed, subtle) */}
+                {hours.map((h) => (
+                  <div
+                    key={`half-${h}`}
+                    className="absolute inset-x-0 border-t border-dashed border-slate-100/80"
+                    style={{ top: `${(hours.indexOf(h) + 0.5) * ROW_HEIGHT_PX}px` }}
+                  />
+                ))}
+
+                {/* Bottom boundary line */}
+                <div
+                  className="absolute inset-x-0 border-t border-slate-100"
+                  style={{ top: `${totalHeight}px` }}
+                />
+
+                {/* Events */}
                 {dayEvents.map((ev) => {
                   const top = ((ev.startMinutes - startHour * 60) / totalMinutes) * totalHeight;
                   const height = Math.max(
-                    24,
-                    ((ev.endMinutes - ev.startMinutes) / totalMinutes) * totalHeight - 2
+                    28,
+                    ((ev.endMinutes - ev.startMinutes) / totalMinutes) * totalHeight - 3
                   );
                   const colWidth = 100 / ev.laneCount;
                   const left = ev.laneIndex * colWidth;
                   const palette = colorForKey(ev.colorKey ?? ev.title);
-                  const compact = height < 50;
+
+                  const showTimeRange = height >= 44;
+                  const showSubtitle = height >= 56 && !!ev.subtitle;
+                  const showRoom = height >= 68 && !!ev.room;
+
                   const Comp = onSelect ? 'button' : 'div';
                   return (
                     <Comp
                       key={ev.id}
                       type={onSelect ? 'button' : undefined}
                       onClick={onSelect ? () => onSelect(ev.id) : undefined}
-                      className={`absolute z-10 flex flex-col gap-0.5 overflow-hidden rounded-md px-2 py-1 text-left text-[11px] leading-tight shadow-sm ring-1 ring-inset transition hover:z-20 hover:shadow-md focus:outline-none focus:ring-2 ${palette.bg} ${palette.ring} ${palette.text}`}
+                      className={`absolute z-10 flex flex-col overflow-hidden rounded-lg border-l-[3px] bg-white px-2 py-1 text-left shadow-sm transition-all hover:z-20 hover:shadow-md focus:outline-none ${palette.border} ${
+                        onSelect ? 'cursor-pointer' : ''
+                      }`}
                       style={{
-                        top: `${top}px`,
+                        top: `${top + 2}px`,
                         height: `${height}px`,
-                        left: `calc(${left}% + 2px)`,
-                        width: `calc(${colWidth}% - 4px)`
+                        left: `calc(${left}% + 3px)`,
+                        width: `calc(${colWidth}% - 6px)`
                       }}
                       title={`${ev.title}${ev.subtitle ? ` · ${ev.subtitle}` : ''} · ${ev.startTime.slice(0, 5)}–${ev.endTime.slice(0, 5)}${ev.room ? ` · ${ev.room}` : ''}`}
                     >
-                      <div className="flex items-baseline gap-1 text-[10px] font-semibold opacity-90 tabular-nums">
+                      {/* Time row */}
+                      <div className={`flex items-center gap-1 text-[10px] font-semibold tabular-nums leading-none ${palette.time}`}>
                         <span>{ev.startTime.slice(0, 5)}</span>
-                        {!compact ? <span className="opacity-70">–{ev.endTime.slice(0, 5)}</span> : null}
+                        {showTimeRange ? (
+                          <span className="opacity-70">– {ev.endTime.slice(0, 5)}</span>
+                        ) : null}
                       </div>
-                      <div className="line-clamp-2 text-xs font-semibold">{ev.title}</div>
-                      {!compact && ev.subtitle ? (
-                        <div className="line-clamp-1 text-[10px] opacity-90">{ev.subtitle}</div>
+
+                      {/* Title */}
+                      <div className={`mt-0.5 line-clamp-2 text-[11px] font-semibold leading-snug ${palette.text}`}>
+                        {ev.title}
+                      </div>
+
+                      {/* Subtitle */}
+                      {showSubtitle ? (
+                        <div className={`mt-0.5 line-clamp-1 text-[10px] opacity-80 ${palette.text}`}>
+                          {ev.subtitle}
+                        </div>
                       ) : null}
-                      {!compact && ev.room ? (
-                        <div className="text-[10px] opacity-80">📍 {ev.room}</div>
+
+                      {/* Room */}
+                      {showRoom ? (
+                        <div className={`mt-0.5 flex items-center gap-1 text-[10px] opacity-70 ${palette.text}`}>
+                          <PinIcon className="h-2.5 w-2.5 shrink-0" />
+                          <span className="line-clamp-1">{ev.room}</span>
+                        </div>
                       ) : null}
                     </Comp>
                   );
@@ -327,7 +436,7 @@ export function WeekScheduleGrid({
         </div>
 
         {!hasAnyEvent ? (
-          <p className="border-t border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+          <p className="border-t border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
             {emptyLabel}
           </p>
         ) : null}

@@ -1,18 +1,33 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  UnauthorizedException
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 import { DataSource, Repository } from 'typeorm';
 import { RefreshTokenEntity } from '../../database/entities/refresh-token.entity';
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { redactEmail } from '../../lib/pii-redact';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+
+const LOGIN_LOCKOUT_THRESHOLD = 5;
+const LOGIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_LOCKOUT_CLEANUP_MS = 5 * 60 * 1000;
+
+type LoginAttemptState = { count: number; lockedUntil: number };
 
 export type ProfileContactItem = {
   fullName: string;
@@ -26,8 +41,17 @@ export type ProfileContactSection = {
 };
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleDestroy {
   private readonly logger = new Logger(AuthService.name);
+
+  /**
+   * Lockout en memoria por email. Si el contador llega al umbral, la cuenta queda
+   * bloqueada por 15 minutos. La instancia es por proceso: en despliegues con
+   * mas de un nodo el limite efectivo se multiplica, pero el rate-limit por IP
+   * del controller cubre el otro vector.
+   */
+  private readonly loginAttempts = new Map<string, LoginAttemptState>();
+  private readonly loginAttemptsCleanupTimer: NodeJS.Timeout;
 
   constructor(
     @InjectRepository(UserEntity)
@@ -39,7 +63,19 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @InjectDataSource()
     private readonly dataSource: DataSource
-  ) {}
+  ) {
+    this.loginAttemptsCleanupTimer = setInterval(
+      () => this.purgeExpiredLoginAttempts(),
+      LOGIN_LOCKOUT_CLEANUP_MS
+    );
+    if (typeof this.loginAttemptsCleanupTimer.unref === 'function') {
+      this.loginAttemptsCleanupTimer.unref();
+    }
+  }
+
+  onModuleDestroy(): void {
+    clearInterval(this.loginAttemptsCleanupTimer);
+  }
 
   async getMe(userId: string) {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
@@ -117,13 +153,15 @@ export class AuthService {
         });
       }
       if (teachers.length) {
+        // LFPDPPP: el teléfono personal del docente NO se expone al alumno (menor).
+        // La comunicación institucional fluye vía padre/tutor o canales oficiales.
         sections.push({
           title: 'Docentes',
           items: teachers.map((r) => {
             const parts = [r.subjectName, r.groupName].filter(Boolean);
             return {
               fullName: r.fullName,
-              phone: r.phone,
+              phone: null,
               subtitle: parts.length ? parts.join(' · ') : 'Docente'
             };
           })
@@ -221,16 +259,70 @@ export class AuthService {
   }
 
   async login(payload: LoginDto) {
+    const lockoutKey = (payload.email ?? '').trim().toLowerCase();
+    this.assertLoginNotLocked(lockoutKey);
+
     const user = await this.usersRepository.findOne({ where: { email: payload.email } });
     if (!user) {
+      this.registerFailedLogin(lockoutKey);
       throw new UnauthorizedException('Credenciales inválidas');
     }
     const valid = await bcrypt.compare(payload.password, user.passwordHash);
     if (!valid) {
+      this.registerFailedLogin(lockoutKey);
       throw new UnauthorizedException('Credenciales inválidas');
     }
+    if (!user.status) {
+      // No incrementamos el contador (la password es correcta); pero tampoco
+      // emitimos token y dejamos rastro auditable sin PII.
+      this.logger.warn(`Login bloqueado por cuenta inactiva (${redactEmail(payload.email)})`);
+      throw new UnauthorizedException('Cuenta inactiva');
+    }
+    this.loginAttempts.delete(lockoutKey);
     await this.refreshTokensRepository.delete({ userId: user.id });
     return this.issueTokens(user);
+  }
+
+  private assertLoginNotLocked(emailKey: string): void {
+    if (!emailKey) return;
+    const state = this.loginAttempts.get(emailKey);
+    if (!state) return;
+    const now = Date.now();
+    if (state.count >= LOGIN_LOCKOUT_THRESHOLD && now < state.lockedUntil) {
+      this.logger.warn(`Login rechazado por lockout (${redactEmail(emailKey)})`);
+      throw new HttpException(
+        'Cuenta bloqueada temporalmente por intentos fallidos',
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
+    if (now >= state.lockedUntil && state.count >= LOGIN_LOCKOUT_THRESHOLD) {
+      this.loginAttempts.delete(emailKey);
+    }
+  }
+
+  private registerFailedLogin(emailKey: string): void {
+    if (!emailKey) return;
+    const now = Date.now();
+    const prev = this.loginAttempts.get(emailKey);
+    const next: LoginAttemptState = prev
+      ? { count: prev.count + 1, lockedUntil: prev.lockedUntil }
+      : { count: 1, lockedUntil: 0 };
+    if (next.count >= LOGIN_LOCKOUT_THRESHOLD) {
+      next.lockedUntil = now + LOGIN_LOCKOUT_WINDOW_MS;
+      this.logger.warn(
+        `Cuenta bloqueada por ${LOGIN_LOCKOUT_THRESHOLD} intentos fallidos (${redactEmail(emailKey)})`
+      );
+    }
+    this.loginAttempts.set(emailKey, next);
+  }
+
+  private purgeExpiredLoginAttempts(): void {
+    const now = Date.now();
+    for (const [key, state] of this.loginAttempts) {
+      if (state.lockedUntil > 0 && now >= state.lockedUntil) {
+        this.loginAttempts.delete(key);
+      }
+    }
   }
 
   async refresh(payload: RefreshTokenDto) {
@@ -264,6 +356,16 @@ export class AuthService {
     const user = await this.usersRepository.findOne({ where: { id: matchedToken.userId } });
     if (!user) {
       throw new UnauthorizedException('Usuario inválido');
+    }
+    if (!user.status) {
+      // Cuenta dada de baja: revocamos todos los refresh para forzar re-login.
+      await this.refreshTokensRepository
+        .createQueryBuilder()
+        .delete()
+        .from(RefreshTokenEntity)
+        .where('user_id = :userId', { userId: user.id })
+        .execute();
+      throw new UnauthorizedException('Cuenta inactiva');
     }
     // Rotación estricta: al refrescar, revocamos todos los refresh tokens del usuario.
     // Usamos query SQL explícita para evitar problemas de mapeo en filtros.
@@ -359,6 +461,7 @@ export class AuthService {
 
   /**
    * Inicia el flujo de recuperación de contraseña. Siempre devuelve 200 para no revelar emails.
+   * El token en BD se guarda hasheado (sha256). En el correo viaja la versión clara.
    */
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
     const MSG = 'Si el correo está registrado, recibirá un enlace para restablecer su contraseña.';
@@ -367,15 +470,16 @@ export class AuthService {
     });
     if (!user) return { message: MSG };
 
-    const token = randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1_000); // 1 hora
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1_000); // 15 minutos
 
-    user.passwordResetToken = token;
+    user.passwordResetToken = tokenHash;
     user.passwordResetExpiresAt = expiresAt;
     await this.usersRepository.save(user);
 
     const frontendBase = (process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
-    const resetUrl = `${frontendBase}/restablecer-contrasena?token=${token}`;
+    const resetUrl = `${frontendBase}/restablecer-contrasena?token=${rawToken}`;
     await this.sendResetEmail(user.email, user.fullName, resetUrl);
 
     return { message: MSG };
@@ -383,10 +487,12 @@ export class AuthService {
 
   /**
    * Valida el token y actualiza la contraseña.
+   * El token recibido (claro) se hashea y se busca contra el hash almacenado.
    */
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const tokenHash = createHash('sha256').update(dto.token).digest('hex');
     const user = await this.usersRepository.findOne({
-      where: { passwordResetToken: dto.token }
+      where: { passwordResetToken: tokenHash }
     });
     if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
       throw new BadRequestException(
@@ -435,7 +541,7 @@ export class AuthService {
           Restablecer contraseña
         </a>
       </p>
-      <p>Si no solicitó esto, ignore este correo. El enlace expira en 1 hora.</p>
+      <p>Si no solicitó esto, ignore este correo. El enlace expira en 15 minutos.</p>
       <hr>
       <p style="font-size:12px;color:#64748b">
         Si el botón no funciona, copie y pegue esta URL en su navegador:<br>${resetUrl}
@@ -450,7 +556,10 @@ export class AuthService {
         html
       });
     } catch (err) {
-      this.logger.error(`Error enviando correo de restablecimiento a ${email}`, err);
+      this.logger.error(
+        `Error enviando correo de restablecimiento a ${redactEmail(email)}`,
+        err as Error
+      );
     }
   }
 

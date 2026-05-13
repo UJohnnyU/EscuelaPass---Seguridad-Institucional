@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminDashboardPanel } from '@/components/admin/AdminDashboardPanel';
+import { AuthImage } from '@/components/AuthImage';
 import { DetailModal } from '@/components/DetailModal';
 import { useAuth } from '@/context/useAuth';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { publicAssetUrl } from '@/lib/asset-url';
+import { openProtectedFile } from '@/lib/protected-files';
+import { useAdaptivePolling } from '@/hooks/use-adaptive-polling';
 
 type UnknownObj = Record<string, unknown>;
 
@@ -608,39 +610,41 @@ function HomePadre() {
   const [openChildAttendance, setOpenChildAttendance] = useState<ChildAttendanceSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [att, deb, mts, notif, gr, notes] = await Promise.all([
-          api.get('/api/v1/attendance/parent/my-children').catch(() => ({ data: { children: [] } })),
-          api.get('/api/v1/payments/debts/mine').catch(() => ({ data: [] })),
-          api.get('/api/v1/meetings/me').catch(() => ({ data: [] })),
-          api.get('/api/v1/notifications/me?limit=6').catch(() => ({ data: [] })),
-          api.get('/api/v1/activities/parent/my-children').catch(() => ({ data: [] })),
-          api.get('/api/v1/attention-notes/parent/my-children').catch(() => ({ data: [] }))
-        ]);
-        if (cancelled) return;
-        const kids = (att.data as UnknownObj)?.children;
-        setChildren(Array.isArray(kids) ? (kids as ChildAttendanceSummary[]) : []);
-        setDebts(extractArray<Debt>(deb.data));
-        setMeetings(extractArray<Meeting>(mts.data));
-        setNotifications(extractArray<Notification>(notif.data));
-        setGrades(extractArray<ParentActivity>(gr.data));
-        setAttentionNotes(extractArray<ParentAttentionNote>(notes.data));
-      } catch (e) {
-        if (!cancelled) setErr(getUserFacingMessage(e));
-      }
-    };
-    void load();
-    const timer = window.setInterval(() => {
-      void load();
-    }, 20000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
+  const loadParentHome = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const [att, deb, mts, notif, gr, notes] = await Promise.all([
+        api.get('/api/v1/attendance/parent/my-children', { signal }).catch(() => ({ data: { children: [] } })),
+        api.get('/api/v1/payments/debts/mine', { signal }).catch(() => ({ data: [] })),
+        api.get('/api/v1/meetings/me', { signal }).catch(() => ({ data: [] })),
+        api.get('/api/v1/notifications/me?limit=6', { signal }).catch(() => ({ data: [] })),
+        api.get('/api/v1/activities/parent/my-children', { signal }).catch(() => ({ data: [] })),
+        api.get('/api/v1/attention-notes/parent/my-children', { signal }).catch(() => ({ data: [] }))
+      ]);
+      const kids = (att.data as UnknownObj)?.children;
+      setChildren(Array.isArray(kids) ? (kids as ChildAttendanceSummary[]) : []);
+      setDebts(extractArray<Debt>(deb.data));
+      setMeetings(extractArray<Meeting>(mts.data));
+      setNotifications(extractArray<Notification>(notif.data));
+      setGrades(extractArray<ParentActivity>(gr.data));
+      setAttentionNotes(extractArray<ParentAttentionNote>(notes.data));
+      setErr(null);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    }
   }, []);
+
+  useEffect(() => {
+    void loadParentHome();
+  }, [loadParentHome]);
+
+  useAdaptivePolling({
+    enabled: true,
+    intervalFocused: 60000,
+    intervalBlurred: 300000,
+    onPoll: async ({ signal }) => {
+      await loadParentHome(signal);
+    }
+  });
 
   const debtStatusInfo = (d: Debt) => {
     const st = (d.status ?? '').toUpperCase();
@@ -795,11 +799,16 @@ function HomePadre() {
           <div className="space-y-4">
             <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-200">
-                {publicAssetUrl(openChildAttendance.avatarUrl ?? null) ? (
-                  <img
-                    src={publicAssetUrl(openChildAttendance.avatarUrl ?? null) ?? undefined}
+                {openChildAttendance.avatarUrl ? (
+                  <AuthImage
+                    src={openChildAttendance.avatarUrl}
                     alt={openChildAttendance.studentName}
                     className="h-full w-full object-cover"
+                    fallback={
+                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-600">
+                        {firstName(openChildAttendance.studentName).slice(0, 2).toUpperCase() || 'AL'}
+                      </div>
+                    }
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-600">
@@ -932,18 +941,21 @@ function HomePadre() {
                 <p className="mt-1 whitespace-pre-line">{openDebt.notes}</p>
               </div>
             ) : null}
-            {openDebt.voucherPath
-              ? (() => {
-                  const href = publicAssetUrl(openDebt.voucherPath);
-                  return href ? (
-                    <p className="text-xs">
-                      <a href={href} target="_blank" rel="noreferrer" className="font-medium text-brand-800 underline">
-                        Ver comprobante cargado
-                      </a>
-                    </p>
-                  ) : null;
-                })()
-              : null}
+            {openDebt.voucherPath ? (
+              <p className="text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void openProtectedFile(openDebt.voucherPath!).catch((e) =>
+                      setErr(getUserFacingMessage(e, 'No se pudo abrir el comprobante.'))
+                    );
+                  }}
+                  className="font-medium text-brand-800 underline"
+                >
+                  Ver comprobante cargado
+                </button>
+              </p>
+            ) : null}
           </div>
         ) : null}
       </DetailModal>
@@ -1316,29 +1328,36 @@ function HomeDocente() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [asg, act, mts, notif] = await Promise.all([
-          api.get('/api/v1/activities/teacher/my-assignments').catch(() => ({ data: [] })),
-          api.get('/api/v1/activities').catch(() => ({ data: [] })),
-          api.get('/api/v1/meetings/me').catch(() => ({ data: [] })),
-          api.get('/api/v1/notifications/me?limit=6').catch(() => ({ data: [] }))
-        ]);
-        if (cancelled) return;
-        setAssignments(extractArray<TeacherAssignment>(asg.data));
-        setActivities(extractArray<TeacherActivity>(act.data));
-        setMeetings(extractArray<Meeting>(mts.data));
-        setNotifications(extractArray<Notification>(notif.data));
-      } catch (e) {
-        if (!cancelled) setErr(getUserFacingMessage(e));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadTeacherHome = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const [asg, act, mts, notif] = await Promise.all([
+        api.get('/api/v1/activities/teacher/my-assignments', { signal }).catch(() => ({ data: [] })),
+        api.get('/api/v1/activities', { signal }).catch(() => ({ data: [] })),
+        api.get('/api/v1/meetings/me', { signal }).catch(() => ({ data: [] })),
+        api.get('/api/v1/notifications/me?limit=6', { signal }).catch(() => ({ data: [] }))
+      ]);
+      setAssignments(extractArray<TeacherAssignment>(asg.data));
+      setActivities(extractArray<TeacherActivity>(act.data));
+      setMeetings(extractArray<Meeting>(mts.data));
+      setNotifications(extractArray<Notification>(notif.data));
+      setErr(null);
+    } catch (e) {
+      setErr(getUserFacingMessage(e));
+    }
   }, []);
+
+  useEffect(() => {
+    void loadTeacherHome();
+  }, [loadTeacherHome]);
+
+  useAdaptivePolling({
+    enabled: true,
+    intervalFocused: 60000,
+    intervalBlurred: 300000,
+    onPoll: async ({ signal }) => {
+      await loadTeacherHome(signal);
+    }
+  });
 
   const todayAndTomorrow = useMemo(() => {
     const from = new Date();
@@ -1608,7 +1627,14 @@ function HomePlatformAdmin() {
   ];
 
   return (
-    <div className="min-w-0 space-y-5 overflow-x-hidden">
+    <div className="min-w-0 space-y-5 overflow-x-hidden" aria-busy={refreshing || loading}>
+      {/* Barra de progreso discreta para refrescos SWR */}
+      <div
+        className={`h-px w-full overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-100' : 'opacity-0'}`}
+        aria-hidden="true"
+      >
+        <div className="h-full w-1/2 animate-progress-bar bg-brand-500/70" />
+      </div>
       {err ? (
         <div className="rounded border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{err}</div>
       ) : null}
@@ -1822,11 +1848,12 @@ function HomePlatformAdmin() {
         </ul>
       </Card>
 
-      {(loading || refreshing) ? (
-        <p className="text-sm text-slate-500">
-          {loading ? 'Actualizando panel ejecutivo…' : 'Refrescando métricas del rango…'}
-        </p>
+      {loading && !panel ? (
+        <p className="text-sm text-slate-500">Cargando panel ejecutivo…</p>
       ) : null}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {refreshing ? 'Actualizando métricas…' : ''}
+      </p>
     </div>
   );
 }
@@ -1863,15 +1890,23 @@ export function AppHomePage() {
     return 'Este es su punto de partida; abra cualquier opción del menú lateral para entrar.';
   }, [role, institutional]);
 
-  const avatarSrc = publicAssetUrl(user?.avatarUrl ?? null);
   const first = firstName(user?.fullName ?? '');
 
   return (
     <div className="mx-auto max-w-6xl min-w-0 overflow-x-hidden animate-fade-in">
       <header className="flex items-center gap-4">
         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-900">
-          {avatarSrc ? (
-            <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+          {user?.avatarUrl ? (
+            <AuthImage
+              src={user.avatarUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              fallback={
+                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-white">
+                  {first ? first.slice(0, 2).toUpperCase() : '?'}
+                </div>
+              }
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-white">
               {first ? first.slice(0, 2).toUpperCase() : '?'}

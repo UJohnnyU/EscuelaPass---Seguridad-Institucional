@@ -44,6 +44,7 @@ import { TransitionTeacherLifecycleDto } from './dto/transition-teacher-lifecycl
 import { UpdateStudentParentLinkDto } from './dto/update-student-parent-link.dto';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 import { AccessService } from '../access/access.service';
+import { AuditService } from '../audit/audit.service';
 
 type ImportCreateResult = {
   totalRows: number;
@@ -107,7 +108,8 @@ export class SchoolService {
     @InjectRepository(TeacherLifecycleEventEntity)
     private readonly teacherLifecycleEventsRepository: Repository<TeacherLifecycleEventEntity>,
     private readonly settingsService: SettingsService,
-    private readonly accessService: AccessService
+    private readonly accessService: AccessService,
+    private readonly auditService: AuditService
   ) {}
 
   private getLogoExtensionForExcel(absPath: string): 'png' | 'jpeg' | 'gif' {
@@ -858,6 +860,54 @@ export class SchoolService {
     await this.usersRepository.update({ id: teacher.userId }, { status: false, canAccessCampus: false });
   }
 
+  private isTerminalStudentLifecycle(status: StudentLifecycleStatus): boolean {
+    return [
+      StudentLifecycleStatus.BAJA,
+      StudentLifecycleStatus.TRASLADO,
+      StudentLifecycleStatus.EGRESADO
+    ].includes(status);
+  }
+
+  private isTerminalTeacherLifecycle(status: TeacherLifecycleStatus): boolean {
+    return [
+      TeacherLifecycleStatus.BAJA,
+      TeacherLifecycleStatus.TRASLADO,
+      TeacherLifecycleStatus.EGRESADO
+    ].includes(status);
+  }
+
+  private async revokeCredentialsAndSessionsForLifecycle(input: {
+    userId: string;
+    actorUserId: string;
+    schoolId: string | null;
+    entityType: 'student' | 'teacher';
+    entityId: string;
+    toStatus: string;
+  }): Promise<void> {
+    // TODO Fase 7: agregar access_credentials.revoked_at; por ahora se usa status=REVOKED.
+    const credentials = await this.usersRepository.manager.query<{ id: string }[]>(
+      `UPDATE access_credentials
+       SET status = 'REVOKED'
+       WHERE user_id = $1::uuid
+         AND status = 'ACTIVE'
+       RETURNING id`,
+      [input.userId]
+    );
+    await this.usersRepository.manager.query(`DELETE FROM refresh_tokens WHERE user_id = $1::uuid`, [
+      input.userId
+    ]);
+    await this.auditService
+      .log(input.actorUserId, 'school.lifecycle.credentials_revoked', input.entityType, input.entityId, {
+        schoolId: input.schoolId,
+        userId: input.userId,
+        toStatus: input.toStatus,
+        credentialIds: credentials.map((row) => row.id)
+      })
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de revocación por ciclo de vida', err as Error)
+      );
+  }
+
   async updateStudent(id: string, dto: UpdateStudentDto, scopeSchoolId?: string | null) {
     const schoolId = await this.schoolIdForStudentPatch(id, scopeSchoolId);
     await this.getStudent(id, schoolId);
@@ -923,6 +973,16 @@ export class SchoolService {
     const updated = await this.studentsRepository.findOne({ where: { id: student.id } });
     if (!updated) throw new NotFoundException('Estudiante no encontrado');
     await this.applyStudentLifecycleEffects(updated, dto.toStatus);
+    if (this.isTerminalStudentLifecycle(dto.toStatus)) {
+      await this.revokeCredentialsAndSessionsForLifecycle({
+        userId: updated.userId,
+        actorUserId: changedByUserId,
+        schoolId: updated.schoolId ?? schoolId,
+        entityType: 'student',
+        entityId: updated.id,
+        toStatus: dto.toStatus
+      });
+    }
     await this.appendStudentLifecycleEvent({
       studentId: student.id,
       schoolId: student.schoolId ?? schoolId,
@@ -932,6 +992,22 @@ export class SchoolService {
       effectiveDate: dto.effectiveDate,
       changedByUserId
     });
+    await this.auditService
+      .log(
+        changedByUserId,
+        'school.student.lifecycle.transition',
+        'student',
+        student.id,
+        {
+          fromStatus: student.lifecycleStatus,
+          toStatus: dto.toStatus,
+          schoolId: student.schoolId ?? schoolId,
+          effectiveDate: dto.effectiveDate ?? null
+        }
+      )
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de transición de alumno', err as Error)
+      );
     return this.getStudent(studentId, scopedSchoolId ?? undefined);
   }
 
@@ -1110,6 +1186,16 @@ export class SchoolService {
     teacher.lifecycleStatus = dto.toStatus;
     const saved = await this.teachersRepository.save(teacher);
     await this.applyTeacherLifecycleEffects(saved, dto.toStatus);
+    if (this.isTerminalTeacherLifecycle(dto.toStatus)) {
+      await this.revokeCredentialsAndSessionsForLifecycle({
+        userId: saved.userId,
+        actorUserId: changedByUserId,
+        schoolId,
+        entityType: 'teacher',
+        entityId: saved.id,
+        toStatus: dto.toStatus
+      });
+    }
     await this.appendTeacherLifecycleEvent({
       teacherId: saved.id,
       schoolId,
@@ -1119,6 +1205,22 @@ export class SchoolService {
       effectiveDate: dto.effectiveDate,
       changedByUserId
     });
+    await this.auditService
+      .log(
+        changedByUserId,
+        'school.teacher.lifecycle.transition',
+        'teacher',
+        saved.id,
+        {
+          fromStatus: prevStatus,
+          toStatus: dto.toStatus,
+          schoolId,
+          effectiveDate: dto.effectiveDate ?? null
+        }
+      )
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de transición de docente', err as Error)
+      );
     return this.getTeacher(teacherId, schoolId);
   }
 
@@ -1465,7 +1567,11 @@ export class SchoolService {
     return qb.getRawMany();
   }
 
-  async linkParentStudent(dto: LinkParentStudentDto, scopeSchoolId?: string | null) {
+  async linkParentStudent(
+    dto: LinkParentStudentDto,
+    scopeSchoolId?: string | null,
+    actorUserId?: string | null
+  ) {
     const schoolId = await this.resolveSchoolIdForParentLink(dto, scopeSchoolId);
     const stuSch = await this.requireStudentSchoolId(dto.studentId);
     const parSch = await this.requireParentSchoolId(dto.parentId);
@@ -1485,7 +1591,20 @@ export class SchoolService {
       isPrimary: dto.isPrimary ?? false,
       canPickup: dto.canPickup ?? true
     });
-    return this.studentParentsRepository.save(row);
+    const saved = await this.studentParentsRepository.save(row);
+    await this.auditService
+      .log(actorUserId ?? null, 'school.parent.link', 'student_parents', saved.id, {
+        studentId: dto.studentId,
+        parentId: dto.parentId,
+        relationship: row.relationship,
+        isPrimary: row.isPrimary,
+        canPickup: row.canPickup,
+        schoolId
+      })
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de vinculación padre-alumno', err as Error)
+      );
+    return saved;
   }
 
   async updateStudentParentLink(linkId: string, dto: UpdateStudentParentLinkDto, scopeSchoolId?: string | null) {
@@ -1501,15 +1620,57 @@ export class SchoolService {
     return this.studentParentsRepository.save(row);
   }
 
-  async unlinkStudentParent(linkId: string, scopeSchoolId?: string | null) {
+  async unlinkStudentParent(
+    linkId: string,
+    scopeSchoolId?: string | null,
+    actorUserId?: string | null
+  ) {
     const row = await this.studentParentsRepository.findOne({ where: { id: linkId } });
     if (!row) throw new NotFoundException('Vínculo no encontrado');
     const stuSch = await this.requireStudentSchoolId(row.studentId);
     if (scopeSchoolId && stuSch !== scopeSchoolId) {
       throw new ForbiddenException('No tienes permiso para modificar este vínculo');
     }
+    const cancelledCircuits = await this.cancelOpenCircuitsForParentStudent(row.studentId, row.parentId);
+    // TODO Fase 7: modelar device_tokens/user_fcm_tokens por relación parent-student para revocar solo ese vínculo.
     await this.studentParentsRepository.delete({ id: linkId });
+    await this.auditService
+      .log(actorUserId ?? null, 'school.parent_student.unlink.with_cleanup', 'student_parents', linkId, {
+        studentId: row.studentId,
+        parentId: row.parentId,
+        schoolId: stuSch,
+        cancelledCircuits
+      })
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de desvinculación padre-alumno', err as Error)
+      );
     return { message: 'Vínculo eliminado', id: linkId };
+  }
+
+  private async cancelOpenCircuitsForParentStudent(studentId: string, parentId: string): Promise<number> {
+    const raw = await this.studentParentsRepository.manager.query<
+      | Array<{ id: string }>
+      | [Array<{ id: string }>, number]
+    >(
+      `UPDATE circuit_requests
+       SET status = 'CANCELADO'::circuit_status,
+           teacher_signal = NULL,
+           parent_confirm_deadline_at = NULL,
+           parent_confirm_deadline_started_at = NULL
+       WHERE student_id = $1::uuid
+         AND requested_by_parent_id = $2::uuid
+         AND status = ANY($3::circuit_status[])
+       RETURNING id`,
+      [
+        studentId,
+        parentId,
+        ['PENDIENTE', 'PADRE_EN_CAMINO', 'NOTIFICADO_LLEGADA', 'AUTORIZADO_SALIR', 'EN_CAMINO']
+      ]
+    );
+    if (Array.isArray(raw) && raw.length === 2 && typeof raw[1] === 'number' && Array.isArray(raw[0])) {
+      return raw[0].length;
+    }
+    return (raw as Array<{ id: string }>).length;
   }
 
   // --- Cargas masivas Excel (.xlsx), primera hoja con encabezados ---

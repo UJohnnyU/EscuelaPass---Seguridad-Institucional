@@ -3,9 +3,11 @@
  */
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthProvider';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { FcmBootstrap } from '@/components/FcmBootstrap';
 import { useAuth } from '@/context/useAuth';
 import { AppShell } from '@/components/AppShell';
+import { PrivacyGate } from '@/components/PrivacyGate';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RoleGate } from '@/components/RoleGate';
 import { AppHomePage } from '@/pages/AppHomePage';
@@ -40,13 +42,20 @@ import { AnotacionesDocentePage } from '@/pages/modulos/AnotacionesDocentePage';
 
 function AuthenticatedShell() {
   const { user } = useAuth();
-  return <AppShell key={user?.id} />;
+  return (
+    <ErrorBoundary>
+      <PrivacyGate>
+        <AppShell key={user?.id} />
+      </PrivacyGate>
+    </ErrorBoundary>
+  );
 }
 
 export default function App() {
   return (
     <AuthProvider>
       <FcmBootstrap />
+      <ErrorBoundary>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -186,6 +195,7 @@ export default function App() {
         <Route path="/panel" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </ErrorBoundary>
     </AuthProvider>
   );
 }

@@ -29,3 +29,16 @@ if (e2eHost === '1' || e2eHost === 'true' || e2eHost === 'yes') {
   }
 }
 
+/**
+ * Throttle por IP en /auth/login (AUTH_THROTTLE_LIMIT / AUTH_THROTTLE_TTL_MS).
+ * La suite app.e2e-spec.ts hace decenas de logins; sin ampliar el cupo en E2E
+ * se encadena 429. Si ya definiste AUTH_THROTTLE_* en el entorno (p. ej. prueba
+ * dedicada de throttle), no lo sobrescribimos.
+ */
+if (process.env.AUTH_THROTTLE_LIMIT === undefined) {
+  process.env.AUTH_THROTTLE_LIMIT = '20000';
+}
+if (process.env.AUTH_THROTTLE_TTL_MS === undefined) {
+  process.env.AUTH_THROTTLE_TTL_MS = '60000';
+}
+

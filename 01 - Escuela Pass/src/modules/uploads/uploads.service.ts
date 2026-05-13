@@ -9,6 +9,7 @@ import { join } from 'path';
 import { Repository } from 'typeorm';
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
+import { validateUploadedFileSignature } from './image-multer.config';
 
 @Injectable()
 export class UploadsService {
@@ -46,7 +47,12 @@ export class UploadsService {
   }
 
   uploadReportEvidence(filename: string): { evidenceUrl: string } {
-    return { evidenceUrl: `/uploads/report-evidence/${filename}` };
+    return { evidenceUrl: `/uploads/reports/${filename}` };
+  }
+
+  async validateUploadedFile(file: Express.Multer.File, allowedMimes: string[]): Promise<boolean> {
+    if (!file?.path || allowedMimes.length === 0) return false;
+    return validateUploadedFileSignature(file.path, allowedMimes);
   }
 
   private async assertStaffCanSetUserAvatar(

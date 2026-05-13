@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  IsBoolean,
   IsArray,
   IsNumber,
   IsOptional,
@@ -32,4 +33,8 @@ export class SaveActivityGradesDto {
   @ValidateNested({ each: true })
   @Type(() => SaveActivityGradeEntryDto)
   entries!: SaveActivityGradeEntryDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
 }

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In, LessThan } from 'typeorm';
 import { getAppTimeZone, todayInAppTimezone } from '../../common/local-date';
+import { withScheduledLock } from '../../common/scheduled-lock';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -39,31 +40,36 @@ export class AcademicCloseScheduler {
   /** Cada 15 min según el reloj en APP_TIMEZONE (cierre al pasar el último día del periodo en México). */
   @Cron('*/15 * * * *', { timeZone: getAppTimeZone() })
   async runDailyCycle(): Promise<void> {
-    const lock = await this.dataSource.query<{ acquired: boolean }[]>(
-      `SELECT pg_try_advisory_lock(847291103, 129384756) AS acquired`
-    );
-    if (!lock[0]?.acquired) {
-      this.logger.warn('Ciclo académico: bloqueo activo en otra instancia; omisión segura.');
-      return;
-    }
-    this.logger.log(`Ciclo académico automático: iniciando (zona ${getAppTimeZone()})`);
-    try {
-      await this.activatePlannedPeriods();
-      const overdueActs = await this.activitiesService.closeOpenActivitiesPastDueDate(todayInAppTimezone());
-      if (overdueActs.closed > 0) {
-        this.logger.log(`Actividades cerradas por entrega vencida: ${overdueActs.closed}`);
+    const lockResult = await withScheduledLock('academic-close-scheduler', async () => {
+      const lock = await this.dataSource.query<{ acquired: boolean }[]>(
+        `SELECT pg_try_advisory_lock(847291103, 129384756) AS acquired`
+      );
+      if (!lock[0]?.acquired) {
+        this.logger.warn('Ciclo académico: bloqueo activo en otra instancia; omisión segura.');
+        return;
       }
-      await this.closeExpiredPeriods();
-      const autoReclosed = await this.academicPeriodsService.runAutoCloseReopenedPastDeadline();
-      if (autoReclosed > 0) {
-        this.logger.log(`Periodos reabiertos cerrados automáticamente (plazo 1 ene): ${autoReclosed}`);
+      this.logger.log(`Ciclo académico automático: iniciando (zona ${getAppTimeZone()})`);
+      try {
+        await this.activatePlannedPeriods();
+        const overdueActs = await this.activitiesService.closeOpenActivitiesPastDueDate(todayInAppTimezone());
+        if (overdueActs.closed > 0) {
+          this.logger.log(`Actividades cerradas por entrega vencida: ${overdueActs.closed}`);
+        }
+        await this.closeExpiredPeriods();
+        const autoReclosed = await this.academicPeriodsService.runAutoCloseReopenedPastDeadline();
+        if (autoReclosed > 0) {
+          this.logger.log(`Periodos reabiertos cerrados automáticamente (plazo 1 ene): ${autoReclosed}`);
+        }
+        await this.tryGenerateFinalReportCards();
+        this.logger.log('Ciclo académico automático: finalizado');
+      } catch (err) {
+        this.logger.error('Error en el ciclo académico automático', err as Error);
+      } finally {
+        await this.dataSource.query(`SELECT pg_advisory_unlock(847291103, 129384756)`);
       }
-      await this.tryGenerateFinalReportCards();
-      this.logger.log('Ciclo académico automático: finalizado');
-    } catch (err) {
-      this.logger.error('Error en el ciclo académico automático', err as Error);
-    } finally {
-      await this.dataSource.query(`SELECT pg_advisory_unlock(847291103, 129384756)`);
+    });
+    if (!lockResult.executed) {
+      this.logger.debug('Ciclo académico: ejecución previa aún en curso; se omite este ciclo.');
     }
   }
 

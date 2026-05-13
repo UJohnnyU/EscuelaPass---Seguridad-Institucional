@@ -1,9 +1,10 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { AuthImage } from '@/components/AuthImage';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { publicAssetUrl } from '@/lib/asset-url';
 import { emitNotificationRead } from '@/lib/notifications-sync';
+import { openProtectedFile } from '@/lib/protected-files';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FinanzasStaffTools } from '@/components/finanzas/FinanzasStaffTools';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
@@ -34,15 +35,16 @@ import axios from 'axios';
 
 function parseReportEvidence(message?: string | null): { cleanMessage: string; evidenceUrls: string[] } {
   const raw = String(message ?? '');
+  const evidenceRegex = /\/uploads\/(?:reports|report-evidence)\/[^\s)]+/g;
   const evidenceUrls = Array.from(
     new Set(
-      (raw.match(/\/uploads\/report-evidence\/[^\s)]+/g) ?? [])
+      (raw.match(evidenceRegex) ?? [])
         .map((u) => u.replace(/[.,;]+$/g, '').trim())
         .filter(Boolean)
     )
   );
   const cleanMessage = raw
-    .replace(/\n?\n?Evidencias:\n(?:\d+\.\s*\/uploads\/report-evidence\/[^\n]+\n?)*/g, '')
+    .replace(/\n?\n?Evidencias:\n(?:\d+\.\s*\/uploads\/(?:reports|report-evidence)\/[^\n]+\n?)*/g, '')
     .trim();
   return { cleanMessage: cleanMessage || raw.trim(), evidenceUrls };
 }
@@ -971,7 +973,10 @@ export function AcademicoPage() {
       if (teacherAttendance?.view === 'day') {
         body.attendanceDate = teacherAttendance.date;
       }
-      await api.post('/api/v1/attendance/register', body);
+      await api.post(
+        selectedAttendanceSessionId ? '/api/v1/class-attendance/register' : '/api/v1/attendance/register',
+        body
+      );
       await loadTeacherAttendance(selectedTeacherGroupId);
     } catch (e) {
       setErr(getUserFacingMessage(e));
@@ -995,7 +1000,7 @@ export function AcademicoPage() {
         status,
         isJustified: status === 'AUSENTE' ? Boolean(isJustified) : undefined
       }));
-      await api.post('/api/v1/attendance/register-bulk', {
+      await api.post('/api/v1/class-attendance/bulk', {
         classSessionId: selectedAttendanceSessionId,
         attendanceDate: teacherAttendance.date,
         entries
@@ -2430,18 +2435,29 @@ export function AdministracionPage() {
                             <div className="mt-2">
                               <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Evidencias</p>
                               <div className="mt-1 flex flex-wrap gap-2">
-                                {parsed.evidenceUrls.map((u, idx) => {
-                                  const href = publicAssetUrl(u);
-                                  return href ? (
-                                    <a key={`${u}-${idx}`} href={href} target="_blank" rel="noreferrer">
-                                      <img
-                                        src={href}
-                                        alt={`Evidencia ${idx + 1}`}
-                                        className="h-20 w-20 rounded border border-slate-200 object-cover"
-                                      />
-                                    </a>
-                                  ) : null;
-                                })}
+                                {parsed.evidenceUrls.map((u, idx) => (
+                                  <button
+                                    key={`${u}-${idx}`}
+                                    type="button"
+                                    onClick={() => {
+                                      void openProtectedFile(u).catch((e) =>
+                                        setErr(getUserFacingMessage(e, 'No se pudo abrir la evidencia.'))
+                                      );
+                                    }}
+                                    className="overflow-hidden rounded border border-slate-200"
+                                  >
+                                    <AuthImage
+                                      src={u}
+                                      alt={`Evidencia ${idx + 1}`}
+                                      className="h-20 w-20 object-cover"
+                                      fallback={
+                                        <span className="flex h-20 w-20 items-center justify-center text-[11px] text-slate-500">
+                                          Sin vista
+                                        </span>
+                                      }
+                                    />
+                                  </button>
+                                ))}
                               </div>
                             </div>
                           ) : null}
@@ -2614,7 +2630,7 @@ export function AdministracionPage() {
                 Capturas (opcional, hasta 5)
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
                   multiple
                   className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   onChange={(e) => {
@@ -2676,18 +2692,29 @@ export function AdministracionPage() {
                               <div className="mt-2">
                                 <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Evidencias</p>
                                 <div className="mt-1 flex flex-wrap gap-2">
-                                  {parsed.evidenceUrls.map((u, idx) => {
-                                    const href = publicAssetUrl(u);
-                                    return href ? (
-                                      <a key={`${u}-${idx}`} href={href} target="_blank" rel="noreferrer">
-                                        <img
-                                          src={href}
-                                          alt={`Evidencia ${idx + 1}`}
-                                          className="h-16 w-16 rounded border border-slate-200 object-cover"
-                                        />
-                                      </a>
-                                    ) : null;
-                                  })}
+                                  {parsed.evidenceUrls.map((u, idx) => (
+                                    <button
+                                      key={`${u}-${idx}`}
+                                      type="button"
+                                      onClick={() => {
+                                        void openProtectedFile(u).catch((e) =>
+                                          setReportErr(getUserFacingMessage(e, 'No se pudo abrir la evidencia.'))
+                                        );
+                                      }}
+                                      className="overflow-hidden rounded border border-slate-200"
+                                    >
+                                      <AuthImage
+                                        src={u}
+                                        alt={`Evidencia ${idx + 1}`}
+                                        className="h-16 w-16 object-cover"
+                                        fallback={
+                                          <span className="flex h-16 w-16 items-center justify-center text-[11px] text-slate-500">
+                                            Sin vista
+                                          </span>
+                                        }
+                                      />
+                                    </button>
+                                  ))}
                                 </div>
                               </div>
                             ) : null}

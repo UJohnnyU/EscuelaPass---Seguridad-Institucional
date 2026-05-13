@@ -14,6 +14,7 @@ import { TeacherEntity } from '../../database/entities/teacher.entity';
 import { TeacherLifecycleEventEntity } from '../../database/entities/teacher-lifecycle-event.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { AuditModule } from '../audit/audit.module';
 import { SettingsModule } from '../settings/settings.module';
 import { VehiclesModule } from '../vehicles/vehicles.module';
 import { AccessModule } from '../access/access.module';
@@ -23,6 +24,7 @@ import { SchoolService } from './school.service';
 @Module({
   imports: [
     AuthModule,
+    AuditModule,
     SettingsModule,
     VehiclesModule,
     AccessModule,

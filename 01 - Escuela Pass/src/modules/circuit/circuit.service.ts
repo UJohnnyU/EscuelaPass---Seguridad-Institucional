@@ -8,7 +8,7 @@ import {
   OnModuleInit
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import {
   CircuitRequestEntity,
   CircuitStatus,
@@ -16,6 +16,7 @@ import {
   TeacherCircuitSignal
 } from '../../database/entities/circuit-request.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
+import { ClassSessionEntity } from '../../database/entities/class-session.entity';
 import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { TeacherGroupEntity } from '../../database/entities/teacher-group.entity';
@@ -32,10 +33,10 @@ import { UpdateCircuitGpsDto } from './dto/update-circuit-gps.dto';
 import { UpdateParentCircuitProgressDto } from './dto/update-parent-circuit-progress.dto';
 import { UpdateCircuitStatusDto } from './dto/update-circuit-status.dto';
 import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-signal.dto';
+import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { DepartureConsentService } from '../departure-consent/departure-consent.service';
-import { SettingsService } from '../settings/settings.service';
-import { getCircuitTimezone, todayYmdInCircuitTimezone } from './circuit-calendar';
+import { DEFAULT_CIRCUIT_TIMEZONE, getCircuitTimezone, todayYmdInCircuitTimezone } from './circuit-calendar';
 
 /** TypeORM + PostgreSQL: `UPDATE`/`DELETE` con `repository.query` devuelve `[rows, rowCount]`, no `rows` solo. */
 function pgMutationReturningRows<R>(raw: unknown): R[] {
@@ -57,6 +58,13 @@ type SchoolGeo = {
   radiusKm: number;
 };
 
+type SchoolNow = {
+  date: string;
+  weekday: number;
+  hour: number;
+  minute: number;
+};
+
 /** Respuesta estable para GET /circuit-requests/today (camelCase; evita filas SQL crudas en fallback). */
 export type CircuitTodayListItem = {
   id: string;
@@ -73,7 +81,16 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CircuitService.name);
   /** Cuando no hay `full_name` en el usuario del estudiante; no usar «de ${label}» en frases (usar «del estudiante»). */
   private static readonly ANONYMOUS_STUDENT_LABEL = 'el estudiante';
+  private static readonly OPEN_OPERATIONAL_STATUSES: CircuitStatus[] = [
+    CircuitStatus.PENDIENTE,
+    CircuitStatus.PADRE_EN_CAMINO,
+    CircuitStatus.NOTIFICADO_LLEGADA,
+    CircuitStatus.AUTORIZADO_SALIR,
+    CircuitStatus.EN_CAMINO
+  ];
   private parentConfirmPoll: ReturnType<typeof setInterval> | null = null;
+  private schoolTimezoneColumnKnown = false;
+  private schoolTimezoneColumnExists = false;
 
   constructor(
     @InjectRepository(CircuitRequestEntity)
@@ -88,6 +105,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(TeacherGroupEntity)
     private readonly teacherGroupsRepository: Repository<TeacherGroupEntity>,
+    @InjectRepository(ClassSessionEntity)
+    private readonly classSessionsRepository: Repository<ClassSessionEntity>,
     @InjectRepository(NotificationEntity)
     private readonly notificationsRepository: Repository<NotificationEntity>,
     @InjectRepository(UserEntity)
@@ -95,8 +114,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(AttendanceRecordEntity)
     private readonly attendanceRecordsRepository: Repository<AttendanceRecordEntity>,
     private readonly fcmService: FcmService,
-    private readonly settingsService: SettingsService,
-    private readonly departureConsentService: DepartureConsentService
+    private readonly departureConsentService: DepartureConsentService,
+    private readonly auditService: AuditService
   ) {}
 
   onModuleInit(): void {
@@ -162,7 +181,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
    * en el día operativo (`APP_TIMEZONE`), alineado con `attendance_records.attendance_date`.
    */
   private async assertStudentPresentForPickupToday(studentId: string): Promise<void> {
-    const today = todayYmdInCircuitTimezone();
+    const today = await this.schoolTodayYmdForStudent(studentId);
     const row = await this.attendanceRecordsRepository
       .createQueryBuilder('ar')
       .where('ar.studentId = :studentId', { studentId })
@@ -176,6 +195,296 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
         'No puede iniciar el circuito: el alumno no consta como presente en el ingreso de hoy. Solicite que secretaría registre la asistencia o espere a que se documente.'
       );
     }
+  }
+
+  private getSchoolNow(schoolTimezone?: string | null, asOf: Date = new Date()): SchoolNow {
+    const tz = schoolTimezone?.trim() || DEFAULT_CIRCUIT_TIMEZONE;
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(asOf);
+    const weekdayText = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+    const weekdayMap: Record<string, number> = {
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6
+    };
+    const rawHour = parts.find((p) => p.type === 'hour')?.value ?? '00';
+    const hour = Number(rawHour === '24' ? '0' : rawHour);
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    return {
+      date: year && month && day ? `${year}-${month}-${day}` : asOf.toISOString().slice(0, 10),
+      weekday: weekdayMap[weekdayText] ?? 0,
+      hour,
+      minute
+    };
+  }
+
+  private zonedWeekdayAndTime(
+    asOf: Date = new Date(),
+    schoolTimezone?: string | null
+  ): { weekday: number; hhmmss: string } {
+    const now = this.getSchoolNow(schoolTimezone, asOf);
+    return {
+      weekday: now.weekday,
+      hhmmss: `${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}:00`
+    };
+  }
+
+  private async hasSchoolTimezoneColumn(): Promise<boolean> {
+    if (this.schoolTimezoneColumnKnown) return this.schoolTimezoneColumnExists;
+    const rows = await this.studentsRepository.manager.query<{ exists: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'schools'
+           AND column_name = 'timezone'
+       ) AS exists`
+    );
+    this.schoolTimezoneColumnExists = Boolean(rows[0]?.exists);
+    this.schoolTimezoneColumnKnown = true;
+    return this.schoolTimezoneColumnExists;
+  }
+
+  private async schoolTimezoneBySchoolId(schoolId: string | null | undefined): Promise<string> {
+    if (!schoolId) return DEFAULT_CIRCUIT_TIMEZONE;
+    if (!(await this.hasSchoolTimezoneColumn())) {
+      // TODO Fase 7: agregar columna schools.timezone para configuración institucional explícita.
+      return DEFAULT_CIRCUIT_TIMEZONE;
+    }
+    const rows = await this.studentsRepository.manager.query<{ timezone: string | null }[]>(
+      `SELECT timezone FROM schools WHERE id = $1 LIMIT 1`,
+      [schoolId]
+    );
+    return rows[0]?.timezone?.trim() || DEFAULT_CIRCUIT_TIMEZONE;
+  }
+
+  private async schoolTodayYmdForStudent(studentId: string): Promise<string> {
+    const student = await this.studentsRepository.findOne({ where: { id: studentId } });
+    const timezone = await this.schoolTimezoneBySchoolId(student?.schoolId);
+    return this.getSchoolNow(timezone).date;
+  }
+
+  private async assertCircuitEnabledForStudent(studentId: string): Promise<void> {
+    const row = await this.studentsRepository
+      .createQueryBuilder('st')
+      .leftJoin('schools', 's', 's.id = st.school_id')
+      .select('st.school_id', 'schoolId')
+      .addSelect('COALESCE(s.circuit_enabled, true)', 'enabled')
+      .where('st.id = :studentId', { studentId })
+      .getRawOne<{ schoolId: string | null; enabled: boolean }>();
+    if (!row) throw new NotFoundException('Estudiante no encontrado');
+    if (row.enabled === false) {
+      throw new ForbiddenException('El módulo de Circuito del día está deshabilitado para esta escuela.');
+    }
+  }
+
+  private async assertNoOpenCircuitRequestForStudentToday(studentId: string, schoolTimezone: string): Promise<void> {
+    const rows = await this.circuitRepository.manager.query<{ id: string }[]>(
+      `SELECT id
+       FROM circuit_requests
+       WHERE student_id = $1
+         AND status = ANY($2::circuit_status[])
+         AND (timezone($3::text, request_time))::date = (timezone($3::text, now()))::date
+       ORDER BY request_time DESC
+       LIMIT 1`,
+      [studentId, CircuitService.OPEN_OPERATIONAL_STATUSES, schoolTimezone]
+    );
+    if (rows[0]?.id) {
+      throw new BadRequestException('Ya existe una solicitud de salida abierta para este alumno hoy.');
+    }
+  }
+
+  private async findCurrentClassSession(
+    studentId: string,
+    asOf: Date = new Date()
+  ): Promise<ClassSessionEntity | null> {
+    const student = await this.studentsRepository.findOne({ where: { id: studentId } });
+    if (!student?.groupId) return null;
+    const current = this.zonedWeekdayAndTime(asOf, await this.schoolTimezoneBySchoolId(student.schoolId));
+    return this.classSessionsRepository
+      .createQueryBuilder('cs')
+      .where('cs.groupId = :groupId', { groupId: student.groupId })
+      .andWhere('cs.weekday = :weekday', { weekday: current.weekday })
+      .andWhere('cs.isActive = true')
+      .andWhere('cs.startTime <= :nowTime AND cs.endTime > :nowTime', { nowTime: current.hhmmss })
+      .orderBy('cs.startTime', 'DESC')
+      .getOne();
+  }
+
+  private async currentTeacherUserIdsForStudent(studentId: string): Promise<string[]> {
+    const current = await this.findCurrentClassSession(studentId);
+    if (!current) return [];
+    const teacher = await this.teachersRepository.findOne({ where: { id: current.teacherId } });
+    return teacher?.userId ? [teacher.userId] : [];
+  }
+
+  private async adminUserIdsForStudentSchool(student: StudentEntity): Promise<string[]> {
+    if (!student.schoolId) return [];
+    const admins = await this.usersRepository.find({
+      where: [
+        { schoolId: student.schoolId, role: UserRole.ADMINISTRATIVO, status: true },
+        { schoolId: student.schoolId, role: UserRole.ADMIN, status: true }
+      ],
+      select: ['id']
+    });
+    return admins.map((u) => u.id);
+  }
+
+  private async circuitStaffRecipientsForStudent(student: StudentEntity): Promise<string[]> {
+    const [teacherUserIds, adminUserIds] = await Promise.all([
+      this.currentTeacherUserIdsForStudent(student.id),
+      this.adminUserIdsForStudentSchool(student)
+    ]);
+    return [...new Set([...teacherUserIds, ...adminUserIds])];
+  }
+
+  private async teacherForUser(userId: string): Promise<TeacherEntity> {
+    const teacher = await this.teachersRepository.findOne({ where: { userId } });
+    if (!teacher) throw new ForbiddenException('Perfil docente no encontrado');
+    if (teacher.lifecycleStatus !== TeacherLifecycleStatus.ACTIVO) {
+      throw new ForbiddenException('El docente no está activo para operar en circuito');
+    }
+    return teacher;
+  }
+
+  private async assertTeacherCanHandleCircuitRequest(req: CircuitRequestEntity, userId: string): Promise<void> {
+    const teacher = await this.teacherForUser(userId);
+    const current = await this.findCurrentClassSession(req.studentId);
+    if (current?.teacherId === teacher.id) return;
+
+    const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
+    if (req.teacherSignal && student?.groupId) {
+      const tg = await this.teacherGroupsRepository.findOne({
+        where: { teacherId: teacher.id, groupId: student.groupId }
+      });
+      if (tg) return;
+    }
+    throw new ForbiddenException('Solo el docente que tiene al alumno en clase ahora puede operar este circuito');
+  }
+
+  private async canTeacherHandleCircuitRequest(req: CircuitRequestEntity, userId: string): Promise<boolean> {
+    try {
+      await this.assertTeacherCanHandleCircuitRequest(req, userId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async findTeacherAllowedTodayRequestIds(
+    userId: string,
+    searchQ: string | null | undefined,
+    maxRows: number
+  ): Promise<string[]> {
+    const teacher = await this.teacherForUser(userId);
+    const tz = getCircuitTimezone();
+    const current = this.zonedWeekdayAndTime();
+    const params: Array<string | number> = [tz, teacher.id, current.weekday, current.hhmmss, maxRows];
+    let idx = params.length;
+    let searchClause = '';
+    const q = searchQ?.trim();
+    if (q) {
+      idx += 1;
+      params.push(`%${q}%`);
+      searchClause = ` AND (su.full_name ILIKE $${idx} OR st.matricula ILIKE $${idx} OR pu.full_name ILIKE $${idx})`;
+    }
+
+    const rows = await this.circuitRepository.manager.query<{ id: string }[]>(
+      `SELECT cr.id
+       FROM circuit_requests cr
+       INNER JOIN students st ON st.id = cr.student_id
+       INNER JOIN users su ON su.id = st.user_id
+       INNER JOIN parents p ON p.id = cr.requested_by_parent_id
+       INNER JOIN users pu ON pu.id = p.user_id
+       WHERE (timezone($1::text, cr.request_time))::date = (timezone($1::text, now()))::date
+         ${searchClause}
+         AND (
+           (
+             st.group_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1
+               FROM class_sessions cs
+               WHERE cs.group_id = st.group_id
+                 AND cs.teacher_id = $2
+                 AND cs.is_active = true
+                 AND cs.weekday = $3
+                 AND cs.start_time <= $4::time
+                 AND cs.end_time > $4::time
+             )
+           )
+           OR
+           (
+             cr.teacher_signal IS NOT NULL
+             AND st.group_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1
+               FROM teacher_groups tg
+               WHERE tg.teacher_id = $2
+                 AND tg.group_id = st.group_id
+             )
+           )
+         )
+       ORDER BY cr.request_time DESC
+       LIMIT $5`,
+      params
+    );
+    return rows.map((r) => r.id).filter(Boolean);
+  }
+
+  private async filterTeacherAllowedRequestIds(userId: string, requestIds: string[]): Promise<Set<string>> {
+    const uniqueIds = [...new Set(requestIds.filter(Boolean))];
+    if (uniqueIds.length === 0) return new Set();
+    const teacher = await this.teacherForUser(userId);
+    const current = this.zonedWeekdayAndTime();
+    const rows = await this.circuitRepository.manager.query<{ id: string }[]>(
+      `SELECT cr.id
+       FROM circuit_requests cr
+       INNER JOIN students st ON st.id = cr.student_id
+       WHERE cr.id = ANY($1::uuid[])
+         AND (
+           (
+             st.group_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1
+               FROM class_sessions cs
+               WHERE cs.group_id = st.group_id
+                 AND cs.teacher_id = $2
+                 AND cs.is_active = true
+                 AND cs.weekday = $3
+                 AND cs.start_time <= $4::time
+                 AND cs.end_time > $4::time
+             )
+           )
+           OR
+           (
+             cr.teacher_signal IS NOT NULL
+             AND st.group_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1
+               FROM teacher_groups tg
+               WHERE tg.teacher_id = $2
+                 AND tg.group_id = st.group_id
+             )
+           )
+         )`,
+      [uniqueIds, teacher.id, current.weekday, current.hhmmss]
+    );
+    return new Set(rows.map((r) => r.id));
   }
 
   private isTerminalCircuitStatus(status: CircuitStatus): boolean {
@@ -347,10 +656,10 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     if (student.lifecycleStatus !== StudentLifecycleStatus.ACTIVO) {
       throw new BadRequestException('Solo estudiantes ACTIVO pueden usar el circuito de recogida');
     }
-    if (!(await this.settingsService.isCircuitEnabled(student.schoolId))) {
-      throw new BadRequestException('El circuito de recogida está deshabilitado por la institución.');
-    }
-    const today = todayYmdInCircuitTimezone();
+    await this.assertCircuitEnabledForStudent(student.id);
+    const schoolTimezone = await this.schoolTimezoneBySchoolId(student.schoolId);
+    await this.assertNoOpenCircuitRequestForStudentToday(student.id, schoolTimezone);
+    const today = this.getSchoolNow(schoolTimezone).date;
     if (await this.departureConsentService.hasAutonomousConsentOnDate(student.id, today)) {
       throw new BadRequestException(
         'Hoy tiene activo el permiso de salida autónoma para este alumno. Desactive el consentimiento en Circuito antes de iniciar una recogida con seguimiento.'
@@ -430,13 +739,8 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     student: StudentEntity,
     parent: ParentEntity
   ): Promise<void> {
-    if (!student.groupId) return;
-    const teacherLinks = await this.teacherGroupsRepository.find({ where: { groupId: student.groupId } });
-    if (teacherLinks.length === 0) return;
-    const teacherIds = [...new Set(teacherLinks.map((t) => t.teacherId))];
-    const teachers = await this.teachersRepository.find({ where: { id: In(teacherIds) } });
-    const teacherUserIds = [...new Set(teachers.map((t) => t.userId).filter(Boolean))];
-    if (teacherUserIds.length === 0) return;
+    const staffUserIds = await this.circuitStaffRecipientsForStudent(student);
+    if (staffUserIds.length === 0) return;
 
     const parentUser = await this.usersRepository.findOne({ where: { id: parent.userId } });
     const studentName = await this.studentDisplayName(student.id);
@@ -444,7 +748,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     const title = `Nueva solicitud de recogida: ${studentName}`;
     const body = `${parentName} inició una solicitud de circuito. Revise Circuito del día para atenderla.`;
 
-    const rows = teacherUserIds.map((userId) =>
+    const rows = staffUserIds.map((userId) =>
       this.notificationsRepository.create({
         userId,
         title,
@@ -454,7 +758,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     );
     await this.notificationsRepository.save(rows);
 
-    for (const userId of teacherUserIds) {
+    for (const userId of staffUserIds) {
       void this.fcmService
         .sendPushToUser(userId, title, body, {
           type: 'circuit',
@@ -463,7 +767,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
           status: request.status
         })
         .catch((err: unknown) => {
-          this.logger.warn(`Push circuito a docente no enviado: ${String(err)}`);
+          this.logger.warn(`Push circuito a personal no enviado: ${String(err)}`);
         });
     }
   }
@@ -561,6 +865,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
   async updateParentGps(id: string, parentUserId: string, dto: UpdateCircuitGpsDto) {
     const req = await this.findById(id);
+    await this.assertCircuitEnabledForStudent(req.studentId);
     if (this.isTerminalCircuitStatus(req.status)) {
       throw new BadRequestException('El circuito está cerrado; no se puede actualizar la ubicación.');
     }
@@ -614,34 +919,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** Notifica al personal (docentes del grupo + admin de la escuela) que el padre entro al radio. */
+  /** Notifica al personal responsable (docente de la clase actual + admin de la escuela). */
   private async notifyStaffParentInRadius(req: CircuitRequestEntity, studentName: string): Promise<void> {
     const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
     if (!student) return;
 
-    const staffUserIds: string[] = [];
-
-    if (student.groupId) {
-      const teacherLinks = await this.teacherGroupsRepository.find({ where: { groupId: student.groupId } });
-      if (teacherLinks.length > 0) {
-        const teacherIds = [...new Set(teacherLinks.map((t) => t.teacherId))];
-        const teachers = await this.teachersRepository.find({ where: { id: In(teacherIds) } });
-        teachers.forEach((t) => { if (t.userId) staffUserIds.push(t.userId); });
-      }
-    }
-
-    if (student.schoolId) {
-      const admins = await this.usersRepository.find({
-        where: [
-          { schoolId: student.schoolId, role: UserRole.ADMINISTRATIVO, status: true },
-          { schoolId: student.schoolId, role: UserRole.ADMIN, status: true }
-        ],
-        select: ['id']
-      });
-      admins.forEach((u) => staffUserIds.push(u.id));
-    }
-
-    const uniqueStaff = [...new Set(staffUserIds)];
+    const uniqueStaff = await this.circuitStaffRecipientsForStudent(student);
     if (uniqueStaff.length === 0) return;
 
     const title = `Padre en radio — ${studentName}`;
@@ -668,6 +951,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
   async advanceParentProgress(id: string, parentUserId: string, dto: UpdateParentCircuitProgressDto) {
     const req = await this.findById(id);
+    await this.assertCircuitEnabledForStudent(req.studentId);
     if (this.isTerminalCircuitStatus(req.status)) {
       throw new BadRequestException('El circuito está cerrado; no se puede avanzar el estado.');
     }
@@ -789,6 +1073,9 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       }
       qb.andWhere('st.school_id = :schoolId', { schoolId });
     } else if (role === UserRole.DOCENTE) {
+      const allowedIds = await this.findTeacherAllowedTodayRequestIds(userId, searchQ, maxRows);
+      if (allowedIds.length === 0) return [];
+      qb.andWhere('cr.id IN (:...allowedIds)', { allowedIds });
       qb.andWhere(
         `(
           (st.group_id IS NOT NULL AND EXISTS (
@@ -905,7 +1192,14 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     `;
 
     const raw = (await this.circuitRepository.query(sql, params)) as Record<string, unknown>[];
-    return raw.map((row) => this.mapRawCircuitRowToTodayItem(row));
+    const items = raw.map((row) => this.mapRawCircuitRowToTodayItem(row));
+    if (role !== UserRole.DOCENTE) return items;
+    const allowedIdSet = await this.filterTeacherAllowedRequestIds(
+      userId,
+      items.map((item) => item.id)
+    );
+    if (allowedIdSet.size === 0) return [];
+    return items.filter((item) => item.id && allowedIdSet.has(item.id));
   }
 
   private async mapCircuitEntitiesToTodayList(entities: CircuitRequestEntity[]): Promise<CircuitTodayListItem[]> {
@@ -1089,6 +1383,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     role: UserRole
   ) {
     const req = await this.findById(id);
+    await this.assertCircuitEnabledForStudent(req.studentId);
     if (this.isTerminalCircuitStatus(req.status)) {
       throw new BadRequestException(
         'El circuito ya finalizó; no se pueden enviar señales al aula ni a la familia.'
@@ -1116,9 +1411,21 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
           : 'Alumno en camino a salida';
       throw new BadRequestException(`La única señal permitida ahora es: ${label}.`);
     }
+    const previousSignal = req.teacherSignal;
     req.teacherSignal = dto.signal;
     this.maybeStartParentConfirmCountdown(req);
     const saved = await this.circuitRepository.save(req);
+    await this.auditService
+      .log(userId, 'circuit.teacher.signal', 'circuit_requests', saved.id, {
+        studentId: saved.studentId,
+        previousSignal,
+        nextSignal: saved.teacherSignal,
+        status: saved.status,
+        role
+      })
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de señal docente', err as Error)
+      );
     return { message: 'Señal actualizada', id: saved.id, teacherSignal: saved.teacherSignal };
   }
 
@@ -1138,9 +1445,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (role === UserRole.DOCENTE) {
-      const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
-      if (!student?.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
-      await this.assertTeacherAssignedToGroup(userId, student.groupId);
+      await this.assertTeacherCanHandleCircuitRequest(req, userId);
       return;
     }
 
@@ -1154,9 +1459,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (role === UserRole.DOCENTE) {
-      const student = await this.studentsRepository.findOne({ where: { id: req.studentId } });
-      if (!student?.groupId) throw new ForbiddenException('El estudiante no tiene grupo asignado');
-      await this.assertTeacherAssignedToGroup(userId, student.groupId);
+      await this.assertTeacherCanHandleCircuitRequest(req, userId);
       return;
     }
     throw new ForbiddenException('Solo docencia o administración puede enviar señales al circuito');
@@ -1179,6 +1482,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
   async cancel(id: string, parentUserId: string) {
     const req = await this.findById(id);
+    await this.assertCircuitEnabledForStudent(req.studentId);
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
@@ -1211,6 +1515,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
 
   async confirmDelivered(id: string, userId: string, role: UserRole) {
     const req = await this.findById(id);
+    await this.assertCircuitEnabledForStudent(req.studentId);
 
     if (req.status === CircuitStatus.CANCELADO) {
       throw new BadRequestException('No se puede confirmar entrega en solicitud cancelada');
@@ -1284,8 +1589,12 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     }
 
     const req = await this.findById(id);
+    await this.assertCircuitEnabledForStudent(req.studentId);
     if (role === UserRole.ADMINISTRATIVO) {
       await this.assertAdministrativeCanAccessStudent(userId, req.studentId);
+    }
+    if (role === UserRole.DOCENTE) {
+      await this.assertTeacherCanHandleCircuitRequest(req, userId);
     }
     if (this.isTerminalCircuitStatus(req.status)) {
       throw new BadRequestException('Circuito cerrado; no se puede cambiar el estado.');
@@ -1345,6 +1654,17 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
         this.pushCircuitToParent(parentUid, saved.id, saved.status, copy.title, copy.body);
       }
     }
+
+    await this.auditService
+      .log(userId, 'circuit.status.update', 'circuit_requests', saved.id, {
+        studentId: saved.studentId,
+        fromStatus: prevStatus,
+        toStatus: saved.status,
+        role
+      })
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de cambio de estado circuito', err as Error)
+      );
 
     return { message: 'Estado actualizado', id: saved.id, status: saved.status, changedBy: userId };
   }

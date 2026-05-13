@@ -1,7 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import {
   AccessCredentialEntity,
   CredentialStatus,
@@ -19,9 +26,12 @@ import { RegisterAccessEventDto } from './dto/register-access-event.dto';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { FcmService } from '../fcm/fcm.service';
+import { minutesSinceMidnightInTimeZone, parseTimeToMinutes } from '../../common/shift-schedule';
 
 @Injectable()
 export class AccessService {
+  private readonly logger = new Logger(AccessService.name);
+
   constructor(
     @InjectRepository(AccessCredentialEntity)
     private readonly credentialsRepository: Repository<AccessCredentialEntity>,
@@ -36,7 +46,8 @@ export class AccessService {
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
     private readonly schoolCalendarService: SchoolCalendarService,
-    private readonly fcmService: FcmService
+    private readonly fcmService: FcmService,
+    private readonly auditService: AuditService
   ) {}
 
   /** Credencial QR para mostrar en perfil (acceso campus / asistencia). Crea una si no existe. */
@@ -135,7 +146,10 @@ export class AccessService {
     }));
   }
 
-  async scanAccess(payload: RegisterAccessEventDto) {
+  async scanAccess(
+    payload: RegisterAccessEventDto,
+    operator: { userId: string; role: UserRole; schoolId?: string | null }
+  ) {
     const credentialType =
       payload.method === AccessMethod.NFC || payload.method === AccessMethod.MANUAL
         ? CredentialType.NFC
@@ -159,8 +173,23 @@ export class AccessService {
     if (!user) {
       throw new NotFoundException('Usuario de credencial no existe');
     }
+    // Aislamiento multi-tenant: salvo ADMIN de plataforma, el operador no puede
+    // procesar credenciales de personas de otra escuela.
+    if (operator.role !== UserRole.ADMIN) {
+      const operatorSchoolId = operator.schoolId ?? null;
+      if (!operatorSchoolId || operatorSchoolId !== user.schoolId) {
+        throw new ForbiddenException('Credencial fuera de su escuela.');
+      }
+    }
     if (!user.canAccessCampus) {
       throw new BadRequestException('Usuario sin permiso de acceso al campus');
+    }
+    const duplicate = await this.findRecentAccessEventForUserInSchool(user.id, user.schoolId);
+    if (duplicate) {
+      return {
+        duplicate: true,
+        originalEvent: duplicate
+      };
     }
     const today = new Date().toISOString().slice(0, 10);
     if (user.role === UserRole.ALUMNO) {
@@ -183,12 +212,12 @@ export class AccessService {
       eventTime: new Date(),
       eventDate: today,
       accessCredentialId: credential.id,
-      registeredBy: payload.registeredBy ?? null
+      registeredBy: operator.userId
     });
     const saved = await this.eventsRepository.save(event);
 
     if (user.role === UserRole.ALUMNO && payload.eventType === AccessEventType.ENTRY) {
-      await this.upsertAttendanceFromAccessScan(user.id, today, payload.method);
+      await this.upsertAttendanceFromAccessScan(user.id, today, payload.method, saved.eventTime);
     }
 
     if (user.role === UserRole.ALUMNO) {
@@ -211,13 +240,16 @@ export class AccessService {
       }
     }
 
+    // Minimizamos PII en la respuesta del scan: nombre y status si, pero email
+    // se omite y la matricula se enmascara mostrando solo los ultimos 4.
+    const matriculaMasked = matricula ? this.maskMatricula(matricula) : null;
+
     return {
       message: 'Acceso registrado correctamente',
       persona: {
         nombreCompleto: user.fullName,
         rol: user.role,
-        matriculaAlumno: matricula,
-        email: user.email ?? null,
+        matriculaAlumno: matriculaMasked,
         avatarUrl: user.avatarPath ?? null,
         grupo: groupName,
         acceso: user.canAccessCampus ? 'AUTORIZADO' : 'SIN_AUTORIZAR',
@@ -227,10 +259,36 @@ export class AccessService {
     };
   }
 
+  private maskMatricula(value: string): string {
+    const trimmed = value.trim();
+    if (trimmed.length <= 4) return '*'.repeat(Math.max(trimmed.length, 1));
+    return `****${trimmed.slice(-4)}`;
+  }
+
+  private async findRecentAccessEventForUserInSchool(
+    userId: string,
+    schoolId: string | null
+  ): Promise<AccessEventEntity | null> {
+    const since = new Date(Date.now() - 10_000);
+    const qb = this.eventsRepository
+      .createQueryBuilder('ev')
+      .innerJoin('users', 'u', 'u.id = ev.user_id')
+      .where('ev.user_id = :userId', { userId })
+      .andWhere('ev.event_time >= :since', { since })
+      .orderBy('ev.event_time', 'DESC');
+    if (schoolId) {
+      qb.andWhere('u.school_id = :schoolId', { schoolId });
+    } else {
+      qb.andWhere('u.school_id IS NULL');
+    }
+    return qb.getOne();
+  }
+
   private async upsertAttendanceFromAccessScan(
     userId: string,
     dateStr: string,
-    method: 'QR' | 'NFC' | 'MANUAL'
+    method: 'QR' | 'NFC' | 'MANUAL',
+    scanAt: Date
   ) {
     const student = await this.studentsRepository.findOne({ where: { userId } });
     if (!student) return;
@@ -242,14 +300,21 @@ export class AccessService {
     if (cal.nonInstructional) return;
 
     const autoNote = `AUTO_ACCESS_SCAN:${method}:ENTRY`;
+    const dailyStatus = await this.resolveDailyStatusFromEntryScan(student, scanAt);
+    if (!dailyStatus) return;
+
     const existing = await this.attendanceRepository.findOne({
       where: { studentId: student.id, attendanceDate: dateStr }
     });
 
     if (existing) {
-      existing.status = AttendanceStatus.PRESENTE;
+      if (this.isManualDailyAttendance(existing)) return;
+      if (existing.status === AttendanceStatus.AUSENTE) {
+        existing.status = dailyStatus;
+      }
       existing.groupId = student.groupId ?? null;
-      existing.notes = existing.notes ? `${existing.notes} | ${autoNote}` : autoNote;
+      existing.classSessionId = null;
+      existing.notes = this.appendAutoAccessNote(existing.notes, autoNote);
       await this.attendanceRepository.save(existing);
       return;
     }
@@ -257,12 +322,82 @@ export class AccessService {
     const created = this.attendanceRepository.create({
       studentId: student.id,
       groupId: student.groupId ?? null,
+      classSessionId: null,
       attendanceDate: dateStr,
-      status: AttendanceStatus.PRESENTE,
+      status: dailyStatus,
       notes: autoNote,
       registeredBy: null
     });
     await this.attendanceRepository.save(created);
+  }
+
+  private isManualDailyAttendance(record: AttendanceRecordEntity): boolean {
+    return Boolean(record.registeredBy) && !this.hasAutoAccessNote(record.notes);
+  }
+
+  private hasAutoAccessNote(notes: string | null | undefined): boolean {
+    return Boolean(notes?.includes('AUTO_ACCESS_SCAN:'));
+  }
+
+  private appendAutoAccessNote(notes: string | null | undefined, note: string): string {
+    if (!notes) return note;
+    if (notes.includes(note)) return notes;
+    return `${notes} | ${note}`;
+  }
+
+  private async resolveDailyStatusFromEntryScan(
+    student: StudentEntity,
+    scanAt: Date
+  ): Promise<AttendanceStatus | null> {
+    const rows = await this.studentsRepository.manager.query<
+      {
+        shift: string | null;
+        shiftMatutinoStart: string | null;
+        shiftMatutinoEnd: string | null;
+        shiftVespertinoStart: string | null;
+        shiftVespertinoEnd: string | null;
+        shiftNocturnoStart: string | null;
+        shiftNocturnoEnd: string | null;
+      }[]
+    >(
+      `SELECT g.shift::text AS shift,
+              sc.shift_matutino_start AS "shiftMatutinoStart",
+              sc.shift_matutino_end AS "shiftMatutinoEnd",
+              sc.shift_vespertino_start AS "shiftVespertinoStart",
+              sc.shift_vespertino_end AS "shiftVespertinoEnd",
+              sc.shift_nocturno_start AS "shiftNocturnoStart",
+              sc.shift_nocturno_end AS "shiftNocturnoEnd"
+       FROM students s
+       LEFT JOIN groups g ON g.id = s.group_id
+       LEFT JOIN schools sc ON sc.id = COALESCE(g.school_id, s.school_id)
+       WHERE s.id = $1
+       LIMIT 1`,
+      [student.id]
+    );
+    const row = rows[0];
+    if (!row) return AttendanceStatus.PRESENTE;
+
+    const startRaw =
+      row.shift === 'VESPERTINO'
+        ? row.shiftVespertinoStart
+        : row.shift === 'NOCTURNO'
+          ? row.shiftNocturnoStart
+          : row.shiftMatutinoStart;
+    const endRaw =
+      row.shift === 'VESPERTINO'
+        ? row.shiftVespertinoEnd
+        : row.shift === 'NOCTURNO'
+          ? row.shiftNocturnoEnd
+          : row.shiftMatutinoEnd;
+    const start = parseTimeToMinutes(startRaw);
+    const end = parseTimeToMinutes(endRaw);
+    if (start === null || end === null) return AttendanceStatus.PRESENTE;
+
+    const scanMinutes = minutesSinceMidnightInTimeZone(undefined, scanAt);
+    if (scanMinutes > end) return null;
+    const graceMinutes = Number.parseInt(process.env.ATTENDANCE_ENTRY_GRACE_MINUTES ?? '10', 10);
+    const grace = Number.isFinite(graceMinutes) ? graceMinutes : 10;
+    return scanMinutes <= start + grace ? AttendanceStatus.PRESENTE : AttendanceStatus.RETARDO;
   }
 
   /** RF2 — Asignar credencial NFC a un usuario. Solo puede existir una activa por usuario. */
@@ -374,6 +509,15 @@ export class AccessService {
     }
     credential.status = CredentialStatus.REVOKED;
     await this.credentialsRepository.save(credential);
+    await this.auditService
+      .log(requestedByUserId, 'access.credential.revoke', 'access_credentials', credentialId, {
+        credentialType: credential.credentialType,
+        ownerUserId: credential.userId,
+        schoolId: credUser?.schoolId ?? null
+      })
+      .catch((err) =>
+        this.logger.error('No se pudo registrar auditoría de revocación de credencial', err as Error)
+      );
     return { message: 'Credencial revocada', credentialId };
   }
 

@@ -30,9 +30,14 @@ export class AccessController {
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
   @ApiOperation({ summary: 'Registrar evento de acceso por QR o NFC' })
   @ApiResponse({ status: 201, description: 'Evento de acceso registrado.' })
+  @ApiResponse({ status: 403, description: 'Credencial fuera de la escuela del operador.' })
   @ApiResponse({ status: 404, description: 'Credencial no encontrada o inactiva.' })
-  scan(@Body() payload: RegisterAccessEventDto) {
-    return this.accessService.scanAccess(payload);
+  scan(@Body() payload: RegisterAccessEventDto, @Req() req: JwtReq) {
+    return this.accessService.scanAccess(payload, {
+      userId: req.user.userId,
+      role: req.user.role,
+      schoolId: req.user.schoolId ?? null
+    });
   }
 
   /** RF2 — Asignar credencial NFC a un usuario (ADMIN o ADMINISTRATIVO). */

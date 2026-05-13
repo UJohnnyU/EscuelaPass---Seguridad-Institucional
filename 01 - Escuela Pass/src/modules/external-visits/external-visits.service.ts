@@ -50,12 +50,20 @@ export class ExternalVisitsService {
 
   async create(dto: CreateExternalVisitDto, userId: string, role: UserRole, schoolIdParam?: string): Promise<VisitRow> {
     const schoolId = await this.assertStaffSchool(userId, role, schoolIdParam);
+    const visitDatetime = new Date(dto.visitDatetime);
+    if (Number.isNaN(visitDatetime.getTime())) {
+      throw new BadRequestException('Fecha de visita inválida.');
+    }
+    if (visitDatetime.getTime() < Date.now()) {
+      throw new BadRequestException('No se pueden agendar eventos en el pasado.');
+    }
 
     const groupIds = dto.audienceScope === ExternalVisitAudienceScope.GROUPS ? dto.groupIds ?? [] : [];
     const studentIds =
       dto.audienceScope === ExternalVisitAudienceScope.STUDENTS ? dto.studentIds ?? [] : [];
 
     await this.assertScopeBelongsToSchool(schoolId, groupIds, studentIds);
+    await this.assertInstructionalDateForVisit(schoolId, visitDatetime, groupIds);
     if (role === UserRole.DOCENTE) {
       await this.assertTeacherOwnsScope(userId, groupIds, studentIds, dto.audienceScope);
     }
@@ -70,7 +78,7 @@ export class ExternalVisitsService {
         visitorName: dto.visitorName.trim(),
         visitorOrganization: dto.visitorOrganization?.trim() ?? null,
         location: dto.location?.trim() ?? null,
-        visitDatetime: new Date(dto.visitDatetime),
+        visitDatetime,
         durationMinutes: dto.durationMinutes ?? 60,
         audienceScope: dto.audienceScope,
         status: ExternalVisitStatus.PROGRAMADA
@@ -390,6 +398,26 @@ export class ExternalVisitsService {
       if (Number(rows[0]?.cnt ?? 0) !== studentIds.length) {
         throw new BadRequestException('Hay estudiantes que no pertenecen a la institución');
       }
+    }
+  }
+
+  private async assertInstructionalDateForVisit(
+    schoolId: string,
+    scheduledAt: Date,
+    groupIds: string[]
+  ): Promise<void> {
+    const ymd = scheduledAt.toISOString().slice(0, 10);
+    const rows = await this.dataSource.query<{ id: string }[]>(
+      `SELECT id
+       FROM school_non_instructional_days
+       WHERE school_id = $1::uuid
+         AND exception_date = $2::date
+         AND (group_id IS NULL OR group_id = ANY($3::uuid[]))
+       LIMIT 1`,
+      [schoolId, ymd, groupIds.length > 0 ? groupIds : ['00000000-0000-0000-0000-000000000000']]
+    );
+    if (rows[0]?.id) {
+      throw new BadRequestException('No se pueden agendar eventos en días no lectivos.');
     }
   }
 

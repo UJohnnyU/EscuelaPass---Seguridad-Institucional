@@ -4,7 +4,9 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { CIRCUIT_STATUS_LABEL, PICKUP_METHOD_LABEL } from '@/lib/circuit-labels';
 import { useAuth } from '@/context/useAuth';
+import { Skeleton } from '@/components/Skeleton';
 import { SmartSelect, type SmartSelectOption } from '@/components/SmartSelect';
+import { useAdaptivePolling } from '@/hooks/use-adaptive-polling';
 
 type CircuitRow = {
   id: string;
@@ -66,6 +68,7 @@ export function CircuitTodayPage() {
     user?.role === 'DOCENTE' || user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
   const canManageCircuit = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO';
   const isAdmin = user?.role === 'ADMIN';
+  const isTeacher = user?.role === 'DOCENTE';
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -96,7 +99,7 @@ export function CircuitTodayPage() {
   }, [isAdmin, user?.schoolId]);
 
   const loadToday = useCallback(
-    async (opts?: { silent?: boolean }) => {
+    async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
       if (!allowed) return;
       if (isAdmin && !selectedSchoolId) {
         setRows([]);
@@ -116,7 +119,7 @@ export function CircuitTodayPage() {
         }
         const q = searchApplied.trim();
         if (q) params.q = q;
-        const { data } = await api.get<CircuitRow[]>('/api/v1/circuit-requests/today', { params });
+        const { data } = await api.get<CircuitRow[]>('/api/v1/circuit-requests/today', { params, signal: opts?.signal });
         setRows(data);
         setLastUpdatedAt(Date.now());
       } catch (e) {
@@ -164,14 +167,14 @@ export function CircuitTodayPage() {
     };
   }, [allowed, isAdmin, selectedSchoolId]);
 
-  useEffect(() => {
-    if (!allowed) return;
-    const id = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      void loadToday({ silent: true });
-    }, 10000);
-    return () => clearInterval(id);
-  }, [allowed, loadToday]);
+  useAdaptivePolling({
+    enabled: allowed,
+    intervalFocused: 10000,
+    intervalBlurred: 60000,
+    onPoll: async ({ signal }) => {
+      await loadToday({ silent: true, signal });
+    }
+  });
 
   const lastUpdatedLabel = useMemo(() => {
     if (!lastUpdatedAt) return 'Sin actualizar';
@@ -216,7 +219,15 @@ export function CircuitTodayPage() {
   }
 
   if (loading && !(isAdmin && !selectedSchoolId)) {
-    return <p className="text-slate-600 dark:text-slate-300">Cargando solicitudes del día…</p>;
+    return (
+      <div className="space-y-3" aria-label="Cargando solicitudes del día">
+        <Skeleton.Row height={56} />
+        <Skeleton.Row height={56} />
+        <Skeleton.Row height={56} />
+        <Skeleton.Row height={56} />
+        <Skeleton.Row height={56} />
+      </div>
+    );
   }
 
   const onAdminSchoolChange = (schoolId: string) => {
@@ -229,6 +240,11 @@ export function CircuitTodayPage() {
       <p className="mt-1 text-slate-600 dark:text-slate-300">
         Solicitudes de recogida del día. Abra una para enviar avisos a la familia y avanzar su estado.
       </p>
+      {isTeacher ? (
+        <p className="mt-3 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-100">
+          Solo se muestran los alumnos que están en tu clase en este momento o solicitudes que ya estás atendiendo.
+        </p>
+      ) : null}
       {error && (
         <div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-red-800 ring-1 ring-red-200" role="alert">
           {error}

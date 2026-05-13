@@ -184,6 +184,59 @@ describe('App (e2e)', () => {
     return created.body.id as string;
   };
 
+  const todayWeekday = () => {
+    const [y, m, d] = circuitTodayYmd().split('-').map((x) => Number.parseInt(x, 10));
+    return new Date(y, m - 1, d).getDay();
+  };
+
+  const ensureCurrentClassSession = async (input: {
+    adminToken: string;
+    adminUserId: string;
+    groupId: string;
+    teacherId: string;
+    subjectId: string;
+  }) => {
+    const periodId = await getFirstAcademicPeriodId(input.adminToken);
+    const groupRow = await sqlOne<{ school_id: string }>(
+      `SELECT school_id FROM groups WHERE id = $1`,
+      [input.groupId]
+    );
+    const existing = await db.query<{ id: string }>(
+      `SELECT id
+       FROM class_sessions
+       WHERE group_id = $1
+         AND teacher_id = $2
+         AND weekday = $3
+         AND is_active = true
+         AND start_time <= '23:59:00'::time
+         AND end_time > '00:00:00'::time
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [input.groupId, input.teacherId, todayWeekday()]
+    );
+    if (existing.rows[0]?.id) return existing.rows[0].id;
+
+    const inserted = await db.query<{ id: string }>(
+      `INSERT INTO class_sessions (
+         school_id, academic_period_id, group_id, subject_id, teacher_id,
+         weekday, start_time, end_time, room, is_active,
+         created_by_user_id, updated_by_user_id
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, '00:00:00', '23:59:00', 'E2E', true, $7, $7)
+       RETURNING id`,
+      [
+        groupRow.school_id,
+        periodId,
+        input.groupId,
+        input.subjectId,
+        input.teacherId,
+        todayWeekday(),
+        input.adminUserId
+      ]
+    );
+    return inserted.rows[0].id;
+  };
+
   const sqlOne = async <T extends Record<string, unknown>>(text: string, params: unknown[] = []) => {
     const res = await db.query(text, params);
     if (!res.rows[0]) throw new Error(`SQL sin resultados: ${text}`);
@@ -383,6 +436,111 @@ describe('App (e2e)', () => {
     expect(row ? String(row.notes ?? '').includes('AUTO_ACCESS_SCAN:QR:ENTRY') : true).toBe(true);
   });
 
+  it('class-attendance: docente registra asistencia por clase y padre la consulta', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const docente = await login('docente1@escuelapass.local', 'Docente123*');
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
+    const teacher = await getTeacherByEmail(admin.accessToken, 'docente1@escuelapass.local');
+    const subjectId = await getFirstSubjectId(admin.accessToken);
+    expect(student.groupId).toBeTruthy();
+    await ensureTeacherAssignedToGroup(admin.accessToken, teacher.id, student.groupId!, subjectId).catch(() => undefined);
+    const classSessionId = await ensureCurrentClassSession({
+      adminToken: admin.accessToken,
+      adminUserId: admin.user.id,
+      groupId: student.groupId!,
+      teacherId: teacher.id,
+      subjectId
+    });
+
+    const date = circuitTodayYmd();
+    await db.query(
+      `DELETE FROM class_attendance_records
+       WHERE student_id = $1 AND class_session_id = $2 AND attendance_date = $3::date`,
+      [student.id, classSessionId, date]
+    );
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/class-attendance/bulk`)
+      .set(authHeader(docente.accessToken))
+      .send({
+        classSessionId,
+        attendanceDate: date,
+        entries: [{ studentId: student.id, status: 'PRESENTE' }]
+      })
+      .expect(201);
+
+    const parentView = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/class-attendance/student/${student.id}`)
+      .query({ from: date, to: date })
+      .set(authHeader(padre.accessToken))
+      .expect(200);
+    expect(parentView.body.records.some((r: { classSessionId: string }) => r.classSessionId === classSessionId)).toBe(true);
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/reports/attendance/classes`)
+      .query({ groupId: student.groupId, date })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+
+    const exported = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/exports/class-attendance.xlsx`)
+      .query({ groupId: student.groupId, date })
+      .set(authHeader(admin.accessToken))
+      .expect(200);
+    expectBinaryDownloadMinBytes(exported, 100);
+  });
+
+  it('access scan: ENTRY tardio marca RETARDO sin pisar asistencia manual', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
+    const date = new Date().toISOString().slice(0, 10);
+    const school = await sqlOne<{
+      school_id: string;
+      shift_matutino_start: string | null;
+      shift_matutino_end: string | null;
+    }>(
+      `SELECT s.school_id, sc.shift_matutino_start, sc.shift_matutino_end
+       FROM students s
+       JOIN schools sc ON sc.id = s.school_id
+       WHERE s.id = $1`,
+      [student.id]
+    );
+
+    await db.query(
+      `DELETE FROM access_events WHERE user_id = $1 AND event_date = $2 AND event_type = 'ENTRY'`,
+      [student.userId, date]
+    );
+    await db.query(`DELETE FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`, [
+      student.id,
+      date
+    ]);
+
+    await db.query(
+      `UPDATE schools SET shift_matutino_start = '00:00:00', shift_matutino_end = '23:59:00' WHERE id = $1`,
+      [school.school_id]
+    );
+    try {
+      await request(app.getHttpServer())
+        .post(`/${apiPrefix}/access-events/scan`)
+        .set(authHeader(admin.accessToken))
+        .send({ method: 'QR', credentialValue: 'QR_ALUMNO_0001', eventType: 'ENTRY' })
+        .expect(201);
+
+      const row = await sqlOne<{ status: string; notes: string | null }>(
+        `SELECT status::text, notes FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`,
+        [student.id, date]
+      );
+      expect(row.status).toBe('RETARDO');
+      expect(String(row.notes ?? '')).toContain('AUTO_ACCESS_SCAN:QR:ENTRY');
+    } finally {
+      await db.query(
+        `UPDATE schools SET shift_matutino_start = $2, shift_matutino_end = $3 WHERE id = $1`,
+        [school.school_id, school.shift_matutino_start, school.shift_matutino_end]
+      );
+    }
+  });
+
   it('grades: docente registra y padre puede leer', async () => {
     const admin = await login('administrativo@escuelapass.local', 'Admin123*');
     const teacher = await getTeacherByEmail(admin.accessToken, 'docente1@escuelapass.local');
@@ -463,6 +621,63 @@ describe('App (e2e)', () => {
       .expect(200);
 
     expect(created.body.requestId).toBeDefined();
+  });
+
+  it('circuit: docente solo ve solicitudes de alumnos en su clase actual', async () => {
+    const admin = await login('admin@escuelapass.local', 'Admin123*');
+    const padre = await login('padre1@escuelapass.local', 'Padre123*');
+    const docenteActual = await login('docente1@escuelapass.local', 'Docente123*');
+    let docenteOtro: { accessToken: string; user: { id: string; role: string } };
+    try {
+      docenteOtro = await login('docente2@escuelapass.local', 'Docente123*');
+    } catch {
+      return;
+    }
+
+    const parent = await getParentByEmail(admin.accessToken, 'padre1@escuelapass.local');
+    const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
+    const teacher1 = await getTeacherByEmail(admin.accessToken, 'docente1@escuelapass.local');
+    const teacher2 = await getTeacherByEmail(admin.accessToken, 'docente2@escuelapass.local');
+    const subjectId = await getFirstSubjectId(admin.accessToken);
+    expect(student.groupId).toBeTruthy();
+    await ensureTeacherAssignedToGroup(admin.accessToken, teacher1.id, student.groupId!, subjectId).catch(() => undefined);
+    await ensureTeacherAssignedToGroup(admin.accessToken, teacher2.id, student.groupId!, subjectId).catch(() => undefined);
+    await ensureCurrentClassSession({
+      adminToken: admin.accessToken,
+      adminUserId: admin.user.id,
+      groupId: student.groupId!,
+      teacherId: teacher1.id,
+      subjectId
+    });
+    await registerAttendancePresentToday(admin.accessToken, student.id);
+
+    const created = await request(app.getHttpServer())
+      .post(`/${apiPrefix}/circuit-requests`)
+      .set(authHeader(padre.accessToken))
+      .send({ studentId: student.id, requestedByParentId: parent.id, pickupMethod: 'A_PIE' });
+    const requestId =
+      created.status === 201
+        ? (created.body.requestId as string)
+        : (
+            await request(app.getHttpServer())
+              .get(`/${apiPrefix}/circuit-requests/parent/active`)
+              .set(authHeader(padre.accessToken))
+              .expect(200)
+          ).body?.active?.id;
+    if (!requestId) return;
+    await db.query(`UPDATE circuit_requests SET teacher_signal = NULL WHERE id = $1`, [requestId]);
+
+    const actual = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/circuit-requests/today`)
+      .set(authHeader(docenteActual.accessToken))
+      .expect(200);
+    expect((actual.body as Array<{ id: string }>).some((r) => r.id === requestId)).toBe(true);
+
+    const otro = await request(app.getHttpServer())
+      .get(`/${apiPrefix}/circuit-requests/today`)
+      .set(authHeader(docenteOtro.accessToken))
+      .expect(200);
+    expect((otro.body as Array<{ id: string }>).some((r) => r.id === requestId)).toBe(false);
   });
 
   it('circuit: sin registro presente/tardanza hoy bloquea solicitud del padre', async () => {

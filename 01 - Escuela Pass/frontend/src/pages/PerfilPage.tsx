@@ -2,9 +2,9 @@ import axios from 'axios';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FixedSizeList, type ListChildComponentProps } from 'react-window';
 import { QRCodeSVG } from 'qrcode.react';
+import { AuthImage } from '@/components/AuthImage';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { publicAssetUrl } from '@/lib/asset-url';
 import { useAuth } from '@/context/useAuth';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -183,8 +183,6 @@ export function PerfilPage() {
     return n.slice(0, 2).toUpperCase();
   }, [me?.fullName, user?.fullName]);
 
-  const avatarSrc = publicAssetUrl(me?.avatarUrl ?? user?.avatarUrl ?? null);
-
   return (
     <div ref={rootRef} className="mx-auto max-w-6xl animate-fade-in">
       <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi perfil</h1>
@@ -206,8 +204,17 @@ export function PerfilPage() {
 
       <div className="mx-auto mt-8 flex max-w-xl flex-col items-center rounded-xl border border-slate-200 bg-white p-8 shadow-sm sm:flex-row sm:items-start sm:gap-8">
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-slate-900" aria-hidden>
-          {avatarSrc ? (
-            <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+          {me?.avatarUrl ?? user?.avatarUrl ? (
+            <AuthImage
+              src={me?.avatarUrl ?? user?.avatarUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              fallback={
+                <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-white">
+                  {initials}
+                </div>
+              }
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-white">
               {initials}

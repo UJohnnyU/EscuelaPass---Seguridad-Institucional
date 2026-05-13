@@ -15,6 +15,7 @@ import { AcademicSchedulerModule } from './modules/academic-scheduler/academic-s
 import { AccessModule } from './modules/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CircuitModule } from './modules/circuit/circuit.module';
+import { ClassAttendanceModule } from './modules/class-attendance/class-attendance.module';
 import { ClassSessionsModule } from './modules/class-sessions/class-sessions.module';
 import { NoticesModule } from './modules/notices/notices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -40,6 +41,7 @@ import { EventSchedulerModule } from './modules/event-scheduler/event-scheduler.
 import { ExternalVisitsModule } from './modules/external-visits/external-visits.module';
 import { AttentionNotesModule } from './modules/attention-notes/attention-notes.module';
 import { MailModule } from './modules/mail/mail.module';
+import { FilesModule } from './modules/files/files.module';
 
 @Module({
   imports: [
@@ -63,6 +65,7 @@ import { MailModule } from './modules/mail/mail.module';
     AuthModule,
     AccessModule,
     CircuitModule,
+    ClassAttendanceModule,
     ClassSessionsModule,
     NoticesModule,
     PaymentsModule,
@@ -85,6 +88,7 @@ import { MailModule } from './modules/mail/mail.module';
     PrivacyModule,
     SchoolsModule,
     UploadsModule,
+    FilesModule,
     DepartureConsentModule,
     EventSchedulerModule,
     ExternalVisitsModule

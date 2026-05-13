@@ -3,9 +3,9 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTableScroll, DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT } from '@/components/DataTableScroll';
 import { DetailModal } from '@/components/DetailModal';
 import { type SmartSelectOption, SmartSelect } from '@/components/SmartSelect';
+import { AuthImage } from '@/components/AuthImage';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { publicAssetUrl } from '@/lib/asset-url';
 import { uploadUserAvatar } from '@/lib/uploads-api';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin, isStaff } from '@/lib/roles';
@@ -237,11 +237,19 @@ function RosterAvatar({
   busy: boolean;
   onPick: (file: File) => void;
 }) {
-  const src = publicAssetUrl(avatarUrl ?? null);
   return (
     <div className="flex items-center gap-2">
       <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-slate-200 text-center text-[11px] font-semibold leading-9 text-slate-700">
-        {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : rosterInitials(fullName)}
+        {avatarUrl ? (
+          <AuthImage
+            src={avatarUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            fallback={<>{rosterInitials(fullName)}</>}
+          />
+        ) : (
+          rosterInitials(fullName)
+        )}
       </div>
       {canUpload ? (
         <label className="cursor-pointer text-[11px] text-brand-800 underline">

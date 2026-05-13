@@ -58,6 +58,61 @@ export class ReportsService {
     };
   }
 
+  async classAttendanceByGroup(groupId: string, userId: string, role: UserRole, dateStr?: string) {
+    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    await this.assertCanViewGroup(userId, role, groupId);
+
+    const rows = await this.attendanceRepository.manager.query<
+      {
+        id: string;
+        studentId: string;
+        classSessionId: string;
+        attendanceDate: string;
+        status: string;
+        isJustified: boolean;
+        notes: string | null;
+        studentName: string;
+        matricula: string;
+        subjectName: string | null;
+        teacherName: string | null;
+        startTime: string;
+        endTime: string;
+      }[]
+    >(
+      `SELECT car.id,
+              car.student_id AS "studentId",
+              car.class_session_id AS "classSessionId",
+              car.attendance_date AS "attendanceDate",
+              car.status::text AS status,
+              car.is_justified AS "isJustified",
+              car.notes,
+              u.full_name AS "studentName",
+              s.matricula,
+              sub.name AS "subjectName",
+              tu.full_name AS "teacherName",
+              cs.start_time AS "startTime",
+              cs.end_time AS "endTime"
+       FROM class_attendance_records car
+       JOIN students s ON s.id = car.student_id
+       JOIN users u ON u.id = s.user_id
+       JOIN class_sessions cs ON cs.id = car.class_session_id
+       LEFT JOIN subjects sub ON sub.id = cs.subject_id
+       LEFT JOIN teachers t ON t.id = cs.teacher_id
+       LEFT JOIN users tu ON tu.id = t.user_id
+       WHERE s.group_id = $1
+         AND car.attendance_date = $2::date
+       ORDER BY cs.start_time ASC, u.full_name ASC`,
+      [groupId, date]
+    );
+
+    const byStatus = rows.reduce<Record<string, number>>((acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return { date, groupId, totalRecords: rows.length, byStatus, data: rows };
+  }
+
   async paymentsPending(schoolId?: string) {
     const sid = schoolId?.trim();
     const pendingQb = this.debtsRepository

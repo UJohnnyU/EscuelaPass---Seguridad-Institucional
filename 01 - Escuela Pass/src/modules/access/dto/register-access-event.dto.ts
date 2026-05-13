@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEnum, IsString } from 'class-validator';
 import { AccessEventType, AccessMethod } from '../../../database/entities/access-event.entity';
 
 export class RegisterAccessEventDto {
@@ -10,8 +10,4 @@ export class RegisterAccessEventDto {
 
   @IsEnum(AccessEventType)
   eventType!: AccessEventType;
-
-  @IsUUID()
-  @IsOptional()
-  registeredBy?: string;
 }

@@ -511,7 +511,7 @@ export class SchoolController {
 
   @Post('student-parent-links')
   linkParentStudent(@Body() dto: LinkParentStudentDto, @Req() req: Request & { user: JwtUser }) {
-    return this.schoolService.linkParentStudent(dto, this.scopeSchool(req.user));
+    return this.schoolService.linkParentStudent(dto, this.scopeSchool(req.user), req.user.userId);
   }
 
   @Patch('student-parent-links/:id')
@@ -528,7 +528,7 @@ export class SchoolController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Req() req: Request & { user: JwtUser }
   ) {
-    return this.schoolService.unlinkStudentParent(id, this.scopeSchool(req.user));
+    return this.schoolService.unlinkStudentParent(id, this.scopeSchool(req.user), req.user.userId);
   }
 
   @Post('import/groups/xlsx')

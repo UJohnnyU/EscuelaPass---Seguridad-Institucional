@@ -380,9 +380,12 @@ export class PaymentsService {
     if (!parent) throw new ForbiddenException('Solo padres pueden cargar comprobantes');
     const debt = await this.debtsRepository.findOne({ where: { id: debtId } });
     if (!debt) throw new NotFoundException('Deuda no encontrada');
+    const rejectedAttempts = this.rejectedAttemptsFromDebtNotes(debt.notes);
+    if (rejectedAttempts >= 3) {
+      throw new BadRequestException('Has alcanzado el máximo de intentos. Contacta a administración.');
+    }
     if (debt.status === PaymentStatus.COMPROBANTE_RECHAZADO) {
       debt.status = PaymentStatus.PENDIENTE;
-      debt.notes = null;
     }
     if (debt.status !== PaymentStatus.PENDIENTE) {
       throw new BadRequestException('La deuda no admite comprobante en este estado');
@@ -527,8 +530,10 @@ export class PaymentsService {
       throw new BadRequestException('Este comprobante ya fue verificado.');
     }
     const reason = dto.reason.trim();
+    const rejectedAttempts = this.rejectedAttemptsFromDebtNotes(debt.notes) + 1;
     debt.status = PaymentStatus.COMPROBANTE_RECHAZADO;
-    debt.notes = reason;
+    // TODO Fase 7: agregar columna rejected_attempts o tabla payment_receipts; se conserva el contador en notes.
+    debt.notes = `[rejected_attempts=${rejectedAttempts}] ${reason}`;
     await this.debtsRepository.save(debt);
     void this.notifyParentUsersAboutDebt(
       debt.studentId,
@@ -717,6 +722,13 @@ export class PaymentsService {
     );
     const n = row[0]?.full_name?.trim();
     return n || 'el estudiante';
+  }
+
+  private rejectedAttemptsFromDebtNotes(notes: string | null | undefined): number {
+    const match = notes?.match(/\[rejected_attempts=(\d+)\]/);
+    if (!match) return 0;
+    const n = Number.parseInt(match[1], 10);
+    return Number.isFinite(n) ? n : 0;
   }
 
   private async notifyParentUsersAboutDebt(

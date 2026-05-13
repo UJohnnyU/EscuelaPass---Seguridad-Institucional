@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
@@ -95,21 +95,26 @@ export function AdminDashboardPanel() {
   const [data, setData] = useState<AdminPanelPayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [refDate, setRefDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const hasDataRef = useRef(false);
 
   const load = useCallback(async () => {
     setErr(null);
-    setLoading(true);
+    if (!hasDataRef.current) setLoading(true);
+    else setRefreshing(true);
     try {
       const { data: payload } = await api.get<AdminPanelPayload>('/api/v1/dashboard/panel', {
         params: { date: refDate }
       });
       setData(payload);
+      hasDataRef.current = true;
     } catch (e) {
       setErr(getUserFacingMessage(e, 'No se pudo cargar el panel.'));
-      setData(null);
+      if (!hasDataRef.current) setData(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [refDate]);
 
@@ -127,7 +132,7 @@ export function AdminDashboardPanel() {
     : [];
 
   return (
-    <section className="space-y-6" aria-label="Panel institucional">
+    <section className="space-y-6" aria-label="Panel institucional" aria-busy={refreshing}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-serif text-xl font-semibold text-slate-900">Panel de su escuela</h2>
@@ -164,6 +169,14 @@ export function AdminDashboardPanel() {
             Informes detallados
           </Link>
         </div>
+      </div>
+
+      {/* Barra de progreso discreta para refrescos posteriores al inicial */}
+      <div
+        className={`h-px w-full overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-100' : 'opacity-0'}`}
+        aria-hidden="true"
+      >
+        <div className="h-full w-1/2 animate-progress-bar bg-brand-500/70" />
       </div>
 
       {err && (

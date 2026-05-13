@@ -21,6 +21,7 @@ import { isStaff as userIsStaff } from '@/lib/roles';
 import { useParentCircuitGpsOnDevice } from '@/lib/circuit-device-context';
 import type { MapContextPayload } from '@/components/CircuitArrivalMap';
 import { ParentTrackingMap } from '@/components/circuit/ParentTrackingMap';
+import { useAdaptivePolling } from '@/hooks/use-adaptive-polling';
 
 const CircuitArrivalMap = lazy(() =>
   import('@/components/CircuitArrivalMap').then((m) => ({ default: m.CircuitArrivalMap }))
@@ -47,7 +48,8 @@ type CircuitReq = {
 };
 
 const REMINDER_WINDOW_MIN = 15;
-const CIRCUIT_AUTO_REFRESH_MS = 3000;
+const CIRCUIT_AUTO_REFRESH_FOCUSED_MS = 10000;
+const CIRCUIT_AUTO_REFRESH_BLURRED_MS = 60000;
 
 /** Datos de escuela recuperados del endpoint /map para mostrar el mapa en vivo del padre. */
 type SchoolGeoCtx = { schoolLatitude: number; schoolLongitude: number; arrivalRadiusKm: number } | null;
@@ -77,13 +79,19 @@ export function CircuitDetailPage() {
   const isStaff = userIsStaff(user);
   const parentGpsOnThisDevice = useParentCircuitGpsOnDevice();
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (signal?: AbortSignal) => {
     if (!id) return;
     const cacheBust = { params: { _t: String(Date.now()) } };
-    const { data } = await api.get<CircuitReq>(`/api/v1/circuit-requests/${id}`, cacheBust);
+    const { data } = await api.get<CircuitReq>(`/api/v1/circuit-requests/${id}`, {
+      ...cacheBust,
+      signal
+    });
     setRow(data);
     try {
-      const { data: m } = await api.get<MapContextPayload>(`/api/v1/circuit-requests/${id}/map`, cacheBust);
+      const { data: m } = await api.get<MapContextPayload>(`/api/v1/circuit-requests/${id}/map`, {
+        ...cacheBust,
+        signal
+      });
       setMapCtx(m);
       // Extraemos datos de escuela para el mapa en vivo del padre
       if (m.schoolLatitude && m.schoolLongitude) {
@@ -185,34 +193,18 @@ export function CircuitDetailPage() {
     }
   }, [id, row, reminderLogic.urgent]);
 
-  useEffect(() => {
-    if (!id) return;
-
-    const poll = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+  useAdaptivePolling({
+    enabled: Boolean(id),
+    intervalFocused: CIRCUIT_AUTO_REFRESH_FOCUSED_MS,
+    intervalBlurred: CIRCUIT_AUTO_REFRESH_BLURRED_MS,
+    onPoll: async ({ signal }) => {
       try {
-        await reload();
+        await reload(signal);
       } catch {
         // Polling silencioso: evita ruido de errores intermitentes de red.
       }
-    };
-
-    const intervalId = setInterval(() => {
-      void poll();
-    }, CIRCUIT_AUTO_REFRESH_MS);
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void poll();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [id, reload]);
+    }
+  });
 
   function releasePartnerSoundSuppressionSoon() {
     if (typeof window === 'undefined') return;

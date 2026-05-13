@@ -83,6 +83,13 @@ export class MeetingsService {
       throw new BadRequestException('Organizador sin institución asignada');
     }
     if (!schoolId) throw new BadRequestException('Debe indicar una institución válida');
+    const startAt = new Date(dto.startAt);
+    if (Number.isNaN(startAt.getTime())) {
+      throw new BadRequestException('Fecha de reunión inválida.');
+    }
+    if (startAt.getTime() < Date.now()) {
+      throw new BadRequestException('No se pueden agendar eventos en el pasado.');
+    }
     const invitees = dto.invitees ?? [];
 
     if (role === UserRole.DOCENTE) {
@@ -119,6 +126,10 @@ export class MeetingsService {
       schoolId,
       role
     );
+    const administrativeOnly = participants.every((p) =>
+      [UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE].includes(p.role)
+    );
+    await this.assertInstructionalDateForMeeting(schoolId, startAt, administrativeOnly);
 
     const meeting = await this.dataSource.transaction(async (em) => {
       const row = em.create(MeetingEntity, {
@@ -130,7 +141,7 @@ export class MeetingsService {
         modality: dto.modality ?? MeetingModality.PRESENCIAL,
         location: dto.location?.trim() ?? null,
         meetingLink: dto.meetingLink?.trim() ?? null,
-        startAt: new Date(dto.startAt),
+        startAt,
         durationMinutes: dto.durationMinutes ?? 30,
         status: MeetingStatus.PROGRAMADA
       });
@@ -384,6 +395,27 @@ export class MeetingsService {
       }
     }
     return users.map((u) => ({ id: u.id, role: u.role }));
+  }
+
+  private async assertInstructionalDateForMeeting(
+    schoolId: string,
+    scheduledAt: Date,
+    administrativeOnly: boolean
+  ): Promise<void> {
+    if (administrativeOnly) return;
+    const ymd = scheduledAt.toISOString().slice(0, 10);
+    const rows = await this.dataSource.query<{ id: string }[]>(
+      `SELECT id
+       FROM school_non_instructional_days
+       WHERE school_id = $1::uuid
+         AND group_id IS NULL
+         AND exception_date = $2::date
+       LIMIT 1`,
+      [schoolId, ymd]
+    );
+    if (rows[0]?.id) {
+      throw new BadRequestException('No se pueden agendar eventos en días no lectivos.');
+    }
   }
 
   private async assertTeacherOwnsGroups(userId: string, groupIds: string[]): Promise<void> {

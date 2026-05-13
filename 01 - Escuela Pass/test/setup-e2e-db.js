@@ -41,6 +41,20 @@ function sqlWithoutConflictTargets(sql) {
   return sql.replace(/\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING/gi, 'ON CONFLICT DO NOTHING');
 }
 
+/**
+ * El baseline incluye un bloque de compatibilidad que rellena `groups.school_id`
+ * usando `FROM students s` ANTES de que la tabla `students` exista (CREATE TABLE
+ * students aparece más abajo en el mismo archivo). En el flujo E2E la BD se
+ * recrea desde cero, así que esos UPDATE son no-op y deben eliminarse del SQL
+ * antes de ejecutarlo para evitar `error: no existe la relación «students»`.
+ */
+function sqlWithoutForwardStudentRefs(sql) {
+  return sql.replace(
+    /UPDATE\s+groups\s+g\s+SET\s+school_id\s*=\s*u\.school_id\s+FROM\s+students[\s\S]*?;/gi,
+    '-- [e2e] compat UPDATE groups<-students removido (forward reference, no-op en DB limpia)'
+  );
+}
+
 /** Evita BOM UTF-8 en el primer byte (Postgres devuelve `syntax error at or near "`"). */
 function readUtf8SqlNoBom(filePath) {
   const buf = fs.readFileSync(filePath);
@@ -52,7 +66,11 @@ function readUtf8SqlNoBom(filePath) {
 async function runSqlFile(
   client,
   relativeFile,
-  { stripCreateExtensions = false, stripConflictTargets = false } = {}
+  {
+    stripCreateExtensions = false,
+    stripConflictTargets = false,
+    stripForwardStudentRefs = false
+  } = {}
 ) {
   const filePath = path.resolve(__dirname, '..', relativeFile);
   let sql = readUtf8SqlNoBom(filePath);
@@ -61,6 +79,9 @@ async function runSqlFile(
   }
   if (stripConflictTargets) {
     sql = sqlWithoutConflictTargets(sql);
+  }
+  if (stripForwardStudentRefs) {
+    sql = sqlWithoutForwardStudentRefs(sql);
   }
   await client.query(sql);
   // eslint-disable-next-line no-console
@@ -117,7 +138,8 @@ async function main() {
     // Nota: el esquema requiere uuid-ossp y pgcrypto. Si tu usuario no puede crear extensiones,
     // créalas una vez como superusuario en esta BD (o E2E_SKIP_EXTENSIONS=1 en hosts gestionados).
     await runSqlFile(client, 'src/database/baseline/typeorm-baseline-v3.sql', {
-      stripCreateExtensions: stripExtensions
+      stripCreateExtensions: stripExtensions,
+      stripForwardStudentRefs: true
     });
     // Compatibilidad con esquemas runtime más nuevos: el seed histórico no incluye lat/lng.
     await client.query(`
@@ -437,6 +459,82 @@ async function main() {
     `);
     // eslint-disable-next-line no-console
     console.log('[e2e-db] OK circuit_status.CERRADO_SIN_CONFIRMACION_PADRE + columnas padre');
+    // El esquema runtime crea `class_sessions`, `teacher_subjects` y
+    // `class_attendance_records` en `ensureRuntimeSchema` / migraciones formales,
+    // pero la suite e2e no arranca el bootstrap completo y depende de ellas:
+    // - CircuitService.findCurrentClassSession consulta class_sessions al notificar nuevas solicitudes.
+    // - ClassAttendanceService.listForParentChildren consulta class_attendance_records.
+    // - app.e2e-spec.ts inserta directamente en class_sessions para configurar horarios.
+    // Aquí garantizamos su existencia sin tocar la baseline DDL.
+    // Además normalizamos enums clave (payment_status) cuya migración tampoco corre en e2e.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS class_sessions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_period_id uuid NOT NULL REFERENCES academic_periods(id) ON DELETE CASCADE,
+        group_id uuid NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,
+        teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT,
+        weekday smallint NOT NULL,
+        start_time time NOT NULL,
+        end_time time NOT NULL,
+        room varchar(80) NULL,
+        is_active boolean NOT NULL DEFAULT true,
+        created_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        updated_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT ck_class_sessions_weekday CHECK (weekday BETWEEN 0 AND 6),
+        CONSTRAINT ck_class_sessions_times CHECK (end_time > start_time)
+      );
+      CREATE INDEX IF NOT EXISTS ix_class_sessions_school_period_weekday
+        ON class_sessions (school_id, academic_period_id, weekday);
+      CREATE INDEX IF NOT EXISTS ix_class_sessions_group ON class_sessions (group_id);
+      CREATE INDEX IF NOT EXISTS ix_class_sessions_teacher ON class_sessions (teacher_id);
+      CREATE TABLE IF NOT EXISTS teacher_subjects (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_subjects_teacher_subject
+        ON teacher_subjects (teacher_id, subject_id);
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS class_attendance_records (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        class_session_id uuid NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+        attendance_date date NOT NULL,
+        status attendance_status NOT NULL,
+        is_justified boolean NOT NULL DEFAULT false,
+        notes text NULL,
+        excuse_attachment_path varchar(500) NULL,
+        registered_by uuid NULL REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_class_attendance_student_session_date UNIQUE (student_id, class_session_id, attendance_date)
+      );
+      CREATE INDEX IF NOT EXISTS ix_class_att_student_date
+        ON class_attendance_records(student_id, attendance_date);
+      CREATE INDEX IF NOT EXISTS ix_class_att_session_date
+        ON class_attendance_records(class_session_id, attendance_date);
+    `);
+    // payment_status: el baseline solo tiene PENDIENTE/PAGADO/VENCIDO pero
+    // el código usa COMPROBANTE_RECHAZADO (added en migración 1777120000000).
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status')
+           AND NOT EXISTS (
+             SELECT 1 FROM pg_enum e
+             JOIN pg_type t ON e.enumtypid = t.oid
+             WHERE t.typname = 'payment_status' AND e.enumlabel = 'COMPROBANTE_RECHAZADO'
+           ) THEN
+          ALTER TYPE payment_status ADD VALUE 'COMPROBANTE_RECHAZADO';
+        END IF;
+      END $$;
+    `);
     // Evita datos de corridas E2E anteriores (días sin clases / asistencias con "hoy").
     await client.query(`
       TRUNCATE TABLE attendance_records RESTART IDENTITY CASCADE;
@@ -444,6 +542,25 @@ async function main() {
     `);
   } finally {
     await client.end();
+  }
+
+  /** Alinea con `main.ts` tras el baseline (tablas/columnas incrementales). */
+  runEnsureRuntimeSchemaSync();
+}
+
+function runEnsureRuntimeSchemaSync() {
+  const { spawnSync } = require('child_process');
+  const root = path.resolve(__dirname, '..');
+  const tsconfig = path.join(__dirname, 'tsconfig.e2e-tools.json');
+  const script = path.join(__dirname, 'ensure-runtime-schema-e2e.ts');
+  const result = spawnSync(process.execPath, ['-r', 'ts-node/register/transpile-only', script], {
+    cwd: root,
+    stdio: 'inherit',
+    env: { ...process.env, TS_NODE_PROJECT: tsconfig }
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`ensure-runtime-schema-e2e falló (código ${result.status ?? '?'})`);
   }
 }
 

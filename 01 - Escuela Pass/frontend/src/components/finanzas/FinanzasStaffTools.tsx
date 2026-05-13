@@ -3,11 +3,11 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DetailModal } from '@/components/DetailModal';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
-import { publicAssetUrl } from '@/lib/asset-url';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
 import { SmartSelect } from '@/components/SmartSelect';
 import { DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT, DataTableScroll } from '@/components/DataTableScroll';
+import { openProtectedFile } from '@/lib/protected-files';
 
 type PaymentConcept = {
   id: string;
@@ -1001,7 +1001,6 @@ export function FinanzasStaffTools() {
               {debtsForTable.map((d) => {
                 const needsReview =
                   d.status === 'PENDIENTE' && Boolean(d.voucherPath) && !d.verifiedAt;
-                const voucherUrl = d.voucherPath ? publicAssetUrl(d.voucherPath) : null;
                 return (
                   <tr key={d.id} className="border-b border-slate-100 align-top">
                     <td className="py-2 pr-3">
@@ -1032,15 +1031,18 @@ export function FinanzasStaffTools() {
                       ) : null}
                     </td>
                     <td className="py-2 pr-3">
-                      {voucherUrl ? (
-                        <a
-                          href={voucherUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                      {d.voucherPath ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void openProtectedFile(d.voucherPath!).catch((e) =>
+                              setError(getUserFacingMessage(e, 'No se pudo abrir el comprobante.'))
+                            )
+                          }
                           className="text-brand-900 underline hover:text-brand-800"
                         >
                           Ver archivo
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}

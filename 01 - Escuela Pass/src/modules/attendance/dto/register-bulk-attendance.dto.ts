@@ -38,6 +38,10 @@ export class RegisterBulkAttendanceDto {
   @IsDateString()
   attendanceDate?: string;
 
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
+
   @ValidateNested({ each: true })
   @Type(() => BulkAttendanceEntryDto)
   @ArrayMinSize(1)

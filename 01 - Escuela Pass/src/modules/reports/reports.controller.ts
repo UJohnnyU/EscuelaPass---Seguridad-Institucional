@@ -24,6 +24,16 @@ export class ReportsController {
     return this.reportsService.attendanceToday(groupId, req.user.userId, req.user.role, date);
   }
 
+  @Get('attendance/classes')
+  @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO, UserRole.DOCENTE)
+  classAttendance(
+    @Query('groupId') groupId: string,
+    @Query('date') date: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.reportsService.classAttendanceByGroup(groupId, req.user.userId, req.user.role, date);
+  }
+
   @Get('payments/pending')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVO)
   paymentsPending(@Req() req: Request & { user: JwtUser }, @Query('schoolId') schoolId: string | undefined) {

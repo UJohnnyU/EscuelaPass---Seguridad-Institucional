@@ -21,6 +21,10 @@ export class RegisterAttendanceDto {
   isJustified?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  force?: boolean;
+
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   notes?: string;

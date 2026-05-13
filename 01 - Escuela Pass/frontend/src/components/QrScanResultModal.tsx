@@ -1,4 +1,4 @@
-import { publicAssetUrl } from '@/lib/asset-url';
+import { AuthImage } from '@/components/AuthImage';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
@@ -35,7 +35,6 @@ export function QrScanResultModal({
   onRescan: () => void;
 }) {
   const p = result.persona ?? {};
-  const avatar = publicAssetUrl(p.avatarUrl ?? null);
   const roleLabel = ROLE_LABEL[p.rol ?? ''] ?? p.rol ?? '—';
   const access = p.acceso === 'AUTORIZADO';
   const initials = (() => {
@@ -62,8 +61,17 @@ export function QrScanResultModal({
         </div>
         <div className="-mt-14 px-6">
           <div className="mx-auto h-28 w-28 overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-lg">
-            {avatar ? (
-              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            {p.avatarUrl ? (
+              <AuthImage
+                src={p.avatarUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                fallback={
+                  <div className="flex h-full w-full items-center justify-center bg-slate-800 text-2xl font-semibold text-white">
+                    {initials}
+                  </div>
+                }
+              />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-slate-800 text-2xl font-semibold text-white">
                 {initials}
