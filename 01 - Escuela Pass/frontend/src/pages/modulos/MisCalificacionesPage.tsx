@@ -54,6 +54,12 @@ function formatDueDateLocalYmd(dueYmd: string | null | undefined): string {
   return d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/** Normaliza año escolar para comparar filtros con filas API (string/trim). */
+function normYear(y: string | null | undefined): string {
+  if (y == null || y === '') return '';
+  return String(y).trim();
+}
+
 export function MisCalificacionesPage() {
   const { user } = useAuth();
   const isParent = user?.role === 'PADRE';
@@ -157,13 +163,13 @@ export function MisCalificacionesPage() {
     const map = new Map<string, string>();
     for (const r of rows) {
       if (!r.periodId) continue;
-      if (filterYear && r.schoolYear !== filterYear) continue;
+      if (filterYear && normYear(r.schoolYear) !== normYear(filterYear)) continue;
       const periodLabel = r.periodName?.trim() || r.period?.trim() || 'Periodo';
       const yearLabel = r.schoolYear ? ` · ${r.schoolYear}` : '';
       if (!map.has(r.periodId)) map.set(r.periodId, `${periodLabel}${yearLabel}`);
     }
     for (const p of allPeriods) {
-      if (filterYear && p.schoolYear !== filterYear) continue;
+      if (filterYear && normYear(p.schoolYear) !== normYear(filterYear)) continue;
       if (map.has(p.id)) continue;
       const base = p.name?.trim() || 'Periodo';
       const yearLabel = p.schoolYear ? ` · ${p.schoolYear}` : '';
@@ -176,7 +182,16 @@ export function MisCalificacionesPage() {
     ];
   }, [rows, allPeriods, filterYear]);
 
-  const visibleRows = rows.filter((r) => (filterChild ? r.studentId === filterChild : true));
+  /** Año escolar: comparación tolerante (espacios / tipos distintos API↔UI). */
+  const visibleRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (filterChild && r.studentId !== filterChild) return false;
+      if (filterYear && normYear(r.schoolYear) !== normYear(filterYear)) return false;
+      // Mientras llega el fetch tras cambiar periodo (debounce) o si el backend devuelve filas extra
+      if (filterPeriod && r.periodId !== filterPeriod) return false;
+      return true;
+    });
+  }, [rows, filterChild, filterYear, filterPeriod]);
 
   // Agrupar por materia para mostrar promedio local (solo actividades cerradas / publicadas)
   const groupedBySubject = useMemo(() => {

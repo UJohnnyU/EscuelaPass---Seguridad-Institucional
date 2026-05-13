@@ -176,6 +176,15 @@ export function PerfilPage() {
     };
   }, [me?.role, user?.role]);
 
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [fullscreen]);
+
   const initials = useMemo(() => {
     const n = (me?.fullName ?? user?.fullName ?? '?').trim();
     const parts = n.split(/\s+/).filter(Boolean);
@@ -370,14 +379,24 @@ export function PerfilPage() {
       {fullscreen && qrValue && (
         <button
           type="button"
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/95 p-6 text-white"
+          className="fixed bottom-0 left-0 right-0 top-0 z-[100] flex flex-col items-center justify-center bg-slate-950/95 p-6 text-white motion-reduce:animate-none animate-fade-in lg:left-60 dark:bg-slate-950/95"
           onClick={() => setFullscreen(false)}
+          aria-label="Cerrar vista de código QR a pantalla completa"
         >
-          <span className="mb-6 text-sm font-medium">Toque en cualquier lugar para cerrar</span>
-          <div className="rounded bg-white p-6">
+          <span className="mb-6 max-w-sm text-center text-sm font-medium motion-reduce:animate-none animate-auth-in">
+            Toque en cualquier lugar para cerrar
+          </span>
+          <div className="rounded bg-white p-6 shadow-xl motion-reduce:animate-none animate-auth-in-delay-sm dark:shadow-slate-950/80">
             <QRCodeSVG
               value={qrValue}
-              size={Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 280)}
+              size={(() => {
+                if (typeof window === 'undefined') return 280;
+                const pad = 56;
+                const sidebarW = window.matchMedia('(min-width: 1024px)').matches ? 240 : 0;
+                const maxW = window.innerWidth - sidebarW - pad;
+                const maxH = window.innerHeight - pad * 2;
+                return Math.min(320, Math.max(160, maxW), Math.max(160, maxH));
+              })()}
               level="M"
               includeMargin
             />
