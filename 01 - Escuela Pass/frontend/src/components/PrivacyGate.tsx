@@ -106,7 +106,7 @@ export function PrivacyGate({ children }: { children: ReactNode }) {
   if (state.kind === 'loading') {
     return (
       <div className="flex min-h-[50vh] items-center justify-center" aria-busy="true">
-        <p className="text-slate-600 animate-pulse">Cargando…</p>
+        <p className="animate-pulse text-slate-600 dark:text-slate-400">Cargando…</p>
       </div>
     );
   }
@@ -118,19 +118,19 @@ export function PrivacyGate({ children }: { children: ReactNode }) {
   if (state.kind === 'error') {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="max-w-md text-slate-700">{state.message}</p>
+        <p className="max-w-md text-slate-700 dark:text-slate-300">{state.message}</p>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => void refresh()}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-brand-600 dark:hover:bg-brand-500"
           >
             Reintentar
           </button>
           <button
             type="button"
             onClick={() => void logout()}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cerrar sesión
           </button>
@@ -140,28 +140,28 @@ export function PrivacyGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/60 px-2 py-4 sm:items-center sm:p-6">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="border-b border-slate-200 px-6 py-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/60 px-2 py-4 dark:bg-slate-950/75 sm:items-center sm:p-6">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:border dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/50">
+        <div className="border-b border-slate-200 px-6 py-4 dark:border-slate-700">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Versión {state.policy.version}
           </p>
-          <h1 className="mt-1 text-lg font-semibold text-slate-900">{policyTitle}</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{policyTitle}</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Para continuar usando Escuela Pass debe leer y aceptar el aviso de privacidad vigente.
           </p>
         </div>
         <div
           ref={contentRef}
           onScroll={handleScroll}
-          className="prose prose-sm max-w-none flex-1 overflow-y-auto px-6 py-4 text-slate-800"
+          className="prose prose-sm max-w-none flex-1 overflow-y-auto bg-white px-6 py-4 text-slate-800 dark:bg-slate-900 dark:text-slate-200"
         >
-          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
+          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800 dark:text-slate-200">
             {state.policy.content}
           </pre>
         </div>
-        <div className="flex flex-col gap-2 border-t border-slate-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-slate-500">
+        <div className="flex flex-col gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {scrolledToEnd
               ? 'Ha leído el aviso. Puede aceptar para continuar.'
               : 'Desplácese hasta el final del aviso para habilitar el botón Aceptar.'}
@@ -170,7 +170,7 @@ export function PrivacyGate({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cerrar sesión
             </button>
@@ -178,7 +178,7 @@ export function PrivacyGate({ children }: { children: ReactNode }) {
               type="button"
               disabled={!scrolledToEnd || submitting}
               onClick={() => void accept()}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-brand-600 dark:hover:bg-brand-500 dark:disabled:bg-slate-600"
             >
               {submitting ? 'Registrando…' : 'Acepto el aviso'}
             </button>

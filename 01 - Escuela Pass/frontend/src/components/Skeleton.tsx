@@ -4,7 +4,7 @@
 function Row({ height = 56 }: { height?: number }) {
   return (
     <div
-      className="animate-pulse rounded-lg bg-slate-200/60"
+      className="animate-pulse rounded-lg bg-slate-200/60 dark:bg-slate-600/35"
       style={{ height }}
       role="presentation"
       aria-hidden="true"
@@ -15,7 +15,7 @@ function Row({ height = 56 }: { height?: number }) {
 function Card({ height = 200 }: { height?: number }) {
   return (
     <div
-      className="animate-pulse rounded-xl bg-slate-100"
+      className="animate-pulse rounded-xl bg-slate-100 dark:bg-slate-700/40"
       style={{ height }}
       role="presentation"
       aria-hidden="true"
@@ -26,7 +26,7 @@ function Card({ height = 200 }: { height?: number }) {
 function Avatar({ size = 48 }: { size?: number }) {
   return (
     <div
-      className="animate-pulse shrink-0 rounded-full bg-slate-200/60"
+      className="animate-pulse shrink-0 rounded-full bg-slate-200/60 dark:bg-slate-600/35"
       style={{ width: size, height: size }}
       role="presentation"
       aria-hidden="true"
@@ -37,7 +37,7 @@ function Avatar({ size = 48 }: { size?: number }) {
 function Text({ width = '60%', height = 16 }: { width?: string | number; height?: number }) {
   return (
     <div
-      className="animate-pulse rounded bg-slate-200/60"
+      className="animate-pulse rounded bg-slate-200/60 dark:bg-slate-600/35"
       style={{ width, height }}
       role="presentation"
       aria-hidden="true"

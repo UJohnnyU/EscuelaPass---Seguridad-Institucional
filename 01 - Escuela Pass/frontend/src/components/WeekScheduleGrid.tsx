@@ -66,16 +66,16 @@ const TIME_COL_PX = 56;
  * time   = de-emphasized time text
  */
 const COLOR_PALETTE: { bg: string; border: string; text: string; time: string }[] = [
-  { bg: 'bg-sky-50',     border: 'border-sky-500',     text: 'text-sky-900',     time: 'text-sky-600' },
-  { bg: 'bg-amber-50',   border: 'border-amber-500',   text: 'text-amber-900',   time: 'text-amber-600' },
-  { bg: 'bg-emerald-50', border: 'border-emerald-500', text: 'text-emerald-900', time: 'text-emerald-600' },
-  { bg: 'bg-rose-50',    border: 'border-rose-500',    text: 'text-rose-900',    time: 'text-rose-600' },
-  { bg: 'bg-violet-50',  border: 'border-violet-500',  text: 'text-violet-900',  time: 'text-violet-600' },
-  { bg: 'bg-orange-50',  border: 'border-orange-500',  text: 'text-orange-900',  time: 'text-orange-600' },
-  { bg: 'bg-cyan-50',    border: 'border-cyan-500',    text: 'text-cyan-900',    time: 'text-cyan-600' },
-  { bg: 'bg-fuchsia-50', border: 'border-fuchsia-500', text: 'text-fuchsia-900', time: 'text-fuchsia-600' },
-  { bg: 'bg-lime-50',    border: 'border-lime-500',    text: 'text-lime-900',    time: 'text-lime-600' },
-  { bg: 'bg-indigo-50',  border: 'border-indigo-500',  text: 'text-indigo-900',  time: 'text-indigo-600' },
+  { bg: 'bg-sky-50 dark:bg-sky-950/45', border: 'border-sky-500 dark:border-sky-400', text: 'text-sky-900 dark:text-sky-50', time: 'text-sky-600 dark:text-sky-300' },
+  { bg: 'bg-amber-50 dark:bg-amber-950/40', border: 'border-amber-500 dark:border-amber-400', text: 'text-amber-900 dark:text-amber-50', time: 'text-amber-600 dark:text-amber-300' },
+  { bg: 'bg-emerald-50 dark:bg-emerald-950/40', border: 'border-emerald-500 dark:border-emerald-400', text: 'text-emerald-900 dark:text-emerald-50', time: 'text-emerald-600 dark:text-emerald-300' },
+  { bg: 'bg-rose-50 dark:bg-rose-950/40', border: 'border-rose-500 dark:border-rose-400', text: 'text-rose-900 dark:text-rose-50', time: 'text-rose-600 dark:text-rose-300' },
+  { bg: 'bg-violet-50 dark:bg-violet-950/40', border: 'border-violet-500 dark:border-violet-400', text: 'text-violet-900 dark:text-violet-50', time: 'text-violet-600 dark:text-violet-300' },
+  { bg: 'bg-orange-50 dark:bg-orange-950/40', border: 'border-orange-500 dark:border-orange-400', text: 'text-orange-900 dark:text-orange-50', time: 'text-orange-600 dark:text-orange-300' },
+  { bg: 'bg-cyan-50 dark:bg-cyan-950/40', border: 'border-cyan-500 dark:border-cyan-400', text: 'text-cyan-900 dark:text-cyan-50', time: 'text-cyan-600 dark:text-cyan-300' },
+  { bg: 'bg-fuchsia-50 dark:bg-fuchsia-950/40', border: 'border-fuchsia-500 dark:border-fuchsia-400', text: 'text-fuchsia-900 dark:text-fuchsia-50', time: 'text-fuchsia-600 dark:text-fuchsia-300' },
+  { bg: 'bg-lime-50 dark:bg-lime-950/35', border: 'border-lime-500 dark:border-lime-400', text: 'text-lime-900 dark:text-lime-50', time: 'text-lime-700 dark:text-lime-300' },
+  { bg: 'bg-indigo-50 dark:bg-indigo-950/45', border: 'border-indigo-500 dark:border-indigo-400', text: 'text-indigo-900 dark:text-indigo-50', time: 'text-indigo-600 dark:text-indigo-300' }
 ];
 
 function timeToMinutes(t: string): number {
@@ -232,17 +232,19 @@ export function WeekScheduleGrid({
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/30">
       <div style={{ minWidth: `${TIME_COL_PX + orderedDays.length * 110}px` }}>
 
         {/* ── Header row ── */}
         <div
-          className="grid border-b border-slate-200 bg-slate-50/80"
+          className="grid border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/80"
           style={{ gridTemplateColumns: `${TIME_COL_PX}px repeat(${orderedDays.length}, minmax(0, 1fr))` }}
         >
           {/* Time column header */}
           <div className="flex items-end justify-end px-2 pb-2 pt-3">
-            <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">hr</span>
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+              hr
+            </span>
           </div>
 
           {orderedDays.map((d) => {
@@ -250,14 +252,14 @@ export function WeekScheduleGrid({
             return (
               <div
                 key={d.weekday}
-                className={`border-l border-slate-200 px-2 pb-2 pt-3 text-center ${
-                  isTodayCol ? 'bg-brand-50/60' : ''
+                className={`border-l border-slate-200 px-2 pb-2 pt-3 text-center dark:border-slate-700 ${
+                  isTodayCol ? 'bg-brand-50/60 dark:bg-brand-950/35' : ''
                 }`}
               >
                 {/* Day abbreviation */}
                 <div
                   className={`text-[10px] font-bold uppercase tracking-widest ${
-                    isTodayCol ? 'text-brand-600' : 'text-slate-400'
+                    isTodayCol ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'
                   }`}
                 >
                   {WEEKDAY_SHORT[d.weekday]}
@@ -271,20 +273,20 @@ export function WeekScheduleGrid({
                         {Number.parseInt(d.dateISO.slice(8, 10), 10)}
                       </span>
                     ) : (
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-slate-700">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-slate-700 dark:text-slate-200">
                         {Number.parseInt(d.dateISO.slice(8, 10), 10)}
                       </span>
                     )}
                   </div>
                 ) : (
-                  <div className={`mt-1 text-xs font-medium capitalize ${isTodayCol ? 'text-brand-700' : 'text-slate-600'}`}>
+                  <div className={`mt-1 text-xs font-medium capitalize ${isTodayCol ? 'text-brand-700 dark:text-brand-300' : 'text-slate-600 dark:text-slate-300'}`}>
                     {WEEKDAY_LONG[d.weekday]}
                   </div>
                 )}
 
                 {/* Off-day badge */}
                 {d.isOff ? (
-                  <div className="mx-auto mt-1.5 inline-block max-w-full rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                  <div className="mx-auto mt-1.5 inline-block max-w-full rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
                     Sin clases{d.offReason ? ` · ${d.offReason}` : ''}
                   </div>
                 ) : null}
@@ -302,7 +304,7 @@ export function WeekScheduleGrid({
           }}
         >
           {/* Time labels column */}
-          <div className="relative bg-slate-50/60">
+          <div className="relative bg-slate-50/60 dark:bg-slate-800/50">
             {hours.map((h, i) => (
               <div
                 key={h}
@@ -311,7 +313,7 @@ export function WeekScheduleGrid({
               >
                 {/* Label sits right on the hour line */}
                 <span
-                  className="relative -top-2.5 text-[10px] font-medium tabular-nums text-slate-400"
+                  className="relative -top-2.5 text-[10px] font-medium tabular-nums text-slate-400 dark:text-slate-500"
                   style={{ lineHeight: 1 }}
                 >
                   {minutesToHHMM(h * 60)}
@@ -323,7 +325,10 @@ export function WeekScheduleGrid({
               className="absolute inset-x-0 flex justify-end pr-2"
               style={{ top: `${totalHeight}px` }}
             >
-              <span className="relative -top-2.5 text-[10px] font-medium tabular-nums text-slate-400" style={{ lineHeight: 1 }}>
+              <span
+                className="relative -top-2.5 text-[10px] font-medium tabular-nums text-slate-400 dark:text-slate-500"
+                style={{ lineHeight: 1 }}
+              >
                 {minutesToHHMM(endHour * 60)}
               </span>
             </div>
@@ -336,19 +341,19 @@ export function WeekScheduleGrid({
             return (
               <div
                 key={d.weekday}
-                className={`relative border-l border-slate-200 ${
+                className={`relative border-l border-slate-200 dark:border-slate-700 ${
                   d.isOff
-                    ? 'bg-amber-50/30'
+                    ? 'bg-amber-50/30 dark:bg-amber-950/20'
                     : isTodayCol
-                    ? 'bg-brand-50/20'
-                    : 'bg-white'
+                      ? 'bg-brand-50/20 dark:bg-brand-950/25'
+                      : 'bg-white dark:bg-slate-900/60'
                 }`}
               >
                 {/* Full-hour dividers */}
                 {hours.map((h, i) => (
                   <div
                     key={h}
-                    className="absolute inset-x-0 border-t border-slate-100"
+                    className="absolute inset-x-0 border-t border-slate-100 dark:border-slate-700/90"
                     style={{ top: `${i * ROW_HEIGHT_PX}px` }}
                   />
                 ))}
@@ -357,14 +362,14 @@ export function WeekScheduleGrid({
                 {hours.map((h) => (
                   <div
                     key={`half-${h}`}
-                    className="absolute inset-x-0 border-t border-dashed border-slate-100/80"
+                    className="absolute inset-x-0 border-t border-dashed border-slate-100/80 dark:border-slate-600/50"
                     style={{ top: `${(hours.indexOf(h) + 0.5) * ROW_HEIGHT_PX}px` }}
                   />
                 ))}
 
                 {/* Bottom boundary line */}
                 <div
-                  className="absolute inset-x-0 border-t border-slate-100"
+                  className="absolute inset-x-0 border-t border-slate-100 dark:border-slate-700/90"
                   style={{ top: `${totalHeight}px` }}
                 />
 
@@ -389,8 +394,8 @@ export function WeekScheduleGrid({
                       key={ev.id}
                       type={onSelect ? 'button' : undefined}
                       onClick={onSelect ? () => onSelect(ev.id) : undefined}
-                      className={`absolute z-10 flex flex-col overflow-hidden rounded-lg border-l-[3px] bg-white px-2 py-1 text-left shadow-sm transition-all hover:z-20 hover:shadow-md focus:outline-none ${palette.border} ${
-                        onSelect ? 'cursor-pointer' : ''
+                      className={`absolute z-10 flex flex-col overflow-hidden rounded-lg border-l-[3px] bg-white px-2 py-1 text-left shadow-sm ring-1 ring-slate-200/60 transition-all hover:z-20 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 dark:bg-slate-800/95 dark:shadow-slate-950/40 dark:ring-slate-600/40 ${palette.border} ${
+                        onSelect ? 'cursor-pointer dark:hover:bg-slate-800' : ''
                       }`}
                       style={{
                         top: `${top + 2}px`,
@@ -436,7 +441,7 @@ export function WeekScheduleGrid({
         </div>
 
         {!hasAnyEvent ? (
-          <p className="border-t border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
+          <p className="border-t border-slate-200 px-4 py-8 text-center text-sm text-slate-400 dark:border-slate-700 dark:text-slate-500">
             {emptyLabel}
           </p>
         ) : null}

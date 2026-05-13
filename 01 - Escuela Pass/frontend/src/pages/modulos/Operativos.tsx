@@ -376,13 +376,15 @@ export function ComunicacionPage() {
   return (
     <div className="max-w-4xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Comunicación</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Comunicación</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Sus avisos personales y los comunicados que publica la escuela.
         </p>
       </div>
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
+          {err}
+        </div>
       )}
       <Panel title="Mis notificaciones" description="Avisos que la escuela le ha enviado.">
         <NotificationsList data={notifications} allowMarkRead />
@@ -400,9 +402,9 @@ export function ComunicacionPage() {
             <form className="grid gap-3 sm:grid-cols-2" onSubmit={onCreateNotice}>
               {isPlatformAdmin && (
                 <label className="text-sm sm:col-span-2">
-                  <span className="mb-1 block font-medium text-slate-700">Institución destino</span>
+                  <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Institución destino</span>
                   <select
-                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                    className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                     value={targetSchoolId}
                     onChange={(e) => setTargetSchoolId(e.target.value)}
                   >
@@ -416,21 +418,21 @@ export function ComunicacionPage() {
                 </label>
               )}
               <label className="text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-700">Título</span>
+                <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Título</span>
                 <input
                   required
                   maxLength={255}
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </label>
               <label className="text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-700">Contenido</span>
+                <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Contenido</span>
                 <textarea
                   required
                   rows={4}
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                 />
@@ -438,9 +440,9 @@ export function ComunicacionPage() {
               {canManageSchoolWideNotices ? (
                 <>
                   <label className="text-sm">
-                    <span className="mb-1 block font-medium text-slate-700">Tipo de destino</span>
+                    <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Tipo de destino</span>
                     <select
-                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       value={targetMode}
                       onChange={(e) => setTargetMode(e.target.value as 'ROLE' | 'GROUP' | 'USER')}
                     >
@@ -451,9 +453,9 @@ export function ComunicacionPage() {
                   </label>
                   {targetMode === 'ROLE' && (
                     <label className="text-sm">
-                      <span className="mb-1 block font-medium text-slate-700">Audiencia</span>
+                      <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Audiencia</span>
                       <select
-                        className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                        className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                         value={audience}
                         onChange={(e) =>
                           setAudience(e.target.value as 'ALL' | 'ADMINISTRATIVO' | 'DOCENTE' | 'PADRE' | 'ALUMNO')
@@ -469,7 +471,7 @@ export function ComunicacionPage() {
                   )}
                   {targetMode === 'GROUP' && (
                     <label className="text-sm sm:col-span-2">
-                      <span className="mb-1 block font-medium text-slate-700">Grupo</span>
+                      <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Grupo</span>
                       <div className="mt-1">
                         <SmartSelect
                           loadOptions={loadGroupOptions}
@@ -482,7 +484,7 @@ export function ComunicacionPage() {
                   )}
                   {targetMode === 'USER' && (
                     <label className="text-sm sm:col-span-2">
-                      <span className="mb-1 block font-medium text-slate-700">Usuario</span>
+                      <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Usuario</span>
                       <div className="mt-1">
                         <SmartSelect
                           loadOptions={loadNoticeTargetUsers}
@@ -497,9 +499,9 @@ export function ComunicacionPage() {
               ) : isTeacherOnly ? (
                 <>
                   <label className="text-sm sm:col-span-2">
-                    <span className="mb-1 block font-medium text-slate-700">Destinatarios</span>
+                    <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Destinatarios</span>
                     <select
-                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       value={targetMode}
                       onChange={(e) => setTargetMode(e.target.value as 'ROLE' | 'GROUP' | 'USER')}
                     >
@@ -509,7 +511,7 @@ export function ComunicacionPage() {
                   </label>
                   {targetMode === 'GROUP' && (
                     <label className="text-sm sm:col-span-2">
-                      <span className="mb-1 block font-medium text-slate-700">Grupo</span>
+                      <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Grupo</span>
                       <div className="mt-1">
                         <SmartSelect
                           loadOptions={loadTeacherGroupOptions}
@@ -522,7 +524,7 @@ export function ComunicacionPage() {
                   )}
                   {targetMode === 'USER' && (
                     <label className="text-sm sm:col-span-2">
-                      <span className="mb-1 block font-medium text-slate-700">Persona</span>
+                      <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Persona</span>
                       <div className="mt-1">
                         <SmartSelect
                           loadOptions={loadTeacherNoticeTargets}
@@ -535,7 +537,7 @@ export function ComunicacionPage() {
                   )}
                 </>
               ) : null}
-              <label className="mt-6 flex items-center gap-2 text-sm sm:col-span-2">
+              <label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                 <input type="checkbox" checked={important} onChange={(e) => setImportant(e.target.checked)} />
                 Marcar como importante
               </label>
@@ -549,7 +551,7 @@ export function ComunicacionPage() {
                 </button>
               </div>
             </form>
-            {msg && <p className="mt-3 text-sm text-emerald-700">{msg}</p>}
+            {msg && <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">{msg}</p>}
           </Panel>
           <Panel
             title="Comunicados publicados"
@@ -599,18 +601,20 @@ export function FinanzasPage() {
   return (
     <div className="max-w-4xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Finanzas</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Finanzas</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Consulte sus pagos pendientes y los conceptos de cobro de la escuela.
         </p>
       </div>
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
+          {err}
+        </div>
       )}
       {admin && (
         <div>
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Gestión de cobros</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">Gestión de cobros</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             Cree o edite los conceptos de cobro de la escuela y asigne colegiaturas o pagos a los alumnos.
           </p>
           <div className="mt-4">
@@ -1048,8 +1052,8 @@ export function AcademicoPage() {
   return (
     <div className="max-w-4xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Académico</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Académico</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           {padre
             ? 'Asistencia, calificaciones y horarios de sus hijos.'
             : alumno
@@ -1062,7 +1066,9 @@ export function AcademicoPage() {
         </p>
       </div>
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
+          {err}
+        </div>
       )}
       {padre ? (
         <>
@@ -1084,7 +1090,7 @@ export function AcademicoPage() {
           >
             <Link
               to="/app/modulos/mis-calificaciones"
-              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               Ir a Mis calificaciones
             </Link>
@@ -1095,14 +1101,14 @@ export function AcademicoPage() {
           >
             <Link
               to="/app/modulos/boletines"
-              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               Ver boletines
             </Link>
           </Panel>
           <Panel title="Horarios semanales de sus hijos">
             {!childrenSchedule || childrenSchedule.length === 0 ? (
-              <p className="text-sm text-slate-600">No hay estudiantes vinculados a su cuenta.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">No hay estudiantes vinculados a su cuenta.</p>
             ) : (
               <div className="space-y-6">
                 {childrenSchedule.map((child) => {
@@ -1125,14 +1131,14 @@ export function AcademicoPage() {
                     }
                   }
                   return (
-                    <div key={child.studentId} className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="font-semibold text-slate-900">{child.studentName}</p>
+                    <div key={child.studentId} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-600 dark:bg-slate-800/60">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{child.studentName}</p>
                       {child.group ? (
-                        <p className="mt-1 text-xs text-slate-600">
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                           Grupo {child.group.name ?? '—'} · {child.group.grade ?? '—'} · {child.group.schoolYear ?? '—'}
                         </p>
                       ) : (
-                        <p className="mt-1 text-xs text-amber-800">Sin grupo asignado.</p>
+                        <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">Sin grupo asignado.</p>
                       )}
                       <div className="mt-3">
                         <WeekScheduleGrid
@@ -1164,27 +1170,27 @@ export function AcademicoPage() {
               {openParentSlot ? (
                 <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Estudiante</dt>
-                    <dd className="mt-0.5 text-slate-900">{openParentSlot.child.studentName}</dd>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Estudiante</dt>
+                    <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{openParentSlot.child.studentName}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
-                    <dd className="mt-0.5 text-slate-900">{openParentSlot.slot.subjectName ?? '—'}</dd>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Materia</dt>
+                    <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{openParentSlot.slot.subjectName ?? '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
-                    <dd className="mt-0.5 text-slate-900">
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Horario</dt>
+                    <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                       {openParentSlot.slot.startTime.slice(0, 5)} – {openParentSlot.slot.endTime.slice(0, 5)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
-                    <dd className="mt-0.5 text-slate-900">{openParentSlot.slot.room ?? 'No especificada'}</dd>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Aula</dt>
+                    <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{openParentSlot.slot.room ?? 'No especificada'}</dd>
                   </div>
                   {openParentSlot.child.group ? (
                     <div className="sm:col-span-2">
-                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
-                      <dd className="mt-0.5 text-slate-900">
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Grupo</dt>
+                      <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                         {openParentSlot.child.group.name ?? '—'}
                         {openParentSlot.child.group.grade ? ` · ${openParentSlot.child.group.grade}` : ''} · Año{' '}
                         {openParentSlot.child.group.schoolYear ?? '—'}
@@ -1232,7 +1238,7 @@ export function AcademicoPage() {
           >
             <Link
               to="/app/modulos/mis-calificaciones"
-              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               Ir a Mis calificaciones
             </Link>
@@ -1243,7 +1249,7 @@ export function AcademicoPage() {
           >
             <Link
               to="/app/modulos/boletines"
-              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              className="inline-flex items-center rounded border border-slate-900 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               Ver boletines
             </Link>
@@ -1256,7 +1262,7 @@ export function AcademicoPage() {
             description="Use la vista de día para tomar o corregir asistencia. Las vistas de semana y mes son solo para consulta."
           >
             {teacherGroups.length === 0 ? (
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
                 {docente
                   ? 'No tiene grupos asignados para registrar asistencia.'
                   : 'No hay grupos registrados en su institución.'}
@@ -1264,7 +1270,7 @@ export function AcademicoPage() {
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex min-w-0 sm:min-w-[12rem] flex-1 flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex min-w-0 sm:min-w-[12rem] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Grupo
                     <div className="mt-0.5">
                       <SmartSelect
@@ -1275,10 +1281,10 @@ export function AcademicoPage() {
                       />
                     </div>
                   </label>
-                  <label className="flex flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Vista
                     <select
-                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       value={attendancePeriod}
                       onChange={(e) => setAttendancePeriod(e.target.value as 'day' | 'week' | 'month')}
                     >
@@ -1287,16 +1293,16 @@ export function AcademicoPage() {
                       <option value="month">Mes</option>
                     </select>
                   </label>
-                  <label className="flex flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Fecha de referencia
                     <input
                       type="date"
-                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       value={attendanceRefDate}
                       onChange={(e) => setAttendanceRefDate(e.target.value)}
                     />
                   </label>
-                  <label className="flex min-w-0 sm:min-w-[12rem] max-w-md flex-1 flex-col gap-1 text-sm text-slate-700">
+                  <label className="flex min-w-0 sm:min-w-[12rem] max-w-md flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Estudiante
                     <div className="mt-0.5">
                       <SmartSelect
@@ -1309,16 +1315,16 @@ export function AcademicoPage() {
                   </label>
                 </div>
                 {teacherAttendance?.view === 'day' && teacherAttendance.nonInstructionalDay ? (
-                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-100">
                     Este día no hay clases
                     {teacherAttendance.reasons?.length ? `: ${teacherAttendance.reasons.join('; ')}` : '.'}
                   </div>
                 ) : null}
                 {!teacherAttendance ? (
-                  <p className="text-sm text-slate-600">Cargando asistencia…</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Cargando asistencia…</p>
                 ) : teacherAttendance.view === 'range' ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 dark:[&_strong]:text-slate-100">
                       Del {formatShortISODate(teacherAttendance.dateFrom)} al {formatShortISODate(teacherAttendance.dateTo)}{' '}
                       ({teacherAttendance.dates.length} días). Esta vista es solo para consultar. Para tomar o corregir
                       asistencia abra la vista <strong>Día</strong>.
@@ -1326,16 +1332,16 @@ export function AcademicoPage() {
                     <div className={DATA_TABLE_SCROLL}>
                       <table className="min-w-full border-collapse text-left text-sm">
                         <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50">
+                          <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/80">
                             <th
-                              className="sticky left-0 top-0 z-30 border-b border-slate-200 bg-slate-50 px-2 py-2 font-semibold text-slate-700 shadow-[0_1px_0_0_rgb(226_232_240)]"
+                              className="sticky left-0 top-0 z-30 border-b border-slate-200 bg-slate-50 px-2 py-2 font-semibold text-slate-700 shadow-[0_1px_0_0_rgb(226_232_240)] dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:shadow-[0_1px_0_0_rgb(51_65_85)]"
                             >
                               Estudiante
                             </th>
                             {teacherAttendance.dates.map((d) => (
                               <th
                                 key={d}
-                                className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-1.5 py-2 text-center text-xs font-semibold text-slate-600 shadow-[0_1px_0_0_rgb(226_232_240)]`}
+                                className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-1.5 py-2 text-center text-xs font-semibold text-slate-600 shadow-[0_1px_0_0_rgb(226_232_240)] dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300 dark:shadow-[0_1px_0_0_rgb(51_65_85)]`}
                               >
                                 {formatShortISODate(d)}
                               </th>
@@ -1351,12 +1357,12 @@ export function AcademicoPage() {
                               }
                             }
                             return (
-                              <tr key={student.studentId} className="border-b border-slate-100">
-                                <td className="sticky left-0 z-10 border-r border-slate-100 bg-white px-2 py-1.5 text-slate-900">
+                              <tr key={student.studentId} className="border-b border-slate-100 dark:border-slate-700/80">
+                                <td className="sticky left-0 z-10 border-r border-slate-100 bg-white px-2 py-1.5 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
                                   {student.fullName}
                                 </td>
                                 {teacherAttendance.dates.map((d) => (
-                                  <td key={d} className="px-1 py-1.5 text-center text-xs text-slate-800">
+                                  <td key={d} className="px-1 py-1.5 text-center text-xs text-slate-800 dark:text-slate-200">
                                     {attendanceRecordAbbrev(byDate.get(d))}
                                   </td>
                                 ))}
@@ -1366,7 +1372,7 @@ export function AcademicoPage() {
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Leyenda: P presente · R retardo · Af ausente sin justificar · Ae ausente con excusa · — sin
                       registro.
                     </p>
@@ -1374,10 +1380,10 @@ export function AcademicoPage() {
                 ) : (
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-end gap-3">
-                      <p className="text-sm text-slate-600">
+                      <p className="text-sm text-slate-600 dark:text-slate-400 dark:[&_strong]:text-slate-100">
                         Fecha: <strong>{teacherAttendance.date}</strong>
                       </p>
-                      <label className="flex min-w-0 sm:min-w-[16rem] flex-1 flex-col gap-1 text-sm text-slate-700">
+                      <label className="flex min-w-0 sm:min-w-[16rem] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                         Sesión (opcional para registro por clase)
                         <div className="mt-0.5">
                           <SmartSelect
@@ -1394,7 +1400,7 @@ export function AcademicoPage() {
                             type="button"
                             disabled={savingAttendanceBulk || !teacherAttendance.canEdit || teacherAttendance.nonInstructionalDay}
                             onClick={() => void registerBulkAttendance('PRESENTE')}
-                            className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50"
+                            className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
                           >
                             {savingAttendanceBulk ? 'Guardando…' : 'Marcar todos presentes'}
                           </button>
@@ -1402,7 +1408,7 @@ export function AcademicoPage() {
                             type="button"
                             disabled={savingAttendanceBulk || !teacherAttendance.canEdit || teacherAttendance.nonInstructionalDay}
                             onClick={() => void registerBulkAttendance('AUSENTE', false)}
-                            className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50"
+                            className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-200"
                           >
                             Marcar todos ausentes
                           </button>
@@ -1412,11 +1418,11 @@ export function AcademicoPage() {
                     <div className={DATA_TABLE_SCROLL}>
                       <table className="min-w-full border-collapse text-left text-sm">
                         <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50">
-                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Estudiante</th>
-                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Matrícula</th>
-                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Estado</th>
-                            <th className={`px-3 py-2 font-semibold text-slate-700 ${DATA_TABLE_HEAD}`}>Acciones</th>
+                          <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/80">
+                            <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>Estudiante</th>
+                            <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>Matrícula</th>
+                            <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>Estado</th>
+                            <th className={`px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 ${DATA_TABLE_HEAD}`}>Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1437,24 +1443,24 @@ export function AcademicoPage() {
                               teacherAttendance.nonInstructionalDay ||
                               savingAttendanceStudentId === student.studentId;
                             return (
-                              <tr key={student.studentId} className="border-b border-slate-100">
-                                <td className="px-3 py-2 text-slate-900">
+                              <tr key={student.studentId} className="border-b border-slate-100 dark:border-slate-700/80">
+                                <td className="px-3 py-2 text-slate-900 dark:text-slate-100">
                                   <span className="align-middle">{student.fullName}</span>
                                   {consentByStudent[student.studentId] ? (
-                                    <span className="ml-2 inline-flex align-middle rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900">
+                                    <span className="ml-2 inline-flex align-middle rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
                                       Salida autónoma hoy
                                     </span>
                                   ) : null}
                                 </td>
-                                <td className="px-3 py-2 text-slate-700">{student.matricula}</td>
-                                <td className="px-3 py-2 text-slate-700">{currentLabel}</td>
+                                <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{student.matricula}</td>
+                                <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{currentLabel}</td>
                                 <td className="px-3 py-2">
                                   <div className="flex flex-wrap gap-2">
                                     <button
                                       type="button"
                                       disabled={disabled}
                                       onClick={() => void upsertAttendance(student.studentId, 'PRESENTE')}
-                                      className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50"
+                                      className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
                                     >
                                       Presente
                                     </button>
@@ -1462,7 +1468,7 @@ export function AcademicoPage() {
                                       type="button"
                                       disabled={disabled}
                                       onClick={() => void upsertAttendance(student.studentId, 'RETARDO')}
-                                      className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800 disabled:opacity-50"
+                                      className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
                                     >
                                       Retardo
                                     </button>
@@ -1470,7 +1476,7 @@ export function AcademicoPage() {
                                       type="button"
                                       disabled={disabled}
                                       onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', false)}
-                                      className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50"
+                                      className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-800 disabled:opacity-50 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-200"
                                     >
                                       Ausente (falta)
                                     </button>
@@ -1478,7 +1484,7 @@ export function AcademicoPage() {
                                       type="button"
                                       disabled={disabled}
                                       onClick={() => void upsertAttendance(student.studentId, 'AUSENTE', true)}
-                                      className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800 disabled:opacity-50"
+                                      className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800 disabled:opacity-50 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200"
                                     >
                                       Ausente (excusa)
                                     </button>
@@ -1490,7 +1496,7 @@ export function AcademicoPage() {
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Solo puede registrar o corregir la asistencia del día actual (no días anteriores ni posteriores).
                       Las vistas Semana y Mes son solo para consultar el historial.
                     </p>
@@ -1505,20 +1511,20 @@ export function AcademicoPage() {
               description="Ese día no se tomará asistencia a este grupo. Si el día sin clases es para toda la escuela, solicítelo a secretaría."
             >
               <div className="flex flex-wrap items-end gap-3">
-                <label className="flex flex-col gap-1 text-sm text-slate-700">
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                   Fecha
                   <input
                     type="date"
-                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                     value={docenteSuspendDate}
                     onChange={(e) => setDocenteSuspendDate(e.target.value)}
                   />
                 </label>
-                <label className="flex min-w-0 sm:min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700">
+                <label className="flex min-w-0 sm:min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                   Motivo (opcional)
                   <input
                     type="text"
-                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                     value={docenteSuspendReason}
                     onChange={(e) => setDocenteSuspendReason(e.target.value)}
                     placeholder="Ej. Evento deportivo"
@@ -1534,9 +1540,9 @@ export function AcademicoPage() {
                 </button>
               </div>
               <div className="mt-6 space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vigentes (referencia próximos meses)</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Vigentes (referencia próximos meses)</p>
                 {docenteGroupCal.length === 0 ? (
-                  <p className="text-sm text-slate-600">No hay días marcados en el rango consultado.</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">No hay días marcados en el rango consultado.</p>
                 ) : (
                   <ul className="space-y-2">
                     {docenteGroupCal.map((row) => {
@@ -1545,14 +1551,14 @@ export function AcademicoPage() {
                       return (
                         <li
                           key={row.id}
-                          className="flex flex-wrap items-start justify-between gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm"
+                          className="flex flex-wrap items-start justify-between gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/60"
                         >
                           <div>
-                            <span className="font-medium text-slate-900">
+                            <span className="font-medium text-slate-900 dark:text-slate-100">
                               {String(row.exceptionDate).slice(0, 10)}
                             </span>
-                            <span className="ml-2 text-xs text-slate-600">{label}</span>
-                            {row.reason ? <span className="mt-0.5 block text-slate-600">{row.reason}</span> : null}
+                            <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{label}</span>
+                            {row.reason ? <span className="mt-0.5 block text-slate-600 dark:text-slate-400">{row.reason}</span> : null}
                           </div>
                           {isGroup ? (
                             <button
@@ -1564,7 +1570,7 @@ export function AcademicoPage() {
                                   label: `${String(row.exceptionDate).slice(0, 10)}${row.reason ? ` (${row.reason})` : ''}`
                                 })
                               }
-                              className="text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                              className="text-sm font-medium text-red-700 hover:underline disabled:opacity-50 dark:text-red-400"
                             >
                               {docenteCalRemoving === row.id ? '…' : 'Quitar'}
                             </button>
@@ -1580,7 +1586,7 @@ export function AcademicoPage() {
         </>
       ) : (
         <Panel title="¿Necesita un informe?">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-400 dark:[&_strong]:text-slate-100">
             Encuentre los reportes por grupo y las descargas en Excel dentro de
             {' '}<strong>Administración e informes</strong>.
           </p>
@@ -1982,7 +1988,7 @@ export function AdministracionPage() {
 
   if (!platformAdmin && !docente && !administrativo) {
     return (
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-slate-600 dark:text-slate-400">
         Esta sección es para el personal del plantel. Si necesita un informe, solicítelo en secretaría.
       </p>
     );
@@ -2065,7 +2071,9 @@ export function AdministracionPage() {
         </p>
       </div>
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
+          {err}
+        </div>
       )}
       {administrativo && institSchoolId && summary ? (
         <Panel
@@ -2103,37 +2111,37 @@ export function AdministracionPage() {
             description="Seguimiento del tiempo de primera respuesta y resolución del canal administrativo."
           >
             {((adminSlaSummary?.responseBreached ?? 0) > 0 || (adminSlaSummary?.resolutionBreached ?? 0) > 0) && (
-              <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-100">
                 Alerta SLA: hay reportes fuera de tiempo objetivo. Priorizar respuesta y cierre.
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Total reportes</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">{adminSlaSummary?.total ?? 0}</p>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total reportes</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{adminSlaSummary?.total ?? 0}</p>
               </article>
-              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Brecha primera respuesta</p>
-                <p className="mt-1 text-xl font-semibold text-amber-700">{adminSlaSummary?.responseBreached ?? 0}</p>
-                <p className="mt-1 text-[11px] text-slate-500">
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Brecha primera respuesta</p>
+                <p className="mt-1 text-xl font-semibold text-amber-700 dark:text-amber-400">{adminSlaSummary?.responseBreached ?? 0}</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                   Semáforo: {(adminSlaSummary?.responseBreached ?? 0) === 0 ? 'Verde' : 'Rojo'}
                 </p>
               </article>
-              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Brecha resolución</p>
-                <p className="mt-1 text-xl font-semibold text-red-700">{adminSlaSummary?.resolutionBreached ?? 0}</p>
-                <p className="mt-1 text-[11px] text-slate-500">
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Brecha resolución</p>
+                <p className="mt-1 text-xl font-semibold text-red-700 dark:text-red-400">{adminSlaSummary?.resolutionBreached ?? 0}</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                   Semáforo: {(adminSlaSummary?.resolutionBreached ?? 0) === 0 ? 'Verde' : 'Rojo'}
                 </p>
               </article>
-              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Promedio respuesta / resolución</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Promedio respuesta / resolución</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {(adminSlaSummary?.avgResponseHours ?? 0).toFixed(1)}h / {(adminSlaSummary?.avgResolutionHours ?? 0).toFixed(1)}h
                 </p>
               </article>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
               Objetivo SLA: primera respuesta {'<='} {adminSlaSummary?.responseSlaHours ?? 24}h y resolución {'<='}{' '}
               {adminSlaSummary?.resolutionSlaHours ?? 72}h.
             </p>
@@ -2154,17 +2162,17 @@ export function AdministracionPage() {
               </button>
             </div>
             <div className="mb-3 grid gap-3 sm:grid-cols-3">
-              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Destinatarios</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">{criticalReceiptsSummary.totalRecipients}</p>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Destinatarios</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{criticalReceiptsSummary.totalRecipients}</p>
               </article>
-              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Leídos</p>
-                <p className="mt-1 text-xl font-semibold text-emerald-700">{criticalReceiptsSummary.read}</p>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Leídos</p>
+                <p className="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-400">{criticalReceiptsSummary.read}</p>
               </article>
-              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Pendientes</p>
-                <p className="mt-1 text-xl font-semibold text-amber-700">{criticalReceiptsSummary.unread}</p>
+              <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Pendientes</p>
+                <p className="mt-1 text-xl font-semibold text-amber-700 dark:text-amber-400">{criticalReceiptsSummary.unread}</p>
               </article>
             </div>
             {criticalReceipts.length === 0 ? (
@@ -2172,9 +2180,9 @@ export function AdministracionPage() {
             ) : (
               <ul className="space-y-2">
                 {criticalReceipts.map((row) => (
-                  <li key={row.noticeId} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <p className="font-medium text-slate-900">{row.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                  <li key={row.noticeId} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/60">
+                    <p className="font-medium text-slate-900 dark:text-slate-100">{row.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                       {new Date(row.createdAt).toLocaleString('es')} · Leídos {row.readCount}/{row.totalRecipients} ({row.readRate}%)
                     </p>
                   </li>
@@ -2188,23 +2196,23 @@ export function AdministracionPage() {
             description="Visión profesional para seguimiento diario y toma de decisiones operativas."
           >
             {(actionableKpis?.alerts?.length ?? 0) > 0 ? (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Alertas KPI accionables</p>
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-950/35">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-100">Alertas KPI accionables</p>
                 <ul className="mt-2 space-y-2">
                   {actionableKpis!.alerts.map((a) => (
-                    <li key={a.key} className="rounded border border-amber-200 bg-white px-3 py-2 text-xs">
-                      <p className="font-semibold text-slate-900">
+                    <li key={a.key} className="rounded border border-amber-200 bg-white px-3 py-2 text-xs dark:border-amber-800/40 dark:bg-slate-900">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">
                         {a.title}: {a.metric}
                         {a.unit}
                       </p>
-                      <p className="mt-1 text-slate-700">Acción: {a.action}</p>
-                      <p className="mt-1 text-slate-500">Responsable: {a.owner}</p>
+                      <p className="mt-1 text-slate-700 dark:text-slate-300">Acción: {a.action}</p>
+                      <p className="mt-1 text-slate-500 dark:text-slate-400">Responsable: {a.owner}</p>
                     </li>
                   ))}
                 </ul>
               </div>
             ) : (
-              <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+              <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-950/35 dark:text-emerald-100">
                 Sin alertas críticas: los KPI operativos están dentro del rango esperado.
               </div>
             )}
@@ -2241,7 +2249,7 @@ export function AdministracionPage() {
             </div>
             <div className="mt-4 grid gap-3 lg:grid-cols-3">
               <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado de pagos</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Estado de pagos</p>
                 <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                   Con comprobante: <strong>{repAtt?.pendingWithVoucher ?? summary?.payments?.pendingWithVoucher ?? 0}</strong>
                 </p>
@@ -2250,7 +2258,7 @@ export function AdministracionPage() {
                 </p>
               </article>
               <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Circuito del día</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Circuito del día</p>
                 <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-300">
                   {Object.entries(circuit?.byStatus ?? summary?.circuitToday?.byStatus ?? {}).map(([st, n]) => (
                     <li key={st} className="flex items-center justify-between">
@@ -2261,7 +2269,7 @@ export function AdministracionPage() {
                 </ul>
               </article>
               <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Asistencia del día</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Asistencia del día</p>
                 <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-300">
                   {Object.entries(summary?.attendanceToday?.byStatus ?? {}).map(([st, n]) => (
                     <li key={st} className="flex items-center justify-between">
@@ -2284,7 +2292,7 @@ export function AdministracionPage() {
                     <p className="font-medium text-slate-900 dark:text-slate-100">
                       {item.action ? (auditActionLabel[item.action] ?? item.action.replaceAll('.', ' · ')) : 'Acción del sistema'}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                       {item.entityType ? `${auditEntityLabel[item.entityType] ?? item.entityType} · ` : ''}
                       {item.latestAt ? new Date(item.latestAt).toLocaleString('es') : 'Reciente'}
                       {item.count > 1 ? ` · ${item.count} eventos` : ''}
@@ -2323,7 +2331,7 @@ export function AdministracionPage() {
             description="Errores, sugerencias y peticiones enviadas por el personal administrativo."
           >
             <div className="mb-3 grid gap-3 sm:grid-cols-4">
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-slate-700 dark:text-slate-300">
                 Tipo
                 <select
                   className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
@@ -2337,7 +2345,7 @@ export function AdministracionPage() {
                   <option value="OTRO">Otro</option>
                 </select>
               </label>
-              <label className="sm:col-span-2 text-sm text-slate-700">
+              <label className="sm:col-span-2 text-sm text-slate-700 dark:text-slate-300">
                 Buscar
                 <input
                   type="text"
@@ -2347,7 +2355,7 @@ export function AdministracionPage() {
                   placeholder="Asunto, escuela, remitente o detalle"
                 />
               </label>
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-slate-700 dark:text-slate-300">
                 Estado
                 <select
                   className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
@@ -2360,7 +2368,7 @@ export function AdministracionPage() {
                   <option value="RESUELTO">Resuelto</option>
                 </select>
               </label>
-              <label className="mt-6 inline-flex items-center gap-2 text-sm text-slate-700">
+              <label className="mt-6 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={adminReportUnreadOnly}
@@ -2388,12 +2396,12 @@ export function AdministracionPage() {
                         <p className="font-semibold text-slate-900 dark:text-slate-100">
                           [{r.type}] {r.subject}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                           {new Date(r.createdAt).toLocaleString('es')}
                           {r.createdByName ? ` · ${r.createdByName}` : ''}
                           {r.schoolId ? ` · ${schoolNameById.get(r.schoolId) ?? 'Institución'}` : ''}
                         </p>
-                        <p className="mt-1 text-xs text-slate-600">
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                           SLA respuesta: {r.slaResponseStatus ?? 'PENDING'} ({(r.slaResponseHours ?? 0).toFixed(1)}h) · SLA resolución:{' '}
                           {r.slaResolutionStatus ?? 'PENDING'} ({(r.slaResolutionHours ?? 0).toFixed(1)}h)
                         </p>
@@ -2415,7 +2423,7 @@ export function AdministracionPage() {
                         </select>
                         <button
                           type="button"
-                          className="text-xs font-medium text-brand-800 underline"
+                          className="text-xs font-medium text-brand-800 underline dark:text-brand-300"
                           onClick={() => {
                             setActiveReportId(r.id);
                             void loadActiveComments(r.id);
@@ -2430,7 +2438,7 @@ export function AdministracionPage() {
                       const parsed = parseReportEvidence(r.message);
                       return (
                         <>
-                          <p className="mt-2 whitespace-pre-wrap text-slate-700">{parsed.cleanMessage}</p>
+                          <p className="mt-2 whitespace-pre-wrap text-slate-700 dark:text-slate-300">{parsed.cleanMessage}</p>
                           {parsed.evidenceUrls.length > 0 ? (
                             <div className="mt-2">
                               <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Evidencias</p>
@@ -2444,14 +2452,14 @@ export function AdministracionPage() {
                                         setErr(getUserFacingMessage(e, 'No se pudo abrir la evidencia.'))
                                       );
                                     }}
-                                    className="overflow-hidden rounded border border-slate-200"
+                                    className="overflow-hidden rounded border border-slate-200 dark:border-slate-600"
                                   >
                                     <AuthImage
                                       src={u}
                                       alt={`Evidencia ${idx + 1}`}
                                       className="h-20 w-20 object-cover"
                                       fallback={
-                                        <span className="flex h-20 w-20 items-center justify-center text-[11px] text-slate-500">
+                                        <span className="flex h-20 w-20 items-center justify-center text-[11px] text-slate-500 dark:text-slate-400">
                                           Sin vista
                                         </span>
                                       }
@@ -2467,20 +2475,20 @@ export function AdministracionPage() {
                     {activeReportId === r.id ? (
                       <div className="mt-3 rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
                         {activeCommentsLoading ? (
-                          <p className="text-xs text-slate-500">Cargando comentarios…</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Cargando comentarios…</p>
                         ) : activeComments.length === 0 ? (
-                          <p className="text-xs text-slate-500">Sin comentarios.</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Sin comentarios.</p>
                         ) : (
                           <div className={`${SCROLLABLE_PANEL_BODY} pr-1`}>
                           <ul className="space-y-2">
                             {activeComments.map((c) => (
                               <li key={c.id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800">
-                                <p className="text-[11px] font-medium text-slate-700">
+                                <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
                                   {c.authorName ?? 'Usuario'}
                                   {c.authorRole ? ` · ${c.authorRole}` : ''} ·{' '}
                                   {new Date(c.createdAt).toLocaleString('es')}
                                 </p>
-                                <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{c.message}</p>
+                                <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700 dark:text-slate-300">{c.message}</p>
                               </li>
                             ))}
                           </ul>
@@ -2580,7 +2588,7 @@ export function AdministracionPage() {
               }}
             >
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm text-slate-700">
+                <label className="text-sm text-slate-700 dark:text-slate-300">
                   Tipo de reporte
                   <select
                     className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
@@ -2594,7 +2602,7 @@ export function AdministracionPage() {
                     <option value="OTRO">Otro</option>
                   </select>
                 </label>
-                <label className="text-sm text-slate-700">
+                <label className="text-sm text-slate-700 dark:text-slate-300">
                   Asunto
                   <input
                     type="text"
@@ -2608,10 +2616,10 @@ export function AdministracionPage() {
                     placeholder="Ej. Error al cerrar periodo académico"
                     disabled={sendingReport}
                   />
-                  <span className="mt-1 block text-xs text-slate-500">Mínimo 5 caracteres.</span>
+                  <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Mínimo 5 caracteres.</span>
                 </label>
               </div>
-              <label className="block text-sm text-slate-700">
+              <label className="block text-sm text-slate-700 dark:text-slate-300">
                 Detalle
                 <textarea
                   className="mt-1 min-h-[120px] w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
@@ -2624,9 +2632,9 @@ export function AdministracionPage() {
                   placeholder="Describa qué ocurre, en qué pantalla y cómo reproducirlo."
                   disabled={sendingReport}
                 />
-                <span className="mt-1 block text-xs text-slate-500">Mínimo 10 caracteres (se recortan espacios al inicio y al final).</span>
+                <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Mínimo 10 caracteres (se recortan espacios al inicio y al final).</span>
               </label>
-              <label className="block text-sm text-slate-700">
+              <label className="block text-sm text-slate-700 dark:text-slate-300">
                 Capturas (opcional, hasta 5)
                 <input
                   type="file"
@@ -2646,7 +2654,7 @@ export function AdministracionPage() {
                         <span className="truncate">{f.name}</span>
                         <button
                           type="button"
-                          className="text-red-700 underline"
+                          className="text-red-700 underline dark:text-red-400"
                           onClick={() => setReportFiles((prev) => prev.filter((_, i) => i !== idx))}
                         >
                           Quitar
@@ -2656,7 +2664,7 @@ export function AdministracionPage() {
                   </ul>
                 ) : null}
               </label>
-              {reportOk ? <p className="text-sm text-emerald-800">{reportOk}</p> : null}
+              {reportOk ? <p className="text-sm text-emerald-800 dark:text-emerald-300">{reportOk}</p> : null}
               <div className="flex justify-end">
                 <button
                   type="submit"
@@ -2668,7 +2676,7 @@ export function AdministracionPage() {
               </div>
             </form>
             <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
-              <p className="text-sm font-semibold text-slate-800">Mis reportes recientes</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Mis reportes recientes</p>
               {myAdminReportsLoading ? (
                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Cargando…</p>
               ) : myAdminReports.length === 0 ? (
@@ -2680,14 +2688,14 @@ export function AdministracionPage() {
                       <p className="font-medium text-slate-900 dark:text-slate-100">
                         [{r.type}] {r.subject}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                         {new Date(r.createdAt).toLocaleString('es')} · Estado: {r.status}
                       </p>
                       {(() => {
                         const parsed = parseReportEvidence(r.message);
                         return (
                           <>
-                            <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{parsed.cleanMessage}</p>
+                            <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700 dark:text-slate-300">{parsed.cleanMessage}</p>
                             {parsed.evidenceUrls.length > 0 ? (
                               <div className="mt-2">
                                 <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Evidencias</p>
@@ -2701,14 +2709,14 @@ export function AdministracionPage() {
                                           setReportErr(getUserFacingMessage(e, 'No se pudo abrir la evidencia.'))
                                         );
                                       }}
-                                      className="overflow-hidden rounded border border-slate-200"
+                                      className="overflow-hidden rounded border border-slate-200 dark:border-slate-600"
                                     >
                                       <AuthImage
                                         src={u}
                                         alt={`Evidencia ${idx + 1}`}
                                         className="h-16 w-16 object-cover"
                                         fallback={
-                                          <span className="flex h-16 w-16 items-center justify-center text-[11px] text-slate-500">
+                                          <span className="flex h-16 w-16 items-center justify-center text-[11px] text-slate-500 dark:text-slate-400">
                                             Sin vista
                                           </span>
                                         }
@@ -2723,7 +2731,7 @@ export function AdministracionPage() {
                       })()}
                       <button
                         type="button"
-                        className="mt-2 text-xs font-medium text-brand-800 underline"
+                        className="mt-2 text-xs font-medium text-brand-800 underline dark:text-brand-300"
                         onClick={() => {
                           setActiveReportId(r.id);
                           void loadActiveComments(r.id);
@@ -2734,13 +2742,13 @@ export function AdministracionPage() {
                       {activeReportId === r.id ? (
                         <div className="mt-2 rounded border border-slate-100 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800">
                           {activeCommentsLoading ? (
-                            <p className="text-xs text-slate-500">Cargando comentarios…</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Cargando comentarios…</p>
                           ) : activeComments.length === 0 ? (
-                            <p className="text-xs text-slate-500">Sin comentarios.</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Sin comentarios.</p>
                           ) : (
                             <ul className="space-y-1">
                               {activeComments.map((c) => (
-                                <li key={c.id} className="text-xs text-slate-700">
+                                <li key={c.id} className="text-xs text-slate-700 dark:text-slate-300">
                                   <span className="font-medium">{c.authorName ?? 'Usuario'}</span>: {c.message}
                                 </li>
                               ))}
@@ -2778,43 +2786,43 @@ export function AdministracionPage() {
         description="Seguimiento operativo de solicitudes de recogida: volumen, estado y trazabilidad reciente."
       >
         <div className="grid gap-3 sm:grid-cols-3">
-          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Solicitudes registradas</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{circuit?.total ?? 0}</p>
+          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Solicitudes registradas</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{circuit?.total ?? 0}</p>
           </article>
-          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Estado predominante</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">
+          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Estado predominante</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
               {circuitStatusRows[0] ? (circuitStatusLabel[circuitStatusRows[0][0]] ?? circuitStatusRows[0][0]) : 'Sin datos'}
             </p>
           </article>
-          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Última actualización</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">
+          <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Última actualización</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
               {circuitRecent[0]?.requestTime ? new Date(circuitRecent[0].requestTime).toLocaleString('es') : 'Sin movimientos'}
             </p>
           </article>
         </div>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <article className="rounded-lg border border-slate-200 bg-white p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Distribución por estado</p>
+          <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Distribución por estado</p>
             {circuitStatusRows.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-600">No hay solicitudes para hoy.</p>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">No hay solicitudes para hoy.</p>
             ) : (
-              <ul className="mt-2 space-y-1.5 text-sm text-slate-700">
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
                 {circuitStatusRows.map(([status, count]) => (
-                  <li key={status} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+                  <li key={status} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800/60">
                     <div className="flex items-center justify-between">
                       <span>{circuitStatusLabel[status] ?? status}</span>
                       <strong>
                         {count}
-                        <span className="ml-1 text-xs font-medium text-slate-500">
+                        <span className="ml-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                           ({Math.round((count / Math.max(1, circuit?.total ?? 0)) * 100)}%)
                         </span>
                       </strong>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-600">
                       <div
                         className="h-full rounded-full bg-brand-700"
                         style={{ width: `${Math.round((count / Math.max(1, circuit?.total ?? 0)) * 100)}%` }}
@@ -2825,16 +2833,16 @@ export function AdministracionPage() {
               </ul>
             )}
           </article>
-          <article className="rounded-lg border border-slate-200 bg-white p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Movimientos recientes</p>
+          <article className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Movimientos recientes</p>
             {circuitRecent.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-600">Sin actividad reciente.</p>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Sin actividad reciente.</p>
             ) : (
-              <ul className="mt-2 space-y-1.5 text-sm text-slate-700">
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
                 {circuitRecent.map((row, idx) => (
                   <li key={`${row.requestTime ?? 'x'}-${idx}`} className="flex items-center justify-between gap-3">
                     <span>{circuitStatusLabel[row.status ?? ''] ?? row.status ?? 'Estado no disponible'}</span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
                       {row.requestTime ? new Date(row.requestTime).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </span>
                   </li>
@@ -2982,22 +2990,24 @@ export function HerramientasPage() {
   return (
     <div className="max-w-4xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Herramientas</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Herramientas</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Política de privacidad, horarios y vehículos para la recogida. Para importar o exportar archivos abra el
           apartado correspondiente en el menú.
         </p>
       </div>
       <Panel title="Política de privacidad" description="Texto vigente sobre cómo se usan y protegen sus datos.">
         {errPolicy && (
-          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errPolicy}</div>
+          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
+            {errPolicy}
+          </div>
         )}
-        {policyHint && <p className="mb-4 text-sm text-slate-600">{policyHint}</p>}
+        {policyHint && <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">{policyHint}</p>}
         <ValueView data={policy} />
       </Panel>
       <Panel title="Mis aceptaciones de la política">
         {errAcceptances && (
-          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
             {errAcceptances}
           </div>
         )}
@@ -3006,7 +3016,9 @@ export function HerramientasPage() {
       {padre && (
         <Panel title="Mis vehículos" description="Vehículos autorizados para recoger a su hijo o hija.">
           {errVehicles && (
-            <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errVehicles}</div>
+            <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
+              {errVehicles}
+            </div>
           )}
           <VehiclesList data={vehicles} />
         </Panel>
@@ -3014,9 +3026,11 @@ export function HerramientasPage() {
       {docente && (
         <Panel title="Mi horario semanal" description="Las clases que tiene asignadas a lo largo de la semana.">
           {errSchedule && (
-            <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{errSchedule}</div>
+            <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
+              {errSchedule}
+            </div>
           )}
-          {scheduleHint && <p className="mb-4 text-sm text-amber-800">{scheduleHint}</p>}
+          {scheduleHint && <p className="mb-4 text-sm text-amber-800 dark:text-amber-200">{scheduleHint}</p>}
           <WeekScheduleGrid
             events={(schedule ?? []).map<WeekScheduleEvent>((s) => ({
               id: s.id,
@@ -3033,9 +3047,11 @@ export function HerramientasPage() {
             emptyLabel="Aún no tiene franjas horarias asignadas."
           />
           {scheduleCalendarDays.length > 0 ? (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-amber-900">Días sin clases (semana actual)</p>
-              <ul className="mt-2 space-y-1 text-sm text-amber-900">
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800/50 dark:bg-amber-950/30">
+              <p className="text-xs font-semibold uppercase tracking-widest text-amber-900 dark:text-amber-100">
+                Días sin clases (semana actual)
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-amber-900 dark:text-amber-100">
                 {scheduleCalendarDays.map((d) => (
                   <li key={d.id}>
                     {new Date(`${String(d.exceptionDate).slice(0, 10)}T12:00:00`).toLocaleDateString('es', {
@@ -3066,26 +3082,26 @@ export function HerramientasPage() {
                 {slot ? (
                   <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <div>
-                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
-                      <dd className="mt-0.5 text-slate-900">{slot.subjectName ?? '—'}</dd>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Materia</dt>
+                      <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{slot.subjectName ?? '—'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Día</dt>
-                      <dd className="mt-0.5 capitalize text-slate-900">{WEEKDAY[slot.weekday]}</dd>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Día</dt>
+                      <dd className="mt-0.5 capitalize text-slate-900 dark:text-slate-100">{WEEKDAY[slot.weekday]}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
-                      <dd className="mt-0.5 text-slate-900">
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Horario</dt>
+                      <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                         {slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
-                      <dd className="mt-0.5 text-slate-900">{slot.room ?? 'No especificada'}</dd>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Aula</dt>
+                      <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{slot.room ?? 'No especificada'}</dd>
                     </div>
                     <div className="sm:col-span-2">
-                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
-                      <dd className="mt-0.5 text-slate-900">{slot.groupName ?? '—'}</dd>
+                      <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Grupo</dt>
+                      <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{slot.groupName ?? '—'}</dd>
                     </div>
                   </dl>
                 ) : null}
@@ -3095,7 +3111,7 @@ export function HerramientasPage() {
         </Panel>
       )}
       <Panel title="Acceso al plantel">
-        <p className="text-sm leading-relaxed text-slate-600">
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 dark:[&_strong]:text-slate-100">
           Su código QR personal para entrar al plantel está en <strong>Mi perfil</strong>. El personal del plantel
           puede registrar el ingreso desde <strong>Escáner de acceso</strong>.
         </p>

@@ -38,11 +38,11 @@ type PeriodOption = { id: string; schoolYear: string; name: string; schoolName?:
 
 function scoreMood(score: number, maxScore: number): { emoji: string; label: string; tone: string } {
   const ratio = maxScore > 0 ? score / maxScore : 0;
-  if (ratio >= 0.98) return { emoji: '🤩', label: '¡Excelente!', tone: 'text-emerald-700' };
-  if (ratio >= 0.9) return { emoji: '😄', label: '¡Muy buen trabajo!', tone: 'text-emerald-700' };
-  if (ratio >= 0.75) return { emoji: '🙂', label: 'Vas por buen camino', tone: 'text-sky-700' };
-  if (ratio >= 0.6) return { emoji: '😐', label: 'Puedes mejorar con práctica', tone: 'text-amber-700' };
-  return { emoji: '💪', label: 'No te rindas, sigue intentando', tone: 'text-rose-700' };
+  if (ratio >= 0.98) return { emoji: '🤩', label: '¡Excelente!', tone: 'text-emerald-700 dark:text-emerald-300' };
+  if (ratio >= 0.9) return { emoji: '😄', label: '¡Muy buen trabajo!', tone: 'text-emerald-700 dark:text-emerald-300' };
+  if (ratio >= 0.75) return { emoji: '🙂', label: 'Vas por buen camino', tone: 'text-sky-700 dark:text-sky-300' };
+  if (ratio >= 0.6) return { emoji: '😐', label: 'Puedes mejorar con práctica', tone: 'text-amber-700 dark:text-amber-300' };
+  return { emoji: '💪', label: 'No te rindas, sigue intentando', tone: 'text-rose-700 dark:text-rose-300' };
 }
 
 /** Fecha límite YYYY-MM-DD en calendario local (evita mostrar un día antes por UTC). */
@@ -193,22 +193,26 @@ export function MisCalificacionesPage() {
   return (
     <div className="max-w-5xl animate-fade-in space-y-6">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">
           {isParent ? 'Calificaciones de mis hijos' : 'Mis calificaciones'}
         </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
           Aquí solo aparecen las actividades que el docente ya <strong>publicó</strong>. Si ve la marca{' '}
           <em>En revisión</em>, la nota podría cambiar hasta que el docente la cierre nuevamente.
         </p>
       </div>
 
-      {err && <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{err}</div>}
+      {err && (
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-100">
+          {err}
+        </div>
+      )}
 
-      <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {isParent && children.length > 1 && (
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Hijo/a</span>
+              <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Hijo/a</span>
               <SmartSelect
                 options={[{ value: '', label: 'Todos' }, ...children.map((c) => ({ value: c.studentId, label: c.name }))]}
                 value={filterChild}
@@ -218,7 +222,7 @@ export function MisCalificacionesPage() {
             </label>
           )}
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Año escolar</span>
+            <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Año escolar</span>
             <SmartSelect
               options={yearOptions}
               value={filterYear}
@@ -229,7 +233,7 @@ export function MisCalificacionesPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Periodo</span>
+            <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Periodo</span>
             <SmartSelect options={periodOptions} value={filterPeriod} onChange={setFilterPeriod} />
           </label>
           <div className="flex items-end">
@@ -237,7 +241,7 @@ export function MisCalificacionesPage() {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="rounded border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="rounded border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               {loading ? 'Actualizando…' : 'Actualizar'}
             </button>
@@ -251,7 +255,7 @@ export function MisCalificacionesPage() {
           className={`h-px w-full overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-100' : 'opacity-0'}`}
           aria-hidden="true"
         >
-          <div className="h-full w-1/2 animate-progress-bar bg-brand-500/70" />
+          <div className="h-full w-1/2 animate-progress-bar bg-brand-500/70 dark:bg-brand-400/80" />
         </div>
         {loading ? (
           <div className="space-y-3" aria-label="Cargando calificaciones">
@@ -260,7 +264,7 @@ export function MisCalificacionesPage() {
             <Skeleton.Card height={120} />
           </div>
         ) : groupedBySubject.length === 0 ? (
-          <div className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+          <div className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
             Aún no hay calificaciones publicadas para mostrar.
           </div>
         ) : (
@@ -281,19 +285,21 @@ export function MisCalificacionesPage() {
             return (
               <div
                 key={g.subjectId}
-                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                  <h3 className="text-sm font-semibold text-slate-800">{g.subjectName}</h3>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/80">
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{g.subjectName}</h3>
                   {avg !== null && (
                     (() => {
                       const mood = scoreMood(avg, maxScale > 0 ? maxScale : 10);
                       return (
                         <div className="text-right">
                           <p className={`text-xs font-semibold ${mood.tone}`}>{mood.label}</p>
-                          <p className="text-xs text-slate-600">
-                            <span className="font-semibold text-slate-900">{avg.toFixed(2)}</span>
-                            {maxScale > 0 ? <span className="text-slate-500"> / {maxScale.toFixed(2)}</span> : null}
+                          <p className="text-xs text-slate-600 dark:text-slate-300">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">{avg.toFixed(2)}</span>
+                            {maxScale > 0 ? (
+                              <span className="text-slate-500 dark:text-slate-400"> / {maxScale.toFixed(2)}</span>
+                            ) : null}
                           </p>
                           <p className="mt-0.5 text-lg leading-none" aria-hidden>
                             {mood.emoji}
@@ -303,39 +309,39 @@ export function MisCalificacionesPage() {
                     })()
                   )}
                 </div>
-                <div className={`${SCROLLABLE_PANEL_BODY} border-t border-slate-100`}>
-                <ul className="divide-y divide-slate-100">
+                <div className={`${SCROLLABLE_PANEL_BODY} border-t border-slate-100 dark:border-slate-700`}>
+                <ul className="divide-y divide-slate-100 dark:divide-slate-700">
                   {g.items.map((r) => (
                     <li key={r.id + (r.studentId ?? '')}>
                       <button
                         type="button"
                         onClick={() => setOpenRow(r)}
-                        className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                        className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-medium text-slate-900">{r.title}</p>
+                            <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{r.title}</p>
                             {r.underReview && (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
                                 En revisión
                               </span>
                             )}
                             {r.status === 'OPEN' && !r.underReview && (
-                              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-900">
+                              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
                                 Vista previa
                               </span>
                             )}
                           </div>
-                          <p className="mt-0.5 text-xs text-slate-500">
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                             {r.periodName ?? r.period}
                             {r.closedAt ? ` · Publicada ${new Date(r.closedAt).toLocaleDateString('es')}` : ''}
                           </p>
-                          {r.myNotes && <p className="mt-0.5 text-xs text-slate-500">“{r.myNotes}”</p>}
+                          {r.myNotes && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">“{r.myNotes}”</p>}
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-semibold text-slate-900">
+                          <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                             {r.myScore != null ? parseFloat(r.myScore) : '—'}
-                            <span className="ml-1 text-xs font-normal text-slate-500">
+                            <span className="ml-1 text-xs font-normal text-slate-500 dark:text-slate-400">
                               / {parseFloat(r.maxScore)}
                             </span>
                           </p>
@@ -359,10 +365,10 @@ export function MisCalificacionesPage() {
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                 openRow.underReview
-                  ? 'bg-amber-100 text-amber-900'
+                  ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100'
                   : openRow.status === 'CLOSED'
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-sky-100 text-sky-900'
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
+                    : 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100'
               }`}
             >
               {openRow.underReview ? 'En revisión' : openRow.status === 'CLOSED' ? 'Publicada' : 'Vista previa'}
@@ -373,12 +379,14 @@ export function MisCalificacionesPage() {
       >
         {openRow ? (
           <div className="space-y-4">
-            <div className="flex items-end justify-between gap-4 rounded-xl bg-slate-50 p-4">
+            <div className="flex items-end justify-between gap-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/80">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Tu calificación</p>
-                <p className="mt-1 text-3xl font-semibold text-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Tu calificación
+                </p>
+                <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-slate-100">
                   {openRow.myScore != null ? parseFloat(openRow.myScore) : '—'}
-                  <span className="ml-1 text-base font-normal text-slate-500">
+                  <span className="ml-1 text-base font-normal text-slate-500 dark:text-slate-400">
                     / {parseFloat(openRow.maxScore)}
                   </span>
                 </p>
@@ -397,38 +405,40 @@ export function MisCalificacionesPage() {
             </div>
             {openRow.myNotes ? (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Observaciones del docente</p>
-                <p className="mt-1 whitespace-pre-line text-slate-800">{openRow.myNotes}</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Observaciones del docente
+                </p>
+                <p className="mt-1 whitespace-pre-line text-slate-800 dark:text-slate-200">{openRow.myNotes}</p>
               </div>
             ) : null}
-            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs sm:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 text-xs dark:border-slate-700 sm:grid-cols-2">
               <div>
-                <dt className="font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
-                <dd className="mt-0.5 text-slate-900">{openRow.subjectName}</dd>
+                <dt className="font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Materia</dt>
+                <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{openRow.subjectName}</dd>
               </div>
               <div>
-                <dt className="font-semibold uppercase tracking-widest text-slate-500">Periodo</dt>
-                <dd className="mt-0.5 text-slate-900">
+                <dt className="font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Periodo</dt>
+                <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                   {openRow.periodName ?? openRow.period}
                   {openRow.schoolYear ? ` · ${openRow.schoolYear}` : ''}
                 </dd>
               </div>
               {openRow.groupName ? (
                 <div>
-                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
-                  <dd className="mt-0.5 text-slate-900">{openRow.groupName}</dd>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Grupo</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{openRow.groupName}</dd>
                 </div>
               ) : null}
               {openRow.dueDate ? (
                 <div>
-                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Fecha límite</dt>
-                  <dd className="mt-0.5 text-slate-900">{formatDueDateLocalYmd(openRow.dueDate)}</dd>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Fecha límite</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{formatDueDateLocalYmd(openRow.dueDate)}</dd>
                 </div>
               ) : null}
               {openRow.closedAt ? (
                 <div>
-                  <dt className="font-semibold uppercase tracking-widest text-slate-500">Publicada</dt>
-                  <dd className="mt-0.5 text-slate-900">{new Date(openRow.closedAt).toLocaleString('es')}</dd>
+                  <dt className="font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Publicada</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{new Date(openRow.closedAt).toLocaleString('es')}</dd>
                 </div>
               ) : null}
             </dl>

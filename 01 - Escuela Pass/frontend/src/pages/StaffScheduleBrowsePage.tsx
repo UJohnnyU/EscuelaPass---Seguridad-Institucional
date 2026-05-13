@@ -309,8 +309,8 @@ export function StaffScheduleBrowsePage() {
   return (
     <div className="max-w-5xl animate-fade-in space-y-8">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Horarios por grupo</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Horarios por grupo</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           {platformAdmin
             ? 'Elija una escuela (opcional) y un grupo para ver su horario semanal y los días sin clases.'
             : 'Elija un grupo de su escuela para ver su horario semanal y los días sin clases.'}
@@ -318,14 +318,17 @@ export function StaffScheduleBrowsePage() {
       </div>
 
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+        <div
+          className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-100"
+          role="alert"
+        >
           {err}
         </div>
       )}
 
-      <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20 sm:flex-row sm:flex-wrap sm:items-end">
         {platformAdmin && (
-          <label className="block min-w-0 flex-1 text-sm text-slate-700 sm:max-w-md">
+          <label className="block min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-300 sm:max-w-md">
             Institución
             <div className="mt-1">
               <SmartSelect
@@ -337,7 +340,7 @@ export function StaffScheduleBrowsePage() {
             </div>
           </label>
         )}
-        <label className="block min-w-0 flex-1 text-sm text-slate-700 sm:min-w-[220px]">
+        <label className="block min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-300 sm:min-w-[220px]">
           Grupo
           <div className="mt-1">
             <SmartSelect
@@ -358,15 +361,15 @@ export function StaffScheduleBrowsePage() {
           <button
             type="button"
             onClick={() => setWeekOffset((o) => o - 1)}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             ← Semana anterior
           </button>
-          <span className="text-sm font-medium text-slate-800">{label}</span>
+          <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{label}</span>
           <button
             type="button"
             onClick={() => setWeekOffset((o) => o + 1)}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             Semana siguiente →
           </button>
@@ -374,7 +377,7 @@ export function StaffScheduleBrowsePage() {
             <button
               type="button"
               onClick={() => setWeekOffset(0)}
-              className="text-sm font-medium text-brand-800 underline"
+              className="text-sm font-medium text-brand-800 underline dark:text-brand-300"
             >
               Hoy
             </button>
@@ -384,7 +387,7 @@ export function StaffScheduleBrowsePage() {
           <button
             type="button"
             onClick={() => void downloadPdf()}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             Descargar PDF del grupo
           </button>
@@ -392,18 +395,18 @@ export function StaffScheduleBrowsePage() {
       </div>
 
       {groupDetail && (
-        <p className="text-sm text-slate-700">
-          <span className="font-medium text-slate-900">{groupDetail.name}</span>
+        <p className="text-sm text-slate-700 dark:text-slate-300">
+          <span className="font-medium text-slate-900 dark:text-slate-100">{groupDetail.name}</span>
           {groupDetail.grade ? ` · ${groupDetail.grade}` : ''} · Año {groupDetail.schoolYear}
         </p>
       )}
 
       {loadingSchedule && groupId ? (
-        <p className="text-slate-600">Cargando horario…</p>
+        <p className="text-slate-600 dark:text-slate-400">Cargando horario…</p>
       ) : null}
 
       {!groupId ? (
-        <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
           Elija un grupo para ver el horario.
         </p>
       ) : (
@@ -436,27 +439,27 @@ export function StaffScheduleBrowsePage() {
             {slot ? (
               <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
-                  <dd className="mt-0.5 text-slate-900">{subjectName ?? '—'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Materia</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{subjectName ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Día</dt>
-                  <dd className="mt-0.5 capitalize text-slate-900">{WEEKDAY[slot.weekday]}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Día</dt>
+                  <dd className="mt-0.5 capitalize text-slate-900 dark:text-slate-100">{WEEKDAY[slot.weekday]}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
-                  <dd className="mt-0.5 text-slate-900">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Horario</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                     {slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
-                  <dd className="mt-0.5 text-slate-900">{slot.room ?? 'No especificada'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Aula</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{slot.room ?? 'No especificada'}</dd>
                 </div>
                 {groupDetail ? (
                   <div className="sm:col-span-2">
-                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
-                    <dd className="mt-0.5 text-slate-900">
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Grupo</dt>
+                    <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                       {groupDetail.name}
                       {groupDetail.grade ? ` · ${groupDetail.grade}` : ''} · Año {groupDetail.schoolYear}
                     </dd>
@@ -469,29 +472,31 @@ export function StaffScheduleBrowsePage() {
       })()}
 
       {canMarkInstitutionWide ? (
-        <section className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Marcar día sin clases para toda la escuela</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm dark:border-amber-700/40 dark:bg-amber-950/25 dark:shadow-slate-950/20">
+          <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">
+            Marcar día sin clases para toda la escuela
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Ese día no se tomará asistencia y no contará en ninguno de los grupos. Afecta a toda la escuela.
           </p>
           {user?.role === 'ADMIN' && platformAdmin && !schoolFilter.trim() ? (
-            <p className="mt-3 text-sm text-amber-900">Elija una escuela en el filtro de arriba para continuar.</p>
+            <p className="mt-3 text-sm text-amber-900 dark:text-amber-200">Elija una escuela en el filtro de arriba para continuar.</p>
           ) : (
             <div className="mt-4 flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-sm text-slate-700">
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                 Fecha
                 <input
                   type="date"
-                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={instDate}
                   onChange={(e) => setInstDate(e.target.value)}
                 />
               </label>
-              <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700">
+              <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                 Motivo (opcional)
                 <input
                   type="text"
-                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   value={instReason}
                   onChange={(e) => setInstReason(e.target.value)}
                   placeholder="Ej. Junta de académicos"
@@ -501,7 +506,7 @@ export function StaffScheduleBrowsePage() {
                 type="button"
                 disabled={instSaving}
                 onClick={() => void addInstitutionalDayOff()}
-                className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-400"
               >
                 {instSaving ? 'Guardando…' : 'Marcar día sin clases'}
               </button>
@@ -511,29 +516,31 @@ export function StaffScheduleBrowsePage() {
       ) : null}
 
       <section>
-        <h2 className="font-serif text-lg font-semibold text-slate-900">Días sin clases de esta semana</h2>
-        <p className="mt-1 text-xs text-slate-500">Incluye los días sin clases para toda la escuela y los del grupo seleccionado.</p>
+        <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">Días sin clases de esta semana</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Incluye los días sin clases para toda la escuela y los del grupo seleccionado.
+        </p>
         {weekCalendarDays.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">No hay días marcados sin clases en esta semana.</p>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No hay días marcados sin clases en esta semana.</p>
         ) : (
           <ul className="mt-4 space-y-2">
             {weekCalendarDays.map((d) => (
               <li
                 key={d.id}
-                className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
+                className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20"
               >
                 <div>
-                  <span className="font-medium text-slate-900">
+                  <span className="font-medium text-slate-900 dark:text-slate-100">
                     {new Date(String(d.exceptionDate).slice(0, 10) + 'T12:00:00').toLocaleDateString('es', {
                       weekday: 'long',
                       day: 'numeric',
                       month: 'long'
                     })}
                   </span>
-                  <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                  <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     {d.groupId ? 'Solo este grupo' : 'Toda la institución'}
                   </span>
-                  {d.reason ? <span className="mt-1 block text-slate-600">{d.reason}</span> : null}
+                  {d.reason ? <span className="mt-1 block text-slate-600 dark:text-slate-300">{d.reason}</span> : null}
                 </div>
                 {(user?.role === 'ADMIN' || user?.role === 'ADMINISTRATIVO') && (
                   <button
@@ -545,7 +552,7 @@ export function StaffScheduleBrowsePage() {
                         label: `${String(d.exceptionDate).slice(0, 10)}${d.reason ? ` (${d.reason})` : ''}`
                       })
                     }
-                    className="shrink-0 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                    className="shrink-0 text-sm font-medium text-red-700 hover:underline disabled:opacity-50 dark:text-red-400"
                   >
                     {removingId === d.id ? '…' : 'Quitar'}
                   </button>
@@ -556,7 +563,7 @@ export function StaffScheduleBrowsePage() {
         )}
       </section>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Para crear o editar franjas use los módulos de administración académica (horarios) con una cuenta con permisos
         correspondientes.
       </p>

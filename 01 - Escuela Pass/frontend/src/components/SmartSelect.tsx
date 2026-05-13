@@ -244,8 +244,12 @@ export function SmartSelect({
           id={`${listboxId}-opt-${index}`}
           aria-selected={sel}
           className={`flex min-h-[36px] w-full items-center rounded px-2 py-2 text-left text-sm ${
-            highlighted ? 'bg-slate-100 ring-1 ring-slate-200' : ''
-          } ${sel ? 'bg-brand-50 text-brand-900' : 'text-slate-800 hover:bg-slate-50'}`}
+            highlighted ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-700 dark:ring-slate-600' : ''
+          } ${
+            sel
+              ? 'bg-brand-50 text-brand-900 dark:bg-brand-950/50 dark:text-brand-100'
+              : 'text-slate-800 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700'
+          }`}
           onMouseEnter={() => setActiveIndex(index)}
           onClick={() => commit(opt)}
         >
@@ -263,7 +267,7 @@ export function SmartSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-        className="flex w-full items-center justify-between rounded border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+        className="flex w-full items-center justify-between rounded border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-900 dark:disabled:text-slate-500"
         onClick={() => {
           if (disabled) return;
           setOpen((v) => !v);
@@ -271,16 +275,16 @@ export function SmartSelect({
         }}
       >
         <span className="truncate">{selected?.label ?? placeholder}</span>
-        <span className="ml-2 shrink-0 text-xs text-slate-500">{open ? '▲' : '▼'}</span>
+        <span className="ml-2 shrink-0 text-xs text-slate-500 dark:text-slate-400">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div className="absolute z-40 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg">
-          <div className="border-b border-slate-100 p-2">
+        <div className="absolute z-40 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
+          <div className="border-b border-slate-100 p-2 dark:border-slate-700">
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
               placeholder="Buscar…"
               aria-autocomplete="list"
               aria-controls={listboxId}
@@ -298,14 +302,22 @@ export function SmartSelect({
             }}
           >
             {remoteLoading && (
-              <div className="px-2 py-2 text-sm text-slate-500" role="status">
+              <div className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400" role="status">
                 {loadingLabel}
               </div>
             )}
-            {showEmptyLocal && <div className="px-2 py-2 text-sm text-slate-500">{emptyLabel}</div>}
-            {showNoHitsLocal && <div className="px-2 py-2 text-sm text-slate-500">{noResultsLabel}</div>}
-            {showEmptyRemote && <div className="px-2 py-2 text-sm text-slate-500">{emptyLabel}</div>}
-            {showNoHitsRemote && <div className="px-2 py-2 text-sm text-slate-500">{noResultsLabel}</div>}
+            {showEmptyLocal && (
+              <div className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400">{emptyLabel}</div>
+            )}
+            {showNoHitsLocal && (
+              <div className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400">{noResultsLabel}</div>
+            )}
+            {showEmptyRemote && (
+              <div className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400">{emptyLabel}</div>
+            )}
+            {showNoHitsRemote && (
+              <div className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400">{noResultsLabel}</div>
+            )}
             {!useVirtual &&
               !(remote && remoteLoading) &&
               !showEmptyLocal &&

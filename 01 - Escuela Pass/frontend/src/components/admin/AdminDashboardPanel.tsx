@@ -76,17 +76,19 @@ function KpiCard({
 }) {
   const ring =
     tone === 'brand'
-      ? 'ring-brand-800/15'
+      ? 'ring-brand-800/15 dark:ring-brand-400/25'
       : tone === 'amber'
-        ? 'ring-amber-600/15'
+        ? 'ring-amber-600/15 dark:ring-amber-400/20'
         : tone === 'emerald'
-          ? 'ring-emerald-600/15'
-          : 'ring-slate-300/40';
+          ? 'ring-emerald-600/15 dark:ring-emerald-400/20'
+          : 'ring-slate-300/40 dark:ring-slate-500/30';
   return (
-    <div className={`rounded-lg border border-slate-200 bg-white p-4 shadow-sm ring-1 ${ring}`}>
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
-      <p className="mt-1 font-serif text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+    <div
+      className={`rounded-lg border border-slate-200 bg-white p-4 shadow-sm ring-1 dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20 ${ring}`}
+    >
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</p>
+      <p className="mt-1 font-serif text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p> : null}
     </div>
   );
 }
@@ -135,36 +137,36 @@ export function AdminDashboardPanel() {
     <section className="space-y-6" aria-label="Panel institucional" aria-busy={refreshing}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-serif text-xl font-semibold text-slate-900">Panel de su escuela</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-serif text-xl font-semibold text-slate-900 dark:text-slate-100">Panel de su escuela</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Resumen del día y de la última semana de su institución, con desglose por
-            {' '}<strong className="font-medium text-slate-800">grupo o curso</strong>.
+            {' '}<strong className="font-medium text-slate-800 dark:text-slate-200">grupo o curso</strong>.
           </p>
           {data && (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
               Período: {data.window.label} ({formatRange(data.window.startDate, data.window.endDate)})
             </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <span className="whitespace-nowrap">Día de referencia</span>
             <input
               type="date"
               value={refDate}
               onChange={(e) => setRefDate(e.target.value)}
-              className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm"
+              className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:shadow-slate-950/30"
             />
           </label>
           <Link
             to="/app/circuito/hoy"
-            className="rounded border border-brand-800/30 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 shadow-sm transition hover:bg-brand-100"
+            className="rounded border border-brand-800/30 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-950/40 dark:text-brand-100 dark:hover:bg-brand-900/50"
           >
             Circuito del día
           </Link>
           <Link
             to="/app/modulos/administracion"
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             Informes detallados
           </Link>
@@ -176,21 +178,24 @@ export function AdminDashboardPanel() {
         className={`h-px w-full overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-100' : 'opacity-0'}`}
         aria-hidden="true"
       >
-        <div className="h-full w-1/2 animate-progress-bar bg-brand-500/70" />
+        <div className="h-full w-1/2 animate-progress-bar bg-brand-500/70 dark:bg-brand-400/80" />
       </div>
 
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+        <div
+          className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-100"
+          role="alert"
+        >
           {err}
         </div>
       )}
 
       {loading && !data && (
-        <p className="text-sm text-slate-500">Cargando indicadores…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Cargando indicadores…</p>
       )}
 
       {summary?.nonInstructionalDay && (
-        <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
           El día de referencia está marcado como <strong>no lectivo</strong> en el calendario escolar. Los conteos de
           asistencia pueden ser bajos o nulos.
         </div>
@@ -225,22 +230,25 @@ export function AdminDashboardPanel() {
           </div>
 
           {summary.payments.pendingWithVoucher > 0 && (
-            <p className="text-sm text-slate-600">
-              <span className="font-medium text-slate-800">{summary.payments.pendingWithVoucher}</span> pago(s)
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              <span className="font-medium text-slate-800 dark:text-slate-200">{summary.payments.pendingWithVoucher}</span>{' '}
+              pago(s)
               pendiente(s) tienen comprobante cargado por la familia. Revíselos en Finanzas.
             </p>
           )}
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="font-medium text-slate-900">Recogidas por día</h3>
-              <p className="mt-1 text-xs text-slate-500">Solicitudes registradas durante los últimos 7 días</p>
-              <div className="mt-6 flex justify-between gap-1 border-b border-slate-200 pb-1">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20">
+              <h3 className="font-medium text-slate-900 dark:text-slate-100">Recogidas por día</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Solicitudes registradas durante los últimos 7 días
+              </p>
+              <div className="mt-6 flex justify-between gap-1 border-b border-slate-200 pb-1 dark:border-slate-700">
                 {(data?.circuits.byDay ?? []).map((d) => {
                   const h = Math.round((d.total / maxDay) * 100);
                   return (
                     <div key={d.date} className="flex min-w-0 flex-1 flex-col items-stretch gap-1">
-                      <div className="text-center text-[11px] font-semibold leading-none tabular-nums text-slate-800">
+                      <div className="text-center text-[11px] font-semibold leading-none tabular-nums text-slate-800 dark:text-slate-200">
                         {d.total}
                       </div>
                       <div
@@ -249,11 +257,11 @@ export function AdminDashboardPanel() {
                         aria-label={`${formatDayShort(d.date)}: ${d.total} solicitudes`}
                       >
                         <div
-                          className="w-[85%] max-w-[2.75rem] rounded-t-md bg-brand-600 transition-all"
+                          className="w-[85%] max-w-[2.75rem] rounded-t-md bg-brand-600 transition-all dark:bg-brand-500"
                           style={{ height: `${h}%`, minHeight: d.total > 0 ? '4px' : '0' }}
                         />
                       </div>
-                      <span className="max-w-full truncate text-center text-[10px] font-medium uppercase leading-tight text-slate-500">
+                      <span className="max-w-full truncate text-center text-[10px] font-medium uppercase leading-tight text-slate-500 dark:text-slate-400">
                         {formatDayShort(d.date)}
                       </span>
                     </div>
@@ -262,22 +270,26 @@ export function AdminDashboardPanel() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="font-medium text-slate-900">Recogidas de hoy por estado</h3>
-              <p className="mt-1 text-xs text-slate-500">En qué etapa se encuentra cada solicitud del día</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20">
+              <h3 className="font-medium text-slate-900 dark:text-slate-100">Recogidas de hoy por estado</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                En qué etapa se encuentra cada solicitud del día
+              </p>
               {circuitStatusEntries.length === 0 ? (
-                <p className="mt-8 text-sm text-slate-500">Sin solicitudes este día.</p>
+                <p className="mt-8 text-sm text-slate-500 dark:text-slate-400">Sin solicitudes este día.</p>
               ) : (
                 <ul className="mt-4 space-y-2">
                   {circuitStatusEntries.map(([status, n]) => (
                     <li key={status}>
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-700">{CIRCUIT_STATUS_LABEL[status] ?? status}</span>
-                        <span className="tabular-nums text-slate-900">{n}</span>
+                        <span className="text-slate-700 dark:text-slate-300">
+                          {CIRCUIT_STATUS_LABEL[status] ?? status}
+                        </span>
+                        <span className="tabular-nums text-slate-900 dark:text-slate-100">{n}</span>
                       </div>
-                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
                         <div
-                          className="h-full rounded-full bg-brand-500"
+                          className="h-full rounded-full bg-brand-500 dark:bg-brand-400"
                           style={{
                             width: `${Math.round((n / Math.max(1, summary.circuitToday.total)) * 100)}%`
                           }}
@@ -290,13 +302,13 @@ export function AdminDashboardPanel() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-medium text-slate-900">Recogidas por grupo (últimos 7 días)</h3>
-            <p className="mt-1 text-xs text-slate-500">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20">
+            <h3 className="font-medium text-slate-900 dark:text-slate-100">Recogidas por grupo (últimos 7 días)</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Total de solicitudes de recogida agrupadas por curso o sección.
             </p>
             {groupsTop.length === 0 ? (
-              <p className="mt-6 text-sm text-slate-500">Sin datos en el período.</p>
+              <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Sin datos en el período.</p>
             ) : (
               <ul className="mt-4 space-y-3">
                 {groupsTop.map((g) => {
@@ -305,15 +317,15 @@ export function AdminDashboardPanel() {
                   return (
                     <li key={`${g.groupId}-${label}-${shift ?? ''}`}>
                       <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                        <span className="font-medium text-slate-800">{label}</span>
-                        <span className="tabular-nums text-slate-600">
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{label}</span>
+                        <span className="tabular-nums text-slate-600 dark:text-slate-300">
                           {g.total}
                           {shift ? ` · ${shift}` : ''}
                         </span>
                       </div>
-                      <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
                         <div
-                          className="h-full rounded-full bg-slate-700/80"
+                          className="h-full rounded-full bg-slate-700/80 dark:bg-slate-400/90"
                           style={{ width: `${Math.round((g.total / maxGroup) * 100)}%` }}
                         />
                       </div>

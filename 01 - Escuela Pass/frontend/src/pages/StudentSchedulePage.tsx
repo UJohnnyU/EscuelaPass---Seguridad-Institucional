@@ -378,19 +378,21 @@ export function StudentSchedulePage() {
 
   if (!alumno && !docente) {
     return (
-      <p className="text-sm text-slate-600">Esta sección es solo para cuentas de estudiante o docente.</p>
+      <p className="text-sm text-slate-600 dark:text-slate-300">
+        Esta sección es solo para cuentas de estudiante o docente.
+      </p>
     );
   }
 
   if (loading && !schedule && !teacherSlots) {
-    return <p className="text-slate-600">Cargando horario…</p>;
+    return <p className="text-slate-600 dark:text-slate-400">Cargando horario…</p>;
   }
 
   return (
     <div className="max-w-5xl animate-fade-in space-y-10">
       <div>
-        <h1 className="font-serif text-2xl font-semibold text-slate-900">Mi horario semanal</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <h1 className="font-serif text-2xl font-semibold text-slate-900 dark:text-slate-100">Mi horario semanal</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           {alumno
             ? 'Clases de su grupo, reuniones y visitas de la semana elegida, días sin clases y avisos recientes.'
             : 'Sus clases, reuniones y visitas de la semana elegida, días sin clases y avisos recientes.'}
@@ -398,7 +400,10 @@ export function StudentSchedulePage() {
       </div>
 
       {err && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+        <div
+          className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-100"
+          role="alert"
+        >
           {err}
         </div>
       )}
@@ -408,15 +413,15 @@ export function StudentSchedulePage() {
           <button
             type="button"
             onClick={() => setWeekOffset((o) => o - 1)}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             ← Semana anterior
           </button>
-          <span className="text-sm font-medium text-slate-800">{label}</span>
+          <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{label}</span>
           <button
             type="button"
             onClick={() => setWeekOffset((o) => o + 1)}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             Semana siguiente →
           </button>
@@ -424,7 +429,7 @@ export function StudentSchedulePage() {
             <button
               type="button"
               onClick={() => setWeekOffset(0)}
-              className="text-sm font-medium text-brand-800 underline"
+              className="text-sm font-medium text-brand-800 underline dark:text-brand-300"
             >
               Hoy
             </button>
@@ -434,7 +439,7 @@ export function StudentSchedulePage() {
           <button
             type="button"
             onClick={() => void downloadPdf()}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           >
             Descargar PDF del grupo
           </button>
@@ -442,14 +447,14 @@ export function StudentSchedulePage() {
       </div>
 
       {alumno && schedule?.group && (
-        <p className="text-sm text-slate-700">
-          <span className="font-medium text-slate-900">{schedule.group.name}</span>
+        <p className="text-sm text-slate-700 dark:text-slate-300">
+          <span className="font-medium text-slate-900 dark:text-slate-100">{schedule.group.name}</span>
           {schedule.group.grade ? ` · ${schedule.group.grade}` : ''} · Año {schedule.group.schoolYear}
         </p>
       )}
 
       {alumno && !schedule?.groupId && (
-        <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
           Aún no tiene un grupo asignado: no verá franjas de clase hasta que la secretaría lo asigne. Las reuniones y
           visitas en las que participe pueden seguir mostrándose en la cuadrícula y en los listados de abajo.
         </p>
@@ -494,27 +499,27 @@ export function StudentSchedulePage() {
             {slot ? (
               <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Materia</dt>
-                  <dd className="mt-0.5 text-slate-900">{slot.subjectName ?? '—'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Materia</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{slot.subjectName ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Día</dt>
-                  <dd className="mt-0.5 capitalize text-slate-900">{WEEKDAY[slot.weekday]}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Día</dt>
+                  <dd className="mt-0.5 capitalize text-slate-900 dark:text-slate-100">{WEEKDAY[slot.weekday]}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Horario</dt>
-                  <dd className="mt-0.5 text-slate-900">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Horario</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                     {slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Aula</dt>
-                  <dd className="mt-0.5 text-slate-900">{slot.room ?? 'No especificada'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Aula</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{slot.room ?? 'No especificada'}</dd>
                 </div>
                 {alumno && schedule?.group ? (
                   <div className="sm:col-span-2">
-                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
-                    <dd className="mt-0.5 text-slate-900">
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Grupo</dt>
+                    <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                       {schedule.group.name}
                       {schedule.group.grade ? ` · ${schedule.group.grade}` : ''} · Año{' '}
                       {schedule.group.schoolYear}
@@ -523,8 +528,8 @@ export function StudentSchedulePage() {
                 ) : null}
                 {!alumno && slot && 'groupName' in slot ? (
                   <div className="sm:col-span-2">
-                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Grupo</dt>
-                    <dd className="mt-0.5 text-slate-900">{(slot as TeacherSelfSlot).groupName ?? '—'}</dd>
+                    <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Grupo</dt>
+                    <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{(slot as TeacherSelfSlot).groupName ?? '—'}</dd>
                   </div>
                 ) : null}
               </dl>
@@ -565,41 +570,41 @@ export function StudentSchedulePage() {
             {meeting ? (
               <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Estado</dt>
-                  <dd className="mt-0.5 text-slate-900">{meeting.status ?? '—'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Estado</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{meeting.status ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Modalidad</dt>
-                  <dd className="mt-0.5 text-slate-900">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Modalidad</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
                     {meeting.modality === 'VIRTUAL' ? 'Virtual' : meeting.modality === 'PRESENCIAL' ? 'Presencial' : '—'}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Duración</dt>
-                  <dd className="mt-0.5 text-slate-900">{meeting.durationMinutes ?? 30} min</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Duración</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{meeting.durationMinutes ?? 30} min</dd>
                 </div>
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Detalle</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-slate-900">{meeting.purpose ?? 'Sin detalle adicional.'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Detalle</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-slate-900 dark:text-slate-100">{meeting.purpose ?? 'Sin detalle adicional.'}</dd>
                 </div>
               </dl>
             ) : visit ? (
               <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Invitado</dt>
-                  <dd className="mt-0.5 text-slate-900">{visit.visitorName || '—'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Invitado</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{visit.visitorName || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Estado</dt>
-                  <dd className="mt-0.5 text-slate-900">{visit.status || '—'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Estado</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{visit.status || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Duración</dt>
-                  <dd className="mt-0.5 text-slate-900">{visit.durationMinutes ?? 60} min</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Duración</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{visit.durationMinutes ?? 60} min</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500">Lugar</dt>
-                  <dd className="mt-0.5 text-slate-900">{visit.location ?? 'No especificado'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Lugar</dt>
+                  <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{visit.location ?? 'No especificado'}</dd>
                 </div>
               </dl>
             ) : null}
@@ -609,20 +614,23 @@ export function StudentSchedulePage() {
 
       <section className="space-y-8">
         <div>
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Reuniones de esta semana</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">Reuniones de esta semana</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Coinciden con la semana mostrada arriba (use los botones de semana si no ve nada).
           </p>
           {meetingsThisWeek.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600">No hay reuniones en esta semana.</p>
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No hay reuniones en esta semana.</p>
           ) : (
             <ul className="mt-4 space-y-2">
               {meetingsThisWeek.map((m) => {
                 const when = meetingWhenIso(m as MeetingRow & Record<string, unknown>);
                 return (
-                  <li key={m.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-                    <p className="font-medium text-slate-900">{m.title ?? m.topic ?? 'Reunión'}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                  <li
+                    key={m.id}
+                    className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20"
+                  >
+                    <p className="font-medium text-slate-900 dark:text-slate-100">{m.title ?? m.topic ?? 'Reunión'}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                       {when
                         ? new Date(when).toLocaleString('es', {
                             weekday: 'short',
@@ -641,19 +649,22 @@ export function StudentSchedulePage() {
           )}
         </div>
         <div>
-          <h2 className="font-serif text-lg font-semibold text-slate-900">Visitas de esta semana</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">Visitas de esta semana</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Visitas externas donde participa su grupo o la escuela según lo programado
             {alumno ? ' (incluye visitas dirigidas a su curso).' : '.'}
           </p>
           {visitsThisWeek.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600">No hay visitas en esta semana.</p>
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No hay visitas en esta semana.</p>
           ) : (
             <ul className="mt-4 space-y-2">
               {visitsThisWeek.map((v) => (
-                <li key={v.id} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-                  <p className="font-medium text-slate-900">{v.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                <li
+                  key={v.id}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20"
+                >
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{v.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     {new Date(v.visitDatetime).toLocaleString('es', {
                       weekday: 'short',
                       day: '2-digit',
@@ -672,27 +683,27 @@ export function StudentSchedulePage() {
       </section>
 
       <section>
-        <h2 className="font-serif text-lg font-semibold text-slate-900">Días sin clases de esta semana</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">Días sin clases de esta semana</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Incluye los días sin clases para toda la escuela y los específicos de su grupo.
         </p>
         {weekCalendarDays.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">No hay días marcados sin clases en esta semana.</p>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No hay días marcados sin clases en esta semana.</p>
         ) : (
           <ul className="mt-4 space-y-2">
             {weekCalendarDays.map((d) => (
               <li
                 key={d.id}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
+                className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/20"
               >
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-slate-900 dark:text-slate-100">
                   {new Date(d.exceptionDate.slice(0, 10) + 'T12:00:00').toLocaleDateString('es', {
                     weekday: 'long',
                     day: 'numeric',
                     month: 'long'
                   })}
                 </span>
-                {d.reason ? <span className="mt-1 block text-slate-600">{d.reason}</span> : null}
+                {d.reason ? <span className="mt-1 block text-slate-600 dark:text-slate-300">{d.reason}</span> : null}
               </li>
             ))}
           </ul>
@@ -700,28 +711,30 @@ export function StudentSchedulePage() {
       </section>
 
       <section>
-        <h2 className="font-serif text-lg font-semibold text-slate-900">Avisos recientes (notificaciones)</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">Avisos recientes (notificaciones)</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Comunicados enviados a su usuario (incluye avisos institucionales que se le hayan dirigido).
         </p>
         {!notifications || notifications.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">No hay notificaciones recientes.</p>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No hay notificaciones recientes.</p>
         ) : (
           <ul className="mt-4 space-y-3">
             {notifications.map((n) => (
               <li
                 key={n.id}
                 className={`rounded-lg border px-4 py-3 text-sm shadow-sm ${
-                  n.readAt ? 'border-slate-200 bg-white' : 'border-brand-200/60 bg-brand-50/50'
+                  n.readAt
+                    ? 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
+                    : 'border-brand-200/60 bg-brand-50/50 dark:border-brand-500/40 dark:bg-brand-950/30'
                 }`}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-semibold text-slate-900">{n.title}</span>
-                  <time className="text-xs text-slate-500" dateTime={n.sentAt}>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">{n.title}</span>
+                  <time className="text-xs text-slate-500 dark:text-slate-400" dateTime={n.sentAt}>
                     {new Date(n.sentAt).toLocaleString('es')}
                   </time>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-slate-700">{n.message}</p>
+                <p className="mt-2 whitespace-pre-wrap text-slate-700 dark:text-slate-300">{n.message}</p>
               </li>
             ))}
           </ul>
