@@ -1,10 +1,38 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
+import PDFDocument from 'pdfkit';
 import { Pool } from 'pg';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+
+/** PDF mínimo pero válido (los stubs tipo "%PDF…%%EOF" no abren en visores ni pasan validación). */
+async function writeMinimalValidPdf(absPath: string): Promise<void> {
+  const buf = await new Promise<Buffer>((resolvePromise, reject) => {
+    const doc = new PDFDocument({ size: [120, 80], margin: 12 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.on('end', () => resolvePromise(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.fontSize(9).text('E2E evidencia', { align: 'left' });
+    doc.end();
+  });
+  writeFileSync(absPath, buf);
+}
+
+/** Si `E2E_KEEP_UPLOAD_FIXTURES=1` (o `true` / `yes`), no se borran PDFs creados en esta suite. */
+function removeE2eUploadFixture(absPath: string): void {
+  const keep = ['1', 'true', 'yes'].includes(
+    String(process.env.E2E_KEEP_UPLOAD_FIXTURES ?? '').trim().toLowerCase()
+  );
+  if (keep) return;
+  try {
+    if (existsSync(absPath)) unlinkSync(absPath);
+  } catch {
+    /* ignore */
+  }
+}
 
 // En jest-e2e.setup.js el límite AUTH_THROTTLE por IP suele ser alto (20k/min)
 // para que decenas de logins no devuelvan 429. El caso estricto de throttle
@@ -635,13 +663,17 @@ describe('Phase 7 — cierre QA cruzado (e2e)', () => {
   describe('Files autorización (matriz IDOR negativa)', () => {
     let voucherFilename: string;
 
-    beforeAll(() => {
+    beforeAll(async () => {
       const comprobantesDir = resolve(process.cwd(), 'uploads', 'comprobantes');
       if (!existsSync(comprobantesDir)) {
         mkdirSync(comprobantesDir, { recursive: true });
       }
       voucherFilename = `phase7-comp-${Date.now()}.pdf`;
-      writeFileSync(resolve(comprobantesDir, voucherFilename), '%PDF-1.4\n%phase7\n%%EOF\n');
+      await writeMinimalValidPdf(resolve(comprobantesDir, voucherFilename));
+    });
+
+    afterAll(() => {
+      removeE2eUploadFixture(resolve(process.cwd(), 'uploads', 'comprobantes', voucherFilename));
     });
 
     it('GET /files/comprobantes/* sin JWT devuelve 401', async () => {
@@ -750,7 +782,8 @@ describe('Phase 7 — cierre QA cruzado (e2e)', () => {
       const reportsDir = resolve(process.cwd(), 'uploads', 'reports');
       if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
       const filename = `phase7-report-${Date.now()}.pdf`;
-      writeFileSync(resolve(reportsDir, filename), '%PDF-1.4\n%report\n%%EOF\n');
+      const reportAbs = resolve(reportsDir, filename);
+      await writeMinimalValidPdf(reportAbs);
 
       const stamp = Date.now();
       const otherCode = `ESCUELA-PHASE7-${stamp}`;
@@ -795,6 +828,8 @@ describe('Phase 7 — cierre QA cruzado (e2e)', () => {
       ]);
       await db.query(`DELETE FROM users WHERE email = $1`, [adminOtherEmail]);
       await db.query(`DELETE FROM schools WHERE code = $1`, [otherCode]);
+
+      removeE2eUploadFixture(reportAbs);
     });
   });
 

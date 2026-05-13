@@ -158,10 +158,12 @@ describe('App (e2e)', () => {
     return first.id;
   };
 
-  const getFirstAcademicPeriodId = async (token: string) => {
-    const res = await request(app.getHttpServer())
-      .get(`/${apiPrefix}/academic-periods`)
-      .set(authHeader(token));
+  const getFirstAcademicPeriodId = async (token: string, schoolId?: string) => {
+    const listPath =
+      schoolId !== undefined && schoolId !== ''
+        ? `/${apiPrefix}/academic-periods?schoolId=${encodeURIComponent(schoolId)}`
+        : `/${apiPrefix}/academic-periods`;
+    const res = await request(app.getHttpServer()).get(listPath).set(authHeader(token));
     if (res.status === 200) {
       const first = (res.body as Array<{ id: string }>)[0];
       if (first?.id) return first.id;
@@ -169,17 +171,21 @@ describe('App (e2e)', () => {
     const now = new Date();
     const y = now.getUTCFullYear();
     const schoolYear = `${y}-${y + 1}`;
+    const payload: Record<string, unknown> = {
+      schoolYear,
+      name: 'BIM1',
+      orderIndex: 1,
+      startDate: `${y}-01-10`,
+      endDate: `${y}-03-31`,
+      weight: 100
+    };
+    if (schoolId !== undefined && schoolId !== '') {
+      payload.schoolId = schoolId;
+    }
     const created = await request(app.getHttpServer())
       .post(`/${apiPrefix}/academic-periods`)
       .set(authHeader(token))
-      .send({
-        schoolYear,
-        name: 'BIM1',
-        orderIndex: 1,
-        startDate: `${y}-01-10`,
-        endDate: `${y}-03-31`,
-        weight: 100
-      })
+      .send(payload)
       .expect(201);
     return created.body.id as string;
   };
@@ -196,11 +202,11 @@ describe('App (e2e)', () => {
     teacherId: string;
     subjectId: string;
   }) => {
-    const periodId = await getFirstAcademicPeriodId(input.adminToken);
     const groupRow = await sqlOne<{ school_id: string }>(
       `SELECT school_id FROM groups WHERE id = $1`,
       [input.groupId]
     );
+    const periodId = await getFirstAcademicPeriodId(input.adminToken, groupRow.school_id);
     const existing = await db.query<{ id: string }>(
       `SELECT id
        FROM class_sessions
@@ -828,21 +834,23 @@ describe('App (e2e)', () => {
       .send({ enabled: false })
       .expect(200);
 
-    await request(app.getHttpServer())
-      .post(`/${apiPrefix}/circuit-requests`)
-      .set(authHeader(padre.accessToken))
-      .send({
-        studentId: student.id,
-        requestedByParentId: parent.id,
-        pickupMethod: 'A_PIE'
-      })
-      .expect(400);
-
-    await request(app.getHttpServer())
-      .patch(`/${apiPrefix}/settings/circuit`)
-      .set(authHeader(admin.accessToken))
-      .send({ enabled: true })
-      .expect(200);
+    try {
+      await request(app.getHttpServer())
+        .post(`/${apiPrefix}/circuit-requests`)
+        .set(authHeader(padre.accessToken))
+        .send({
+          studentId: student.id,
+          requestedByParentId: parent.id,
+          pickupMethod: 'A_PIE'
+        })
+        .expect(403);
+    } finally {
+      await request(app.getHttpServer())
+        .patch(`/${apiPrefix}/settings/circuit`)
+        .set(authHeader(admin.accessToken))
+        .send({ enabled: true })
+        .expect(200);
+    }
   });
 
   it('circuit: padre actualiza GPS de su solicitud', async () => {
@@ -900,6 +908,11 @@ describe('App (e2e)', () => {
       })
       .expect(200);
     expect(p2.body.status).toBe('NOTIFICADO_LLEGADA');
+
+    await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/cancel`)
+      .set(authHeader(padre.accessToken))
+      .expect(200);
   });
 
   it('circuit: padre confirma entrega de su solicitud', async () => {
@@ -1233,11 +1246,11 @@ describe('App (e2e)', () => {
         .expect(201);
     }
 
-    // Bloqueo operativo: docente inactivo no consulta su horario
+    // Tras transición terminal el JWT deja de ser válido (cuenta inactiva) → 401
     await request(app.getHttpServer())
       .get(`/${apiPrefix}/schedules/me/teacher`)
       .set(authHeader(docente.accessToken))
-      .expect(403);
+      .expect(401);
 
     const teacherHistory = await request(app.getHttpServer())
       .get(`/${apiPrefix}/school/teachers/${teacher!.id}/lifecycle-history`)
