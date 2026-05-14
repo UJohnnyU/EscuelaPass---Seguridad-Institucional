@@ -20,3 +20,4 @@ frontend/public/firebase-messaging-sw.js
 
 # Design assets / local images (not versioned)
 Img/
+scripts/.tdg-railway-once.cjs

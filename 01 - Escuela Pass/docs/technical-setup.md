@@ -8,7 +8,7 @@ Documento de referencia del **monorepo** backend (NestJS + TypeORM + PostgreSQL)
 |--------|-----------|--------|
 | API | Raíz del proyecto (`src/`) | Node **≥ 20**, NestJS 10, prefijo global `API_PREFIX` (por defecto `api/v1`). |
 | Web | `frontend/` | React 18, Vite 6, Tailwind; escaneo con **html5-qrcode**; mapas Mapbox; push FCM opcional. |
-| DDL de referencia | `escuela_pass_schema_v4.sql` | Greenfield + `npm run db:apply` (solo esquema, vía `DATABASE_URL`). |
+| DDL de referencia | `scripts/database/escuela_pass_schema_v4.sql` | Greenfield + `npm run db:apply` (solo esquema, vía `DATABASE_URL`). |
 | Cadena TypeORM | `src/database/migrations/` | Baseline + migraciones incrementales; también se ejecutan **al arranque** del proceso (ver abajo). |
 
 ### Arranque del backend (`src/main.ts`)
@@ -95,6 +95,20 @@ GRANT USAGE, CREATE ON SCHEMA public TO escuela_pass_app;
 
 - `npm run migration:show` — `migration:create` — `migration:generate` — `migration:run` — `migration:revert`
 - Carpeta: `src/database/migrations/` (el baseline inicial sigue siendo `1712050000000-BaselineSchema.ts`, apoyado en `src/database/baseline/typeorm-baseline-v3.sql`).
+
+### Política de cambios de esquema (equipo y TDG)
+
+Objetivo: **una sola verdad versionada** en evolución diaria; los otros caminos son de apoyo o de *bootstrap*.
+
+| Situación | Acción esperada |
+| ---------- | ---------------- |
+| **Nueva tabla, columna, índice o restricción** en producción o ramas compartidas | **1)** Migración TypeORM en `src/database/migrations/` (revisada en PR). **2)** Entidad u homólogo en `src/database/entities/` alineado. **3)** Actualizar el **Anexo 04** en `docs/tdg/redaccion-activa/04-modelo-er.md` (inventario §8 y texto si aplica). |
+| Parche idempotente ya acordado para entornos rezagados | Puede vivir en `ensureRuntimeSchema` **solo** si está **alineado** con una migración existente o pendiente; no debe ser la vía habitual de nuevas funcionalidades. |
+| **Greenfield** (base vacía, laboratorio) | Opción A: `npm run db:apply` sobre `scripts/database/escuela_pass_schema_v4.sql` + datos de prueba según scripts permitidos. Luego alinear con migraciones antes de simular producción. |
+| **Base ya gobernada por migraciones** | No reaplicar el SQL v4 completo encima. Usar `migration:run` / arranque que ejecuta migraciones pendientes. |
+| Tras **release** con cambios de datos | *Smoke* (`smoke:ci-local` o equivalente) y, si aplica, comparación del esquema real con el inventario del Anexo 04. |
+
+El **Anexo 07** (`docs/tdg/redaccion-activa/07-manual-tecnico.md`, §13.1) desarrolla el contexto académico y de riesgos; **este apartado** es la checklist operativa del repositorio.
 
 ## Frontend (`frontend/`)
 

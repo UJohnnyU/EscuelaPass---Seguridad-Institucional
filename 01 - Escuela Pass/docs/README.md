@@ -3,7 +3,7 @@
 ## TDG y anexos (un solo Markdown)
 
 - **[DOCUMENTACION_ESCUELA_PASS_CONSOLIDADO.md](./DOCUMENTACION_ESCUELA_PASS_CONSOLIDADO.md)** — texto íntegro del trabajo de grado y entregables que antes estaban en `docs/tdg/`.
-- **Word:** **`docs/tdg/word/`** (documento principal + carpeta **`anexos/`**).
+- **Word:** **`docs/tdg/word/`** (documento principal + carpeta **`anexos/`**). Para regenerar la ampliación automática (tabla de rutas API, ER, UI, E2E, Railway) y fusionarla en `DOCUMENTACION_ESCUELA_PASS_CONSOLIDADO.md`, desde la raíz del backend: `npm run tdg:enrich` (requiere Python con `python-docx` y proyecto Railway enlazado si se quieren tablas de producción). Cada ejecución **añade** una sección al final de cada `.docx`; si hace falta estado previo, restaurar con git antes de volver a ejecutar.
 - **Diagramas:** **`docs/imagenes/`** — cada figura tiene la fuente `.mmd` y el `.png` exportado en la misma carpeta. Para regenerar un PNG: desde la raíz del repo, con Node.js, ejecutar por ejemplo  
   `npx -y @mermaid-js/mermaid-cli@10 -i docs/imagenes/01-arquitectura-contexto-lr.mmd -o docs/imagenes/01-arquitectura-contexto-lr.png` (cambiar el nombre base según corresponda).
 

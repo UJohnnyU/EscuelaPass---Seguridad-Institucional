@@ -1905,7 +1905,7 @@ institucionales, académicos, financieros, de seguridad y comunicación. La fuen
 
 ## 4. Observaciones Técnicas
 
-- `pickup_authorizations` aparece en SQL/seed históricos, mientras la cadena de migraciones actual reduce el alcance hacia relaciones padre-estudiante y consentimiento de salida. En el TDG se debe aclarar que el modelo vigente para autorización de recogida se documenta desde `student_parents`, `parents`, `students`, `vehicles` y `student_departure_consents`.
+- Autorización de recogida en el circuito familiar: el vínculo padre–estudiante en `student_parents` incluye `can_pickup`; el flujo se articula con `parents`, `students`, `vehicles`, `student_departure_consents` y `circuit_requests`.
 - El SQL v4 y las migraciones deben mantenerse alineados para que el modelo académico coincida con el despliegue real.
 - El diagrama final debe generarse desde las entidades actuales del repositorio o desde el Mermaid incluido en este documento; no se debe depender de rutas de diagramas que no existan en el repositorio.
 
@@ -3406,3 +3406,656 @@ En el repositorio Git padre: **`.github/workflows/backend-ci.yml`** con `working
 
 ||||||||||||||||||||||||||||||||||||||||||||
 
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- INVENTARIO_TDG_AUTOGENERADO_START -->
+
+# Inventario técnico autogenerado (TDG)
+
+Generado con `scripts/tdg-full-enrich.cjs`. Incluye catálogo de rutas API, entidades, UI, E2E y esquema Railway cuando está disponible (solo metadatos, sin datos personales).
+
+Generado: 2026-05-14T09:00:24Z
+
+## ANEXO_08_API
+
+Catálogo de rutas HTTP inferidas desde `@Controller` y decoradores HTTP en el backend.
+Prefijo global documental: `api/v1` (configurable con API_PREFIX). Documentación interactiva: GET /docs (Swagger) cuando está habilitado.
+
+| Método | Ruta relativa (sin prefijo) | Archivo controlador |
+| --- | --- | --- |
+| GET | academic-periods | src/modules/academic-periods/academic-periods.controller.ts |
+| POST | academic-periods | src/modules/academic-periods/academic-periods.controller.ts |
+| DELETE | academic-periods/:id | src/modules/academic-periods/academic-periods.controller.ts |
+| GET | academic-periods/:id | src/modules/academic-periods/academic-periods.controller.ts |
+| PATCH | academic-periods/:id | src/modules/academic-periods/academic-periods.controller.ts |
+| POST | academic-periods/:id/activate | src/modules/academic-periods/academic-periods.controller.ts |
+| POST | academic-periods/:id/close | src/modules/academic-periods/academic-periods.controller.ts |
+| POST | academic-periods/:id/reopen | src/modules/academic-periods/academic-periods.controller.ts |
+| GET | academic-periods/policy/effective | src/modules/academic-periods/academic-periods.controller.ts |
+| GET | access-events/credentials | src/modules/access/access.controller.ts |
+| DELETE | access-events/credentials/:id | src/modules/access/access.controller.ts |
+| GET | access-events/credentials/assignable-users | src/modules/access/access.controller.ts |
+| POST | access-events/credentials/nfc | src/modules/access/access.controller.ts |
+| GET | access-events/my-qr | src/modules/access/access.controller.ts |
+| POST | access-events/scan | src/modules/access/access.controller.ts |
+| GET | activities | src/modules/activities/activities.controller.ts |
+| POST | activities | src/modules/activities/activities.controller.ts |
+| DELETE | activities/:id | src/modules/activities/activities.controller.ts |
+| GET | activities/:id | src/modules/activities/activities.controller.ts |
+| PATCH | activities/:id | src/modules/activities/activities.controller.ts |
+| POST | activities/:id/close | src/modules/activities/activities.controller.ts |
+| POST | activities/:id/grades | src/modules/activities/activities.controller.ts |
+| POST | activities/:id/reopen | src/modules/activities/activities.controller.ts |
+| GET | activities/parent/my-children | src/modules/activities/activities.controller.ts |
+| GET | activities/student/me | src/modules/activities/activities.controller.ts |
+| GET | activities/teacher/my-assignments | src/modules/activities/activities.controller.ts |
+| GET | attendance/groups/:groupId | src/modules/attendance/attendance.controller.ts |
+| POST | attendance/parent/excuse | src/modules/attendance/attendance.controller.ts |
+| GET | attendance/parent/my-children | src/modules/attendance/attendance.controller.ts |
+| GET | attendance/parent/my-students | src/modules/attendance/attendance.controller.ts |
+| POST | attendance/register | src/modules/attendance/attendance.controller.ts |
+| POST | attendance/register-bulk | src/modules/attendance/attendance.controller.ts |
+| POST | attention-notes | src/modules/attention-notes/attention-notes.controller.ts |
+| GET | attention-notes/parent/my-children | src/modules/attention-notes/attention-notes.controller.ts |
+| GET | attention-notes/teacher/groups/:groupId | src/modules/attention-notes/attention-notes.controller.ts |
+| GET | audit/logs | src/modules/audit/audit.controller.ts |
+| POST | auth/forgot-password | src/modules/auth/auth.controller.ts |
+| POST | auth/login | src/modules/auth/auth.controller.ts |
+| POST | auth/logout | src/modules/auth/auth.controller.ts |
+| GET | auth/me | src/modules/auth/auth.controller.ts |
+| POST | auth/refresh | src/modules/auth/auth.controller.ts |
+| POST | auth/reset-password | src/modules/auth/auth.controller.ts |
+| GET | calendar/me/student | src/modules/school-calendar/school-calendar.controller.ts |
+| GET | calendar/non-instructional-days | src/modules/school-calendar/school-calendar.controller.ts |
+| POST | calendar/non-instructional-days | src/modules/school-calendar/school-calendar.controller.ts |
+| DELETE | calendar/non-instructional-days/:id | src/modules/school-calendar/school-calendar.controller.ts |
+| GET | calendar/parent/my-children | src/modules/school-calendar/school-calendar.controller.ts |
+| POST | circuit-requests | src/modules/circuit/circuit.controller.ts |
+| GET | circuit-requests/:id | src/modules/circuit/circuit.controller.ts |
+| PATCH | circuit-requests/:id/cancel | src/modules/circuit/circuit.controller.ts |
+| PATCH | circuit-requests/:id/confirm-delivered | src/modules/circuit/circuit.controller.ts |
+| PATCH | circuit-requests/:id/gps | src/modules/circuit/circuit.controller.ts |
+| GET | circuit-requests/:id/map | src/modules/circuit/circuit.controller.ts |
+| PATCH | circuit-requests/:id/parent-progress | src/modules/circuit/circuit.controller.ts |
+| PATCH | circuit-requests/:id/status | src/modules/circuit/circuit.controller.ts |
+| PATCH | circuit-requests/:id/teacher-signal | src/modules/circuit/circuit.controller.ts |
+| POST | circuit-requests/batch | src/modules/circuit/circuit.controller.ts |
+| GET | circuit-requests/parent/active | src/modules/circuit/circuit.controller.ts |
+| GET | circuit-requests/parent/active-all | src/modules/circuit/circuit.controller.ts |
+| GET | circuit-requests/today | src/modules/circuit/circuit.controller.ts |
+| POST | class-attendance/bulk | src/modules/class-attendance/class-attendance.controller.ts |
+| GET | class-attendance/class/:classSessionId | src/modules/class-attendance/class-attendance.controller.ts |
+| GET | class-attendance/parent/me | src/modules/class-attendance/class-attendance.controller.ts |
+| POST | class-attendance/register | src/modules/class-attendance/class-attendance.controller.ts |
+| GET | class-attendance/student/:studentId | src/modules/class-attendance/class-attendance.controller.ts |
+| GET | class-sessions | src/modules/class-sessions/class-sessions.controller.ts |
+| POST | class-sessions | src/modules/class-sessions/class-sessions.controller.ts |
+| DELETE | class-sessions/:id | src/modules/class-sessions/class-sessions.controller.ts |
+| PATCH | class-sessions/:id | src/modules/class-sessions/class-sessions.controller.ts |
+| GET | dashboard/actionable-kpis | src/modules/dashboard/dashboard.controller.ts |
+| GET | dashboard/panel | src/modules/dashboard/dashboard.controller.ts |
+| GET | dashboard/summary | src/modules/dashboard/dashboard.controller.ts |
+| GET | dashboards/home/:role | src/modules/dashboard/dashboards.controller.ts |
+| POST | departure-consent/parent/set | src/modules/departure-consent/departure-consent.controller.ts |
+| GET | departure-consent/parent/today | src/modules/departure-consent/departure-consent.controller.ts |
+| GET | departure-consent/staff/group/:groupId | src/modules/departure-consent/departure-consent.controller.ts |
+| GET | departure-consent/student/me/today | src/modules/departure-consent/departure-consent.controller.ts |
+| GET | documents/bulletin/:reportCardId | src/modules/documents/documents.controller.ts |
+| GET | documents/bulletins/bulk | src/modules/documents/documents.controller.ts |
+| GET | documents/groups/summary | src/modules/documents/documents.controller.ts |
+| GET | documents/schedule/group/:groupId | src/modules/documents/documents.controller.ts |
+| GET | exports/attendance.xlsx | src/modules/exports/exports.controller.ts |
+| GET | exports/bulletin-consolidated.xlsx | src/modules/exports/exports.controller.ts |
+| GET | exports/class-attendance.xlsx | src/modules/exports/exports.controller.ts |
+| GET | exports/grades.xlsx | src/modules/exports/exports.controller.ts |
+| GET | external-visits | src/modules/external-visits/external-visits.controller.ts |
+| POST | external-visits | src/modules/external-visits/external-visits.controller.ts |
+| GET | external-visits/:id | src/modules/external-visits/external-visits.controller.ts |
+| PATCH | external-visits/:id | src/modules/external-visits/external-visits.controller.ts |
+| POST | external-visits/:id/cancel | src/modules/external-visits/external-visits.controller.ts |
+| POST | external-visits/:id/realized | src/modules/external-visits/external-visits.controller.ts |
+| POST | external-visits/:id/reschedule | src/modules/external-visits/external-visits.controller.ts |
+| GET | external-visits/me | src/modules/external-visits/external-visits.controller.ts |
+| GET | files/:bucket/:filename | src/modules/files/files.controller.ts |
+| GET | health | src/modules/health/health.controller.ts |
+| GET | health/storage | src/modules/health/health.controller.ts |
+| GET | meetings | src/modules/meetings/meetings.controller.ts |
+| POST | meetings | src/modules/meetings/meetings.controller.ts |
+| GET | meetings/:id | src/modules/meetings/meetings.controller.ts |
+| PATCH | meetings/:id | src/modules/meetings/meetings.controller.ts |
+| POST | meetings/:id/cancel | src/modules/meetings/meetings.controller.ts |
+| POST | meetings/:id/reschedule | src/modules/meetings/meetings.controller.ts |
+| POST | meetings/:id/rsvp | src/modules/meetings/meetings.controller.ts |
+| POST | meetings/:id/status | src/modules/meetings/meetings.controller.ts |
+| GET | meetings/me | src/modules/meetings/meetings.controller.ts |
+| GET | notices | src/modules/notices/notices.controller.ts |
+| POST | notices | src/modules/notices/notices.controller.ts |
+| GET | notices/critical/read-receipts | src/modules/notices/notices.controller.ts |
+| GET | notices/teacher/groups | src/modules/notices/notices.controller.ts |
+| GET | notices/teacher/target-users | src/modules/notices/notices.controller.ts |
+| PATCH | notifications/:id/read | src/modules/notices/notifications.controller.ts |
+| GET | notifications/admin-reports | src/modules/notices/notifications.controller.ts |
+| POST | notifications/admin-reports | src/modules/notices/notifications.controller.ts |
+| GET | notifications/admin-reports/:reportId/comments | src/modules/notices/notifications.controller.ts |
+| POST | notifications/admin-reports/:reportId/comments | src/modules/notices/notifications.controller.ts |
+| PATCH | notifications/admin-reports/:reportId/status | src/modules/notices/notifications.controller.ts |
+| GET | notifications/admin-reports/mine | src/modules/notices/notifications.controller.ts |
+| POST | notifications/admin-reports/sla-reminders/run | src/modules/notices/notifications.controller.ts |
+| GET | notifications/admin-reports/sla-summary | src/modules/notices/notifications.controller.ts |
+| POST | notifications/fcm/register | src/modules/notices/notifications.controller.ts |
+| POST | notifications/fcm/unregister | src/modules/notices/notifications.controller.ts |
+| GET | notifications/me | src/modules/notices/notifications.controller.ts |
+| GET | notifications/parent/my-children | src/modules/notices/notifications.controller.ts |
+| GET | parents/vehicles | src/modules/vehicles/vehicles.controller.ts |
+| POST | parents/vehicles | src/modules/vehicles/vehicles.controller.ts |
+| DELETE | parents/vehicles/:id | src/modules/vehicles/vehicles.controller.ts |
+| PATCH | parents/vehicles/:id | src/modules/vehicles/vehicles.controller.ts |
+| DELETE | parents/vehicles/:id/admin | src/modules/vehicles/vehicles.controller.ts |
+| PATCH | parents/vehicles/:id/set-active | src/modules/vehicles/vehicles.controller.ts |
+| GET | parents/vehicles/by-parent/:parentId | src/modules/vehicles/vehicles.controller.ts |
+| GET | payments/concepts | src/modules/payments/payments.controller.ts |
+| POST | payments/concepts | src/modules/payments/payments.controller.ts |
+| DELETE | payments/concepts/:id | src/modules/payments/payments.controller.ts |
+| PATCH | payments/concepts/:id | src/modules/payments/payments.controller.ts |
+| POST | payments/concepts/ensure-base | src/modules/payments/payments.controller.ts |
+| GET | payments/debts | src/modules/payments/payments.controller.ts |
+| POST | payments/debts | src/modules/payments/payments.controller.ts |
+| POST | payments/debts/:debtId/arrangement | src/modules/payments/payments.controller.ts |
+| POST | payments/debts/:debtId/reject-voucher | src/modules/payments/payments.controller.ts |
+| POST | payments/debts/:debtId/verify | src/modules/payments/payments.controller.ts |
+| POST | payments/debts/:debtId/voucher | src/modules/payments/payments.controller.ts |
+| POST | payments/debts/:debtId/voucher/file | src/modules/payments/payments.controller.ts |
+| GET | payments/debts/adjustments | src/modules/payments/payments.controller.ts |
+| GET | payments/debts/mine | src/modules/payments/payments.controller.ts |
+| GET | payments/debts/pending-review | src/modules/payments/payments.controller.ts |
+| POST | payments/debts/policies/run | src/modules/payments/payments.controller.ts |
+| POST | privacy/accept | src/modules/privacy/privacy.controller.ts |
+| GET | privacy/me/acceptances | src/modules/privacy/privacy.controller.ts |
+| GET | privacy/policy/latest | src/modules/privacy/privacy.controller.ts |
+| GET | report-cards | src/modules/report-cards/report-cards.controller.ts |
+| GET | report-cards/:id | src/modules/report-cards/report-cards.controller.ts |
+| POST | report-cards/generate-final | src/modules/report-cards/report-cards.controller.ts |
+| POST | report-cards/generate-period/:periodId | src/modules/report-cards/report-cards.controller.ts |
+| GET | report-cards/me | src/modules/report-cards/report-cards.controller.ts |
+| GET | report-cards/parent/my-children | src/modules/report-cards/report-cards.controller.ts |
+| GET | report-cards/student/me | src/modules/report-cards/report-cards.controller.ts |
+| GET | reports/access/range | src/modules/reports/reports.controller.ts |
+| GET | reports/attendance/classes | src/modules/reports/reports.controller.ts |
+| GET | reports/attendance/today | src/modules/reports/reports.controller.ts |
+| GET | reports/circuit/today | src/modules/reports/reports.controller.ts |
+| GET | reports/finance/summary | src/modules/reports/reports.controller.ts |
+| GET | reports/payments/pending | src/modules/reports/reports.controller.ts |
+| POST | schedules | src/modules/schedules/schedules.controller.ts |
+| DELETE | schedules/:id | src/modules/schedules/schedules.controller.ts |
+| PATCH | schedules/:id | src/modules/schedules/schedules.controller.ts |
+| GET | schedules/groups/:groupId | src/modules/schedules/schedules.controller.ts |
+| GET | schedules/me/student | src/modules/schedules/schedules.controller.ts |
+| GET | schedules/me/teacher | src/modules/schedules/schedules.controller.ts |
+| GET | schedules/me/teacher/groups | src/modules/schedules/schedules.controller.ts |
+| GET | schedules/parent/my-children | src/modules/schedules/schedules.controller.ts |
+| GET | school/groups | src/modules/school/school.controller.ts |
+| POST | school/groups | src/modules/school/school.controller.ts |
+| DELETE | school/groups/:id | src/modules/school/school.controller.ts |
+| GET | school/groups/:id | src/modules/school/school.controller.ts |
+| PATCH | school/groups/:id | src/modules/school/school.controller.ts |
+| POST | school/import/:kind | src/modules/school/school.controller.ts |
+| POST | school/import/groups/xlsx | src/modules/school/school.controller.ts |
+| GET | school/import/history | src/modules/school/school.controller.ts |
+| POST | school/import/students-to-groups/xlsx | src/modules/school/school.controller.ts |
+| POST | school/import/students/xlsx | src/modules/school/school.controller.ts |
+| POST | school/import/teacher-assignments/xlsx | src/modules/school/school.controller.ts |
+| POST | school/import/teachers/xlsx | src/modules/school/school.controller.ts |
+| GET | school/import/templates/groups.xlsx | src/modules/school/school.controller.ts |
+| GET | school/import/templates/students-to-groups.xlsx | src/modules/school/school.controller.ts |
+| GET | school/import/templates/students.xlsx | src/modules/school/school.controller.ts |
+| GET | school/import/templates/teacher-assignments.xlsx | src/modules/school/school.controller.ts |
+| GET | school/import/templates/teachers.xlsx | src/modules/school/school.controller.ts |
+| GET | school/lifecycle-events | src/modules/school/school.controller.ts |
+| GET | school/lifecycle-events/export.xlsx | src/modules/school/school.controller.ts |
+| GET | school/parents | src/modules/school/school.controller.ts |
+| POST | school/parents | src/modules/school/school.controller.ts |
+| DELETE | school/parents/:id | src/modules/school/school.controller.ts |
+| GET | school/parents/:id | src/modules/school/school.controller.ts |
+| PATCH | school/parents/:id | src/modules/school/school.controller.ts |
+| POST | school/parents/:parentId/vehicles | src/modules/school/school.controller.ts |
+| DELETE | school/parents/:parentId/vehicles/:vehicleId | src/modules/school/school.controller.ts |
+| PATCH | school/parents/:parentId/vehicles/:vehicleId | src/modules/school/school.controller.ts |
+| GET | school/student-parent-links | src/modules/school/school.controller.ts |
+| POST | school/student-parent-links | src/modules/school/school.controller.ts |
+| DELETE | school/student-parent-links/:id | src/modules/school/school.controller.ts |
+| PATCH | school/student-parent-links/:id | src/modules/school/school.controller.ts |
+| GET | school/students | src/modules/school/school.controller.ts |
+| POST | school/students | src/modules/school/school.controller.ts |
+| DELETE | school/students/:id | src/modules/school/school.controller.ts |
+| GET | school/students/:id | src/modules/school/school.controller.ts |
+| PATCH | school/students/:id | src/modules/school/school.controller.ts |
+| GET | school/students/:id/lifecycle-history | src/modules/school/school.controller.ts |
+| POST | school/students/:id/lifecycle-transition | src/modules/school/school.controller.ts |
+| GET | school/students/next-matricula | src/modules/school/school.controller.ts |
+| GET | school/subjects | src/modules/school/school.controller.ts |
+| POST | school/subjects | src/modules/school/school.controller.ts |
+| DELETE | school/subjects/:id | src/modules/school/school.controller.ts |
+| GET | school/subjects/:id | src/modules/school/school.controller.ts |
+| PATCH | school/subjects/:id | src/modules/school/school.controller.ts |
+| GET | school/teacher-assignments | src/modules/school/school.controller.ts |
+| POST | school/teacher-assignments | src/modules/school/school.controller.ts |
+| DELETE | school/teacher-assignments/:id | src/modules/school/school.controller.ts |
+| GET | school/teacher-subjects | src/modules/school/school.controller.ts |
+| GET | school/teachers | src/modules/school/school.controller.ts |
+| POST | school/teachers | src/modules/school/school.controller.ts |
+| DELETE | school/teachers/:id | src/modules/school/school.controller.ts |
+| GET | school/teachers/:id | src/modules/school/school.controller.ts |
+| PATCH | school/teachers/:id | src/modules/school/school.controller.ts |
+| GET | school/teachers/:id/lifecycle-history | src/modules/school/school.controller.ts |
+| POST | school/teachers/:id/lifecycle-transition | src/modules/school/school.controller.ts |
+| GET | schools | src/modules/schools/schools.controller.ts |
+| POST | schools | src/modules/schools/schools.controller.ts |
+| GET | schools/:id | src/modules/schools/schools.controller.ts |
+| PATCH | schools/:id | src/modules/schools/schools.controller.ts |
+| POST | schools/:id/admin | src/modules/schools/schools.controller.ts |
+| GET | schools/:id/users | src/modules/schools/schools.controller.ts |
+| PATCH | schools/:schoolId/users/:userId | src/modules/schools/schools.controller.ts |
+| POST | schools/:schoolId/users/:userId/reset-password | src/modules/schools/schools.controller.ts |
+| POST | schools/assign-user | src/modules/schools/schools.controller.ts |
+| GET | settings/circuit | src/modules/settings/settings.controller.ts |
+| PATCH | settings/circuit | src/modules/settings/settings.controller.ts |
+| GET | settings/institution | src/modules/settings/settings.controller.ts |
+| PATCH | settings/institution | src/modules/settings/settings.controller.ts |
+| POST | uploads/reports/evidence | src/modules/uploads/uploads.controller.ts |
+| POST | uploads/schools/:schoolId/logo | src/modules/uploads/uploads.controller.ts |
+| POST | uploads/users/:userId/avatar | src/modules/uploads/uploads.controller.ts |
+
+Total rutas documentadas en código: **241**.
+
+Para evidencia Swagger: levantar backend, abrir `/docs`, expandir **todas** las etiquetas (tags) y capturar pantalla completa o exportar especificación OpenAPI desde el navegador (JSON) si está expuesto.
+
+## ANEXO_04_ER
+
+Tablas mapeadas por entidades TypeORM (`@Entity({ name })`) en el repositorio:
+
+| Tabla PostgreSQL | Archivo entidad |
+| --- | --- |
+| academic_periods | src/database/entities/academic-period.entity.ts |
+| access_credentials | src/database/entities/access-credential.entity.ts |
+| access_events | src/database/entities/access-event.entity.ts |
+| activities | src/database/entities/activity.entity.ts |
+| activity_grades | src/database/entities/activity-grade.entity.ts |
+| admin_report_comments | src/database/entities/admin-report-comment.entity.ts |
+| admin_reports | src/database/entities/admin-report.entity.ts |
+| administrative_staff | src/database/entities/administrative-staff.entity.ts |
+| attendance_records | src/database/entities/attendance-record.entity.ts |
+| audit_logs | src/database/entities/audit-log.entity.ts |
+| circuit_requests | src/database/entities/circuit-request.entity.ts |
+| class_attendance_records | src/database/entities/class-attendance-record.entity.ts |
+| class_schedule_slots | src/database/entities/class-schedule-slot.entity.ts |
+| class_sessions | src/database/entities/class-session.entity.ts |
+| debt_adjustments | src/database/entities/debt-adjustment.entity.ts |
+| debts | src/database/entities/debt.entity.ts |
+| external_visit_groups | src/database/entities/external-visit-group.entity.ts |
+| external_visit_students | src/database/entities/external-visit-student.entity.ts |
+| external_visits | src/database/entities/external-visit.entity.ts |
+| groups | src/database/entities/group.entity.ts |
+| import_jobs | src/database/entities/import-job.entity.ts |
+| institution_settings | src/database/entities/institution-setting.entity.ts |
+| meeting_participants | src/database/entities/meeting-participant.entity.ts |
+| meetings | src/database/entities/meeting.entity.ts |
+| notices | src/database/entities/notice.entity.ts |
+| notifications | src/database/entities/notification.entity.ts |
+| parents | src/database/entities/parent.entity.ts |
+| payment_concepts | src/database/entities/payment-concept.entity.ts |
+| payments | src/database/entities/payment-record.entity.ts |
+| privacy_policies | src/database/entities/privacy-policy.entity.ts |
+| refresh_tokens | src/database/entities/refresh-token.entity.ts |
+| report_card_subjects | src/database/entities/report-card-subject.entity.ts |
+| report_cards | src/database/entities/report-card.entity.ts |
+| school_non_instructional_days | src/database/entities/school-non-instructional-day.entity.ts |
+| schools | src/database/entities/school.entity.ts |
+| student_attention_notes | src/database/entities/student-attention-note.entity.ts |
+| student_departure_consents | src/database/entities/student-departure-consent.entity.ts |
+| student_lifecycle_events | src/database/entities/student-lifecycle-event.entity.ts |
+| student_parents | src/database/entities/student-parent.entity.ts |
+| students | src/database/entities/student.entity.ts |
+| subjects | src/database/entities/subject.entity.ts |
+| teacher_groups | src/database/entities/teacher-group.entity.ts |
+| teacher_lifecycle_events | src/database/entities/teacher-lifecycle-event.entity.ts |
+| teacher_subjects | src/database/entities/teacher-subject.entity.ts |
+| teachers | src/database/entities/teacher.entity.ts |
+| user_fcm_tokens | src/database/entities/user-fcm-token.entity.ts |
+| user_privacy_acceptances | src/database/entities/user-privacy-acceptance.entity.ts |
+| users | src/database/entities/user.entity.ts |
+| vehicles | src/database/entities/vehicle.entity.ts |
+
+Tablas en esquema **public** reportadas por PostgreSQL (Railway, metadatos): **50**.
+
+| Tabla (producción Railway) |
+| --- |
+| academic_periods |
+| access_credentials |
+| access_events |
+| activities |
+| activity_grades |
+| admin_report_comments |
+| admin_reports |
+| administrative_staff |
+| attendance_records |
+| audit_logs |
+| circuit_requests |
+| class_attendance_records |
+| class_schedule_slots |
+| class_sessions |
+| debt_adjustments |
+| debts |
+| external_visit_groups |
+| external_visit_students |
+| external_visits |
+| groups |
+| import_jobs |
+| institution_settings |
+| meeting_participants |
+| meetings |
+| notices |
+| notifications |
+| parents |
+| payment_concepts |
+| payments |
+| privacy_policies |
+| refresh_tokens |
+| report_card_subjects |
+| report_cards |
+| school_non_instructional_days |
+| schools |
+| student_attention_notes |
+| student_departure_consents |
+| student_lifecycle_events |
+| student_parents |
+| students |
+| subjects |
+| teacher_groups |
+| teacher_lifecycle_events |
+| teacher_subjects |
+| teachers |
+| typeorm_migrations |
+| user_fcm_tokens |
+| user_privacy_acceptances |
+| users |
+| vehicles |
+
+*Tablas en producción no vistas en lista de entidades (revisar vistas, migraciones pendientes o nombres)*: typeorm_migrations
+
+## ANEXO_03_ARQUITECTURA
+
+Módulos Nest registrados en AppModule (bounded contexts):
+
+- HealthModule
+- MailModule
+- AuthModule
+- AccessModule
+- CircuitModule
+- ClassAttendanceModule
+- ClassSessionsModule
+- NoticesModule
+- PaymentsModule
+- AttendanceModule
+- ActivitiesModule
+- AttentionNotesModule
+- AcademicPeriodsModule
+- ReportCardsModule
+- AcademicSchedulerModule
+- ReportsModule
+- SchoolModule
+- ExportsModule
+- DashboardModule
+- SchedulesModule
+- SchoolCalendarModule
+- SettingsModule
+- VehiclesModule
+- DocumentsModule
+- AuditModule
+- PrivacyModule
+- SchoolsModule
+- UploadsModule
+- FilesModule
+- DepartureConsentModule
+- EventSchedulerModule
+- ExternalVisitsModule
+
+Integraciones típicas: PostgreSQL (TypeORM), JWT (Passport), cargas multipart (`uploads`/`files`), FCM opcional, Mapbox en frontend, despliegue Railway (backend) y alojamiento estático/Vercel para frontend (según runbook).
+
+## ANEXO_06_UI
+
+Rutas declaradas en `frontend/src/App.tsx` (árbol /app y públicas):
+
+- `*`
+- `/`
+- `/app`
+- `/login`
+- `/panel`
+- `/recuperar-contrasena`
+- `/restablecer-contrasena`
+- `acceso/escaner`
+- `circuito`
+- `circuito/:id`
+- `circuito/hoy`
+- `escuelas`
+- `gestion-escolar`
+- `horario`
+- `importaciones`
+- `institucion`
+- `modulos`
+- `modulos/academico`
+- `modulos/administracion`
+- `modulos/anotaciones-docente`
+- `modulos/boletines`
+- `modulos/calificaciones-docente`
+- `modulos/comunicacion`
+- `modulos/finanzas`
+- `modulos/herramientas`
+- `modulos/mis-calificaciones`
+- `modulos/periodos-academicos`
+- `modulos/reuniones`
+- `modulos/visitas-externas`
+- `perfil`
+
+Rutas con restricción por rol (fragmento RoleGate):
+
+| Ruta UI | Roles permitidos (declaración) |
+| --- | --- |
+| `/` | público o heredado |
+| `/login` | público o heredado |
+| `/recuperar-contrasena` | público o heredado |
+| `/restablecer-contrasena` | público o heredado |
+| `/app` | público o heredado |
+| `perfil` | público o heredado |
+| `horario` | público o heredado |
+| `institucion` | ALUMNO, DOCENTE, ADMIN, ADMINISTRATIVO |
+| `gestion-escolar` | ALUMNO, DOCENTE, ADMIN, ADMINISTRATIVO |
+| `escuelas` | ADMIN, ADMINISTRATIVO |
+| `modulos` | ADMIN |
+| `modulos/comunicacion` | ADMIN |
+| `modulos/reuniones` | ADMIN |
+| `modulos/visitas-externas` | ADMIN |
+| `modulos/anotaciones-docente` | ADMIN |
+| `modulos/finanzas` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| `modulos/academico` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| `modulos/calificaciones-docente` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| `modulos/mis-calificaciones` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| `modulos/boletines` | ALUMNO, PADRE, ADMIN, ADMINISTRATIVO |
+| `modulos/periodos-academicos` | ADMIN, ADMINISTRATIVO, DOCENTE, ALUMNO, PADRE |
+| `modulos/administracion` | ADMIN, ADMINISTRATIVO |
+| `modulos/herramientas` | ADMIN, ADMINISTRATIVO |
+| `importaciones` | ADMIN, ADMINISTRATIVO |
+| `acceso/escaner` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| `circuito/hoy` | ADMIN, ADMINISTRATIVO, DOCENTE |
+| `circuito/:id` | DOCENTE, ADMIN, ADMINISTRATIVO |
+| `circuito` | PADRE, DOCENTE, ADMIN, ADMINISTRATIVO |
+| `/panel` | PADRE, ADMIN, ADMINISTRATIVO |
+| `*` | PADRE, ADMIN, ADMINISTRATIVO |
+
+## ANEXO_05_UML
+
+Casos de uso (plantilla): cubrir **todos** los flujos alcanzables desde las rutas UI anteriores, más escenarios E2E. Actores: ADMIN plataforma, ADMINISTRATIVO/Director, DOCENTE, PADRE, ALUMNO, visitantes externos según módulos.
+
+Lista de pruebas nombradas en `test/app.e2e-spec.ts` (describe/it únicos):
+
+- -
+- App (e2e)
+- access scan: ENTRY de alumno por QR marca asistencia automatica
+- access scan: ENTRY tardio marca RETARDO sin pisar asistencia manual
+- attendance: admin registra y upsert actualiza
+- auth: login -> refresh rotacion -> logout invalida refresh
+- auth: refresh token invalido y logout invalido responden 401
+- authz: padre no puede consultar reportes de pagos pendientes (403)
+- authz: padre no puede registrar asistencia (403)
+- calendario: día sin clases bloquea registro de asistencia y export Excel
+- circuit + reports: circuito hoy y reportes responden
+- circuit: docente solo ve solicitudes de alumnos en su clase actual
+- circuit: padre actualiza GPS de su solicitud
+- circuit: padre confirma entrega de su solicitud
+- circuit: sin registro presente/tardanza hoy bloquea solicitud del padre
+- class-attendance: docente registra asistencia por clase y padre la consulta
+- dashboard: admin consulta resumen y padre recibe 403
+- exports: Excel asistencia, calificaciones y boletín consolidado
+- grades: docente registra y padre puede leer
+- health (GET)
+- lifecycle: transición alumno/docente con bloqueo operativo e historial
+- school import: admin carga grupos por Excel y padre no puede
+- school import: asignaciones por Excel y plantilla xlsx
+- school import: historial de importaciones disponible para admin
+- school: administrativo lista grupos
+- settings: circuito deshabilitado bloquea nuevas solicitudes de circuito
+- settings: perfil institucional lectura y actualización admin
+- t10/t11: SLA reportes + acuse crítico + recordatorio manual
+- t12/t13: políticas de cartera + bitácora de ajustes
+- t14: circuito GPS — auto-transición a NOTIFICADO_LLEGADA al entrar al radio
+- t15: NFC — asignar, listar y revocar credencial
+- t16: reuniones, visitas y anotaciones (padre) responden tras restaurar módulos
+- t17: admin-reports (tickets SLA) están disponibles
+- validation: asistencia con studentId invalido responde 400
+- visitas, reuniones y horarios: padre solicita y staff responde
+
+## ANEXO_09_MANUAL_USUARIO
+
+Flujos sugeridos por rol — detallar en el anexo con capturas reales o placeholders entre corchetes según norma APA del proyecto:
+- PADRE: circuito de recogida, consentimientos, notificaciones, calificaciones y boletines si aplica.
+- DOCENTE: circuito hoy, asistencia, anotaciones, calificaciones, escáner de acceso.
+- ADMINISTRATIVO: gestión escolar, importaciones, calendario, visitas, reuniones, periodos, reportes.
+- ADMIN (plataforma): escuelas, privacidad, auditoría ampliada.
+Enlazar cada párrafo con la ruta UI correspondiente de la lista superior.
+
+## ANEXO_10_PRUEBAS
+
+Comandos: `npm test` (unit), `npm run test:e2e` (requiere entorno DB preparado por `pretest:e2e`).
+
+Rutas HTTP tocadas en E2E (patrones extraídos del archivo de prueba):
+
+- `api/v1/academic-periods`
+- `api/v1/academic-periods?schoolId=`
+- `api/v1/access-events/credentials`
+- `api/v1/access-events/credentials/nfc`
+- `api/v1/access-events/scan`
+- `api/v1/activities`
+- `api/v1/activities/parent/my-children`
+- `api/v1/attendance/groups`
+- `api/v1/attendance/register`
+- `api/v1/attention-notes/parent/my-children`
+- `api/v1/auth/login`
+- `api/v1/auth/logout`
+- `api/v1/auth/refresh`
+- `api/v1/calendar/non-instructional-days`
+- `api/v1/circuit-requests`
+- `api/v1/circuit-requests/parent/active`
+- `api/v1/circuit-requests/today`
+- `api/v1/class-attendance/bulk`
+- `api/v1/class-attendance/student`
+- `api/v1/dashboard/actionable-kpis`
+- `api/v1/dashboard/summary`
+- `api/v1/exports/attendance.xlsx`
+- `api/v1/exports/bulletin-consolidated.xlsx`
+- `api/v1/exports/class-attendance.xlsx`
+- `api/v1/exports/grades.xlsx`
+- `api/v1/external-visits`
+- `api/v1/external-visits/me`
+- `api/v1/health`
+- `api/v1/meetings`
+- `api/v1/notices`
+- `api/v1/notices/critical/read-receipts`
+- `api/v1/notifications`
+- `api/v1/notifications/admin-reports`
+- `api/v1/notifications/admin-reports/mine`
+- `api/v1/notifications/admin-reports/sla-reminders/run`
+- `api/v1/notifications/admin-reports/sla-summary`
+- `api/v1/notifications/me`
+- `api/v1/payments/concepts`
+- `api/v1/payments/concepts/ensure-base`
+- `api/v1/payments/debts`
+- `api/v1/payments/debts/adjustments`
+- `api/v1/payments/debts/policies/run`
+- `api/v1/reports/attendance/classes`
+- `api/v1/reports/attendance/today`
+- `api/v1/reports/circuit/today`
+- `api/v1/reports/payments/pending`
+- `api/v1/schedules`
+- `api/v1/schedules/me/teacher`
+- `api/v1/school/groups`
+- `api/v1/school/import/groups/xlsx`
+- `api/v1/school/import/history`
+- `api/v1/school/import/teacher-assignments/xlsx`
+- `api/v1/school/import/templates/teacher-assignments.xlsx`
+- `api/v1/school/parents`
+- `api/v1/school/students`
+- `api/v1/school/subjects`
+- `api/v1/school/teacher-assignments`
+- `api/v1/school/teachers`
+- `api/v1/settings/circuit`
+- `api/v1/settings/institution`
+
+## ANEXO_00_MATRIZ
+
+Cruce propuesto (completar contra RF/RNF del FTG en columna código): cada RF debe mapear a módulo(s), rutas API y prueba E2E o ruta UI.
+
+| Evidencia generada | Referencia |
+| --- | --- |
+| Rutas API | Ver sección ANEXO_08 en este inventario |
+| Tablas / ER | Ver ANEXO_04 |
+| UI / roles | Ver ANEXO_06 |
+| Pruebas | Ver ANEXO_10 y lista describe/it en ANEXO_05 |
+
+## ANEXO_01_REQUISITOS
+
+Para cada RF del documento de requisitos: añadir criterio de aceptación medible (código HTTP, regla de negocio, ruta UI) citando las rutas del inventario ANEXO_08 y módulos ANEXO_03.
+
+## ANEXO_02_ACTAS
+
+Mantener transparencia documental: no inventar actas. Si son reconstruidas o de plantilla, indicarlo explícitamente según criterio institucional.
+
+## ANEXO_07_MANUAL_TEC
+
+Sincronizar variables, migraciones, Swagger, prefijo API, Railway y uploads con `docs/technical-setup.md` y runbook `docs/releases/runbook-railway-v1.3.md`. Este inventario lista módulos y rutas concretas para trazabilidad.
+
+## ANEXO_99_VERIF
+
+Checklist: (1) Todas las rutas API del backend reflejadas o justificadas si son internas. (2) Tablas prod vs repo revisadas. (3) Swagger capturado con todos los tags expandidos. (4) TDG principal entre **48 y 50 hojas** según instrucciones incorporadas al documento principal. (5) Referencias APA completas.
+
+## TDG_PRINCIPAL_AMPLIACION
+
+### Extensión obligatoria del documento principal: entre 48 y 50 hojas inclusives
+
+El TDG principal debe quedar en **48, 49 u 50 hojas** conforme a la definición de página del manual institucional (Times New Roman 12 pt, interlineado sencillo, márgenes 2,54 cm). No menos de 48 ni más de 50.
+
+Calibración en Microsoft Word: tras integrar el contenido, usar **Vista → Múltiples páginas** o el contador del pie con **Insertar → Número de página**; ajustar espacio entre párrafos de capítulos, tamaño de figuras grandes y mover tablas extensas a anexos hasta entrar en el rango. Si el cuerpo queda por debajo de 48, desarrollar conclusiones, marco referencial o resultados por objetivo específico citando evidencias del código. Si supera 50, trasladar detalle a anexos correspondientes (API, ER, pruebas, manuales).
+
+Órdenes del documento: respetar plantilla `TDG_Plantilla y Normas.docx` y manual de estilo PDF. El detalle exhaustivo de endpoints y tablas permanece en anexos; en el cuerpo del TDG se sintetizan decisiones y trazabilidad a módulos listados en el inventario automatizado.
+
+Síntesis técnica (actualizar redacción en capítulos de desarrollo): módulos clave — HealthModule, MailModule, AuthModule, AccessModule, CircuitModule, ClassAttendanceModule, ClassSessionsModule, NoticesModule, PaymentsModule, AttendanceModule, ActivitiesModule, AttentionNotesModule, AcademicPeriodsModule, ReportCardsModule, AcademicSchedulerModule, ReportsModule, SchoolModule, ExportsModule, DashboardModule, SchedulesModule, SchoolCalendarModule, SettingsModule, VehiclesModule, DocumentsModule, AuditModule, …. Total rutas HTTP inventariadas: 241. Total tablas entidad: 49.
+
+<!-- INVENTARIO_TDG_AUTOGENERADO_END -->
