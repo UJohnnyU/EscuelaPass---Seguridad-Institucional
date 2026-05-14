@@ -1,0 +1,22 @@
+erDiagram
+    schools ||--o{ users : agrupa
+    schools ||--o{ groups : contiene
+    groups ||--o{ students : asigna
+    users ||--o| students : perfilAlumno
+    users ||--o| teachers : perfilDocente
+    users ||--o| parents : perfilPadre
+    students ||--o{ student_parents : vincula
+    parents ||--o{ student_parents : autoriza
+    teachers ||--o{ teacher_groups : asigna
+    groups ||--o{ teacher_groups : recibe
+    groups ||--o{ class_sessions : programa
+    students ||--o{ attendance_records : registra
+    students ||--o{ class_attendance_records : registraClase
+    academic_periods ||--o{ activities : organiza
+    activities ||--o{ activity_grades : califica
+    students ||--o{ report_cards : genera
+    report_cards ||--o{ report_card_subjects : resume
+    students ||--o{ debts : adeuda
+    debts ||--o{ payment_records : paga
+    students ||--o{ circuit_requests : solicita
+    parents ||--o{ circuit_requests : pide

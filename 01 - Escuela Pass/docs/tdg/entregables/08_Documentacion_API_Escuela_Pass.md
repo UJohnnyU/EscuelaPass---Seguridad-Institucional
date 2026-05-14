@@ -56,7 +56,9 @@ grado, agrupando endpoints por dominio y describiendo responsabilidad, roles y p
 La API responde principalmente JSON. Exportaciones y documentos usan:
 - Excel: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
 - PDF: `application/pdf`.
-- Uploads: rutas públicas `/uploads/...` en entorno de desarrollo o volumen.
+- Archivos: los logos institucionales pueden servirse de forma pública; comprobantes, excusas,
+  evidencias y reportes sensibles se leen mediante `/files/:bucket/:filename` con autenticación y
+  validación de permisos.
 
 ## 5. Recomendación De Anexo
 

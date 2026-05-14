@@ -5,8 +5,8 @@
 **Facultad:** Ingenierías  
 **Institución:** Politécnico Colombiano Jaime Isaza Cadavid  
 **Asesor:** Alirio Antonio Gutiérrez Quintero  
-**Tipo:** Borrador principal del Trabajo de Grado  
-**Nota:** Este documento debe maquetarse sobre `TDG_Plantilla y Normas.docx` y ajustar extensión final a máximo 50 páginas.
+**Tipo:** Documento principal del Trabajo de Grado  
+**Nota:** Documento preparado para maquetación y revisión final sobre la plantilla institucional, con límite máximo de 50 páginas.
 
 ## Resumen
 
@@ -29,7 +29,21 @@ protección de datos.
 
 ## Abstract
 
-[Traducción al inglés del resumen. Debe elaborarse al cierre para asegurar coherencia con la versión final en español.]
+Escuela Pass is a web application focused on school administration and safety in private educational
+institutions. The project addresses needs related to access control, student pickup management,
+family-school communication, attendance, grades, payments, reporting, and personal data protection.
+The solution was implemented with a NestJS backend, PostgreSQL database, and React/Vite frontend,
+integrating QR (Quick Response), NFC (Near Field Communication), JWT (JSON Web Token), maps,
+notifications, and private file access.
+
+The implementation preserves the approved proposal scope and extends it with privacy controls, audit
+logging, multi-institution support, academic report cards, end-to-end tests, and security mechanisms
+for sensitive documents. Validation is supported by automated functional tests, technical review of
+modules, and traceability matrices. As a result, the project produced a modular and responsive web
+platform supported by technical documentation, user manuals, API documentation, and testing evidence.
+
+**Keywords:** school management, school safety, web application, NestJS, PostgreSQL, QR, NFC, data
+protection.
 
 ## Introducción
 
@@ -126,6 +140,10 @@ soporte multiidioma ni analítica avanzada con inteligencia artificial.
 El proyecto se desarrolló bajo un enfoque aplicado, con fases asociadas a los objetivos específicos.
 Se adoptó una organización incremental, donde el análisis alimentó el diseño, el diseño guio la
 implementación y las pruebas permitieron ajustar reglas de negocio, seguridad y documentación.
+La metodología combinó revisión documental, análisis del repositorio, levantamiento de requerimientos
+desde la propuesta aceptada, construcción incremental de módulos, pruebas funcionales automatizadas y
+elaboración de anexos técnicos. Este enfoque permitió mantener trazabilidad entre lo propuesto, lo
+implementado y lo documentado.
 
 | Fase | Objetivo asociado | Actividades principales | Resultado |
 | --- | --- | --- | --- |
@@ -135,7 +153,22 @@ implementación y las pruebas permitieron ajustar reglas de negocio, seguridad y
 | Frontend | Objetivo 4 | Rutas, páginas por rol, componentes y flujos. | SPA responsive integrada con API. |
 | Validación | Objetivo 5 | E2E, smoke, revisión de seguridad y documentación. | Informe de pruebas y métricas. |
 
-[Imagen: Diagrama de Gantt del proyecto Escuela Pass]
+![Figura. Cronograma tipo Gantt reconstruido para el TDG (exportado desde Mermaid)](docs/diagramas-mermaid-png/png/06-cronograma-gantt.png)
+
+Tabla 2  
+*Cronograma general del proyecto*
+
+| Fase | Semana 1 | Semana 2 | Semana 3 | Semana 4 | Semana 5 | Semana 6 | Semana 7 | Semana 8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Análisis | X | X |  |  |  |  |  |  |
+| Diseño |  | X | X |  |  |  |  |  |
+| Backend |  |  | X | X | X |  |  |  |
+| Frontend |  |  |  | X | X | X |  |  |
+| Pruebas |  |  |  |  | X | X | X |  |
+| Documentación |  |  |  |  |  | X | X | X |
+
+Nota. Cronograma reconstruido para el documento académico a partir de las fases de desarrollo y
+validación del proyecto.
 
 # 3. MARCO REFERENCIAL
 
@@ -145,33 +178,72 @@ Una aplicación web es un sistema accesible desde navegador que permite centrali
 interacción de usuario y comunicación con servicios backend. En Escuela Pass, esta aproximación evita
 instalar aplicaciones nativas y permite acceso desde dispositivos móviles o de escritorio.
 
-NestJS es un framework backend para Node.js basado en TypeScript y arquitectura modular. PostgreSQL es
-un sistema de gestión de bases de datos relacional que permite integridad referencial, transacciones y
-consultas estructuradas. React permite construir interfaces dinámicas y Vite optimiza el desarrollo y
-compilación frontend. Estas herramientas se articulan para construir una solución escalable, mantenible
-y documentable.
+NestJS es un framework backend para Node.js basado en TypeScript y arquitectura modular, orientado a
+construir aplicaciones del lado servidor mantenibles y escalables (NestJS, s. f.). PostgreSQL es un
+sistema de gestión de bases de datos relacional que permite integridad referencial, transacciones y
+consultas estructuradas (PostgreSQL Global Development Group, s. f.). React permite construir interfaces
+dinámicas mediante componentes reutilizables (Meta Open Source, s. f.), mientras Vite optimiza el
+desarrollo y compilación frontend (Vite, s. f.). Estas herramientas se articulan para construir una
+solución escalable, mantenible y documentable.
 
 QR y NFC se utilizan para identificar usuarios o credenciales de acceso. GPS se emplea como apoyo al
 circuito de recogida, entendiendo que la aplicación web móvil es usada por el padre o tutor que recoge
-al estudiante. JWT permite proteger rutas mediante tokens, y los roles restringen operaciones según
-responsabilidad institucional.
+al estudiante. JWT permite proteger rutas mediante tokens estandarizados (Jones et al., 2015), y los
+roles restringen operaciones según responsabilidad institucional.
 
 ## 3.2 Marco Legal
 
 El sistema maneja datos personales de estudiantes, padres, docentes y personal institucional, por lo
-que el TDG debe considerar principios de protección de datos, finalidad, autorización, confidencialidad
-y acceso restringido. En la versión documental se deben citar las normas aplicables al país o contexto
-institucional definido, incluyendo protección de datos personales y lineamientos de tratamiento de
-información de menores.
+que el TDG considera principios de finalidad, consentimiento, confidencialidad, seguridad y acceso
+restringido. Dado que la propuesta aceptada ubica la solución inicialmente en instituciones privadas
+de México, el marco legal de protección de datos debe contemplar la Ley Federal de Protección de Datos
+Personales en Posesión de los Particulares (LFPDPPP) y su Reglamento, los cuales establecen obligaciones
+para responsables privados en el tratamiento de datos personales (Cámara de Diputados del H. Congreso de
+la Unión, 2010, 2011). Además, por tratarse de información relacionada con menores de edad, debe
+considerarse la Ley General de los Derechos de Niñas, Niños y Adolescentes, especialmente en lo relativo
+al interés superior de la niñez y la protección de su intimidad (Cámara de Diputados del H. Congreso de
+la Unión, 2014).
 
-[Referencia legal específica pendiente de validación final según país y asesoría institucional]
+En términos técnicos, estas exigencias se reflejan en autenticación, autorización por rol, aceptación de
+políticas de privacidad, auditoría, control de archivos privados y minimización de exposición de datos.
+Para una entrega institucional definitiva, esta sección debe ser revisada por el asesor o por una
+persona competente en derecho aplicable, especialmente si el despliegue operativo se extiende a
+Colombia u otros países.
 
 ## 3.3 Antecedentes
 
-La propuesta aceptada menciona plataformas de gestión escolar y necesidades de transformación digital
-en instituciones educativas. En el TDG final deben incluirse antecedentes recientes, preferiblemente de
-los últimos cinco años, relacionados con gestión escolar, control de accesos, seguridad estudiantil,
-comunicación familia-escuela y digitalización administrativa.
+Los antecedentes del proyecto se ubican en tres líneas: transformación digital educativa, sistemas de
+gestión escolar y seguridad/privacidad en aplicaciones web. La transformación digital en educación exige
+que las soluciones no se limiten a reemplazar formularios físicos, sino que integren procesos, datos y
+comunicación para apoyar decisiones institucionales. En esa línea, la UNESCO ha señalado la necesidad
+de que la tecnología educativa se implemente con sentido pedagógico, protección de derechos y atención
+a brechas digitales (UNESCO, 2023).
+
+En gestión escolar, las plataformas integrales permiten reunir asistencia, comunicación, reportes y
+administración en un solo entorno. La propuesta aceptada identifica este valor al comparar necesidades
+de instituciones educativas con herramientas existentes de comunicación y control escolar. Escuela Pass
+recoge esa orientación, pero la aterriza en una arquitectura propia que combina módulos académicos,
+seguridad física y operación administrativa.
+
+En seguridad de aplicaciones web, OWASP (2021) resalta riesgos como control de acceso roto,
+fallos criptográficos, inyección y errores de configuración. Estos antecedentes técnicos justifican
+decisiones como validación global de DTO, uso de JWT, roles, aislamiento por escuela, archivos privados
+y auditoría. En consecuencia, la implementación no se limita a cumplir funciones visibles, sino que
+incorpora controles necesarios para proteger información sensible.
+
+## 3.4 Limitaciones
+
+El proyecto se mantiene como una aplicación web responsive, sin aplicaciones móviles nativas. Tampoco
+incluye pasarela automática de pagos, reconocimiento facial, soporte multiidioma ni analítica avanzada
+con inteligencia artificial. La medición de usabilidad con usuarios piloto y los tiempos de respuesta
+en ambiente productivo deben completarse como validación adicional si la institución lo requiere.
+
+## 3.5 Alcance Del Marco Referencial
+
+El marco referencial se enfoca en los conceptos y normas que explican la solución implementada:
+aplicaciones web, arquitectura modular, bases de datos relacionales, autenticación, autorización,
+QR/NFC, geolocalización, protección de datos y seguridad de aplicaciones. El detalle de módulos,
+endpoints y manuales se ubica en anexos para no sobrecargar el documento principal.
 
 # 4. ANÁLISIS Y DISEÑO DEL SISTEMA
 
@@ -184,7 +256,7 @@ DTOs, entidades y reglas de autorización. El frontend organiza rutas protegidas
 por rol, componentes reutilizables, manejo de notificaciones, mapas, formularios y pantallas
 responsive.
 
-[Imagen: Arquitectura lógica Escuela Pass]
+![Figura. Arquitectura lógica cliente-servicio e integraciones](docs/diagramas-mermaid-png/png/02-arquitectura-despliegue-td.png)
 
 El modelo de datos se organiza alrededor de escuelas, usuarios, grupos, estudiantes, padres, docentes,
 asistencias, actividades, pagos, circuito, notificaciones, privacidad y auditoría. Esta organización
@@ -219,7 +291,9 @@ confirmaciones, modales, selectores y soporte visual para modo oscuro.
 El circuito permite que un padre o tutor autorizado cree una solicitud de recogida para un estudiante.
 El sistema valida relación familiar, estado del estudiante, asistencia del día y configuración
 institucional. El personal escolar visualiza solicitudes y actualiza estados operativos. La ubicación
-GPS se usa como apoyo informativo y las transiciones críticas se ejecutan mediante acciones explícitas.
+GPS se usa como apoyo informativo y también puede activar la transición a `NOTIFICADO_LLEGADA` cuando
+el padre entra al radio configurado; aun así, las autorizaciones institucionales, la salida del menor
+y la confirmación de entrega se conservan como acciones explícitas y trazables.
 
 ## 5.4 Pagos Y Archivos Sensibles
 
@@ -240,7 +314,7 @@ Los resultados muestran que el proyecto cumple los requerimientos principales y 
 funcionalidades que fortalecen seguridad, trazabilidad y operación institucional. Las métricas de
 usabilidad y satisfacción deben levantarse con usuarios piloto si la institución lo requiere.
 
-[Imagen: Resultado final de pruebas E2E]
+[Imagen: Resultado final de pruebas E2E — insertar captura de consola de npm run test:e2e o reporte CI]
 
 # 7. CONCLUSIONES
 
@@ -287,9 +361,25 @@ asesoría jurídica antes de entrega final.
 
 # Referencias
 
-[Completar con las fuentes citadas en APA 7: propuesta, manual de estilo, documentación oficial de
-NestJS, PostgreSQL, React, Vite, TypeORM, normas de protección de datos, fuentes estadísticas y
-antecedentes académicos.]
+Cámara de Diputados del H. Congreso de la Unión. (2010). *Ley Federal de Protección de Datos Personales en Posesión de los Particulares*. https://www.diputados.gob.mx/
+
+Cámara de Diputados del H. Congreso de la Unión. (2011). *Reglamento de la Ley Federal de Protección de Datos Personales en Posesión de los Particulares*. https://www.diputados.gob.mx/
+
+Cámara de Diputados del H. Congreso de la Unión. (2014). *Ley General de los Derechos de Niñas, Niños y Adolescentes*. https://www.diputados.gob.mx/
+
+Jones, M., Bradley, J., & Sakimura, N. (2015). *JSON Web Token (JWT)* (RFC 7519). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc7519
+
+Meta Open Source. (s. f.). *React*. https://react.dev/
+
+NestJS. (s. f.). *Documentation*. https://docs.nestjs.com/
+
+OWASP Foundation. (2021). *OWASP Top 10: The ten most critical web application security risks*. https://owasp.org/www-project-top-ten/
+
+PostgreSQL Global Development Group. (s. f.). *PostgreSQL documentation*. https://www.postgresql.org/docs/
+
+UNESCO. (2023). *Global education monitoring report 2023: Technology in education*. https://www.unesco.org/gem-report/
+
+Vite. (s. f.). *Vite documentation*. https://vite.dev/
 
 # Anexos
 

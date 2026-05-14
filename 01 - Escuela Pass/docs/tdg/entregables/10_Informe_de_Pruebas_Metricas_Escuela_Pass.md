@@ -101,3 +101,14 @@ definidos en la propuesta y en la matriz de trazabilidad.
 - `[Imagen: Swagger health y auth]`
 - `[Imagen: prueba de circuito padre]`
 - `[Imagen: comprobante privado autorizado/no autorizado]`
+
+## 10. Comandos Y Artefactos De Prueba En El Repositorio
+
+| Comando / artefacto | Ubicación o uso |
+| --- | --- |
+| `npm run test:e2e` | Ejecuta `test/app.e2e-spec.ts`, `test/phase7-closure.e2e-spec.ts` (vía Jest e2e). Pre-script: `node ./test/setup-e2e-db.js`. |
+| `npm run test:e2e:auth-throttle-ip` | Ejecuta throttle IP documentado en `test/auth-throttle-ip.e2e-spec.ts` mediante `test/run-auth-throttle-e2e.cjs`. |
+| `npm run smoke:ci-local` | Secuencia local: build backend + E2E (útil antes de entrega). |
+| `.github/workflows/backend-ci.yml` | Pipeline que valida build y pruebas E2E contra PostgreSQL en contenedor. |
+
+PDF de prueba E2E: la suite `phase7-closure` puede generar PDF mínimos válidos con `pdfkit` bajo `uploads/`; la variable `E2E_KEEP_UPLOAD_FIXTURES=1` conserva artefactos para inspección.

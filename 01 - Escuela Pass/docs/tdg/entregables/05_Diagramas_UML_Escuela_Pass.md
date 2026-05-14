@@ -53,47 +53,18 @@ un diagrama masivo de todas las entidades. El patrón se repite por dominio Nest
 
 ## 5. Fuentes
 
-La base de estos diagramas está en `docs/diagrams/lucidchart/05-casos-de-uso.md`,
-`06-secuencia-circuito.md` y `07-clases-contexto.md`.
+La base de estos diagramas es el código fuente del repositorio, especialmente `frontend/src/App.tsx`,
+`frontend/src/navigation/navConfig.ts`, `src/app.module.ts`, controladores NestJS, servicios de dominio
+y entidades TypeORM. Si se exportan diagramas en Lucidchart, deben crearse desde los prompts y Mermaid
+incluidos en este documento.
 
-## 6. Caso De Uso General En Mermaid
+## 6. Caso De Uso General (Figura Exportada)
 
-```mermaid
-flowchart TD
-    admin["Administrador Plataforma"] --> auth["Autenticarse"]
-    administrativo["Personal Administrativo"] --> auth
-    docente["Docente"] --> auth
-    padre["Padre O Tutor"] --> auth
-    alumno["Alumno"] --> auth
-    administrativo --> gestion["Gestionar Escuela Y Personas"]
-    docente --> asistencia["Registrar Asistencia Y Notas"]
-    padre --> circuito["Solicitar Circuito De Recogida"]
-    padre --> pagos["Cargar Comprobante"]
-    alumno --> consulta["Consultar Horario Y Boletines"]
-    admin --> reportes["Consultar Auditoria Y Escuelas"]
-    administrativo --> reportes
-```
+![Figura. Casos de uso generales por actor (exportado desde Mermaid)](docs/diagramas-mermaid-png/png/04-uml-casos-de-uso.png)
 
 ## 7. Secuencia Principal Del Circuito
 
-```mermaid
-sequenceDiagram
-    actor Padre
-    participant Web as Frontend
-    participant API as API NestJS
-    participant DB as PostgreSQL
-    participant Staff as Vista Staff
-    Padre->>Web: Crea solicitud de recogida
-    Web->>API: POST /circuit-requests
-    API->>DB: Valida estudiante, padre, asistencia y circuito habilitado
-    DB-->>API: Datos válidos
-    API-->>Web: Solicitud creada
-    API-->>Staff: Notificación / consulta de circuito del día
-    Padre->>Web: Envía avance o GPS
-    Web->>API: PATCH /gps o /parent-progress
-    Staff->>API: Autoriza salida / cambia estado
-    Padre->>API: Confirma entrega
-```
+![Figura. Secuencia del circuito de recogida (exportado desde Mermaid)](docs/diagramas-mermaid-png/png/05-uml-secuencia-circuito.png)
 
 ## 8. Prompt Para Lucidchart
 

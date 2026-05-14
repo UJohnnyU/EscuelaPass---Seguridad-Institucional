@@ -40,11 +40,11 @@ la propuesta aceptada, el repositorio y las instrucciones académicas.
 
 | Riesgo | Estado | Acción antes de entrega |
 | --- | --- | --- |
-| Referencias APA incompletas | Abierto | Completar bibliografía exacta de fuentes técnicas, legales y estadísticas. |
-| Abstract pendiente | Abierto | Traducir el resumen cuando el texto final esté cerrado. |
+| Referencias APA incompletas | Mitigado parcialmente | El TDG principal ya incluye referencias base; se recomienda ampliar antecedentes académicos si el asesor lo exige. |
+| Abstract pendiente | Cerrado | El documento principal ya incluye Abstract en inglés. |
 | Capturas/figuras pendientes | Abierto | Insertar capturas reales o diagramas exportados. |
 | Métricas de usabilidad | Abierto | Ejecutar piloto/encuesta o declararlo como recomendación. |
-| Maquetación Word | Abierto | Llevar el Markdown a la plantilla institucional con estilos. |
+| Maquetación Word | Mitigado | Se generaron `.docx` desde la plantilla institucional; se recomienda revisión visual final en Microsoft Word. |
 | Licencia | Abierto | Definir con universidad/asesoría antes de entrega final. |
 
 ## 5. Conclusión De Validación
@@ -53,3 +53,26 @@ El paquete documental queda alineado para continuar con maquetación, inserción
 APA 7 y revisión del asesor. La coherencia técnica principal se sostiene sobre el repositorio, la
 propuesta aceptada y los anexos. No se detectan contradicciones graves en los puntos críticos: RF3,
 alcance de pagos, despliegue cloud, privacidad, archivos privados, pruebas y uso del TDG externo.
+
+## 6. Validación Word Generada
+
+La producción Word quedó en:
+
+- `docs/tdg/word/TDG_Escuela_Pass_Documento_Principal.docx`
+- `docs/tdg/word/anexos/*.docx`
+
+Se validó que los trece `.docx` generados son ZIP OpenXML legibles y contienen `word/document.xml`.
+También se revisó que no permanezcan placeholders bloqueantes como referencias legales vacías,
+Abstract sin completar o instrucciones internas del tipo “completar después”. Los placeholders que
+permanecen corresponden a imágenes, UI/UX, evidencias de prueba y licencia pendiente, todos aceptados
+como elementos que el autor debe sustituir o conservar según instrucción.
+
+## 7. Correcciones Aplicadas Antes De Word
+
+| Hallazgo | Corrección |
+| --- | --- |
+| RF3 no mencionaba auto-transición GPS. | Se aclaró que `NOTIFICADO_LLEGADA` puede activarse por proximidad GPS, mientras autorización y entrega siguen siendo explícitas. |
+| Uploads se describían como públicos. | Se separaron logos públicos de comprobantes/evidencias privadas por `/files/:bucket/:filename`. |
+| Referencias a diagramas inexistentes. | Se reemplazaron por Mermaid/prompts y fuente en código real. |
+| Padre aparecía como creador de reuniones/visitas. | Se ajustó a consultar y responder invitaciones creadas por la institución. |
+| Marco legal/Abstract/Referencias estaban como placeholder. | Se completaron con contenido base y referencias APA 7 iniciales. |

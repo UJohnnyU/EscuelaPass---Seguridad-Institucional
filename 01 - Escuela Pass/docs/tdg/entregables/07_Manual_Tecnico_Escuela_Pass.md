@@ -113,3 +113,16 @@ Variables principales: `VITE_API_BASE`, `VITE_MAPBOX_ACCESS_TOKEN`, `VITE_FIREBA
 No se deben versionar archivos `.env` reales, credenciales de Firebase, contraseñas, tokens SMTP ni
 respaldos de base de datos. Los comprobantes, excusas y evidencias se consideran sensibles y deben
 servirse mediante rutas autenticadas. Swagger debe quedar deshabilitado o protegido en producción.
+
+## 11. Documentación Complementaria En El Repositorio
+
+Para detalle adicional sin duplicar todo el contenido en este anexo, el repositorio incluye:
+
+| Documento | Contenido principal |
+| --- | --- |
+| `docs/technical-setup.md` | Visión del monorepo, módulos registrados en `app.module.ts`, variables de entorno, arranque de `main.ts`, Swagger, prefijos de API (p. ej. `/api/v1/calendar/...`). |
+| `docs/releases/runbook-railway-v1.3.md` | Runbook de despliegue Railway y comprobaciones post-release. |
+| `docs/releases/checklist-operativo-post-release-v1.3.md` | Lista de verificación operativa tras publicar versión. |
+| `docs/releases/archive/acta-*.md`, `parte-semanal-*.md` | Actas y seguimiento de estabilización (contexto histórico del proyecto). |
+
+Regeneración de diagramas exportados para anexos y TDG: `python docs/tdg/export_mermaid_png.py` (requiere Node.js y `@mermaid-js/mermaid-cli` vía `npx`).

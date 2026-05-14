@@ -1,0 +1,8 @@
+flowchart TD
+    browser["Navegador web"] --> spa["SPA React y Vite"]
+    spa -->|"Bearer JWT"| api["API NestJS"]
+    api --> db["PostgreSQL"]
+    api --> uploads["UPLOADS_DIR"]
+    api --> fcm["Firebase Cloud Messaging"]
+    api --> smtp["SMTP Nodemailer"]
+    spa --> mapbox["Mapbox GL"]

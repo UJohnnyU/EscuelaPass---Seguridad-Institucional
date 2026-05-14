@@ -57,36 +57,13 @@ institucionales, académicos, financieros, de seguridad y comunicación. La fuen
 
 ## 4. Observaciones Técnicas
 
-- `pickup-authorization.entity.ts` aparece como archivo histórico, pero el modelo activo usa relaciones padre-estudiante y consentimiento de salida; una migración elimina tablas fuera de alcance.
+- `pickup_authorizations` aparece en SQL/seed históricos, mientras la cadena de migraciones actual reduce el alcance hacia relaciones padre-estudiante y consentimiento de salida. En el TDG se debe aclarar que el modelo vigente para autorización de recogida se documenta desde `student_parents`, `parents`, `students`, `vehicles` y `student_departure_consents`.
 - El SQL v4 y las migraciones deben mantenerse alineados para que el modelo académico coincida con el despliegue real.
-- Los diagramas existentes en `docs/diagrams/lucidchart/03-er-nucleo.md` y `04-er-extendido.md` son la base gráfica del entregable.
+- El diagrama final debe generarse desde las entidades actuales del repositorio o desde el Mermaid incluido en este documento; no se debe depender de rutas de diagramas que no existan en el repositorio.
 
 ## 5. Diagrama ER Resumido En Mermaid
 
-```mermaid
-erDiagram
-    schools ||--o{ users : agrupa
-    schools ||--o{ groups : contiene
-    groups ||--o{ students : asigna
-    users ||--o| students : perfilAlumno
-    users ||--o| teachers : perfilDocente
-    users ||--o| parents : perfilPadre
-    students ||--o{ student_parents : vincula
-    parents ||--o{ student_parents : autoriza
-    teachers ||--o{ teacher_groups : asigna
-    groups ||--o{ teacher_groups : recibe
-    groups ||--o{ class_sessions : programa
-    students ||--o{ attendance_records : registra
-    students ||--o{ class_attendance_records : registraClase
-    academic_periods ||--o{ activities : organiza
-    activities ||--o{ activity_grades : califica
-    students ||--o{ report_cards : genera
-    report_cards ||--o{ report_card_subjects : resume
-    students ||--o{ debts : adeuda
-    debts ||--o{ payment_records : paga
-    students ||--o{ circuit_requests : solicita
-    parents ||--o{ circuit_requests : pide
-```
+![Figura. Modelo entidad-relación núcleo (exportado desde Mermaid; detalle completo en anexo y entidades TypeORM)](docs/diagramas-mermaid-png/png/03-modelo-er-nucleo.png)
 
 ## 6. Prompt Para Lucidchart
 

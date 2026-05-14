@@ -36,8 +36,8 @@ objetivo pueda evidenciarse con artefactos verificables.
 | RF4 | Gestión escolar | school, schools, uploads, settings | /school/*, /schools/*, /uploads/* | SchoolRosterPage, SchoolsAdminPage, InstitutionPage | Ampliado |
 | RF5 | Asistencia y calificaciones | attendance, activities, academic-periods, report-cards, documents, exports | /attendance/*, /activities/:id/grades, /report-cards/* | CalificacionesDocentePage, MisCalificacionesPage, BoletinesPage | Ampliado |
 | RF6 | Pagos y colegiaturas | payments, uploads, reports | /payments/concepts, /payments/debts, /payments/debts/:id/voucher/file | FinanzasStaffTools y vistas operativas | Cumplido sin pasarela automática |
-| RF7 | Avisos y notificaciones | notices, notifications, fcm, mail | /notices, /notifications/me, /notifications/fcm/register | NotificationsBadge, FcmBootstrap | Cumplido |
-| RF8 | Dashboard administrativo | dashboard, dashboards, reports, exports | /dashboard/summary, /dashboard/panel, /reports/*, /exports/* | AdminDashboardPanel, AppHomePage | Ampliado |
+| RF7 | Avisos y notificaciones | notices, fcm, mail | /notices, /notifications/me, /notifications/fcm/register | NotificationsBadge, FcmBootstrap | Cumplido |
+| RF8 | Dashboard administrativo | dashboard, reports, exports | /dashboard/summary, /dashboard/panel, /reports/*, /exports/* | AdminDashboardPanel, AppHomePage | Ampliado |
 | RNF1 | NestJS y PostgreSQL | AppModule, TypeORM config, migrations | N/A | N/A | Cumplido |
 | RNF2 | Diseño responsive | frontend React/Vite | N/A | AppShell, páginas por rol | Cumplido |
 | RNF3 | Seguridad: bcrypt, JWT, validación, SQL seguro | auth, guards, ValidationPipe, TypeORM | N/A | N/A | Cumplido; HTTPS depende del despliegue |
@@ -60,7 +60,7 @@ objetivo pueda evidenciarse con artefactos verificables.
 - La propuesta menciona Google Maps o Mapbox; la implementación adopta Mapbox y fallback Haversine.
 - La propuesta menciona qrcode.js; la implementación usa `html5-qrcode` para escaneo y `qrcode.react` para generación visual.
 - La propuesta menciona cPanel; el repo evidencia Railway para API y Vercel/hosting estático para frontend.
-- El circuito vial no automatiza entregas por cercanía GPS; el mapa es informativo y las transiciones se registran por acciones explícitas.
+- El circuito vial puede registrar automáticamente `NOTIFICADO_LLEGADA` por proximidad GPS; la autorización de salida, el avance operativo y la confirmación de entrega siguen siendo acciones explícitas.
 - El alcance real incorporó módulos adicionales: multiinstitución, privacidad, auditoría, boletines, PDFs, visitas, reuniones, horarios y notas de atención.
 
 ## 5. Trazabilidad Por Flujo Operativo

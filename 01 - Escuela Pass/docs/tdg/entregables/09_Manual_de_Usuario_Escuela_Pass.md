@@ -52,7 +52,7 @@ según su rol. Si olvida la contraseña, usa recuperación por correo cuando SMT
 - Crear y seguir solicitud de circuito de recogida.
 - Subir comprobantes de pago.
 - Revisar avisos y notificaciones.
-- Solicitar reuniones o visitas según configuración institucional.
+- Consultar y responder invitaciones de reuniones o visitas creadas por la institución.
 
 ## 6. Alumno
 

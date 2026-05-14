@@ -30,7 +30,8 @@ por avisos y notificaciones, gestión académica, pagos, reportes y despliegue c
 La interpretación oficial del RF3 es que los padres o tutores actúan como conductores del
 circuito de recogida desde la aplicación web móvil; no se trata de una flota independiente de
 vehículos escolares administrada por terceros. La geolocalización se usa como apoyo informativo
-para el mapa y ETA, mientras las transiciones de estado relevantes son acciones explícitas.
+para el mapa y ETA, y puede registrar automáticamente la llegada al radio del plantel; las
+autorizaciones institucionales y la confirmación final continúan siendo acciones explícitas.
 
 
 La arquitectura sigue una separación cliente-servidor: una SPA React/Vite consume una API REST
@@ -100,16 +101,7 @@ entorno, Postgres administrado, volumen persistente y facilidad de integración 
 
 ## 8. Diagrama Mermaid De Arquitectura
 
-```mermaid
-flowchart TD
-    browser["Navegador Web"] --> spa["SPA React/Vite"]
-    spa -->|"Bearer JWT"| api["API NestJS"]
-    api --> db["PostgreSQL"]
-    api --> uploads["UPLOADS_DIR / Archivos Privados"]
-    api --> fcm["Firebase Cloud Messaging"]
-    api --> smtp["SMTP / Nodemailer"]
-    spa --> mapbox["Mapbox GL"]
-```
+![Figura. Vista lógica y servicios externos (exportada desde Mermaid)](docs/diagramas-mermaid-png/png/02-arquitectura-despliegue-td.png)
 
 ## 9. Vista De Módulos Por Dominio
 
@@ -120,7 +112,7 @@ flowchart TD
 | Académico | `attendance`, `class-attendance`, `activities`, `academic-periods`, `report-cards`, `documents` | Asistencia, clases, notas, periodos, boletines y documentos PDF. |
 | Gestión escolar | `school`, `schools`, `settings`, `class-sessions`, `schedules` | Escuelas, grupos, personas, horarios y configuración institucional. |
 | Administración | `payments`, `reports`, `exports`, `dashboard` | Pagos, reportes, indicadores y exportables. |
-| Comunicación | `notices`, `notifications`, `meetings`, `external-visits`, `attention-notes`, `mail`, `fcm` | Avisos, reuniones, visitas, anotaciones, correo y push. |
+| Comunicación | `notices`, rutas de `notifications`, `meetings`, `external-visits`, `attention-notes`, `mail`, `fcm` | Avisos, reuniones, visitas, anotaciones, correo y push. |
 
 ## 10. Riesgos Arquitectónicos Y Mitigaciones
 

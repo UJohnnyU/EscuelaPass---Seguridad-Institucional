@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant Padre
+    participant Web as Frontend
+    participant API as API NestJS
+    participant DB as PostgreSQL
+    participant Staff as Vista_staff
+    Padre->>Web: Crear solicitud de recogida
+    Web->>API: POST circuit-requests
+    API->>DB: Validar estudiante padre asistencia circuito
+    DB-->>API: Datos validos
+    API-->>Web: Solicitud creada
+    API-->>Staff: Notificacion o consulta circuito
+    Padre->>Web: Enviar GPS o avance
+    Web->>API: PATCH gps o parent-progress
+    Staff->>API: Autorizar salida o cambiar estado
+    Padre->>API: Confirmar entrega

@@ -1,0 +1,8 @@
+flowchart LR
+    userBrowser["Usuario en navegador"] --> frontend["Frontend React o Vite"]
+    frontend -->|"API REST JWT"| backend["Backend NestJS"]
+    backend --> postgres["PostgreSQL"]
+    backend --> uploads["Archivos privados UPLOADS_DIR"]
+    backend --> fcm["Firebase Cloud Messaging"]
+    backend --> smtp["SMTP Nodemailer"]
+    frontend --> mapbox["Mapbox"]

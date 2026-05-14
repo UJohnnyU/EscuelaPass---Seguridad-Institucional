@@ -30,7 +30,8 @@ por avisos y notificaciones, gestión académica, pagos, reportes y despliegue c
 La interpretación oficial del RF3 es que los padres o tutores actúan como conductores del
 circuito de recogida desde la aplicación web móvil; no se trata de una flota independiente de
 vehículos escolares administrada por terceros. La geolocalización se usa como apoyo informativo
-para el mapa y ETA, mientras las transiciones de estado relevantes son acciones explícitas.
+para el mapa y ETA, y puede registrar automáticamente la llegada al radio del plantel; las
+autorizaciones institucionales y la confirmación final continúan siendo acciones explícitas.
 
 
 ## 2. Actores Del Sistema

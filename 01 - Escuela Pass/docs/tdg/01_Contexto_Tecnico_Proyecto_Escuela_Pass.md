@@ -20,16 +20,7 @@ del proyecto y utiliza NestJS, TypeORM y PostgreSQL. El frontend está en `front
 Vite, TypeScript y Tailwind. La comunicación principal se realiza mediante una API REST protegida
 con JWT, roles y reglas de alcance institucional.
 
-```mermaid
-flowchart LR
-    userBrowser["Usuario En Navegador"] --> frontend["Frontend React/Vite"]
-    frontend -->|"API REST JWT"| backend["Backend NestJS"]
-    backend --> postgres["PostgreSQL"]
-    backend --> uploads["Archivos Privados / UPLOADS_DIR"]
-    backend --> fcm["Firebase Cloud Messaging"]
-    backend --> smtp["SMTP / Nodemailer"]
-    frontend --> mapbox["Mapbox"]
-```
+![Figura. Arquitectura general cliente-servicio e integraciones (exportada desde Mermaid)](docs/diagramas-mermaid-png/png/01-arquitectura-contexto-lr.png)
 
 ## 3. Backend
 
