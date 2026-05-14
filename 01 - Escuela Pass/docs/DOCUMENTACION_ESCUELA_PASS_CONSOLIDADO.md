@@ -2,6 +2,8 @@
 
 Generado automáticamente. Cada bloque conserva el contenido íntegro del archivo indicado.
 
+**Aviso (estructura actual del repo):** Las líneas `# Fuente: docs/tdg/...` indican el archivo de origen cuando se armó este consolidado; esos `.md` ya no están en el árbol de trabajo (se conservan en el historial de git si hace falta). Las figuras Mermaid exportadas viven en **`docs/imagenes/`** (`.mmd` y `.png` con el mismo nombre base).
+
 ||||||||||||||||||||||||||||||||||||||||||||
 
 # Fuente: docs/CODESTYLE-COMMENTS.md
@@ -44,34 +46,25 @@ Generado automáticamente. Cada bloque conserva el contenido íntegro del archiv
 
 ||||||||||||||||||||||||||||||||||||||||||||
 
-# Fuente: docs/diagramas-mermaid-png/README.md
+# Fuente: nota diagramas (equivalente vivo: [docs/README.md](./README.md) — carpeta `docs/imagenes/`)
 
 # Diagramas Mermaid exportados (PNG)
 
-- **Fuentes:** `docs/diagramas-mermaid-png/fuente/*.mmd`
-- **PNG generados:** `docs/diagramas-mermaid-png/png/*.png`
+- **Ubicación:** `docs/imagenes/*.mmd` (fuente) y `docs/imagenes/*.png` (exportado; mismo nombre base).
 
-## Regenerar
+## Regenerar un PNG
 
-Desde la raíz del repositorio (Node.js instalado):
-
-```bash
-python docs/tdg/export_mermaid_png.py
-```
-
-El script invoca `npx @mermaid-js/mermaid-cli@10` (descarga Chromium en la primera ejecución; puede tardar varios minutos).
-
-Solo reescribir los `.mmd` incrustados en el script:
+Desde la raíz del repositorio (Node.js instalado), por ejemplo:
 
 ```bash
-python docs/tdg/export_mermaid_png.py --write-only
+npx -y @mermaid-js/mermaid-cli@10 -i docs/imagenes/01-arquitectura-contexto-lr.mmd -o docs/imagenes/01-arquitectura-contexto-lr.png
 ```
+
+En la primera ejecución puede descargar Chromium y tardar varios minutos.
 
 ## Uso en Word
 
-Los Markdown referencian las figuras con rutas relativas a la raíz del repo, p. ej.
-`docs/diagramas-mermaid-png/png/01-arquitectura-contexto-lr.png`. El generador
-`docs/tdg/generate_word_docs.py` incrusta esas imágenes en los `.docx`.
+Los Markdown referencian las figuras bajo `docs/imagenes/*.png`. Los `.docx` entregables viven en `docs/tdg/word/`; para incrustar de nuevo todas las figuras haría falta restaurar desde git el pipeline del TDG (`generate_word_docs.py` y `.md` fuente), si aún se conservan en el historial.
 
 
 ||||||||||||||||||||||||||||||||||||||||||||
@@ -530,12 +523,12 @@ Documentación **viva** para despliegue y verificación post-release.
 
 | Documento | Uso |
 |-----------|-----|
-| [runbook-railway-v1.3.md](./runbook-railway-v1.3.md) | Despliegue backend en Railway y variables. |
-| [checklist-operativo-post-release-v1.3.md](./checklist-operativo-post-release-v1.3.md) | Comprobaciones tras publicar. |
+| [runbook-railway-v1.3.md](./releases/runbook-railway-v1.3.md) | Despliegue backend en Railway y variables. |
+| [checklist-operativo-post-release-v1.3.md](./releases/checklist-operativo-post-release-v1.3.md) | Comprobaciones tras publicar. |
 
 ## Archivo histórico
 
-Actas, partes y revisiones de la estabilización v1.3 (y v1.2) están en [`archive/`](./archive/) solo como referencia institucional; no forman parte del flujo técnico diario.
+Actas, partes y revisiones de la estabilización v1.3 (y v1.2) están en [`releases/archive/`](./releases/archive/) solo como referencia institucional; no forman parte del flujo técnico diario.
 
 
 ||||||||||||||||||||||||||||||||||||||||||||
@@ -627,7 +620,7 @@ El análisis documental se limita al contenido versionado y relevante del proyec
 | Base de datos | `src/database/`, `scripts/database/` | Entidades, migraciones, esquema de referencia, seeds y modelo de datos. |
 | Pruebas | `test/` | Evidencia de validación funcional, seguridad, flujos críticos y pruebas E2E. |
 | Documentación técnica | `README.md`, `docs/`, `docs/releases/` | Instalación, despliegue, configuración, decisiones operativas y runbooks. |
-| Entregables base | `docs/tdg/entregables/` | Anexos documentales a completar con estructura profesional y trazabilidad. |
+| Entregables base | `docs/tdg/word/` (`anexos/*.docx`) y texto en [DOCUMENTACION_ESCUELA_PASS_CONSOLIDADO.md](./DOCUMENTACION_ESCUELA_PASS_CONSOLIDADO.md) | Anexos en Word; el consolidado conserva el equivalente en Markdown que antes vivía en `docs/tdg/`. |
 | Configuración | `package.json`, `frontend/package.json`, `railway.toml`, archivos de entorno ejemplo | Tecnologías, scripts, despliegue y dependencias relevantes. |
 
 ### 2.2 Fuentes Excluidas
@@ -757,7 +750,7 @@ del proyecto y utiliza NestJS, TypeORM y PostgreSQL. El frontend está en `front
 Vite, TypeScript y Tailwind. La comunicación principal se realiza mediante una API REST protegida
 con JWT, roles y reglas de alcance institucional.
 
-![Figura. Arquitectura general cliente-servicio e integraciones (exportada desde Mermaid)](docs/diagramas-mermaid-png/png/01-arquitectura-contexto-lr.png)
+![Figura. Arquitectura general cliente-servicio e integraciones (exportada desde Mermaid)](docs/imagenes/01-arquitectura-contexto-lr.png)
 
 ## 3. Backend
 
@@ -1335,7 +1328,7 @@ la propuesta aceptada, el repositorio y las instrucciones académicas.
 | `04_Buenas_Practicas_TDG_Referencia_Sin_Plagio.md` | Generado con restricciones anti-plagio. |
 | `05_Revision_Calidad_APA7_TDG_Escuela_Pass.md` | Generado como checklist de calidad. |
 | `TDG_Escuela_Pass_Documento_Principal.md` | Generado como borrador principal para maquetación. |
-| `docs/tdg/entregables/*.md` | Ampliados con trazabilidad, criterios, placeholders y evidencias. |
+| Contenido anexos (histórico `.md`) | Integrado en este consolidado; entrega formal en `docs/tdg/word/anexos/`. |
 
 ## 3. Validación De Coherencia Clave
 
@@ -1824,7 +1817,7 @@ entorno, Postgres administrado, volumen persistente y facilidad de integración 
 
 ## 8. Diagrama Mermaid De Arquitectura
 
-![Figura. Vista lógica y servicios externos (exportada desde Mermaid)](docs/diagramas-mermaid-png/png/02-arquitectura-despliegue-td.png)
+![Figura. Vista lógica y servicios externos (exportada desde Mermaid)](docs/imagenes/02-arquitectura-despliegue-td.png)
 
 ## 9. Vista De Módulos Por Dominio
 
@@ -1918,7 +1911,7 @@ institucionales, académicos, financieros, de seguridad y comunicación. La fuen
 
 ## 5. Diagrama ER Resumido En Mermaid
 
-![Figura. Modelo entidad-relación núcleo (exportado desde Mermaid; detalle completo en anexo y entidades TypeORM)](docs/diagramas-mermaid-png/png/03-modelo-er-nucleo.png)
+![Figura. Modelo entidad-relación núcleo (exportado desde Mermaid; detalle completo en anexo y entidades TypeORM)](docs/imagenes/03-modelo-er-nucleo.png)
 
 ## 6. Prompt Para Lucidchart
 
@@ -2005,11 +1998,11 @@ incluidos en este documento.
 
 ## 6. Caso De Uso General (Figura Exportada)
 
-![Figura. Casos de uso generales por actor (exportado desde Mermaid)](docs/diagramas-mermaid-png/png/04-uml-casos-de-uso.png)
+![Figura. Casos de uso generales por actor (exportado desde Mermaid)](docs/imagenes/04-uml-casos-de-uso.png)
 
 ## 7. Secuencia Principal Del Circuito
 
-![Figura. Secuencia del circuito de recogida (exportado desde Mermaid)](docs/diagramas-mermaid-png/png/05-uml-secuencia-circuito.png)
+![Figura. Secuencia del circuito de recogida (exportado desde Mermaid)](docs/imagenes/05-uml-secuencia-circuito.png)
 
 ## 8. Prompt Para Lucidchart
 
@@ -2251,7 +2244,7 @@ Para detalle adicional sin duplicar todo el contenido en este anexo, el reposito
 | `docs/releases/checklist-operativo-post-release-v1.3.md` | Lista de verificación operativa tras publicar versión. |
 | `docs/releases/archive/acta-*.md`, `parte-semanal-*.md` | Actas y seguimiento de estabilización (contexto histórico del proyecto). |
 
-Regeneración de diagramas exportados para anexos y TDG: `python docs/tdg/export_mermaid_png.py` (requiere Node.js y `@mermaid-js/mermaid-cli` vía `npx`).
+Regeneración de diagramas exportados para anexos y TDG: desde `docs/imagenes/`, usar `npx -y @mermaid-js/mermaid-cli@10` con `-i` / `-o` sobre cada `.mmd` (ver [docs/README.md](./README.md)).
 
 
 ||||||||||||||||||||||||||||||||||||||||||||
@@ -2709,7 +2702,7 @@ Figma o capturas reales. No se inventaron capturas visuales no verificadas.
 
 # Mejoras sugeridas para los documentos Word (`docs/tdg/word/` y `anexos/`)
 
-Documento de trabajo posterior a la regeneración con `generate_word_docs.py` e incrustación de diagramas PNG. Sirve como checklist para revisión humana, jurados y ajuste fino a la plantilla institucional.
+Documento de trabajo posterior a la regeneración de los `.docx` del TDG e incrustación de diagramas PNG. Sirve como checklist para revisión humana, jurados y ajuste fino a la plantilla institucional.
 
 ## TDG principal (`TDG_Escuela_Pass_Documento_Principal.docx`)
 
@@ -2740,7 +2733,7 @@ Documento de trabajo posterior a la regeneración con `generate_word_docs.py` e 
 
 - **Turnitin / originalidad:** Releer introducción y conclusiones; citar normativa y fuentes técnicas; evitar copiar párrafos de guías sin comillas y referencia.
 - **Cohéencia código–documento:** Tras cada release, revalidar nombres de módulos (`app.module.ts`) y prefijos de API.
-- **Diagramas:** Regenerar PNG tras cambiar Mermaid: `python docs/tdg/export_mermaid_png.py`, luego `python docs/tdg/generate_word_docs.py`.
+- **Diagramas:** Regenerar PNG tras cambiar Mermaid con `npx @mermaid-js/mermaid-cli` sobre los archivos en `docs/imagenes/`; actualizar manualmente los `.docx` en `docs/tdg/word/` o restaurar desde git el generador del TDG si aplica.
 - **Consolidado Markdown:** `docs/DOCUMENTACION_ESCUELA_PASS_CONSOLIDADO.md` crece rápido; para entregas Git considerar regenerarlo solo antes de revisiones o ignorarlo si el diff molesta.
 
 ## Base de datos Railway
@@ -2907,7 +2900,7 @@ implementado y lo documentado.
 | Frontend | Objetivo 4 | Rutas, páginas por rol, componentes y flujos. | SPA responsive integrada con API. |
 | Validación | Objetivo 5 | E2E, smoke, revisión de seguridad y documentación. | Informe de pruebas y métricas. |
 
-![Figura. Cronograma tipo Gantt reconstruido para el TDG (exportado desde Mermaid)](docs/diagramas-mermaid-png/png/06-cronograma-gantt.png)
+![Figura. Cronograma tipo Gantt reconstruido para el TDG (exportado desde Mermaid)](docs/imagenes/06-cronograma-gantt.png)
 
 Tabla 2  
 *Cronograma general del proyecto*
@@ -3010,7 +3003,7 @@ DTOs, entidades y reglas de autorización. El frontend organiza rutas protegidas
 por rol, componentes reutilizables, manejo de notificaciones, mapas, formularios y pantallas
 responsive.
 
-![Figura. Arquitectura lógica cliente-servicio e integraciones](docs/diagramas-mermaid-png/png/02-arquitectura-despliegue-td.png)
+![Figura. Arquitectura lógica cliente-servicio e integraciones](docs/imagenes/02-arquitectura-despliegue-td.png)
 
 El modelo de datos se organiza alrededor de escuelas, usuarios, grupos, estudiantes, padres, docentes,
 asistencias, actividades, pagos, circuito, notificaciones, privacidad y auditoría. Esta organización
