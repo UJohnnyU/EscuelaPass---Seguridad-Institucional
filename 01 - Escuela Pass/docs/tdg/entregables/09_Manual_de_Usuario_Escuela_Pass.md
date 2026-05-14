@@ -66,3 +66,54 @@ según su rol. Si olvida la contraseña, usa recuperación por correo cuando SMT
 - Mantener actualizado el navegador.
 - Permitir notificaciones solo en dispositivos propios.
 - Reportar inconsistencias de datos a la institución.
+
+## 8. Flujo Del Padre O Tutor
+
+1. Iniciar sesión.
+2. Revisar avisos y notificaciones.
+3. Consultar información académica de los hijos.
+4. Crear solicitud de circuito cuando vaya a recoger al estudiante.
+5. Actualizar avance o ubicación cuando corresponda.
+6. Confirmar entrega solo cuando el plantel indique que el menor está en camino.
+7. Consultar deudas y cargar comprobantes si existe pago pendiente.
+
+## 9. Flujo Del Docente
+
+1. Iniciar sesión y revisar panel inicial.
+2. Consultar horario o grupos asignados.
+3. Registrar asistencia general o por clase según módulo.
+4. Crear actividades y cargar notas.
+5. Consultar solicitudes de circuito de estudiantes bajo su responsabilidad.
+6. Registrar anotaciones de atención cuando aplique.
+
+## 10. Flujo Administrativo
+
+1. Configurar institución, calendario y datos escolares.
+2. Crear grupos, materias, estudiantes, docentes y padres.
+3. Vincular estudiantes con padres y docentes con grupos.
+4. Gestionar pagos, deudas y comprobantes.
+5. Supervisar circuito, asistencia y reportes.
+6. Exportar informes y revisar dashboards.
+
+## 11. Mensajes Y Errores Frecuentes
+
+| Situación | Acción recomendada |
+| --- | --- |
+| Credenciales inválidas | Verificar correo/contraseña o usar recuperación. |
+| Cuenta inactiva | Contactar administración institucional. |
+| No autorizado | Confirmar rol, escuela o relación con estudiante. |
+| Circuito deshabilitado | Esperar habilitación institucional o contactar administración. |
+| Comprobante rechazado | Revisar observación y cargar nuevo archivo si aún hay intentos disponibles. |
+| Archivo no disponible | Confirmar permisos y existencia del documento. |
+
+## 12. Capturas Para Manual
+
+Insertar manualmente:
+
+- `[Imagen: login de Escuela Pass]`
+- `[Imagen: menú lateral por rol]`
+- `[Imagen: circuito padre móvil]`
+- `[Imagen: escáner QR/NFC]`
+- `[Imagen: calificaciones docente]`
+- `[Imagen: comprobantes de pago]`
+- `[Imagen: dashboard administrativo]`

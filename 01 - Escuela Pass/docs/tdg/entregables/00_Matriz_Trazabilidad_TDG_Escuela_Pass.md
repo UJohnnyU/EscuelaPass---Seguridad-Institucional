@@ -62,3 +62,21 @@ objetivo pueda evidenciarse con artefactos verificables.
 - La propuesta menciona cPanel; el repo evidencia Railway para API y Vercel/hosting estático para frontend.
 - El circuito vial no automatiza entregas por cercanía GPS; el mapa es informativo y las transiciones se registran por acciones explícitas.
 - El alcance real incorporó módulos adicionales: multiinstitución, privacidad, auditoría, boletines, PDFs, visitas, reuniones, horarios y notas de atención.
+
+## 5. Trazabilidad Por Flujo Operativo
+
+| Flujo | Actores | Evidencia backend | Evidencia frontend | Prueba/documento |
+| --- | --- | --- | --- | --- |
+| Inicio de sesión y sesión | Todos | `auth`, `JwtStrategy`, `RolesGuard` | `LoginPage`, `AuthProvider`, `ProtectedRoute` | `test/app.e2e-spec.ts` |
+| Escaneo de acceso | ADMIN, ADMINISTRATIVO, DOCENTE | `access`, `access_credentials`, `access_events` | `EscanerAccesoPage`, `QrScanResultModal` | E2E de QR y asistencia automática |
+| Circuito de familia | PADRE, DOCENTE, ADMINISTRATIVO | `circuit`, `vehicles`, `departure-consent`, `notifications` | `CircuitPadrePage`, `CircuitTodayPage`, `CircuitDetailPage` | E2E circuito/GPS/confirmación |
+| Gestión académica | DOCENTE, ADMIN, PADRE, ALUMNO | `attendance`, `class-attendance`, `activities`, `report-cards` | `CalificacionesDocentePage`, `MisCalificacionesPage`, `BoletinesPage` | E2E asistencia, notas y boletines |
+| Pagos | PADRE, ADMINISTRATIVO | `payments`, `uploads`, `files` | `FinanzasPage`, `FinanzasStaffTools` | E2E comprobantes privados |
+| Privacidad y auditoría | Todos / staff | `privacy`, `audit`, `files` | `PrivacyGate`, `AuthImage` | Phase7 privacidad/IDOR |
+
+## 6. Validación Para El TDG
+
+Esta matriz debe citarse como anexo de trazabilidad. En el documento principal no se recomienda
+copiarla completa; allí debe resumirse que los requerimientos aprobados fueron contrastados contra
+módulos, rutas, pantallas y pruebas reales. El detalle completo queda en este anexo para defender el
+cumplimiento técnico ante jurados.

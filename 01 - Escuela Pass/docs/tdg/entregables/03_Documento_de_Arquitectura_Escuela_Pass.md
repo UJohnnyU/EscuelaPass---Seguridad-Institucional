@@ -97,3 +97,38 @@ pagos, circuito, visitas, reuniones, notificaciones, privacidad y auditoría.
 La propuesta contemplaba cPanel y Google Maps como alternativas. El repositorio evidencia
 Railway/Vercel y Mapbox. La decisión se justifica por despliegue cloud simple, variables de
 entorno, Postgres administrado, volumen persistente y facilidad de integración con Vite.
+
+## 8. Diagrama Mermaid De Arquitectura
+
+```mermaid
+flowchart TD
+    browser["Navegador Web"] --> spa["SPA React/Vite"]
+    spa -->|"Bearer JWT"| api["API NestJS"]
+    api --> db["PostgreSQL"]
+    api --> uploads["UPLOADS_DIR / Archivos Privados"]
+    api --> fcm["Firebase Cloud Messaging"]
+    api --> smtp["SMTP / Nodemailer"]
+    spa --> mapbox["Mapbox GL"]
+```
+
+## 9. Vista De Módulos Por Dominio
+
+| Dominio | Módulos | Responsabilidad |
+| --- | --- | --- |
+| Identidad | `auth`, `privacy`, `audit` | Sesión, estado de cuenta, aceptación de políticas y trazabilidad. |
+| Seguridad física | `access`, `circuit`, `vehicles`, `departure-consent` | Entrada/salida, QR/NFC, circuito de recogida y vehículos familiares. |
+| Académico | `attendance`, `class-attendance`, `activities`, `academic-periods`, `report-cards`, `documents` | Asistencia, clases, notas, periodos, boletines y documentos PDF. |
+| Gestión escolar | `school`, `schools`, `settings`, `class-sessions`, `schedules` | Escuelas, grupos, personas, horarios y configuración institucional. |
+| Administración | `payments`, `reports`, `exports`, `dashboard` | Pagos, reportes, indicadores y exportables. |
+| Comunicación | `notices`, `notifications`, `meetings`, `external-visits`, `attention-notes`, `mail`, `fcm` | Avisos, reuniones, visitas, anotaciones, correo y push. |
+
+## 10. Riesgos Arquitectónicos Y Mitigaciones
+
+| Riesgo | Mitigación implementada |
+| --- | --- |
+| Acceso indebido a archivos sensibles | Endpoint `/files` con autenticación, validación de bucket, nombre seguro y reglas por relación. |
+| Operación multiinstitución incorrecta | Uso de `schoolId`, roles y consultas restringidas por escuela o relación. |
+| Token válido de usuario inactivo | `JwtStrategy` consulta estado del usuario en cada request protegida. |
+| Datos inválidos en DTO | `ValidationPipe` global y DTOs con `class-validator`. |
+| Exposición de Swagger en producción | Swagger deshabilitado por defecto en producción salvo variable explícita. |
+| Falta de persistencia de uploads en cloud | Uso de `UPLOADS_DIR` y volumen persistente documentado para Railway. |

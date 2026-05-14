@@ -60,3 +60,48 @@ institucionales, académicos, financieros, de seguridad y comunicación. La fuen
 - `pickup-authorization.entity.ts` aparece como archivo histórico, pero el modelo activo usa relaciones padre-estudiante y consentimiento de salida; una migración elimina tablas fuera de alcance.
 - El SQL v4 y las migraciones deben mantenerse alineados para que el modelo académico coincida con el despliegue real.
 - Los diagramas existentes en `docs/diagrams/lucidchart/03-er-nucleo.md` y `04-er-extendido.md` son la base gráfica del entregable.
+
+## 5. Diagrama ER Resumido En Mermaid
+
+```mermaid
+erDiagram
+    schools ||--o{ users : agrupa
+    schools ||--o{ groups : contiene
+    groups ||--o{ students : asigna
+    users ||--o| students : perfilAlumno
+    users ||--o| teachers : perfilDocente
+    users ||--o| parents : perfilPadre
+    students ||--o{ student_parents : vincula
+    parents ||--o{ student_parents : autoriza
+    teachers ||--o{ teacher_groups : asigna
+    groups ||--o{ teacher_groups : recibe
+    groups ||--o{ class_sessions : programa
+    students ||--o{ attendance_records : registra
+    students ||--o{ class_attendance_records : registraClase
+    academic_periods ||--o{ activities : organiza
+    activities ||--o{ activity_grades : califica
+    students ||--o{ report_cards : genera
+    report_cards ||--o{ report_card_subjects : resume
+    students ||--o{ debts : adeuda
+    debts ||--o{ payment_records : paga
+    students ||--o{ circuit_requests : solicita
+    parents ||--o{ circuit_requests : pide
+```
+
+## 6. Prompt Para Lucidchart
+
+Crear un diagrama entidad-relación profesional para Escuela Pass con agrupación visual por dominios:
+Identidad, Institución, Académico, Circuito, Finanzas, Comunicación, Agenda y Cumplimiento. Incluir
+las entidades principales listadas en la sección 2, usar relaciones uno a muchos y muchos a muchos
+mediante tablas puente (`student_parents`, `teacher_groups`, `meeting_participants`). Resaltar como
+entidades críticas `users`, `schools`, `students`, `parents`, `teachers`, `groups`, `attendance_records`,
+`activities`, `report_cards`, `debts`, `circuit_requests`, `notifications`, `privacy_policies` y
+`audit_logs`. Mantener el diagrama legible, con colores suaves por dominio, sin cruzar excesivamente
+líneas y con leyenda de dominios.
+
+## 7. Reglas De Lectura Del Modelo
+
+El modelo se debe interpretar como multiinstitución: la escuela define el alcance institucional y las
+relaciones padre-estudiante, docente-grupo y usuario-escuela determinan permisos. Las entidades de
+auditoría y privacidad no son accesorias; respaldan el tratamiento responsable de datos personales,
+especialmente por la presencia de menores de edad.

@@ -71,3 +71,45 @@ Variables principales: `VITE_API_BASE`, `VITE_MAPBOX_ACCESS_TOKEN`, `VITE_FIREBA
 - Respaldar PostgreSQL antes de cambios de esquema.
 - Revisar tokens FCM, SMTP y permisos del volumen de uploads.
 - Actualizar documentación cuando cambien rutas o módulos.
+
+## 7. Variables Críticas
+
+| Variable | Uso |
+| --- | --- |
+| `DATABASE_URL` / `POSTGRES_URL` | Conexión principal PostgreSQL. |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET` | Firma de tokens de acceso y refresh. |
+| `CORS_ORIGIN` | Orígenes permitidos para frontend. |
+| `UPLOADS_DIR` | Carpeta persistente para comprobantes, avatares, evidencias y logos. |
+| `FRONTEND_URL` | Enlaces de correo y navegación desde notificaciones. |
+| `MAPBOX_ACCESS_TOKEN` | Mapas y cálculo informativo en circuito. |
+| `FIREBASE_SERVICE_ACCOUNT_*` | Envío de notificaciones push desde backend. |
+| `SMTP_*` | Recuperación de contraseña y correos institucionales. |
+
+## 8. Procedimiento De Release Recomendado
+
+1. Verificar `.env` y variables cloud.
+2. Ejecutar `npm run build`.
+3. Ejecutar `npm run test:e2e`.
+4. Ejecutar `cd frontend && npm run build`.
+5. Revisar migraciones pendientes.
+6. Confirmar volumen `UPLOADS_DIR` y permisos de escritura.
+7. Desplegar backend.
+8. Desplegar frontend.
+9. Ejecutar smoke manual: login, health, circuito, pagos, asistencia y archivos privados.
+
+## 9. Manejo De Incidentes
+
+| Incidente | Revisión inicial |
+| --- | --- |
+| API no inicia | Variables de BD, migraciones, `JWT_SECRET`, logs Railway. |
+| Frontend no conecta | `VITE_API_BASE`, CORS, URL del backend. |
+| Archivos no abren | `UPLOADS_DIR`, ruta `/files`, permisos por rol y existencia física. |
+| Push no llega | Token FCM web, cuenta de servicio, permisos del navegador. |
+| Circuito falla | Estado del estudiante, asistencia del día, `circuit_enabled`, solicitud abierta previa. |
+| Login falla tras lifecycle | Verificar `user.status`; el JWT se invalida si la cuenta queda inactiva. |
+
+## 10. Consideraciones De Seguridad Operativa
+
+No se deben versionar archivos `.env` reales, credenciales de Firebase, contraseñas, tokens SMTP ni
+respaldos de base de datos. Los comprobantes, excusas y evidencias se consideran sensibles y deben
+servirse mediante rutas autenticadas. Swagger debe quedar deshabilitado o protegido en producción.

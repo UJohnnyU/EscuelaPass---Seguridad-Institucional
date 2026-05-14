@@ -79,3 +79,19 @@ no comprobados.
 - Separar anexos extensos del cuerpo principal para respetar el máximo de 50 páginas del TDG.
 - Usar APA 7, citas autor-fecha y redacción propia para reducir riesgos de similitud.
 - Dejar placeholders de imágenes solo cuando no sea posible generar la figura de forma verificable.
+
+## 7. Control De Trazabilidad De Actas
+
+| Acta | Evidencia asociada | Uso en el TDG |
+| --- | --- | --- |
+| Levantamiento inicial | Propuesta aceptada, requerimientos RF/RNF, entregable 01. | Planteamiento del problema, justificación y objetivos. |
+| Requerimientos | Matriz de trazabilidad y código por módulo. | Capítulo de análisis y anexos de requisitos. |
+| Diseño arquitectónico | `src/app.module.ts`, `frontend/src/App.tsx`, entidades, despliegue. | Capítulo de diseño y arquitectura. |
+| Validación funcional | E2E, smoke, Phase 7, informe de pruebas. | Capítulo de resultados y validación. |
+| Preparación de entrega | Manual de estilo, APA 7, anexos. | Cierre documental y anexos. |
+
+## 8. Nota De Transparencia
+
+Estas actas no sustituyen registros firmados o evidencias externas. Funcionan como reconstrucción
+documental para anexar decisiones técnicas y académicas cuando el repositorio no conserva minutas
+formales. Si existen actas reales con fechas y firmas, deben reemplazar o complementar esta versión.

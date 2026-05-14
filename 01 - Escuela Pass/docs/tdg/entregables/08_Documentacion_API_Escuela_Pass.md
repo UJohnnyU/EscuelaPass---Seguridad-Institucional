@@ -62,3 +62,41 @@ La API responde principalmente JSON. Exportaciones y documentos usan:
 
 Para anexos extensos, exportar Swagger/OpenAPI o capturas de `/docs`; no incluir todos los DTOs
 en el cuerpo principal para evitar exceder el límite académico.
+
+## 6. Rutas Críticas Para Trazabilidad
+
+| RF | Rutas principales | Roles |
+| --- | --- | --- |
+| RF1 | `/auth/login`, `/auth/me`, `/auth/refresh`, `/auth/logout` | Todos según autenticación |
+| RF2 | `/access-events/scan`, `/access-events/my-qr` | Staff / usuario autenticado |
+| RF3 | `/circuit-requests`, `/circuit-requests/today`, `/circuit-requests/:id/gps`, `/circuit-requests/:id/status`, `/circuit-requests/:id/confirm-delivered` | PADRE, DOCENTE, ADMINISTRATIVO, ADMIN |
+| RF4 | `/school/*`, `/schools/*` | ADMIN, ADMINISTRATIVO |
+| RF5 | `/attendance/*`, `/class-attendance/*`, `/activities/*`, `/report-cards/*`, `/documents/*` | Según rol académico |
+| RF6 | `/payments/*`, `/uploads/*`, `/files/comprobantes/:filename` | PADRE, ADMINISTRATIVO, ADMIN |
+| RF7 | `/notices`, `/notifications/me`, `/notifications/fcm/register`, `/notifications/admin-reports/*` | Según comunicación |
+| RF8 | `/dashboard/*`, `/reports/*`, `/exports/*` | Staff y administración |
+
+## 7. Contratos Generales De Error
+
+| Código HTTP | Uso típico |
+| --- | --- |
+| 400 | Datos inválidos, regla de negocio incumplida o estado no permitido. |
+| 401 | Falta de autenticación, token inválido o cuenta inactiva. |
+| 403 | Rol o relación insuficiente para acceder al recurso. |
+| 404 | Recurso inexistente o no localizable. |
+| 429 | Límite de intentos o rate limit. |
+| 500 | Error no controlado; debe investigarse en logs. |
+
+## 8. Evidencia Para El Anexo API
+
+En la entrega final se recomienda incluir:
+
+- Captura de Swagger con autenticación Bearer configurada.
+- Captura de dominios principales agrupados.
+- Ejemplo de request de login.
+- Ejemplo de request de circuito.
+- Ejemplo de respuesta de dashboard.
+- Ejemplo de descarga PDF/Excel con cabeceras.
+
+Usar placeholders hasta contar con capturas verificadas:
+`[Imagen: Swagger Escuela Pass con módulos principales]`.

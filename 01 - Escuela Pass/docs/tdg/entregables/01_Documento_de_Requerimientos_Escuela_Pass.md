@@ -94,3 +94,35 @@ para el mapa y ETA, mientras las transiciones de estado relevantes son acciones 
 - Reconocimiento facial.
 - Soporte multiidioma.
 - Analítica avanzada con inteligencia artificial.
+
+## 7. Reglas De Negocio Prioritarias
+
+| Área | Regla |
+| --- | --- |
+| Autenticación | Un usuario inactivo no debe operar el sistema aunque conserve un token emitido previamente. |
+| Multiinstitución | Los usuarios no globales solo pueden operar datos de su escuela, grupo, hijo o asignación. |
+| Circuito | Un estudiante solo puede tener una solicitud operacional abierta por día. |
+| Circuito | El padre o tutor solicitante es quien opera el avance familiar; el personal escolar opera la salida institucional. |
+| Asistencia | Los días no lectivos bloquean registros ordinarios según calendario institucional. |
+| Académico | Un periodo cerrado restringe registros académicos, salvo acciones autorizadas y auditadas. |
+| Pagos | Un padre solo puede cargar comprobantes de deudas asociadas a sus hijos. |
+| Archivos | Comprobantes, excusas y evidencias sensibles se sirven por endpoint autenticado, no como públicos. |
+| Privacidad | La aceptación de políticas debe registrarse y consultarse por usuario. |
+
+## 8. Criterios De Priorización
+
+La prioridad de implementación se define por impacto institucional, seguridad del estudiante,
+dependencia entre módulos y relación con el alcance aprobado. Autenticación, control de acceso,
+gestión escolar y circuito se consideran críticos porque soportan la operación básica del sistema.
+Pagos, avisos, reportes y dashboards complementan la administración y generan valor operativo, pero
+dependen de que los datos base y permisos estén correctamente configurados.
+
+## 9. Criterios De No Ambigüedad
+
+- RF3 se interpreta como recogida realizada por padres o tutores; no existe conductor institucional
+  independiente ni flota administrada por la escuela.
+- RF6 no incluye pasarela de pagos; el alcance se limita a deuda, comprobante y verificación manual.
+- RNF6 se ajusta técnicamente a despliegue cloud con Railway/Vercel, por compatibilidad con Node,
+  PostgreSQL y volumen persistente.
+- Las métricas de rendimiento y usabilidad deben validarse con evidencia; si no hay prueba piloto,
+  deben quedar como recomendación o plan de medición.

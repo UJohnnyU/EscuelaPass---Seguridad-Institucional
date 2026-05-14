@@ -58,3 +58,36 @@ El entregable propone que las pantallas finales se documenten en Figma o en capt
 del frontend. Si se requiere publicación en un archivo Figma institucional, debe generarse desde
 las pantallas reales y validarse visualmente antes de anexarlo. Mientras no exista ese enlace
 verificado, se conservan placeholders centrados para no simular evidencia gráfica inexistente.
+
+## 5. Capturas Requeridas Para Anexo
+
+| Pantalla | Placeholder sugerido | Propósito |
+| --- | --- | --- |
+| Login | `[UI/UX del inicio de sesión]` | Evidenciar acceso inicial y marca visual. |
+| Inicio por rol | `[UI/UX del panel inicial por rol]` | Mostrar navegación contextual. |
+| Perfil | `[UI/UX del perfil del usuario y QR]` | Evidenciar identidad y credencial QR. |
+| Circuito padre móvil | `[UI/UX del circuito de recogida para padre]` | Mostrar enfoque móvil del RF3. |
+| Circuito del día staff | `[UI/UX del circuito del día para personal escolar]` | Mostrar operación institucional. |
+| Escáner QR/NFC | `[UI/UX del escáner de acceso]` | Evidenciar control de accesos. |
+| Gestión escolar | `[UI/UX de grupos, estudiantes, docentes y padres]` | Evidenciar RF4. |
+| Calificaciones docente | `[UI/UX de actividades y notas del docente]` | Evidenciar RF5. |
+| Mis calificaciones | `[UI/UX de consulta académica padre/alumno]` | Evidenciar consulta autorizada. |
+| Finanzas | `[UI/UX de pagos y comprobantes]` | Evidenciar RF6. |
+| Boletines | `[UI/UX de boletines académicos]` | Evidenciar reportes académicos. |
+
+## 6. Criterios De Evaluación UX
+
+- Claridad: el usuario debe identificar fácilmente qué acción realizar.
+- Consistencia: botones, tarjetas, formularios y modales deben mantener lenguaje visual uniforme.
+- Accesibilidad básica: contraste suficiente, mensajes de error y estados de carga.
+- Responsividad: pantallas críticas deben funcionar en escritorio y móvil.
+- Seguridad percibida: operaciones sensibles deben confirmar acciones y mostrar mensajes claros.
+
+## 7. Prompt Para Prototipo En Figma O Lucidchart
+
+Diseñar un set de pantallas UI/UX para Escuela Pass con estilo institucional moderno, responsive y
+sobrio. Incluir: login, dashboard por rol, perfil con QR, circuito de recogida móvil para padre,
+circuito del día para staff, escáner QR/NFC, gestión escolar, calificaciones docente, consulta de
+calificaciones padre/alumno, finanzas con comprobantes y boletines. Usar jerarquía clara, navegación
+lateral en escritorio, navegación adaptada a móvil, tarjetas de resumen, formularios limpios y estados
+de carga/error. No inventar funciones fuera del repositorio.
