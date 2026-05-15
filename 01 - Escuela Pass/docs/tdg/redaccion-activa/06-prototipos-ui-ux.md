@@ -67,7 +67,7 @@ La interfaz se implementa como **SPA** *responsive*, priorizando **móvil** para
 
 ## 5. Evidencia gráfica (Figma o capturas)
 
-Las figuras de la **sección 4** pueden sustentarse con **capturas del frontend en ejecución** o con **tableros en Figma** derivados de esas pantallas. Conviene conservar la misma nomenclatura de rutas y roles que en las secciones 9 y 10 para que el texto del TDG y el material gráfico coincidan en tribunal.
+Las figuras de la **sección 4** pueden sustentarse con **capturas del frontend en ejecución** o con **tableros en Figma** derivados de esas pantallas. Conviene conservar la misma nomenclatura de rutas y roles que en las secciones 9 y 10 para que el texto del TDG y el material gráfico coincidan en la documentación de sustentación.
 
 ---
 

@@ -227,14 +227,14 @@ El **Anexo 01** exige avisos, notificaciones y **reportes administrativos** (`no
 
 `RoleGate` permite tanto **`/app/circuito`** (vista orientada a familia) como **`/app/circuito/hoy`** para `ADMIN`, mientras el menú lateral enfatiza el circuito operativo del día para roles de plantel.  
 
-- **Recomendación:** en demos y capturas, explicitar **qué vista usa el administrador de plataforma** en cada escenario para no confundir al tribunal con dos URL distintas bajo “circuito”.
+- **Recomendación:** en demos y capturas, explicitar **qué vista usa el administrador de plataforma** en cada escenario para no confundir al lector con dos URL distintas bajo “circuito”.
 
 ### 16.5 Cobertura de pruebas automatizadas vs. riqueza del manual
 
 Los escenarios **E2E** del repositorio son **subconjunto** de los flujos que describe este anexo (varios archivos `*.e2e-spec.ts`, no sustitutos de prueba de usabilidad).  
 
 - **Académico:** el **Anexo 10** debe declarar honestamente **qué flujos del manual** tienen evidencia automática y cuáles solo evidencia manual o piloto con usuarios.  
-- **Profesional:** si el tribunal exige trazabilidad, una matriz **paso del manual ↔ caso E2E / prueba piloto** reduce riesgo de sobre-reclamo.
+- **Profesional:** si se exige trazabilidad en la evaluación, una matriz **paso del manual ↔ caso E2E / prueba piloto** reduce riesgo de sobre-reclamo.
 
 ### 16.6 Rendimiento percibido (RNF4) y operaciones pesadas
 
@@ -261,7 +261,7 @@ Cualquier nuevo `Route` o entrada de `SIDEBAR_NAV` debe actualizar **§15**, el 
 
 1. Cerrar **§14** con capturas reales o *placeholders* rotulados y **RF7** visible (**§16.2**).  
 2. Fijar **marco de privacidad** académico vs. comentarios de código (**§16.3**).  
-3. Matriz **manual ↔ pruebas** para tribunal (**§16.5**).  
+3. Matriz **manual ↔ pruebas** para evidencia de validación (**§16.5**).  
 4. Afinar texto sobre **menú vs servidor** en una nota breve al inicio del **§15** (**§16.1**).  
 5. Evidencia **RNF4/RNF5** en **Anexo 10** (**§16.6–16.7**).
 

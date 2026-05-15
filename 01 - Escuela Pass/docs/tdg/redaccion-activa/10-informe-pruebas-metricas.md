@@ -171,7 +171,7 @@ Exportar **OpenAPI** por *tag* de *release* y contrastar con escenarios E2E; evi
 
 ### 13.4 Manual de usuario ↔ evidencia
 
-La **matriz** “paso del **Anexo 09** ↔ caso E2E ↔ sesión manual” cierra **RNF5** ante tribunal (**Anexo 09**, §16.5).
+La **matriz** “paso del **Anexo 09** ↔ caso E2E ↔ sesión manual” cierra **RNF5** en el marco de evidencias del trabajo (**Anexo 09**, §16.5).
 
 ### 13.5 Seguridad y *abuse cases*
 

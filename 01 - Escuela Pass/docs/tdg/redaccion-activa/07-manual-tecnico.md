@@ -166,13 +166,13 @@ Para exportar diagramas Mermaid a imágenes en flujos de documentación, puede u
 
 ## 13. Líneas de mejora profesional, académicas y de completitud
 
-Las recomendaciones siguientes surgen de **revisar el monorepo en conjunto** (NestJS, TypeORM, React/Vite, pruebas, scripts SQL, documentación en `docs/` y anexos en `docs/tdg/redaccion-activa/`): objetivo **profesional** (operación y mantenimiento), **académico** (rigor del TDG ante tribunal) y de **alineación** entre lo prometido en RF/RNF, lo implementado y lo documentado.
+Las recomendaciones siguientes surgen de **revisar el monorepo en conjunto** (NestJS, TypeORM, React/Vite, pruebas, scripts SQL, documentación en `docs/` y anexos en `docs/tdg/redaccion-activa/`): objetivo **profesional** (operación y mantenimiento), **académico** (rigor del TDG ante evaluación del programa) y de **alineación** entre lo prometido en RF/RNF, lo implementado y lo documentado.
 
 ### 13.1 Persistencia y gobernanza del esquema
 
 El proyecto combina **tres mecanismos** que deben mantenerse explícitamente coherentes: cadena **TypeORM** en `src/database/migrations/` (decenas de archivos versionados); **`ensureRuntimeSchema`** (`src/database/ensure-runtime-schema.ts`, SQL idempotente de gran tamaño ejecutado al arranque); y el DDL de referencia **`scripts/database/escuela_pass_schema_v4.sql`** más `npm run db:apply` para entornos *greenfield*. Esa superposición es habitual en evoluciones iterativas, pero genera **riesgo de deriva** si un cambio se refleja solo en uno de los caminos.
 
-- **Política normativa del repositorio:** la tabla de decisiones “qué hacer en cada situación” está en **`docs/technical-setup.md`**, apartado **Política de cambios de esquema**; este anexo (TDG) no la sustituye, la complementa en clave tribunal.  
+- **Política normativa del repositorio:** la tabla de decisiones “qué hacer en cada situación” está en **`docs/technical-setup.md`**, apartado **Política de cambios de esquema**; este manual no la sustituye, la complementa en clave de rigor documental.  
 - **Recomendación:** en el día a día, **migración en PR → revisión → despliegue**, usando `ensureRuntimeSchema` como **red** para huecos ya acordados, no como sustituto sistemático de nuevas funcionalidades.  
 - **Académico:** en el **Anexo 03** (§12.1), un párrafo de **trade-off** puede citar la coexistencia migraciones / *runtime* / SQL v4 frente a restricciones de despliegue.  
 - **Operativo:** tras *releases* mayores, contrastar esquema real en PostgreSQL con el inventario del **Anexo 04**.
@@ -209,7 +209,7 @@ La aplicación adopta buenas prácticas base (Helmet, JWT, *rate limiting*, `Val
 
 ### 13.6 Rendimiento (RNF4) y escalabilidad documental
 
-El **Anexo 01** no asume umbrales de tiempo sin medición; para el tribunal es útil **medir** al menos un conjunto pequeño de operaciones (exportaciones, reportes, listados paginados) y consignar método, entorno y resultado en el **Anexo 10**. Las migraciones de **índices** en `src/database/migrations/` deben mencionarse al explicar diseño físico junto al **Anexo 04**.
+El **Anexo 01** no asume umbrales de tiempo sin medición; para la defensa del cumplimiento de **RNF4** es útil **medir** al menos un conjunto pequeño de operaciones (exportaciones, reportes, listados paginados) y consignar método, entorno y resultado en el **Anexo 10**. Las migraciones de **índices** en `src/database/migrations/` deben mencionarse al explicar diseño físico junto al **Anexo 04**.
 
 ### 13.7 Interfaz, accesibilidad y usabilidad
 
@@ -219,7 +219,7 @@ Completar el **Anexo 06** con **capturas reales** o prototipo Figma ligado a rut
 
 - Mantener **`docs/tdg/redaccion-activa/`** como **fuente prioritaria** de anexos numerados; si existe un consolidado extenso, declararlo *snapshot* y evitar divergencias de cifras (rutas, tablas, pruebas).  
 - Al añadir variables en `.env.example`, reflejarlas en la **§8** de este anexo y en `docs/technical-setup.md`.  
-- El script `tdg:enrich` (`package.json`) puede integrarse a un procedimiento de actualización documental si el tribunal exige trazabilidad automatizada.
+- El script `tdg:enrich` (`package.json`) puede integrarse a un procedimiento de actualización documental si se exige trazabilidad automatizada entre código y anexos.
 
 ### 13.9 Alcance explícito frente a expectativas
 

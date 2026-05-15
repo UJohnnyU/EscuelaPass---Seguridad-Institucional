@@ -27,6 +27,14 @@ La interpretación oficial del RF3 es que los padres o tutores actúan como cond
 
 La enumeración RF1–RF8 y RNF1–RNF6 de la FTG se expresa aquí en términos de negocio y de aceptación. La **matriz de trazabilidad (Anexo 00)** vincula estos requerimientos con módulos, rutas y pruebas del repositorio; el **modelo entidad–relación (Anexo 04)** documenta **cuarenta y nueve** entidades TypeORM en `buildTypeOrmConfig()`, con definición en igual número de archivos `*.entity.ts` bajo `src/database/entities/`. El **Anexo 03, §12** registra **limitaciones técnicas residuales** y supuestos (p. ej. sesión en cliente, integraciones opcionales, estrategia de pruebas) que acotan la lectura del cumplimiento sin contradicción con los RF/RNF. Este anexo prioriza el *qué* y el *bajo qué condiciones*, sin sustituir los inventarios técnicos de los anexos posteriores.
 
+### 1.1. Pregunta de investigación (texto de la propuesta)
+
+La propuesta formal plantea la siguiente pregunta, la cual orienta el alcance y la argumentación del trabajo de grado en su conjunto (cuerpo principal y anexos):
+
+> ¿Cómo el desarrollo de una aplicación web de AlfaNetworks basada en arquitecturas escalables con NestJS, PostgreSQL, tecnologías NFC y QR puede optimizar los procesos de seguridad física, protección de datos sensibles y administración escolar en instituciones educativas privadas de México, cumpliendo con los estándares normativos de protección de datos personales?
+
+Los requerimientos RF/RNF y las reglas de este documento constituyen la operacionalización técnica y documental de esa pregunta; el marco legal aplicable al tratamiento de datos en el caso mexicano se desarrolla en el **capítulo de Marco referencial** del texto principal del TDG (LFPDPPP y normativa conexa). Los **cinco objetivos específicos** aprobados en la **FTG** se desarrollan en el TDG sin añadir objetivos formales adicionales; los anexos son **entregables** bajo esos cinco objetivos.
+
 ---
 
 ## 2. Actores del sistema
@@ -177,7 +185,7 @@ La prioridad de implementación se define por impacto institucional, seguridad d
 - RNF6 se ajusta técnicamente a despliegue en nube (p. ej. Railway para API y base, alojamiento estático para el cliente), por compatibilidad con Node.js, PostgreSQL y volumen persistente para archivos.
 - **RNF4:** Si la FTG o la propuesta histórica citan umbrales fijos (p. ej. dos segundos), su cumplimiento **no se asume** sin medición: criterios, entorno y resultados se acreditan en el **Anexo 10** (o instrumento equivalente).
 - Las métricas de rendimiento y usabilidad se fundamentan con evidencia en el **Anexo 10**; el plan de medición pertinente forma parte de ese anexo o del instrumento que lo sustituya.
-- **Privacidad y normativa de datos personales:** el fundamento legal y la redacción del aviso de privacidad presentados al usuario se alinean con la **jurisdicción y el responsable del tratamiento** definidos en el trabajo de grado (p. ej. régimen colombiano Ley 1581 de 2012 y concordantes cuando el caso de estudio lo exija). Los flujos técnicos de consentimiento y registro se describen en el **Anexo 03** (§4, §12.5) y en las reglas de este anexo (§7).
+- **Privacidad y normativa de datos personales:** el fundamento legal y la redacción del aviso de privacidad presentados al usuario deben alinearse con la **LFPDPPP** y normativa conexa en México, con el **responsable del tratamiento** y las **finalidades** definidos por la institución cliente de AlfaNetworks (el software provee mecanismos técnicos de aceptación y auditoría; no sustituye el dictamen jurídico). Los flujos técnicos de consentimiento y registro se describen en el **Anexo 03** (§4, §12.5) y en las reglas de este anexo (§7).
 
 ---
 

@@ -380,7 +380,7 @@ Las recomendaciones siguientes surgen de contrastar el **contrato HTTP público*
 Existen **tres vistas** del mismo producto: el **catálogo tabular** (§10, regenerable con `npm run tdg:enrich` y el consolidado del repositorio), la **especificación Swagger** generada en tiempo de arranque (`SwaggerModule.createDocument` en `src/main.ts`) y los **decoradores** `@ApiTags` / `@ApiOperation` por controlador. No siempre coinciden en nivel de detalle (resumen, ejemplos, códigos de respuesta por ruta).
 
 - **Profesional:** tratar **OpenAPI** como artefacto versionable: exportar JSON en *release* y archivarlo junto al tag Git, o validar en *CI* que el número de operaciones y métodos coincide con un umbral esperado.  
-- **Académico:** en defensa oral, explicitar **qué fuente usa el tribunal** si el PDF del anexo y el Swagger difieren (regla ya fijada: **prevalece Swagger**).
+- **Académico:** en defensa oral, explicitar **qué fuente prima** si el PDF del anexo y el Swagger difieren (regla ya fijada: **prevalece Swagger**).
 
 ### 12.2 Swagger en producción y evidencia para el TDG
 

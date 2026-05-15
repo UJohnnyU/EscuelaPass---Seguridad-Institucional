@@ -28,7 +28,7 @@ El presente anexo consolida las **actas de reunión** celebradas entre el **Poli
 
 - **Jhon Kevin Murillo Martínez** — Ingeniería Informática (APIT), Politécnico Colombiano Jaime Isaza Cadavid; autor del trabajo de grado y responsable del desarrollo del producto Escuela Pass en articulación con AlfaNetworks.
 - Representante de **AlfaNetworks**: _____________________________________________ (nombre completo y cargo).
-- Asesor del trabajo de grado (Politécnico Colombiano Jaime Isaza Cadavid): _____________________________________________ (nombre completo y cargo), cuando corresponda a la sesión.
+- Asesor del trabajo de grado (Politécnico Colombiano Jaime Isaza Cadavid): **Alirio Antonio Gutiérrez Quintero**, cuando corresponda a la sesión.
 
 ---
 

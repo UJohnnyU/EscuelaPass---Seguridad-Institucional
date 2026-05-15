@@ -22,7 +22,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ## 1. Propósito
 
-Esta matriz documenta la relación entre la propuesta aceptada, la implementación en el repositorio, los endpoints de la interfaz REST (prefijo documental `api/v1`, configurable mediante variable de entorno `API_PREFIX`), las pantallas del frontend y los entregables del trabajo de grado. Su finalidad es hacer verificable el cumplimiento técnico y académico ante el tribunal, evitando descripciones genéricas no sustentadas en artefactos del proyecto.
+Esta matriz documenta la relación entre la propuesta aceptada, la implementación en el repositorio, los endpoints de la interfaz REST (prefijo documental `api/v1`, configurable mediante variable de entorno `API_PREFIX`), las pantallas del frontend y los entregables del trabajo de grado. Su finalidad es hacer verificable el cumplimiento técnico y académico en la evaluación del programa, evitando descripciones genéricas no sustentadas en artefactos del proyecto.
 
 El detalle exhaustivo de la API REST se presenta en el **Anexo 08 — Documentación de la API**. La matriz siguiente consolida la trazabilidad por requerimiento y amplía la cobertura respecto de funcionalidades incorporadas durante el desarrollo que exceden el texto mínimo de la propuesta. La especificación normativa de requerimientos (RF/RNF, reglas de negocio y criterios de aceptación medibles) se concentra en el **Anexo 01 — Documento de requerimientos**, complementario a esta matriz. El **Anexo 03** sintetiza la **arquitectura de software** (vistas lógica y de despliegue, módulos, integraciones, riesgos mitigados y **§12** sobre limitaciones residuales y líneas de mejora). El **Anexo 04** documenta el **modelo entidad-relación** y el inventario de tablas frente a las **cuarenta y nueve** entidades TypeORM registradas en `buildTypeOrmConfig()`. El **Anexo 05** presenta **diagramas UML** (casos de uso, secuencia del circuito, clases de contexto) y la **relación con pruebas de extremo a extremo** en `test/app.e2e-spec.ts`. El **Anexo 06** consolida **prototipos UI/UX**, inventario de pantallas y **rutas del cliente** en `frontend/src/App.tsx`. El **Anexo 07** reúne **instalación**, **configuración**, **despliegue** y **mantenimiento** del monorepo con remisión a `docs/technical-setup.md` y *runbooks*. El **Anexo 08** consolida el **catálogo REST** (resumen por dominio y **241** rutas inferidas del código, coherente con Swagger `/docs`). El **Anexo 09** documenta el **manual de usuario** por rol, **flujos operativos** y **rutas del cliente** bajo `/app/...`. El **Anexo 10** consolida el **informe de pruebas y métricas** (E2E, CI, riesgos de cobertura, **§13** de mejora del plan de validación y registro para **RNF4/RNF5**). El **Anexo 02** registra las **actas de reunión** entre el autor del trabajo de grado y **AlfaNetworks** como contraparte funcional del producto Escuela Pass.
 
@@ -76,13 +76,15 @@ Las siguientes capacidades se implementan en el repositorio y se vinculan con la
 
 ## 3. Mapa hacia objetivos específicos del trabajo de grado
 
+Este mapa se alinea con las **cinco** fases del **Diseño metodológico** y con el capítulo **Desarrollo del trabajo de grado** del TDG, según los **objetivos específicos aprobados en la FTG** (sin objetivos adicionales formales).
+
 | Objetivo específico (síntesis) | Evidencia principal | Entregables relacionados |
 | --- | --- | --- |
 | Análisis de requerimientos | RF/RNF, actores, reglas de negocio y esta matriz | Anexos 00, 01, 02 |
 | Diseño de arquitectura, datos e interfaz | Diagramas, modelo entidad-relación, UML, prototipos | Anexos 03, 04, 05, 06 |
 | Implementación del backend | Módulos NestJS, TypeORM, migraciones, documentación OpenAPI en tiempo de ejecución | Anexos 03 y 08 |
 | Desarrollo del frontend | React, rutas por rol, integración con API | Anexos 06, 09 |
-| Validación | Pruebas automatizadas *end-to-end*, pruebas de humo y métricas según Anexo 10 | Anexo 10 |
+| Validación y documentación técnica de despliegue | Pruebas E2E, CI, métricas; entorno reproducible | Anexos 10, 07; `technical-setup.md` |
 
 ---
 
@@ -91,7 +93,7 @@ Las siguientes capacidades se implementan en el repositorio y se vinculan con la
 - **Mapas:** La propuesta menciona Google Maps o Mapbox; la implementación utiliza **Mapbox** y, para cálculos de distancia sin mapa interactivo, aproximación **Haversine** donde aplica el dominio del circuito.
 - **Generación y lectura de QR:** La propuesta alude a *qrcode.js*; el producto emplea **html5-qrcode** para escaneo en dispositivo y **qrcode.react** para representación visual de códigos, manteniendo el cometido funcional.
 - **Infraestructura:** La propuesta refería *cPanel*; el despliegue efectivo utiliza **Railway** para API y PostgreSQL (y volumen para persistencia de archivos según configuración) y alojamiento estático para el frontend (p. ej. **Vercel** u equivalente), lo cual se fundamenta por compatibilidad con el *stack* Node.js y la base de datos relacional.
-- **Circuito vial:** Puede registrarse automáticamente la proximidad (*NOTIFICADO_LLEGADA* u homólogo); la **autorización de salida**, el avance operativo y la **confirmación de entrega** permanecen como acciones explícitas de los actores autorizados.
+- **Circuito vial:** Puede registrarse automáticamente la proximidad (*NOTIFICADO_LLEGADA* u homólogo); la **autorización de salida**, el avance operativo y la **confirmación de entrega** permanecen como acciones explícitas de los actores autorizados. Respecto del texto de la **FTG** que enfatiza el conductor y transporte escolar institucional, el producto documentado interpreta el **RF3** como circuito operado desde la aplicación por **padre o tutor**, sin flota escolar administrada por la institución en el sentido original; la justificación académica figura en el **Anexo 01** y en el cuerpo del TDG.
 - **Alcance funcional:** Se incorporan los módulos y flujos listados en la sección 2.1, alineados con administración, comunicación, privacidad y trazabilidad institucional, **incluidos** correo transaccional, programación de tareas en servidor y *rate limiting* global.
 - **Transparencia arquitectónica:** Las **limitaciones residuales** (sesión JWT en almacenamiento web, convivencia migraciones / saneo de esquema en arranque, estrategia de pruebas e2e predominante, integraciones opcionales) y las **líneas de mejora** profesional se sistematizan en el **Anexo 03, §12**.
 

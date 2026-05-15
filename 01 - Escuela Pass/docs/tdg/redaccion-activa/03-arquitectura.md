@@ -137,7 +137,7 @@ Este apartado acota la lectura del producto en conjunto con la matriz del **Anex
 
 ### 12.1 Persistencia y evolución del esquema
 
-La **fuente de verificación versionada** del modelo relacional es la cadena de migraciones TypeORM bajo `src/database/migrations/`. Paralelamente, el arranque puede aplicar `ensureRuntimeSchema` (sentencias SQL idempotentes) para alinear entornos donde la CLI de migraciones no corre fuera del proceso de despliegue. La correspondencia entidad–tabla y reglas de integridad se documentan en el **Anexo 04** (véase allí §1, §4 y §8). En evoluciones del producto, la cadena de migraciones y el saneo de esquema deben mantenerse **coherentes entre sí** y reflejados en la documentación de datos, evitando divergencias no explícitas. La **política operativa** (“migración + entidad + actualización del Anexo 04”, usos de SQL v4 y límites de `ensureRuntimeSchema`) está tabulada en **`docs/technical-setup.md`** (*Política de cambios de esquema*); el **Anexo 07**, §13.1, contextualiza riesgos y prioridades ante tribunal.
+La **fuente de verificación versionada** del modelo relacional es la cadena de migraciones TypeORM bajo `src/database/migrations/`. Paralelamente, el arranque puede aplicar `ensureRuntimeSchema` (sentencias SQL idempotentes) para alinear entornos donde la CLI de migraciones no corre fuera del proceso de despliegue. La correspondencia entidad–tabla y reglas de integridad se documentan en el **Anexo 04** (véase allí §1, §4 y §8). En evoluciones del producto, la cadena de migraciones y el saneo de esquema deben mantenerse **coherentes entre sí** y reflejados en la documentación de datos, evitando divergencias no explícitas. La **política operativa** (“migración + entidad + actualización del Anexo 04”, usos de SQL v4 y límites de `ensureRuntimeSchema`) está tabulada en **`docs/technical-setup.md`** (*Política de cambios de esquema*); el **Anexo 07**, §13.1, contextualiza riesgos y prioridades para la evaluación del trabajo.
 
 ### 12.2 Cliente web y sesión JWT
 
@@ -153,7 +153,7 @@ La verificación reproducible en repositorio combina pruebas **e2e** en `test/` 
 
 ### 12.5 Privacidad y marco normativo
 
-Los flujos de aceptación de políticas, registro de versiones y auditoría asociada están implementados. El **texto jurídico** del aviso y su vinculación al ordenamiento aplicable al caso de estudio (p. ej. **Colombia**: Ley 1581 de 2012 y normativa concordante sobre datos personales) deben ser coherentes en el cuerpo principal del TDG o en anexo de tratamiento, y **no** sustituirse por referencias genéricas incrustadas solo en comentarios de código orientados a otros marcos. Las reglas de negocio de privacidad del **Anexo 01** (§7) permanecen como referencia funcional.
+Los flujos de aceptación de políticas, registro de versiones y auditoría asociada están implementados. El **texto jurídico** del aviso y su vinculación al ordenamiento aplicable al caso de estudio (**México**: **LFPDPPP** y normativa conexa; lineamientos del **INAI** cuando proceda) deben ser coherentes en el cuerpo principal del TDG o en anexo de tratamiento, y **no** sustituirse por referencias genéricas incrustadas sólo en comentarios de código. Las reglas de negocio de privacidad del **Anexo 01** (§7) permanecen como referencia funcional.
 
 ### 12.6 Mantenibilidad del código de dominio
 
