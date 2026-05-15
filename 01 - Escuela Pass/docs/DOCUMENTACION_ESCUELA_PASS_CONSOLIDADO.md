@@ -2,7 +2,7 @@
 
 Generado automáticamente. Cada bloque conserva el contenido íntegro del archivo indicado.
 
-**Aviso (objetivos FTG y TDG):** Para el texto principal del trabajo de grado, la fuente viva de **objetivos específicos** es la **FTG aprobada** (**cinco** objetivos). El archivo [`docs/tdg/TDG_Escuela_Pass_Documento_Final.md`](./tdg/TDG_Escuela_Pass_Documento_Final.md) replica esa estructura. Este consolidado puede incluir fragmentos históricos o generados en distintas fechas; ante contradicción, priman la **FTG** y el **TDG** en `docs/tdg/`, y el **código** para hechos de implementación.
+**Aviso (objetivos FTG y TDG):** Para el texto principal del trabajo de grado, la fuente viva de **objetivos específicos** es la **FTG aprobada** (**cinco** objetivos). El archivo [`docs/tdg/redaccion-activa/TDG_Escuela_Pass_Documento_Final.md`](./tdg/redaccion-activa/TDG_Escuela_Pass_Documento_Final.md) replica esa estructura. Este consolidado puede incluir fragmentos históricos o generados en distintas fechas; ante contradicción, priman la **FTG** y el **TDG** en `docs/tdg/redaccion-activa/`, y el **código** para hechos de implementación.
 
 **Aviso (estructura actual del repo):** Las líneas `# Fuente: docs/tdg/...` indican el archivo de origen cuando se armó este consolidado; esos `.md` ya no están en el árbol de trabajo (se conservan en el historial de git si hace falta). Las figuras Mermaid exportadas viven en **`docs/imagenes/`** (`.mmd` y `.png` con el mismo nombre base).
 
