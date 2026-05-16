@@ -22,7 +22,9 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ## 1. Propósito
 
-Este anexo describe los criterios de interfaz, el inventario de pantallas implementadas en el cliente React/Vite y el encaminamiento declarado en código. Complementa los requerimientos del **Anexo 01**, la arquitectura del **Anexo 03**, los diagramas del **Anexo 05**, los contratos HTTP del **Anexo 08**, el **manual de usuario** del **Anexo 09** y el **informe de pruebas y métricas** del **Anexo 10** (evidencia **RNF5** y pruebas manuales). La fuente técnica del árbol de rutas es `frontend/src/App.tsx` (y componentes citados).
+**Nota de acrónimos del anexo.** **UI** (User Interface), **UX** (User Experience), **SPA** (Single-Page Application), **WCAG** (Web Content Accessibility Guidelines), **CSS** (Cascading Style Sheets), **DOM** (Document Object Model), **SUS** (System Usability Scale).
+
+Este anexo describe los criterios de interfaz, el inventario de pantallas implementadas en el cliente React (React Team, s. f.) con Vite (Vite Team, s. f.) y el encaminamiento declarado en código. Los criterios UX adoptados se inspiran en las heurísticas de usabilidad clásicas (Nielsen, 1994), los principios de diseño centrado en el usuario (Norman, 2013), las pautas de accesibilidad WCAG 2.2 (W3C, 2023) y el enfoque pragmático de simplicidad propuesto por Krug (2014). La medición de usabilidad planificada se apoya en la SUS (Brooke, 1996) y sus benchmarks contemporáneos (Lewis & Sauro, 2018). Complementa los requerimientos del **Anexo 01**, la arquitectura del **Anexo 03**, los diagramas del **Anexo 05**, los contratos HTTP del **Anexo 08**, el **manual de usuario** del **Anexo 09** y el **informe de pruebas y métricas** del **Anexo 10**.
 
 ---
 
@@ -51,17 +53,23 @@ La interfaz se implementa como **SPA** *responsive*, priorizando **móvil** para
 
 ---
 
-## 4. Prototipos principales
+## 4. Prototipos principales por rol y flujo
 
-[Figura 1. Prototipo o captura: inicio de sesión Escuela Pass]
+*[Figura 1. Página de inicio de sesión y recuperación de contraseña Escuela Pass. Recomendado: Figma con Figma AI, o captura del cliente en ejecución con datos sintéticos.]*
 
-[Figura 2. Prototipo o captura: panel inicial (contexto administrativo u operativo)]
+*[Figura 2. Tablero del Administrador de plataforma con resumen multi-institución. Recomendado: Figma con Figma AI o captura del cliente en ejecución.]*
 
-[Figura 3. Prototipo o captura: circuito de recogida — vista móvil padre/tutor (RF3)]
+*[Figura 3. Tablero del Personal administrativo con accesos a nómina, finanzas, calendario y reportes. Recomendado: Figma con Figma AI o captura del cliente en ejecución.]*
 
-[Figura 4. Prototipo o captura: escáner de acceso QR/NFC]
+*[Figura 4. Tablero del Docente con asistencia, actividades y calificaciones. Recomendado: Figma con Figma AI o captura del cliente en ejecución.]*
 
-[Figura 5. Prototipo o captura: módulo académico y boletines]
+*[Figura 5. Vista del Padre o tutor con circuito de recogida y consultas académicas y financieras de los hijos. Recomendado: Figma con Figma AI o captura del cliente en ejecución.]*
+
+*[Figura 6. Vista del Alumno con horario, calificaciones, boletines y credencial QR personal. Recomendado: Figma con Figma AI o captura del cliente en ejecución.]*
+
+*[Figura 7. Escáner de credenciales QR y NFC en el navegador con retroalimentación de lectura. Recomendado: captura del cliente en ejecución con dispositivo móvil.]*
+
+*[Figura 8. Mapa del circuito de recogida con indicador de proximidad al plantel apoyado en Mapbox. Recomendado: captura del cliente en ejecución sobre dispositivo móvil con datos sintéticos.]*
 
 ---
 

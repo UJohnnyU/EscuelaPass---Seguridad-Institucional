@@ -22,7 +22,13 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ## 1. Propósito
 
-Este anexo consolida la **estrategia de pruebas**, la **trazabilidad** entre requerimientos y evidencias automáticas o manuales, las **métricas** propuestas para acreditar **RNF4** y **RNF5**, y los **riesgos** conocidos de cobertura. Complementa la **matriz del Anexo 00**, los criterios del **Anexo 01**, la arquitectura y limitaciones del **Anexo 03**, los diagramas del **Anexo 05**, el inventario de interfaz del **Anexo 06** y el **manual del Anexo 09**. Los contratos HTTP de referencia están en el **Anexo 08**; la puesta en marcha y el *pipeline*, en el **Anexo 07**. La **sección 13** reúne **líneas de mejora** profesionales y académicas del plan de validación.
+**Nota de acrónimos del anexo.** **E2E** (*end-to-end*), **CI** (Continuous Integration), **CD** (Continuous Deployment), **KPI** (Key Performance Indicator), **SLA** (Service Level Agreement), **SUS** (System Usability Scale; Brooke, 1996), **UMUX** (Usability Metric for User Experience; Lewis & Sauro, 2018), **RNF** (requerimiento no funcional), **JWT** (JSON Web Token), **PDF** (Portable Document Format), **XLSX** (Office Open XML Spreadsheet).
+
+Este anexo consolida la estrategia de pruebas, la trazabilidad entre requerimientos y evidencias automáticas o manuales, las métricas propuestas para acreditar los requerimientos no funcionales de eficiencia de desempeño y usabilidad, y los riesgos conocidos de cobertura. La estructura sigue la práctica recomendada de la **IEEE Std 829-2008** sobre documentación de pruebas de software (IEEE, 2008), articulada con el modelo de calidad **ISO/IEC 25010:2011** (ISO, 2011). Complementa la **matriz del Anexo 00**, los criterios del **Anexo 01**, la arquitectura y limitaciones del **Anexo 03**, los diagramas del **Anexo 05**, el inventario de interfaz del **Anexo 06** y el **manual del Anexo 09**. Los contratos HTTP de referencia están en el **Anexo 08**; la puesta en marcha y el *pipeline*, en el **Anexo 07**. La sección 13 reúne líneas de mejora profesionales y académicas del plan de validación.
+
+*[Figura 7. Plantilla del cuestionario System Usability Scale (SUS) traducida al español para evaluación de usabilidad con usuarios piloto, conforme a Brooke (1996) y benchmarks de Lewis y Sauro (2018). Recomendado: documento Word o Google Forms con escala Likert de 1 a 5.]*
+
+*[Figura 8. Plan de medición de tiempos de respuesta para flujos críticos (autenticación, escaneo, circuito, exportaciones), con identificación de método, entorno, tamaño de muestra y umbral esperable, alineado con el atributo de eficiencia de desempeño de la ISO/IEC 25010. Recomendado: hoja de cálculo o tabla en el documento maquetado.]*
 
 ---
 
@@ -98,6 +104,101 @@ Validar que Escuela Pass **cumple** los requerimientos funcionales y no funciona
 | `test/auth-throttle-ip.e2e-spec.ts` | *Throttle* estricto por IP en `auth/login` hacia **429**; **debe** ejecutarse vía `npm run test:e2e:auth-throttle-ip` (en la suite principal el bloque queda **omitido** salvo `AUTH_THROTTLE_LIMIT=5`). |
 
 **Artefactos opcionales:** en `phase7-closure` pueden generarse PDF mínimos válidos con `pdfkit` bajo `uploads/`; con **`E2E_KEEP_UPLOAD_FIXTURES=1`** (o `true` / `yes`) pueden conservarse para inspección (**comentario en código** del spec).
+
+### 8.1. Enumeración exhaustiva de casos `it(...)` en las suites E2E
+
+Se enumeran los **47 casos** automatizados presentes en los tres archivos `*.e2e-spec.ts` del repositorio. La columna *identificador textual* corresponde literalmente al primer argumento del bloque `it(...)`; sirve como base de auditoría reproducible y se cita por nombre en la bitácora de pruebas (sección 8.3).
+
+#### 8.1.1. `test/app.e2e-spec.ts` (33 casos)
+
+| # | Identificador textual del caso |
+| --- | --- |
+| E2E‑A‑01 | `health (GET)` |
+| E2E‑A‑02 | `auth: login -> refresh rotacion -> logout invalida refresh` |
+| E2E‑A‑03 | `auth: refresh token invalido y logout invalido responden 401` |
+| E2E‑A‑04 | `attendance: admin registra y upsert actualiza` |
+| E2E‑A‑05 | `calendario: día sin clases bloquea registro de asistencia y export Excel` |
+| E2E‑A‑06 | `access scan: ENTRY de alumno por QR marca asistencia automatica` |
+| E2E‑A‑07 | `class-attendance: docente registra asistencia por clase y padre la consulta` |
+| E2E‑A‑08 | `access scan: ENTRY tardio marca RETARDO sin pisar asistencia manual` |
+| E2E‑A‑09 | `grades: docente registra y padre puede leer` |
+| E2E‑A‑10 | `circuit + reports: circuito hoy y reportes responden` |
+| E2E‑A‑11 | `circuit: docente solo ve solicitudes de alumnos en su clase actual` |
+| E2E‑A‑12 | `circuit: sin registro presente/tardanza hoy bloquea solicitud del padre` |
+| E2E‑A‑13 | `authz: padre no puede registrar asistencia (403)` |
+| E2E‑A‑14 | `validation: asistencia con studentId invalido responde 400` |
+| E2E‑A‑15 | `authz: padre no puede consultar reportes de pagos pendientes (403)` |
+| E2E‑A‑16 | `school: administrativo lista grupos` |
+| E2E‑A‑17 | `exports: Excel asistencia, calificaciones y boletín consolidado` |
+| E2E‑A‑18 | `settings: perfil institucional lectura y actualización admin` |
+| E2E‑A‑19 | `settings: circuito deshabilitado bloquea nuevas solicitudes de circuito` |
+| E2E‑A‑20 | `circuit: padre actualiza GPS de su solicitud` |
+| E2E‑A‑21 | `circuit: padre confirma entrega de su solicitud` |
+| E2E‑A‑22 | `dashboard: admin consulta resumen y padre recibe 403` |
+| E2E‑A‑23 | `school import: admin carga grupos por Excel y padre no puede` |
+| E2E‑A‑24 | `school import: asignaciones por Excel y plantilla xlsx` |
+| E2E‑A‑25 | `school import: historial de importaciones disponible para admin` |
+| E2E‑A‑26 | `visitas, reuniones y horarios: padre solicita y staff responde` |
+| E2E‑A‑27 | `lifecycle: transición alumno/docente con bloqueo operativo e historial` |
+| E2E‑A‑28 | `t10/t11: SLA reportes + acuse crítico + recordatorio manual` |
+| E2E‑A‑29 | `t12/t13: políticas de cartera + bitácora de ajustes` |
+| E2E‑A‑30 | `t14: circuito GPS — auto-transición a NOTIFICADO_LLEGADA al entrar al radio` |
+| E2E‑A‑31 | `t15: NFC — asignar, listar y revocar credencial` |
+| E2E‑A‑32 | `t16: reuniones, visitas y anotaciones (padre) responden tras restaurar módulos` |
+| E2E‑A‑33 | `t17: admin-reports (tickets SLA) están disponibles` |
+
+#### 8.1.2. `test/phase7-closure.e2e-spec.ts` (13 casos)
+
+| # | Identificador textual del caso |
+| --- | --- |
+| E2E‑P‑01 | `Circuito: padre crea solicitud y un segundo intento el mismo día devuelve 400` |
+| E2E‑P‑02 | `Circuito deshabilitado cancela solicitudes abiertas y bloquea creación de nuevas` |
+| E2E‑P‑03 | `Asistencia en periodo cerrado: docente sin acceso 403; ADMIN con force=true registra + audita` |
+| E2E‑P‑04 | `Doble escaneo: segundo scan en <10s devuelve duplicate=true; tras la ventana se admite un nuevo evento` |
+| E2E‑P‑05 | `Comprobantes pagos: 3 rechazos consecutivos bloquean el cuarto intento de carga` |
+| E2E‑P‑06 | `Lifecycle revocación: desactivar al docente invalida su JWT en la siguiente request (401)` |
+| E2E‑P‑07 | `Calificaciones publicadas: docente sin force 400; docente con force 403; ADMIN con force 200 + audit` |
+| E2E‑P‑08 | `GET /files/comprobantes/* sin JWT devuelve 401` |
+| E2E‑P‑09 | `Padre A no puede acceder a comprobante de hijo del Padre B (403); Padre B sí (200)` |
+| E2E‑P‑10 | `ADMINISTRATIVO de otra escuela no puede leer reports/* de la escuela principal (403)` |
+| E2E‑P‑11 | `/class-attendance/parent/me devuelve agrupación con registros para 2 hijos del padre` |
+| E2E‑P‑12 | `JWT status off: admin desactiva usuario tras login y la próxima request responde 401` |
+| E2E‑P‑13 | `Privacy gate: usuario sin aceptación recibe [] en /privacy/me/acceptances y mantiene acceso al backend` |
+
+#### 8.1.3. `test/auth-throttle-ip.e2e-spec.ts` (1 caso)
+
+| # | Identificador textual del caso |
+| --- | --- |
+| E2E‑T‑01 | `login con credenciales inválidas repeticiones terminan en 429` |
+
+**Total automatizado:** 47 casos (33 + 13 + 1).
+
+### 8.2. Convención de identificadores
+
+Los identificadores `E2E‑A‑NN`, `E2E‑P‑NN` y `E2E‑T‑NN` permiten referenciar cada caso en la matriz de trazabilidad y en la bitácora de pruebas sin transcribir el identificador textual completo. La numeración sigue el orden de aparición en cada archivo del repositorio.
+
+### 8.3. Plantilla de bitácora de pruebas (sesión real)
+
+La siguiente plantilla se completa al ejecutar la suite en una sesión específica. Se recomienda guardar una copia diligenciada por entrega académica.
+
+| ID | Identificador textual | Estado | Tiempo (s) | Observaciones |
+| --- | --- | --- | --- | --- |
+| E2E‑A‑01 | `health (GET)` | ☐ Pasó / ☐ Falló / ☐ Omitido | _____ | _____________________________________ |
+| E2E‑A‑02 | `auth: login -> refresh rotacion -> logout invalida refresh` | ☐ Pasó / ☐ Falló / ☐ Omitido | _____ | _____________________________________ |
+| E2E‑A‑… | (continuar con los 33 casos de `app.e2e-spec.ts`) | ☐ ☐ ☐ | _____ | _____________________________________ |
+| E2E‑P‑01 | `Circuito: padre crea solicitud y un segundo intento el mismo día devuelve 400` | ☐ ☐ ☐ | _____ | _____________________________________ |
+| E2E‑P‑… | (continuar con los 13 casos de `phase7-closure.e2e-spec.ts`) | ☐ ☐ ☐ | _____ | _____________________________________ |
+| E2E‑T‑01 | `login con credenciales inválidas repeticiones terminan en 429` | ☐ ☐ ☐ | _____ | Requiere `AUTH_THROTTLE_LIMIT=5`. |
+
+**Datos de la sesión:**
+
+- **Fecha y hora de ejecución:** _________________________________________________________
+- **Commit del repositorio:** ____________________________________________________________
+- **Entorno:** ☐ Local ☐ CI ☐ Otro: _______________________________________________
+- **Versión de PostgreSQL:** ____________________________________________________________
+- **Resultado global:** ☐ Verde ☐ Amarillo (con omisiones documentadas) ☐ Rojo
+- **Adjuntos:** captura de consola Jest, captura de GitHub Actions o equivalente.
+- **Firma del responsable de la sesión:** ________________________________________________
 
 ---
 

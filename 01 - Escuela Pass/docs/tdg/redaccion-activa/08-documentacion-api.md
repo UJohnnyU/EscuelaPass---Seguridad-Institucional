@@ -22,7 +22,13 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ## 1. Propósito
 
-Este anexo resume la API REST del backend NestJS para el trabajo de grado: **dominios**, **seguridad**, **formatos** de respuesta, **trazabilidad por RF** y **catálogo** de rutas inferidas del código. La **especificación viva** es **OpenAPI/Swagger** en `GET /docs` cuando el despliegue la habilita (**Anexo 07**, `docs/technical-setup.md`). Ante discrepancias de redacción entre este texto y Swagger, **prevalece Swagger**. Las rutas del cliente que consumen estos contratos están en el **Anexo 06**; el modelo persistido, en el **Anexo 04**. La **sección 12** consolida **líneas de mejora** profesionales y académicas vinculadas a contratos HTTP y documentación de la API.
+**Nota de acrónimos del anexo.** **API** (Application Programming Interface), **REST** (Representational State Transfer; Fielding, 2000), **HTTP** (Hypertext Transfer Protocol), **HTTPS** (Hypertext Transfer Protocol Secure), **URI** (Uniform Resource Identifier), **JSON** (JavaScript Object Notation), **MIME** (Multipurpose Internet Mail Extensions), **JWT** (JSON Web Token; IETF, 2015), **CORS** (Cross-Origin Resource Sharing), **DTO** (Data Transfer Object), **OpenAPI** (Open API Initiative, 2021), **PDF** (Portable Document Format), **XLSX** (Office Open XML Spreadsheet), **RFC** (Request for Comments).
+
+Este anexo resume la API REST del backend NestJS para el trabajo de grado: dominios, seguridad, formatos de respuesta, trazabilidad por RF y catálogo de rutas inferidas del código. El estilo arquitectónico REST sigue la propuesta de Fielding (2000); la autenticación adopta el formato JWT especificado en el RFC 7519 (IETF, 2015); la seguridad de la API se alinea con las recomendaciones de la OWASP Foundation (2023) en su API Security Top 10. La especificación viva es OpenAPI 3.1.0 / Swagger en `GET /docs` cuando el despliegue la habilita (OpenAPI Initiative, 2021); ante discrepancias de redacción entre este texto y Swagger, prevalece Swagger. Las rutas del cliente que consumen estos contratos están en el **Anexo 06**; el modelo persistido, en el **Anexo 04**. La sección 12 consolida líneas de mejora profesionales y académicas vinculadas a contratos HTTP y documentación de la API.
+
+*[Figura 2. Captura de Swagger/OpenAPI con todas las etiquetas de dominio expandidas. Recomendado: captura del entorno de desarrollo o staging con datos sintéticos.]*
+
+*[Figura 3. Diagrama de seguridad por capas de la API: validación declarativa, autenticación JWT, autorización por rol, limitación global de tasa de peticiones (*throttling*) y entrega autenticada de archivos privados. Recomendado: Lucidchart con asistencia de Lucid AI.]*
 
 ---
 

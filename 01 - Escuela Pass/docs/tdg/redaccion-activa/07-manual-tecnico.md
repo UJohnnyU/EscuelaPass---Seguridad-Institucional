@@ -22,7 +22,13 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ## 1. Propósito
 
-Este anexo describe **requisitos**, **instalación local**, **base de datos**, **despliegue**, **mantenimiento** y **variables críticas** del monorepo Escuela Pass (API NestJS y cliente React/Vite). Profundiza en lo operativo sin duplicar el detalle de módulos y rutas HTTP: ese nivel de referencia vive en **`docs/technical-setup.md`**, el **Anexo 03** (arquitectura) y el **Anexo 08** (API). El detalle de pantallas y rutas del cliente está en el **Anexo 06**. La **sección 13** consolida **líneas de mejora** profesionales y académicas derivadas de la auditoría del repositorio.
+**Nota de acrónimos del anexo.** **CLI** (Command Line Interface), **ENV** (Environment, variables de entorno), **CI/CD** (Continuous Integration / Continuous Deployment), **DNS** (Domain Name System), **TLS** (Transport Layer Security), **HTTPS** (Hypertext Transfer Protocol Secure), **PaaS** (Platform as a Service), **CDN** (Content Delivery Network), **ORM** (Object-Relational Mapper), **SMTP** (Simple Mail Transfer Protocol), **FCM** (Firebase Cloud Messaging), **JWT** (JSON Web Token).
+
+Este anexo describe requisitos, instalación local, base de datos, despliegue, mantenimiento y variables críticas del monorepo Escuela Pass: API construida con NestJS (NestJS Team, s. f.) sobre Node.js (OpenJS Foundation, s. f.) y PostgreSQL (PostgreSQL Global Development Group, s. f.) con TypeORM (TypeORM, s. f.); cliente con React (React Team, s. f.) y Vite (Vite Team, s. f.). El despliegue de referencia se realiza sobre Railway para servicio y base, con alojamiento estático del cliente en Vercel u homólogo, y la integración continua se automatiza en GitHub Actions (GitHub, s. f.). Profundiza en lo operativo sin duplicar el detalle de módulos y rutas HTTP: ese nivel de referencia vive en `docs/technical-setup.md`, el **Anexo 03** (arquitectura) y el **Anexo 08** (API). El detalle de pantallas y rutas del cliente está en el **Anexo 06**. La sección 13 consolida líneas de mejora profesionales y académicas.
+
+*[Figura 1. Diagrama de despliegue real: API Node.js/NestJS sobre Railway con PostgreSQL administrada y cliente estático en Vercel con CDN, integraciones opcionales (FCM, Mapbox, SMTP). Recomendado: Lucidchart con asistencia de Lucid AI o Eraser AI.]*
+
+*[Figura 2. Flujo de integración continua en GitHub Actions con servicio PostgreSQL del runner, ejecución de `npm run build` y `npm run test:e2e`. Recomendado: Lucidchart con Lucid AI.]*
 
 ---
 

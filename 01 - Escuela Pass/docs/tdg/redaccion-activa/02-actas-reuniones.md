@@ -20,124 +20,84 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ---
 
-## Introducción
+## ACTA ÚNICA CONSOLIDADA DE REUNIONES — PROYECTO ESCUELA PASS
 
-El presente anexo consolida las **actas de reunión** celebradas entre el **Politécnico Colombiano Jaime Isaza Cadavid** (a través del autor del trabajo de grado) y **AlfaNetworks**, en el marco del desarrollo del sistema **Escuela Pass**. Las actas registran **hechos y acuerdos** de negocio y de producto alcanzados en dichas sesiones. Los datos administrativos de cada sesión (fecha y lugar o modalidad) se completan al pie de cada acta antes de la firma.
+### 1. Objeto
 
-**Asistentes**
+Dejar constancia formal y firmada de los acuerdos alcanzados entre el **Politécnico Colombiano Jaime Isaza Cadavid** —representado por el autor del trabajo de grado— y **AlfaNetworks** —empresa promotora del producto—, durante el ciclo de definición, diseño, implementación, validación y cierre del sistema **Escuela Pass**. La presente acta unifica en un solo documento institucional los hechos y compromisos de las sesiones de trabajo realizadas durante el proyecto, desde su levantamiento de necesidades hasta su preparación de entrega académica.
 
-- **Jhon Kevin Murillo Martínez** — Ingeniería Informática (APIT), Politécnico Colombiano Jaime Isaza Cadavid; autor del trabajo de grado y responsable del desarrollo del producto Escuela Pass en articulación con AlfaNetworks.
-- Representante de **AlfaNetworks**: _____________________________________________ (nombre completo y cargo).
-- Asesor del trabajo de grado (Politécnico Colombiano Jaime Isaza Cadavid): **Alirio Antonio Gutiérrez Quintero**, cuando corresponda a la sesión.
+El marco normativo y técnico de referencia para los acuerdos abarca la **Ley Federal de Protección de Datos Personales en Posesión de los Particulares** (LFPDPPP) (Cámara de Diputados, 2010), las guías del **Instituto Nacional de Transparencia, Acceso a la Información y Protección de Datos Personales** (INAI, s. f.), la práctica recomendada de la IEEE Std 830-1998 sobre especificación de requerimientos (IEEE, 1998), el modelo de calidad ISO/IEC 25010:2011 (ISO, 2011) y el marco de gestión iterativa Scrum (Schwaber & Sutherland, 2020). Las siglas API (Application Programming Interface), REST (Representational State Transfer), JWT (JSON Web Token), QR (Quick Response), NFC (Near Field Communication), GPS (Global Positioning System), FCM (Firebase Cloud Messaging) y SMTP (Simple Mail Transfer Protocol) se interpretan en el sentido del glosario consolidado del cuerpo principal del trabajo de grado.
 
----
+### 2. Antecedentes
 
-## 1. Acta — Levantamiento inicial de necesidades
+El proyecto **Escuela Pass** se desarrolla como trabajo de grado en el marco del programa de **Ingeniería Informática** del **Área de Programas Informáticos y Telecomunicaciones (APIT)**, con base en una **Ficha de Trabajo de Grado (FTG)** previamente aprobada que establece la pregunta de investigación, el objetivo general, los cinco objetivos específicos y los requerimientos funcionales y no funcionales del sistema. La empresa **AlfaNetworks** actúa como contraparte funcional del producto y aporta lineamientos de negocio, contexto institucional sobre el sector de escuelas privadas en México y validación práctica del alcance entregable.
 
-**Fecha:** ___________________________  
-**Lugar o modalidad:** ___________________________
+### 3. Asistentes
 
-**Objetivo:** identificar el problema institucional, los actores del dominio escolar y el alcance esperado de Escuela Pass.
-
-**Acuerdos:**
-
-- Priorizar **seguridad escolar**, **administración académica**, **comunicación** y **control de accesos** como pilares del producto.
-- Adoptar una solución **web responsive** para el MVP, evitando aplicaciones móviles nativas en ese alcance inicial.
-- Definir los roles de uso: administrador de plataforma (alcance multi-institución cuando aplique), personal administrativo de la institución, docente, padre o tutor, y alumno.
-- Dar trato documentado a **datos personales** (incluidos menores de edad), **privacidad**, **consentimiento** y **controles de acceso** en la medida en que el producto los implemente.
-
----
-
-## 2. Acta — Requerimientos funcionales y no funcionales
-
-**Fecha:** ___________________________  
-**Lugar o modalidad:** ___________________________
-
-**Objetivo:** alinear el alcance del producto con los requerimientos de la propuesta de trabajo de grado (RF1–RF8, RNF1–RNF6) y con la operación que AlfaNetworks espera del sistema.
-
-**Acuerdos:**
-
-- El **circuito de recogida (RF3)** es **iniciado y operado por padres o tutores** desde la aplicación web en dispositivos móviles; no corresponde, en el alcance acordado, a una flota escolar gestionada por un tercero independiente.
-- **Pagos:** no se incorpora **pasarela de pago en línea** en el alcance acordado; se trabaja con **deuda**, **carga de comprobante** por la familia y **verificación** por personal autorizado.
-- **Notificaciones:** uso de **bandeja interna** en la aplicación y posibilidad de **notificación push** mediante FCM según la configuración del despliegue.
-- **Acceso al plantel:** uso de **QR** y **NFC** como medios de identificación en el puesto de control, con reglas de credencial y manejo de **lecturas duplicadas en ventana corta** según la implementación acordada con AlfaNetworks.
-- **Identidad:** inclusión de flujos de **recuperación y restablecimiento de contraseña** cuando el entorno de correo (SMTP) esté disponible.
-- Mantener **trazabilidad** de la operación a través de la **API**, la **base de datos PostgreSQL**, los **roles** y las **pruebas automatizadas** del repositorio del proyecto.
-
----
-
-## 3. Acta — Diseño arquitectónico
-
-**Fecha:** ___________________________  
-**Lugar o modalidad:** ___________________________
-
-**Objetivo:** fijar el *stack* tecnológico y el esquema de despliegue entre las partes.
-
-**Acuerdos:**
-
-- **Backend:** NestJS con TypeORM; **base de datos:** PostgreSQL.
-- **Frontend:** React con Vite, orientado a despliegue como aplicación web estática.
-- **Infraestructura:** despliegue de API y base de datos compatible con **Railway** según el documento de despliegue del proyecto; alojamiento estático del cliente en **Vercel** u **hosting** equivalente.
-- **Mapas y ETA** del circuito: uso de **Mapbox** en el cliente; si no hay *token* o hay limitación de configuración, el comportamiento **degradado** se rige por la implementación acordada; cálculos de distancia **sin mapa interactivo** pueden apoyarse en **Haversine** donde aplique el dominio del circuito.
-- **Seguridad de la API:** **límite global de peticiones** (*rate limiting*) y conjunto de **rutas públicas acotadas** (autenticación, salud, flujos de recuperación de credenciales, etc.).
-- **Operación en servidor:** **tareas programadas** (calendario académico y eventos) y **correo transaccional** como apoyo a notificaciones y procesos internos, sin cambiar la enumeración RF/RNF de la propuesta; las ampliaciones de producto quedan descritas en la documentación técnica que acompaña al trabajo de grado.
-
----
-
-## 4. Acta — Validación funcional
-
-**Fecha:** ___________________________  
-**Lugar o modalidad:** ___________________________
-
-**Objetivo:** revisar conjuntamente el estado del producto frente a la propuesta y a la especificación acordada.
-
-**Acuerdos:**
-
-- Utilizar la documentación **OpenAPI/Swagger** expuesta por la API (`GET /docs` cuando esté habilitada) como referencia viva de contratos.
-- Mantener **documentación técnica**, **manuales** que se acuerden y **pruebas automatizadas** en el repositorio; las pruebas *end-to-end* incluyen como mínimo los archivos `test/app.e2e-spec.ts`, `test/phase7-closure.e2e-spec.ts` y `test/auth-throttle-ip.e2e-spec.ts`, más rutinas de *smoke* o de integración continua que se definan en el proyecto.
-- Dar tratamiento explícito a las **diferencias** entre el texto original de la propuesta y el producto desplegado como **evolución justificada** (infraestructura, bibliotecas de mapas o QR, etc.), documentada en el cuerpo o anexos del trabajo de grado donde corresponda.
-
----
-
-## 5. Acta — Preparación de entrega
-
-**Fecha:** ___________________________  
-**Lugar o modalidad:** ___________________________
-
-**Objetivo:** alinear la organización de los entregables del trabajo de grado y del producto frente al cierre académico.
-
-**Acuerdos:**
-
-- La organización del **texto desarrollado** y de los **anexos** del trabajo de grado atenderá las **directrices de extensión** del Politécnico Colombiano Jaime Isaza Cadavid.
-- **Citación**, **estilo** y **originalidad** del documento final se ajustarán al **texto único del trabajo de grado** y a la normativa aplicable; la guía institucional completa no se incorpora a este anexo para evitar duplicación.
-- Las **figuras y capturas** que acrediten acuerdos técnicos podrán **fundarse en evidencia reproducible** desde el producto o el repositorio; lo que no figure en esta acta podrá documentarse en la parte correspondiente del trabajo de grado, con la trazabilidad académica habitual.
-
----
-
-## Relación con otros anexos del trabajo de grado
-
-| Anexo | Relación |
+| Rol | Identidad |
 | --- | --- |
-| 00 | Matriz de trazabilidad entre requerimientos y evidencias en código y pruebas. |
-| 01 | Especificación funcional y no funcional detallada. |
-| 03–08 | Arquitectura, modelo de datos, UML, interfaz y API según el índice del TDG. |
-| 09 | Manual de usuario (**Anexo 09**): guía por rol y flujos. |
-| 10 | Informe de pruebas y métricas (**Anexo 10**): E2E, CI, **RNF4/RNF5**. |
+| Autor del trabajo de grado (Politécnico Colombiano Jaime Isaza Cadavid) | **Jhon Kevin Murillo Martínez** — Ingeniería Informática, APIT |
+| Representante de **AlfaNetworks** | _____________________________________________ (nombre completo y cargo) |
+| Asesor académico del trabajo de grado (cuando corresponde) | **Alirio Antonio Gutiérrez Quintero** |
+
+### 4. Agenda consolidada
+
+La presente acta unifica las temáticas tratadas durante el ciclo de proyecto:
+
+1. Levantamiento de necesidades institucionales y definición de roles del producto.
+2. Acuerdo sobre los requerimientos funcionales y no funcionales del sistema.
+3. Decisiones arquitectónicas y tecnológicas del producto.
+4. Estrategia de validación y de pruebas automatizadas reproducibles.
+5. Cierre académico, organización de entregables y firma del paquete documental.
+
+### 5. Acuerdos por temática
+
+#### 5.1. Alcance, actores y necesidades institucionales
+
+Las partes acuerdan que **Escuela Pass** se desarrolla como aplicación web responsiva, dirigida a instituciones educativas privadas de México, sin aplicaciones móviles nativas en el alcance del proyecto académico. Se priorizan cuatro pilares: seguridad escolar, administración académica, comunicación institucional y control de accesos al plantel. Se definen cinco roles de uso: administrador de plataforma con alcance multi‑institución, personal administrativo de cada escuela, docente con vínculos de asignatura y grupo, padre o tutor responsable, y alumno con consultas autorizadas. El tratamiento de datos personales de menores y de la comunidad escolar se aborda con flujos de privacidad versionada y registros de aceptación, sin que ello sustituya las responsabilidades jurídicas que recaen en la institución cliente conforme a la legislación mexicana aplicable.
+
+#### 5.2. Requerimientos funcionales y no funcionales
+
+Las partes ratifican el conjunto de requerimientos funcionales y no funcionales aprobados en la propuesta formal y, sobre esa base, acuerdan precisiones operativas relevantes para el producto: el **circuito de recogida** se implementa como flujo iniciado y operado por padres o tutores desde la aplicación, sin flota institucional independiente; la **gestión de pagos** se cierra mediante deuda, carga de comprobante por la familia y verificación humana del comprobante por personal autorizado, sin pasarela bancaria automática en el alcance del proyecto; las **notificaciones** combinan bandeja interna en la aplicación y, opcionalmente, notificaciones a navegadores cuando el despliegue lo configura; el **control de acceso** combina credenciales QR y NFC con reglas explícitas para el manejo de lecturas duplicadas en ventana breve; los **flujos de identidad** incluyen recuperación y restablecimiento de contraseña cuando el entorno de correo está disponible.
+
+#### 5.3. Decisiones arquitectónicas y tecnológicas
+
+Las partes acuerdan la pila tecnológica y el esquema de despliegue del producto: el servicio web se construye con **NestJS** y **TypeScript** sobre **PostgreSQL**, gestionada mediante un mapeador objeto‑relacional con migraciones versionadas; el cliente web se construye con **React**, **Vite** y utilidades de estilo responsivo. El despliegue del servicio y de la base de datos es compatible con plataformas como servicio modernas; el alojamiento del cliente puede realizarse en proveedores estáticos. Para mapas y estimaciones del circuito se adopta un proveedor lado cliente con **degradación elegante** cuando faltan credenciales y cálculo geodésico Haversine como apoyo. La seguridad de la interfaz HTTP incluye limitación global de tasa de peticiones, conjunto acotado de rutas públicas y verificación de tokens portadores con vencimiento configurable. Estas decisiones, en cuanto refinan medios técnicos no detallados punto por punto en la propuesta inicial, se justifican en el cuerpo del trabajo de grado y en el anexo de arquitectura siguiendo la tríada motivación, problema concreto resuelto y beneficio observado, sin alterar la pregunta de investigación ni los cinco objetivos específicos aprobados.
+
+#### 5.4. Validación, pruebas y reproducibilidad
+
+Las partes acuerdan que la documentación interactiva en formato **OpenAPI** generada por el servicio se utiliza como referencia viva de contratos en entornos no productivos. La estrategia de validación se centra en pruebas extremo a extremo del servicio contra una base de datos real, con pruebas de humo combinadas e integración continua reproducible sobre la infraestructura del repositorio. Las mediciones de desempeño y la evaluación de usabilidad con usuarios piloto quedan formalmente planificadas, no ejecutadas como estudios estadísticos en el horizonte académico, lo que se reconoce con honestidad metodológica en el documento.
+
+#### 5.5. Cierre académico, organización de entregables y firma
+
+Las partes acuerdan que la organización del texto desarrollado y de los anexos del trabajo de grado atenderá las directrices de extensión, citación, estilo, originalidad y formato del programa académico. Las figuras y capturas que acrediten acuerdos técnicos se fundan en evidencia reproducible desde el producto y el repositorio. Las diferencias entre el texto original de la propuesta y el producto efectivamente entregado se documentan como evoluciones justificadas en el cuerpo del trabajo y en el anexo de arquitectura, conforme al criterio del asesor.
+
+### 6. Compromisos
+
+Como compromisos formales derivados de los acuerdos precedentes:
+
+- **El autor del trabajo de grado** se compromete a entregar el producto, su documentación académica y el paquete de anexos conforme al alcance acordado, manteniendo el repositorio como fuente única de verdad técnica para evaluación académica.
+- **AlfaNetworks** se compromete a acompañar el cierre académico del proyecto y a facilitar, dentro del alcance del trabajo de grado, los lineamientos de negocio y la retroalimentación operativa requerida para refinar la documentación.
+- **El asesor académico**, cuando corresponda, acompaña la coherencia entre la propuesta aprobada, la ejecución y el documento final, sin asumir compromisos jurídicos por parte de la empresa o de la institución cliente.
+
+### 7. Observaciones
+
+El presente documento concentra el contenido formal de las sesiones realizadas durante el ciclo del proyecto y reemplaza, para efectos de constancia ante el programa académico, cualquier acta parcial previa. Los datos administrativos de fecha y lugar de suscripción se completan al momento de la firma; cualquier modificación posterior a esos datos se entiende como corrección administrativa que no altera el contenido sustantivo de los acuerdos.
+
+### 8. Constancia de conformidad y firma
+
+Las partes manifiestan estar conformes con el contenido íntegro de la presente acta consolidada, una vez completados los datos de **fecha** y **lugar o modalidad** indicados al pie. Suscriben en señal de aceptación.
+
+**Lugar y fecha de suscripción:** ____________________________________________________________
+
+**Modalidad de la suscripción (presencial o remota):** _________________________________________
+
+| Rol | Nombre completo | Firma |
+| --- | --- | --- |
+| Autor del trabajo de grado | **Jhon Kevin Murillo Martínez** | ____________________________________ |
+| Representante de AlfaNetworks | _________________________________________ | ____________________________________ |
+| Asesor académico (firma opcional) | **Alirio Antonio Gutiérrez Quintero** | ____________________________________ |
 
 ---
 
-## Constancia de conformidad y firmas
-
-Las partes manifiestan que los acuerdos precedentes corresponden a lo tratado en las sesiones indicadas, una vez completadas la **fecha** y el **lugar o modalidad** en cada acta.
-
-| Rol | Nombre y firma |
-| --- | --- |
-| Autor del trabajo de grado (Politécnico) | Jhon Kevin Murillo Martínez — _________________________ |
-| Representante AlfaNetworks | _________________________ |
-| Testigo o asesor (si aplica) | _________________________ |
-
-**Lugar y fecha de suscripción del presente documento anexo:** _____________________________________________
-
----
-
-*Fin del anexo 02 — Actas de reuniones AlfaNetworks Escuela Pass.*
+*Fin del Anexo 02 — Acta única consolidada de reuniones del proyecto Escuela Pass.*

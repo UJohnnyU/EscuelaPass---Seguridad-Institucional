@@ -22,7 +22,9 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ## 1. Propósito
 
-El modelo entidad-relación organiza la información crítica de Escuela Pass en dominios institucionales, académicos, financieros, de seguridad física y comunicación. La fuente primaria de nombres de tabla y relaciones son las **cuarenta y nueve** entidades TypeORM registradas en `buildTypeOrmConfig()` (`src/config/typeorm.config.ts`), con definición en archivos bajo `src/database/entities/`, aplicadas mediante la cadena de migraciones en `src/database/migrations/` y la política de alineación descrita en el **Anexo 03** (persistencia y §12.1).
+**Nota de acrónimos del anexo.** **ER** (Entity-Relationship), **DDL** (Data Definition Language), **DML** (Data Manipulation Language), **PK** (Primary Key, llave primaria), **FK** (Foreign Key, llave foránea), **UUID** (Universally Unique Identifier), **ORM** (Object-Relational Mapper), **SQL** (Structured Query Language), **JSONB** (JavaScript Object Notation Binary), **CRUD** (Create, Read, Update, Delete).
+
+El modelo entidad-relación organiza la información crítica de Escuela Pass en dominios institucionales, académicos, financieros, de seguridad física y comunicación, siguiendo los principios del modelo relacional propuesto por Codd (1970) y formalizado en la literatura contemporánea sobre fundamentos de bases de datos (Elmasri & Navathe, 2016). La persistencia se materializa en PostgreSQL (PostgreSQL Global Development Group, s. f.) y se gestiona desde el servicio mediante TypeORM (TypeORM, s. f.). La fuente primaria de nombres de tabla y relaciones son las cuarenta y nueve entidades TypeORM registradas en `buildTypeOrmConfig()` (`src/config/typeorm.config.ts`), con definición en archivos bajo `src/database/entities/`, aplicadas mediante la cadena de migraciones en `src/database/migrations/` y la política de alineación descrita en el **Anexo 03** (persistencia y §12.1).
 
 ---
 
@@ -58,9 +60,15 @@ El inventario tabla–archivo de esas entidades se consigna en la **sección 8**
 - Las **solicitudes de circuito** relacionan estudiante, padre solicitante, estados operativos y datos de ubicación o consentimiento según el flujo documentado en el **Anexo 01** (RF3).
 - Las **notificaciones** tienen destinatario en `users` y pueden asociarse a *tokens* FCM en `user_fcm_tokens`.
 
-[Figura 1. Modelo ER núcleo multiinstitución centrado]
+*[Figura 1. Modelo ER núcleo multi-institución: `schools`, `users`, `groups`, `subjects`, `students`, `teachers`, `parents`, `student_parents`, `teacher_groups`, `teacher_subjects`, `academic_periods`. Recomendado: Lucidchart con asistencia de Lucid AI.]*
 
-[Figura 2. Modelo ER extendido: académico, finanzas, circuito y comunicación centrado]
+*[Figura 2. Modelo ER académico extendido: `class_sessions`, `class_schedule_slots`, `attendance_records`, `class_attendance_records`, `school_non_instructional_days`, `activities`, `activity_grades`, `report_cards`, `report_card_subjects`. Recomendado: Lucidchart con Lucid AI.]*
+
+*[Figura 3. Modelo ER de seguridad física: `access_credentials`, `access_events`, `circuit_requests`, `vehicles`, `student_departure_consents`, `student_lifecycle_events`, `teacher_lifecycle_events`. Recomendado: Lucidchart con Lucid AI.]*
+
+*[Figura 4. Modelo ER de finanzas y cartera: `payment_concepts`, `debts`, `payments`, `debt_adjustments`, vínculos a `students` y a `administrative_staff`. Recomendado: Lucidchart con Lucid AI.]*
+
+*[Figura 5. Modelo ER de comunicación, agenda, privacidad y auditoría: `notices`, `notifications`, `user_fcm_tokens`, `admin_reports`, `admin_report_comments`, `meetings`, `meeting_participants`, `external_visits`, `external_visit_groups`, `external_visit_students`, `student_attention_notes`, `privacy_policies`, `user_privacy_acceptances`, `audit_logs`, `refresh_tokens`, `import_jobs`, `institution_settings`. Recomendado: Lucidchart con Lucid AI.]*
 
 ---
 
