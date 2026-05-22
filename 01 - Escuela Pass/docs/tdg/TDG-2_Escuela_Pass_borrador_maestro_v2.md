@@ -72,7 +72,7 @@ Introducción (*Panel de hechos del producto*, sin numeración de capítulo)
 2. Diseño metodológico — la sección 2.3 mapeo **7 fases FTG ↔ 5 OE**, la sección 2.4 *stack* nominal
 3. Marco referencial — la sección 3.1 incluye diagrama **Mermaid** de arquitectura por capas
 4. Desarrollo del trabajo de grado — las secciones 4.1 a 4.5 con secuencias **Mermaid** (QR/NFC, circuito)
-5. Resultados y discusión — la sección 5.3 estado de hipótesis cuantitativas FTG
+5. Resultados y discusión — la sección 5.4 estado de hipótesis cuantitativas FTG
 6. Conclusiones
 7. Recomendaciones y trabajos futuros — CI frontend, artefactos OpenAPI firmados
 8. Licencia del proyecto
@@ -104,7 +104,7 @@ Anexos 00–10 (sección final del documento)
 | Tabla | Contenido |
 | --- | --- |
 | Tabla 1 | Problemática: causas y consecuencias (sección 1.1.3, alineada a la FTG) |
-| Tabla 2 | Fases metodológicas y resultados esperados (capítulo 2 — diseño metodológico) |
+| Tabla 2 | Fases metodológicas, propósito investigativo y resultados esperados (capítulo 2 — diseño metodológico) |
 | Tabla 2b | Mapeo explícito — siete fases del discurso FTG ↔ cinco objetivos específicos (sección 2.3) |
 | Tabla 3 | Limitaciones de antecedentes (capítulo 3 — marco referencial) |
 | Tabla 4 | Inclusiones del alcance (capítulo 3 — marco referencial) |
@@ -117,19 +117,31 @@ Anexos 00–10 (sección final del documento)
 
 ## INTRODUCCIÓN
 
-Las instituciones educativas gestionan en paralelo formación, convivencia, seguridad en el plantel y relación con familias que demandan información oportuna por canales confiables. La digitalización puede concentrar parte de esa complejidad si se respetan límites legales y pedagógicos: tratamiento de datos personales, especialmente de menores; proporcionalidad de la recolección; y separación entre lo que el software automatiza y lo que permanece como decisión humana de la institución (UNESCO, 2024). En conjunto, el diagnóstico sobre infraestructura y acceso en el sistema educativo (**Consejo Nacional de Evaluación de la Política de Desarrollo Social**, CONEVAL, 2024), los informes sobre transparencia y gestión en política educativa (**Ministerio de Educación Nacional**, MEN, 2024) y el trabajo de redes sobre madurez digital institucional (MetaRed, 2024) refuerzan la misma idea: las escuelas operan bajo presión simultánea por rendición de cuentas, modernización de procesos y coordinación con las familias, con riesgos claros cuando la información queda dispersa o mediatizada por canales opacos.
+### Problemática humana e institucional
 
-El **ámbito de aplicación** del producto aquí desarrollado son las **instituciones educativas privadas en México**, donde esa tensión se cruza con el marco de protección de datos personales y con la operación cotidiana de ingreso, permanencia y salida del plantel. Resultó **necesario** abordar el proyecto porque la fragmentación entre hojas de cálculo, mensajería informal y sistemas inconexos dificulta auditar hechos, homogenizar evidencia y responder con diligencia a reclamos, en contraste con lo que una plataforma integrada y trazable puede aportar a administración y seguridad escolar. Desde la formación en Ingeniería Informática, el trabajo aporta además un caso completo de especificación, arquitectura e implementación verificable frente al código; a nivel **social y profesional**, los resultados se orientan a instituciones que requieren un canal único con roles diferenciados, sin sustituir políticas internas ni asesoría jurídica.
+Las instituciones educativas gestionan en paralelo formación, convivencia, seguridad en el plantel y relación con familias que demandan información oportuna por canales confiables. En horarios críticos —ingreso matutino, recogida vespertina, eventos especiales— la coordinación escuela–hogar concentra tensión humana: adultos responsables esperan certeza sobre quién retira a cada estudiante; el personal de portería y administración debe decidir con rapidez sin perder trazabilidad; y las familias requieren claridad sin depender de mensajes personales dispersos. Cuando esos procesos se sostienen en hojas de cálculo, grupos de mensajería informal o registros no correlacionados, aumentan errores, demoras y dificultad para reconstruir hechos ante incidentes o reclamos, en un contexto donde la población titular incluye menores y los datos personales exigen tratamiento diligente (UNESCO, 2024).
 
-**Escuela Pass** se presenta como producto de trabajo de grado desarrollado con **AlfaNetworks**. Integra un servicio web construido con **NestJS** (NestJS Team, s. f.) y **TypeScript** sobre **PostgreSQL** (PostgreSQL Global Development Group, s. f.) —gestionada mediante un **ORM** (Object-Relational Mapper) (Elmasri & Navathe, 2016)—, y un cliente web con **React** (React Team, s. f.), **Vite** (Vite Team, s. f.) y estilos responsivos, en configuración compatible con despliegue sobre infraestructura tipo **PaaS** (Platform as a Service) para el servicio y la base de datos, y alojamiento estático para el cliente. Los dominios —identidad, acceso físico, circuito familiar, nómina, finanzas escolares, comunicación y analítica— se organizan en módulos cohesionados expuestos a través de una interfaz **HTTP** (Hypertext Transfer Protocol) versionada por configuración, siguiendo el estilo arquitectónico **REST** (Representational State Transfer) propuesto por Fielding (2000). Los **beneficios esperados** incluyen reducir fricción operativa en portería y en la relación con familias, centralizar evidencia académica y financiera con revisión humana donde corresponde, y ofrecer un repositorio de conocimiento técnico reutilizable en despliegues posteriores o en nuevas iteraciones del producto.
+La digitalización puede aliviar parte de esa carga **si** se respetan límites legales y pedagógicos: proporcionalidad de la recolección, transparencia hacia las familias y separación entre lo que el software automatiza y lo que permanece como decisión humana de la institución. El diagnóstico sobre infraestructura y acceso en el sistema educativo (**Consejo Nacional de Evaluación de la Política de Desarrollo Social**, CONEVAL, 2024), los informes sobre transparencia y gestión en política educativa (**Ministerio de Educación Nacional**, MEN, 2024) y el trabajo de redes sobre madurez digital institucional (MetaRed, 2024) coinciden en que las escuelas operan bajo presión simultánea por rendición de cuentas, modernización de procesos y coordinación con las familias. Estudios sobre movilidad y transporte escolar describen trayectos prolongados y variabilidad temporal que incrementan la carga de coordinación en entornos urbanos densos (OnTrack School, 2024).
 
-El cuerpo del documento articula el qué y el porqué académico; los anexos numerados concentran inventarios técnicos (catálogo de operaciones HTTP, modelo relacional, diagramas, manuales y plan de pruebas). Esta división atiende la extensión máxima del texto principal y permite contrastar afirmaciones con evidencia tabular sin transcribir cada operación REST en el capítulo central.
+### Impacto institucional y necesidad del proyecto
 
-La línea argumental reconoce un **alcance ampliado** respecto del texto mínimo histórico de la propuesta —multiinstitución, visitas, reuniones, anotaciones, privacidad y auditoría—. Esas capacidades complementan los requerimientos funcionales y no funcionales aprobados sin sustituirlos, y se tabulan de forma consistente en los anexos del trabajo.
+El **ámbito de aplicación** de este trabajo son las **instituciones educativas privadas en México**, donde la expectativa de calidad y transparencia se cruza con el marco de protección de datos personales y con la operación cotidiana de ingreso, permanencia y salida del plantel. La fragmentación entre canales inconexos afecta a **estudiantes y familias** (incertidumbre, exposición de datos en medios informales), al **personal administrativo y de portería** (sobrecarga, conciliación manual de cartera y asistencias) y a la **dirección institucional** (opacidad frente a supervisiones y reclamos). La **Tabla 1** del capítulo 1 sintetiza seis pares causa–consecuencia que fundamentan por qué el problema merece intervención sistemática y no sólo mejoras aisladas de oficina.
+
+Resultó **necesario** abordar el proyecto porque, sin un núcleo único de políticas y registros, resulta arduo auditar accesos, homogenizar evidencia académica y financiera y responder con diligencia bajo la LFPDPPP (Cámara de Diputados, 2010) y lineamientos del INAI (INAI, s. f.). La pregunta de investigación —formulada en la sección 1.1.4— interroga **cómo** optimizar seguridad física, protección de datos sensibles y administración escolar en ese contexto; el presente documento responde primero al **porqué** importa ese problema y después al **cómo** se materializó técnicamente la solución.
+
+### Aporte académico e investigativo
+
+Desde la formación en **Ingeniería Informática**, el trabajo aporta un caso completo de especificación trazable, arquitectura verificable e implementación contrastable con el repositorio, en línea con la práctica recomendada de la **IEEE Std 830-1998** (IEEE, 1998) y con validación reproducible mediante pruebas extremo a extremo e integración continua (Pressman & Maxim, 2020). No se trata de un ejercicio de pantallas aisladas: se documenta un producto real desarrollado con **AlfaNetworks**, con delimitación explícita de alcance, *trade-offs* y límites de medición, de modo que el lector pueda evaluar tanto el rigor ingenieril como la honestidad metodológica frente a hipótesis cuantitativas aún no medidas en campo (sección 1.2.6).
+
+### Presentación de la solución tecnológica
+
+**Escuela Pass** es la respuesta técnica al problema descrito: aplicación web integral para **administración escolar** y **seguridad física del plantel**, desarrollada en el marco del trabajo de grado con AlfaNetworks. Integra un servicio web con **NestJS** (NestJS Team, s. f.) y **TypeScript** sobre **PostgreSQL** (PostgreSQL Global Development Group, s. f.), y un cliente web con **React** (React Team, s. f.), **Vite** (Vite Team, s. f.) y estilos responsivos, desplegable en infraestructura tipo **PaaS** (Platform as a Service) y alojamiento estático para el cliente. Los dominios —identidad, acceso físico, circuito familiar, nómina, finanzas escolares, comunicación y analítica— se organizan en módulos cohesionados bajo una interfaz **HTTP** versionada y estilo **REST** (Fielding, 2000). Los **beneficios esperados** incluyen reducir fricción en portería y en la relación con familias, centralizar evidencia con revisión humana donde corresponde y ofrecer conocimiento técnico reutilizable en despliegues posteriores.
+
+El cuerpo del documento articula el qué y el porqué académico; los anexos numerados concentran inventarios técnicos (catálogo de operaciones HTTP, modelo relacional, diagramas, manuales y plan de pruebas). La línea argumental reconoce un **alcance ampliado** respecto del texto mínimo histórico de la propuesta —multiinstitución, visitas, reuniones, anotaciones, privacidad y auditoría— sin sustituir los requerimientos funcionales y no funcionales aprobados.
 
 ### Contribución documental y técnica
 
-La contribución combina **(a)** especificación trazable de requerimientos institucionales en línea con la práctica recomendada por la **IEEE Std 830-1998** (IEEE, 1998), **(b)** arquitectura modular acorde a dominios escolares y **(c)** evidencia de validación reproducible mediante compilación, pruebas extremo a extremo (E2E, *end-to-end*) con PostgreSQL e **integración continua** (CI, Continuous Integration) en el repositorio (GitHub, s. f.). Desde ingeniería de software (Pressman & Maxim, 2020), el producto contextualiza patrones habituales —**JWT** (JSON Web Token; IETF, 2015), validación declarativa, ORM, tareas programadas y auditoría— en un dominio donde la población incluye menores y la trazabilidad de actos sensibles forma parte del valor entregado.
+La contribución combina **(a)** especificación trazable de requerimientos institucionales según la **IEEE Std 830-1998** (IEEE, 1998), **(b)** arquitectura modular acorde a dominios escolares y **(c)** evidencia de validación reproducible (compilación, pruebas E2E con PostgreSQL, CI en el repositorio; GitHub, s. f.). El detalle de patrones de seguridad, contratos HTTP y decisiones de despliegue se desarrolla en los capítulos 2 y 4 y en los anexos, donde el lector encontrará la profundidad técnica que aquí se resume.
 
 ### Organización del documento
 
@@ -137,7 +149,7 @@ Tras los elementos preliminares (resumen, *abstract*, tabla de contenido e índi
 
 ### Panel de hechos del producto (magnitud del entregable)
 
-La siguiente tabla sintetiza el alcance técnico **medido desde el código** al cierre documental del repositorio; permite al lector dimensionar la magnitud del entregable antes de recurrir al detalle tabular de los anexos.
+Las magnitudes siguientes sintetizan el entregable técnico **verificable en el repositorio** al cierre documental; permiten dimensionar la magnitud del producto antes de recurrir al detalle tabular de los anexos.
 
 **Tabla 7. Escuela Pass — hechos cuantificables verificables en el repositorio**
 
@@ -159,7 +171,7 @@ La siguiente tabla sintetiza el alcance técnico **medido desde el código** al 
 
 ## 1. PRESENTACIÓN DEL TRABAJO
 
-El presente trabajo de grado se centra en el diseño y desarrollo de **Escuela Pass**, aplicación web integral para la **administración escolar** y la **seguridad física del plantel**, en instituciones educativas privadas de **México**, desarrollada con **AlfaNetworks**, con el objetivo de integrar identidad y acceso (**QR/NFC**), gestión institucional, comunicación con familias y apoyos prácticos al tratamiento de datos personales conforme la normativa aplicable al caso.
+El presente trabajo de grado se centra en el diseño y desarrollo de **Escuela Pass**, aplicación web integral para la **administración escolar** y la **seguridad física del plantel** en instituciones educativas privadas de **México**, desarrollada con **AlfaNetworks**. El producto busca integrar en un solo canal la coordinación con familias, la operación administrativa y los protocolos de ingreso y salida, con apoyos prácticos al tratamiento de datos personales conforme la normativa aplicable al caso. Las tecnologías concretas de implementación se presentan en la introducción y se desarrollan en los capítulos 2 y 4.
 
 ### 1.1. Planteamiento del problema
 
@@ -169,9 +181,9 @@ En instituciones educativas privadas en México, la expectativa de calidad y tra
 
 #### 1.1.2. Identificación del PIN (Problema, Idea o Necesidad)
 
-**Problema:** fragmentación operativa entre control de acceso al plantel, coordinación de salida con familias, gestión académico–administrativa y comunicación institucional, con riesgos de gobernanza débil sobre datos personales sensibles, particularmente cuando la población titular incluye niñas, niños y adolescentes.
+**Problema.** Existe fragmentación operativa entre control de acceso al plantel, coordinación de salida con familias, gestión académico–administrativa y comunicación institucional. Esa dispersión afecta a estudiantes y familias (incertidumbre, canales informales), al personal administrativo y de portería (carga manual, conciliación de registros) y a la dirección (dificultad de auditoría y respuesta a reclamos). El riesgo se agudiza cuando la población titular incluye niñas, niños y adolescentes y la gobernanza sobre datos personales sensibles es débil o inconsistente.
 
-**Idea / necesidad:** disponer de una aplicación web integrada, desarrollada con AlfaNetworks, basada en arquitecturas escalables (NestJS, PostgreSQL), credenciales QR y NFC, y trazabilidad documental, que permita optimizar esos procesos y alinear prácticas con los estándares normativos de protección de datos personales aplicables al caso (Cámara de Diputados, 2010; INAI, s. f.). Plataformas comerciales como Skolable (2026) y revisiones del sector como Santhosh (2025) y Manciu (2025) muestran la conveniencia de integrar control de accesos, comunicación familiar y gestión de salidas en una sola aplicación, motivo por el cual se propone una solución que retoma esos principios y los adapta al alcance acordado con la empresa.
+**Necesidad de solución.** Se requiere un canal digital institucional único que concentre políticas, registros y trazabilidad sin sustituir el criterio pedagógico ni la asesoría jurídica. Revisiones del sector y plataformas comerciales como Skolable (2026), Santhosh (2025) y Manciu (2025) muestran la conveniencia de integrar control de accesos, comunicación familiar y gestión de salidas en una sola aplicación. En el marco del trabajo de grado con **AlfaNetworks**, esa necesidad se concreta en un producto acotado por alcance, roles y normativa mexicana aplicable (Cámara de Diputados, 2010; INAI, s. f.). Los medios técnicos elegidos para materializarla —arquitectura web modular, persistencia relacional, credenciales físicas digitales— se justifican en la sección 1.2 y se detallan en el capítulo 2; no forman parte del núcleo del problema, sino de la respuesta ingenieril adoptada.
 
 #### 1.1.3. Análisis del problema
 
@@ -188,13 +200,17 @@ Dos vectores explican la persistencia del problema. **Operativamente**, la ausen
 | Comunicación con familias mediada por canales informales no auditables (mensajes personales, grupos no institucionales). | Retrasos, ambigüedades y mayor exposición de datos sensibles de menores fuera de políticas institucionales. |
 | Decisiones operativas (seguridad física, académico y cartera) sustentadas en fuentes de verdad distintas sin correlación sistemática. | Inconsistencias en cobros y autorizaciones, duplicidad de solicitudes y dificultad para demostrar diligencia ante reclamos o auditorías. |
 
-Escuela Pass plantea una plataforma única con autorización coherente en servidor y trazas persistidas. No sustituye el criterio pedagógico ni la interpretación jurídica definitiva; instrumenta protocolos definidos por la institución y declara límites operativos —cobros sin pasarela bancaria automática, degradación controlada de servicios externos opcionales como notificaciones, mapas o correo cuando faltan credenciales— sin atribuirse capacidades que no entrega.
-
 #### 1.1.4. Formulación del problema — pregunta de investigación
 
-Con la problemática resumida en la **Tabla 1**, la pregunta que orienta el trabajo de grado —en los términos aprobados en la propuesta— es la siguiente:
+Con la problemática resumida en la **Tabla 1**, conviene distinguir la pregunta de fondo —por qué importa intervenir— de la pregunta de investigación formal del trabajo.
+
+**Pregunta de fondo (lenguaje académico–institucional).** ¿Por qué las instituciones educativas privadas en México requieren hoy un mecanismo integrado que mejore la seguridad física en el plantel, la coordinación con familias y la administración escolar, sin comprometer la protección de datos personales de estudiantes y adultos responsables?
+
+**Pregunta de investigación (formulación aprobada en la propuesta FTG).** La pregunta que orienta el trabajo de grado —en los términos aprobados en la propuesta— es la siguiente:
 
 > ¿Cómo el desarrollo de una aplicación web de AlfaNetworks basada en arquitecturas escalables con NestJS, PostgreSQL, tecnologías NFC y QR puede optimizar los procesos de seguridad física, protección de datos sensibles y administración escolar en instituciones educativas privadas de México, cumpliendo con los estándares normativos de protección de datos personales?
+
+**Lectura operativa.** En lenguaje no técnico, la investigación indaga si una plataforma web trazable y con roles diferenciados puede reducir la fragmentación descrita, fortalecer la evidencia ante familias y autoridades y ofrecer apoyos documentados al cumplimiento normativo, **sin** confundir automatización con sustitución del criterio institucional. La respuesta técnica —cómo se construyó y validó esa plataforma— se desarrolla a partir del capítulo 2; la síntesis interpretativa de resultados aparece en el capítulo 5.
 
 #### 1.1.5. Alcances excluidos o diferidos (síntesis)
 
@@ -208,31 +224,31 @@ La institución educativa del autor y la empresa vinculada orientan este TDG com
 
 ### 1.2. Justificación
 
-La digitalización responsable de procesos escolares en México converge en la necesidad de plataformas que integren seguridad física, administración y protección de datos personales sin fragmentar las fuentes de verdad. **Escuela Pass** aporta, en el contexto de su empresa vinculada **AlfaNetworks**, una implementación trazable y un paquete documental que permite evaluar esa convergencia en un caso real, y un ciclo de trabajo iterativo e incremental coherente con tiempo finito de grado. La justificación se desagrega a continuación por tipos de impacto.
+El proyecto se justifica porque responde a un problema humano e institucional verificable —fragmentación operativa, riesgos en portería y salida coordinada, debilidad de trazabilidad sobre datos de menores— y porque aporta valor más allá de la lista de tecnologías empleadas: bienestar de familias, diligencia normativa, eficiencia administrativa potencial y formación profesional en un escenario real con **AlfaNetworks**. **Escuela Pass** materializa esa justificación en una implementación trazable y un paquete documental evaluable en el tiempo finito del grado; la justificación se desagrega por tipos de impacto, priorizando el aporte social, académico e institucional antes del detalle del *stack* técnico.
 
 #### 1.2.1. Impacto social
 
-Una mejor coordinación entre institución y familias contribuye al bienestar percibido tanto de estudiantes como de adultos responsables: visibilidad ordenada de salidas, autorizaciones explícitas y comunicación institucional reemplazan canales informales donde la privacidad de menores puede verse afectada por difusión accidental (UNESCO, 2024), en tanto que la evidencia cualitativa sobre movilidad y tiempos de traslado en entornos urbanos densos muestra cómo esa coordinación debe sostenerse bajo tensión horaria recurrente entre escuela y hogar (OnTrack School, 2024). El proyecto no resuelve la dimensión humana del cuidado, pero dota a la institución de un canal único con permisos granulares y registros consultables para esas condiciones de operación.
+Una mejor coordinación entre institución y familias contribuye al bienestar percibido de estudiantes y adultos responsables: visibilidad ordenada de salidas, autorizaciones explícitas y comunicación institucional reemplazan canales informales donde la privacidad de menores puede verse afectada por difusión accidental (UNESCO, 2024). La evidencia cualitativa sobre movilidad y tiempos de traslado en entornos urbanos densos muestra cómo esa coordinación debe sostenerse bajo tensión horaria recurrente entre escuela y hogar (OnTrack School, 2024). El proyecto no resuelve la dimensión humana del cuidado, pero dota a la institución de un canal único con permisos granulares y registros consultables para esas condiciones de operación.
 
-#### 1.2.2. Impacto tecnológico
+#### 1.2.2. Impacto académico
 
-El trabajo demuestra la viabilidad de integrar identidad, acceso físico mediante credenciales QR y NFC, circuito familiar geolocalizado, operación académico–administrativa, comunicación y cartera en una sola plataforma con servicios web y base de datos relacional, en una arquitectura modular que admite crecimiento sin reescribir el núcleo. Sirve además como referencia educativa de cómo combinar NestJS (NestJS Team, s. f.), PostgreSQL (PostgreSQL Global Development Group, s. f.), React (React Team, s. f.) y herramientas de identificación física en un sector regulado, con pruebas automatizadas y despliegue reproducible en plataformas como servicio (GitHub, s. f.). El estilo arquitectónico REST adoptado para la interfaz HTTP se inspira en Fielding (2000) y se documenta de forma viva mediante la **OpenAPI Specification** versión 3.1.0 (OpenAPI Initiative, 2021).
+Desde el ámbito académico, este trabajo permite aplicar conceptos de **arquitectura de software**, **seguridad informática**, **automatización de procesos** y **ingeniería de requisitos** en un escenario real de institución educativa privada, fortaleciendo competencias propias de la Ingeniería Informática. En mi formación, el caso articula modelado relacional (Codd, 1970; Elmasri & Navathe, 2016), especificación según la práctica recomendada de la **IEEE Std 830-1998** (IEEE, 1998), diseño de arquitecturas web modulares (Pressman & Maxim, 2020), seguridad pragmática según el OWASP Top 10 (OWASP Foundation, 2021), integración continua y documentación versionada. Se trata de un trabajo completo —no un fragmento aislado— en el que cada decisión se expone con justificación, *trade-offs* y **delimitación explícita** de limitaciones; las cifras del repositorio (cuarenta y nueve entidades, doscientas cuarenta y una operaciones HTTP, cinco roles, cinco fases metodológicas) permiten contrastar el texto con el código y ejercitar el pensamiento crítico frente a evaluadores técnicos y no técnicos.
 
-#### 1.2.3. Impacto económico
+#### 1.2.3. Impacto normativo
 
-La digitalización de bitácoras repetitivas —asistencias, exportaciones de boletines y conciliación de comprobantes— reduce horas de plantilla administrativa y errores de transcripción, en línea con lo observado por el sector en estudios de madurez digital institucional (MetaRed, 2024; Santhosh, 2025). La cuantificación monetaria de ese ahorro requiere muestra longitudinal que el presente proyecto no ejecuta como estudio estadístico de campo. Se entrega, en cambio, un producto y una trazabilidad documental que habilitan estudios económicos posteriores en una institución piloto, sin sustituir esa medición.
+Las herramientas internas para versionar políticas, registrar aceptaciones con marca temporal y dejar bitácoras de auditoría dotan a la institución de evidencia técnica para acompañar el cumplimiento de la LFPDPPP (Cámara de Diputados, 2010) y los lineamientos del INAI aplicables (INAI, s. f.). El software no sustituye la asesoría jurídica ni la decisión institucional sobre el responsable del tratamiento; sí materializa los apoyos que un programa de cumplimiento razonable requiere para demostrar diligencia y transparencia ante familias, autoridades educativas y, eventualmente, autoridad competente.
 
-#### 1.2.4. Impacto académico
+#### 1.2.4. Impacto económico
 
-En mi formación como estudiante de Ingeniería Informática, este trabajo articula competencias de modelado relacional (Codd, 1970; Elmasri & Navathe, 2016), ingeniería de requisitos según la práctica recomendada de la IEEE Std 830-1998 (IEEE, 1998), diseño de arquitecturas web modulares (Pressman & Maxim, 2020), seguridad pragmática a nivel de aplicación según el OWASP Top 10 (OWASP Foundation, 2021), integración continua y documentación versionada. Se trata de un caso completo —no un fragmento— en el que cada decisión técnica se expone con justificación, *trade-offs* y **delimitación explícita** de limitaciones, y en el que cifras tomadas del repositorio (cuarenta y nueve entidades del modelo, doscientas cuarenta y una operaciones HTTP del *backend*, cinco roles, cinco fases) permiten contrastar el texto con el código.
+La digitalización de bitácoras repetitivas —asistencias, exportaciones de boletines y conciliación de comprobantes— puede reducir horas de plantilla administrativa y errores de transcripción, en línea con lo observado por el sector en estudios de madurez digital institucional (MetaRed, 2024; Santhosh, 2025). La cuantificación monetaria de ese ahorro requiere muestra longitudinal que el presente proyecto no ejecuta como estudio estadístico de campo. Se entrega, en cambio, un producto y una trazabilidad documental que habilitan estudios económicos posteriores en una institución piloto, sin confundir expectativa de la propuesta con resultados ya medidos (véase la sección 1.2.6).
 
-#### 1.2.5. Impacto normativo
+#### 1.2.5. Impacto tecnológico
 
-Las herramientas internas para versionar políticas, registrar aceptaciones con marca temporal y dejar bitácoras de auditoría dotan a la institución de evidencia técnica para acompañar el cumplimiento de la LFPDPPP (Cámara de Diputados, 2010) y los lineamientos del INAI aplicables (INAI, s. f.). El software no sustituye la asesoría jurídica ni la decisión institucional sobre el responsable del tratamiento; sí materializa los apoyos técnicos que un programa de cumplimiento razonable requiere para demostrar diligencia y transparencia ante familias, autoridades educativas y, eventualmente, autoridad competente.
+En el plano tecnológico, el trabajo demuestra la viabilidad de integrar identidad, acceso físico, circuito familiar, operación académico–administrativa, comunicación y cartera en una sola plataforma modular, con pruebas automatizadas y despliegue reproducible. Sirve como referencia de cómo materializar un producto sectorial regulado con servicios web, persistencia relacional e identificación física digital, documentado mediante contrato HTTP en notación OpenAPI (OpenAPI Initiative, 2021) y estilo REST (Fielding, 2000). El detalle de librerías, módulos y variables de entorno se concentra en la sección 2.4 y en los **Anexos 03, 07 y 08**, para no centrar la justificación en el catálogo de herramientas.
 
 #### 1.2.6. Hipótesis cuantitativas de la propuesta (FTG) y estado metodológico de medición
 
-La justificación económico–operativa de la **propuesta formal** incluía rangos cuantitativos de impacto (p. ej. **−35 % a −40 %** en tiempo de entrega estudiantil, **−60 %** en horas-hombre administrativas, **−15 % a −25 %** en volumen de papelería, **−30 %** en errores de registro y retorno de inversión en **12–18 meses**, según formulación original). Esas cifras **no se omiten** en el TDG-2 v2 porque son parte del expediente académico; se reclasifican como **hipótesis de desempeño organizacional** sujetas a **validación empírica con piloto institucional**, no como resultados ya medidos en el horizonte del grado.
+La justificación económico–operativa de la **propuesta formal** incluía rangos cuantitativos de impacto (p. ej. **−35 % a −40 %** en tiempo de entrega estudiantil, **−60 %** en horas-hombre administrativas, **−15 % a −25 %** en volumen de papelería, **−30 %** en errores de registro y retorno de inversión en **12–18 meses**, según formulación original). Esas cifras **no se omiten** en el TDG-2 v2 porque son parte del expediente académico; se reclasifican como **hipótesis de desempeño organizacional** sujetas a **validación empírica con piloto institucional**, **no** como resultados ya obtenidos ni como parte de la justificación tecnológica del producto en sí.
 
 **Tabla A (hipótesis FTG — no confundir con resultados del capítulo 5).** La validación instrumentada, umbrales y responsables de recolección se documentan en el **Anexo 10** (plan de medición, SUS, métricas RNF4/RNF5).
 
@@ -275,17 +291,17 @@ Las **fuentes primarias** del trabajo son la propuesta formal aprobada —con su
 
 La **Ficha de Trabajo de Grado** enuncia un ciclo de **siete fases** habituales en ingeniería de producto: análisis de requerimientos, diseño, implementación backend, implementación frontend, pruebas, despliegue y evaluación con usuarios/métricas. En el texto del TDG se ha venido resumiendo esto en **cinco resultados esperados** alineados **uno a uno** con los **cinco objetivos específicos formales** —lo cual es académicamente correcto, pero puede sugerir erróneamente que “desaparecieron” despliegue y evaluación. **No es el caso:** la fase de **despliegue** se materializa como actividad transversal de **OE3–OE4** (*build*, variables, orquestación PaaS, migraciones, *health checks*) y como entregable del **Anexo 07**; la fase de **evaluación** se concentra formalmente en **OE5** (E2E, CI, planes SUS y métricas RNF4/RNF5 en **Anexo 10**).
 
-En cada fase-agregado pedagógico, el **objetivo específico** se expresa como **resultado esperado**. Las actividades se enuncian como **sustantivos** de trabajo.
+En cada fase-agregado pedagógico, el **objetivo específico** se expresa como **resultado esperado**. Las actividades se enuncian como **sustantivos** de trabajo. La columna **Propósito investigativo** explicita qué se buscaba validar o construir en cada fase y su vínculo con el objetivo específico (OE) correspondiente.
 
-**Tabla 2.** Fases, actividades y resultados documentales — **cinco objetivos específicos FTG** (entregables oficiales).
+**Tabla 2.** Fases, propósito investigativo, actividades y resultados documentales — **cinco objetivos específicos FTG** (entregables oficiales).
 
-| Fase | Resultado esperado | Actividades principales (sustantivos) | Resultados documentales |
-| --- | --- | --- | --- |
-| I | Análisis de requerimientos | Entrevistas y acuerdos con la contraparte empresarial; consolidación de requerimientos funcionales y no funcionales; trazabilidad matricial; actas | Documentos de análisis, requerimientos y actas en los anexos correspondientes |
-| II | Diseño del sistema (arquitectura, datos, interfaz) | Modelado arquitectónico; modelo entidad–relación; diagramas UML; prototipos de interfaz; bases del manual de usuario | Documento de arquitectura, modelo de datos, diagramas UML, prototipos UI/UX |
-| III | Implementación del servicio backend | Diseño modular por dominios; persistencia parametrizada; contratos REST; documentación interactiva mediante OpenAPI; migraciones; *schedulers* | Servicio ejecutable, catálogo HTTP completo en Anexo 08 |
-| IV | Desarrollo del cliente web | Aplicación de página única con React y Vite; rutas por rol; integración con API; PWA/FCM donde aplica | Cliente compilable, Anexos 06 y 09 |
-| V | Validación y cierre técnico | Pruebas E2E; integración continua; planes de medición desempeño/usabilidad; manual técnico y variables de despliegue | Anexos 07 y 10 |
+| Fase | OE | Propósito investigativo | Actividades principales (sustantivos) | Resultados documentales |
+| --- | --- | --- | --- | --- |
+| I | OE1 | Validar con AlfaNetworks e instituciones las necesidades reales de seguridad, administración y datos personales; fijar RF/RNF medibles y trazables antes de codificar. | Entrevistas y acuerdos con la contraparte empresarial; consolidación de requerimientos funcionales y no funcionales; trazabilidad matricial; actas | Documentos de análisis, requerimientos y actas en los anexos correspondientes |
+| II | OE2 | Contrastar arquitectura, modelo de datos e interfaz con restricciones de seguridad, usabilidad por rol y normativa aplicable; definir artefactos de diseño verificables. | Modelado arquitectónico; modelo entidad–relación; diagramas UML; prototipos de interfaz; bases del manual de usuario | Documento de arquitectura, modelo de datos, diagramas UML, prototipos UI/UX |
+| III | OE3 | Demostrar viabilidad del núcleo transaccional del servicio: persistencia, reglas de negocio, contratos HTTP y trazabilidad operativa en un *backend* modular. | Diseño modular por dominios; persistencia parametrizada; contratos REST; documentación interactiva mediante OpenAPI; migraciones; *schedulers* | Servicio ejecutable, catálogo HTTP completo en Anexo 08 |
+| IV | OE4 | Verificar que el cliente web materialice los flujos críticos por rol —portería, familias, docencia— e integre correctamente los servicios del *backend*. | Aplicación de página única con React y Vite; rutas por rol; integración con API; PWA/FCM donde aplica | Cliente compilable, Anexos 06 y 09 |
+| V | OE5 | Obtener evidencia reproducible de correctitud (E2E, CI) y delinear medición de desempeño y usabilidad en campo sin confundir prueba técnica con piloto institucional. | Pruebas E2E; integración continua; planes de medición desempeño/usabilidad; manual técnico y variables de despliegue | Anexos 07 y 10 |
 
 **Tabla 2b. Correspondencia explícita — siete fases del discurso FTG ↔ cinco objetivos específicos**
 
@@ -323,13 +339,13 @@ Cada una de estas decisiones se retoma en los capítulos **4 y 5** (desarrollo y
 
 ### 2.6. Estructura del documento (representación gráfica)
 
-*[Figura 3. Diagrama orientativo del orden del documento y su relación con los anexos. Representación conforme **Anexo 02** u organigrama documental equivalente aprobado.]*
+*[Figura 3. Diagrama orientativo del orden del documento y su relación con los anexos. Representación conforme [Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) u organigrama documental equivalente aprobado.]*
 
 ### 2.7. Cronograma
 
 El cronograma del proyecto —desde el 24/02/2026 hasta el 21/06/2026— se presenta como diagrama de Gantt elaborado con herramienta de gestión de proyectos.
 
-*[Figura 4. Cronograma Gantt del proyecto Escuela Pass (24/02/2026–21/06/2026). Representación conforme plan de trabajo del **Anexo 01** o figura institucional equivalente.]*
+*[Figura 4. Cronograma Gantt del proyecto Escuela Pass (24/02/2026–21/06/2026). Representación conforme [Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md) (plan de trabajo) o figura institucional equivalente.]*
 
 ---
 
@@ -366,7 +382,7 @@ Los desarrollos instrumentales extensos (catálogo de operaciones HTTP, modelo r
 ```mermaid
 flowchart TB
   subgraph Cliente["Cliente web (React + Vite + Tailwind)"]
-    SPA[SPA / PWA + Service Worker FCM]
+    SPA[SPA + Service Worker FCM]
     QR[html5-qrcode / qrcode.react / Web NFC]
     MAP[Mapbox GL + Geolocalización]
   end
@@ -464,9 +480,13 @@ En el orden regional, estudios tipo **MetaRed** (2024) y reportes de política e
 
 ## 4. DESARROLLO DEL TRABAJO DE GRADO
 
-Este capítulo desarrolla, en orden ascendente por objetivo específico, la narrativa ejecutiva del producto **Escuela Pass**. El nivel de detalle prioriza la síntesis en el cuerpo del texto; los inventarios exhaustivos —operaciones HTTP, columnas de base de datos, flujos por pantalla— se concentran en los anexos.
+Este capítulo desarrolla, en orden ascendente por objetivo específico, la narrativa ejecutiva del producto **Escuela Pass**. El nivel de detalle prioriza la síntesis en el cuerpo del texto; los inventarios exhaustivos —operaciones HTTP, columnas de base de datos, flujos por pantalla— se concentran en los anexos. Cada apartado abre con el propósito investigativo de la fase, expone la solución técnica en párrafos acotados y cierra con la lectura operativa para la institución.
+
+**Escuela Pass** se concibe como plataforma única con autorización coherente en servidor y trazas persistidas. No sustituye el criterio pedagógico ni la interpretación jurídica definitiva; instrumenta protocolos definidos por la institución y declara límites operativos —cobros sin pasarela bancaria automática, degradación controlada de servicios externos opcionales cuando faltan credenciales— sin atribuirse capacidades que no entrega.
 
 ### 4.1. Análisis de requerimientos (objetivo específico 1)
+
+**Propósito de la fase (OE1).** Consolidar un lenguaje común entre la empresa, las instituciones y el autor del grado: quiénes son los actores, qué procesos deben quedar trazados y qué reglas de negocio no son negociables antes de diseñar o codificar.
 
 Las conversaciones con la contraparte empresarial consensuaron cinco grandes familias usuarias: el **administrador de plataforma**, con alcance multi‑institución; el **personal administrativo** de cada escuela; el **docente**; el **padre o tutor**; y el **alumno**. La **Tabla 6** resume responsabilidades macroscópicas.
 
@@ -495,27 +515,39 @@ flowchart LR
 | Padre o tutor | **Inicia** circuito, vehículos, consentimientos, consultas académicas/finanzas/comunicaciones. |
 | Alumno | Consultas autorizadas sobre horario, calificaciones, boletines y credencial. |
 
-Las reglas de negocio publicadas incluyen ventana antiduplicación breve entre escaneos equivalentes el mismo día, **una solicitud activa de circuito por estudiante por día**, **verificación humana** de pagos sin pasarela, y transiciones **lifecycle** de personas con efecto sobre sesiones (Anexo 01, sección 7).
+Las reglas de negocio publicadas incluyen ventana antiduplicación breve (~10 s) entre **cualquier** escaneo del mismo usuario en la misma escuela (respuesta **201** con `duplicate=true` sin nuevo evento), **una solicitud activa de circuito por estudiante por día**, **verificación humana** de pagos sin pasarela, y transiciones **lifecycle** de personas con efecto sobre sesiones (Anexo 01, sección 7).
+
+**Lectura operativa.** Para la institución, OE1 dejó escrito qué puede exigir el software en portería, salida familiar y administración sin ambigüedad; ese inventario condiciona todo el desarrollo posterior.
 
 *[Figura 7. Diagrama UML de casos de uso del sistema Escuela Pass agrupado por los cinco actores institucionales, conforme a la notación UML 2.5.1 (OMG, 2017). Representación conforme **Anexo 05**.]*
 
 ### 4.2. Diseño del sistema, datos e interfaz (objetivo específico 2)
 
-La arquitectura lógica separa el servicio NestJS —autenticado por JWT (RFC 7519; IETF, 2015)— del cliente SPA que consume HTTPS y JSON. El modelo persistente cuenta **49 entidades TypeORM**, materializadas en el código fuente como archivos de entidad dedicados, más la tabla que registra las **39 migraciones** versionadas (**Anexo 04**).
+**Propósito de la fase (OE2).** Traducir el problema institucional en modelos verificables —arquitectura, datos, interfaz y seguridad— que guíen la implementación sin improvisar estructuras en código.
 
-**Nota metodológica sobre las cifras 49 / 241.** Los recuentos se obtienen del inventario descrito en los **Anexos 03 y 08**: conciliación entre catálogo REST y contrato OpenAPI en tiempo de ejecución cuando existan diferencias por prefijos o rutas dinámicas.
+Para mejorar la mantenibilidad y la escalabilidad del sistema, se definió una arquitectura lógica que separa el servicio de aplicación del cliente web que consume sus contratos. El servicio se autentica mediante tokens portadores (JWT; RFC 7519; IETF, 2015); el cliente es una aplicación de página única que consume HTTPS y JSON.
 
-La UX prioriza ergonomía diferenciada (Nielsen, 1994; Norman, 2013): alta densidad tabular para docentes; **toques mínimos** en flujos móviles de padres. Decisiones delicadas —**tokens en almacenamiento del navegador** (véase la sección 2.5 (**f**)), exposición Swagger sólo fuera de producción endurecida, endurecimiento BFF pendiente— se tabulan también en **Anexo 03, sección 12**.
+El modelo persistente cuenta **49 entidades TypeORM**, materializadas en archivos dedicados, más la tabla que registra las **39 migraciones** versionadas (**Anexo 04**). Los recuentos de **49 entidades** y **241 operaciones HTTP** se obtienen del inventario en los **Anexos 03 y 08**, con conciliación frente al contrato OpenAPI en tiempo de ejecución cuando existan diferencias por prefijos o rutas dinámicas.
+
+La experiencia de usuario prioriza ergonomía diferenciada por rol (Nielsen, 1994; Norman, 2013): alta densidad tabular para docentes y **toques mínimos** en flujos móviles de padres. Decisiones delicadas —**tokens en almacenamiento del navegador** (sección 2.5 (**f**)), exposición de documentación interactiva sólo fuera de producción endurecida, endurecimiento BFF pendiente— se tabulan en **Anexo 03, sección 12**.
+
+**Lectura operativa.** OE2 entregó el mapa con el que la dirección y el equipo técnico pueden discutir alcance, riesgos y prioridades antes de desplegar en un plantel piloto.
 
 ### 4.3. Implementación del backend (objetivo específico 3)
 
-El servicio se construyó con **NestJS** (NestJS Team, s. f.; OpenJS Foundation, s. f.), **TypeORM** parametrizado y **PostgreSQL**. En el arranque aplica prefijo configurable `api/v1`, ejecuta migraciones transaccionales y un saneo **idempotente** del esquema frente a despliegues en PaaS (coherencia esquema–código documentada en Anexo 03).
+**Propósito de la fase (OE3).** Demostrar que el núcleo transaccional del producto —identidad, acceso, circuito, académico, finanzas, comunicación— puede ejecutarse de forma coherente, auditable y desplegable en un entorno realista.
 
-El inventario ejecutable resume: **37** módulos en la composición raíz del servicio, **32** controladores y **241** operaciones REST. Conviven (**a**) **asistencia diaria por grupo** y (**b**) **asistencia por sesión de clase** con parámetro de negocio `ATTENDANCE_ENTRY_GRACE_MINUTES`. Los **imports Excel** (grupos, alumnos, docentes, asignaciones y vínculos) persisten estado en tabla `import_jobs`. El servicio expone **salud del servicio** y **salud de almacenamiento** (esta última restringida a **ADMIN**) para supervisión operativa mínima.
+Para mejorar la mantenibilidad y escalabilidad del sistema, se implementó una **arquitectura modular** en el *backend*. Esta estrategia permite separar responsabilidades por dominio escolar y facilita futuras actualizaciones sin reescribir el núcleo. El servicio se construyó con **NestJS** (NestJS Team, s. f.; OpenJS Foundation, s. f.), **TypeORM** y **PostgreSQL** (PostgreSQL Global Development Group, s. f.).
+
+En el arranque aplica prefijo configurable `api/v1`, ejecuta migraciones transaccionales y un saneo **idempotente** del esquema frente a despliegues en PaaS (coherencia esquema–código documentada en Anexo 03).
+
+El inventario ejecutable resume: **37** módulos en la composición raíz del servicio, **32** controladores y **241** operaciones REST. Conviven (**a**) **asistencia diaria por grupo** y (**b**) **asistencia por sesión de clase** con parámetro de negocio `ATTENDANCE_ENTRY_GRACE_MINUTES`. Los **imports Excel** persisten estado en tabla `import_jobs`. El servicio expone señales de salud del servicio y del almacenamiento para supervisión operativa mínima.
+
+**Lectura operativa.** OE3 materializó las reglas que portería, familias y administración necesitan en servidor: una sola fuente de verdad y trazas consultables ante reclamos.
 
 #### 4.3.1. Seguridad pragmática del producto (síntesis)
 
-El endurecimiento sigue líneas OWASP habituales a nivel aplicación: **cabeceras HTTP** endurecidas, **CORS** parametrizado por entorno, **limitación global de tasa** de peticiones con reglas adicionales en rutas sensibles de autenticación, **validación estricta** de objetos de entrada, **hash bcrypt** de contraseñas, **JWT de acceso y *refresh*** con política de rotación acorde al servicio de autenticación y consulta del estado del usuario en cada solicitud autenticada, **bloqueo temporal por intentos fallidos** de inicio de sesión (en memoria del proceso), **validación binaria** de archivos subidos más controles de tamaño y tipo declarado, **separación entre buckets públicos y privados** con descarga autenticada del contenido sensible, **política declarada de soporte** para el rol plataforma **ADMIN** que atraviesa listas de roles de escuela —sin ocultar el riesgo operativo— y **respuestas HTTP coherentes** alineadas con *Problem Details* donde aplica. El detalle por artefacto, variables y rutas figura en **Anexo 03 sección 4.1** y enlaces al contrato en **Anexo 08**.
+En términos de riesgo institucional, la seguridad del producto busca reducir accesos indebidos, abuso de interfaces y exposición de archivos sensibles. El endurecimiento sigue líneas OWASP habituales a nivel aplicación: **cabeceras HTTP** endurecidas, **CORS** parametrizado por entorno, **limitación global de tasa** de peticiones con reglas adicionales en rutas sensibles de autenticación, **validación estricta** de objetos de entrada, **hash bcrypt** de contraseñas, **JWT de acceso y *refresh*** con política de rotación acorde al servicio de autenticación y consulta del estado del usuario en cada solicitud autenticada, **bloqueo temporal por intentos fallidos** de inicio de sesión (en memoria del proceso), **validación binaria** de archivos subidos más controles de tamaño y tipo declarado, **separación entre buckets públicos y privados** con descarga autenticada del contenido sensible, **política declarada de soporte** para el rol plataforma **ADMIN** que atraviesa listas de roles de escuela —sin ocultar el riesgo operativo— y **respuestas HTTP coherentes** alineadas con *Problem Details* donde aplica. El detalle por artefacto, variables y rutas figura en **Anexo 03 sección 4.1** y enlaces al contrato en **Anexo 08**.
 
 #### 4.3.2. Persistencia, migraciones y *schedulers*
 
@@ -532,12 +564,12 @@ sequenceDiagram
   U->>C: Escanear credencial
   C->>A: POST /access-events/scan
   A->>DB: Validar credencial + ventana antiduplicación (~10s)
-  alt Duplicado reciente
-    A-->>C: 409 / mensaje controlado
+  alt Duplicado reciente (mismo usuario, misma escuela)
+    A-->>C: 201 + duplicate=true (sin nuevo evento)
   else Válido
     A->>DB: Insertar evento acceso
-    A->>DB: Marcar asistencia diaria / sesión según reglas
-    A-->>C: 201 + detalle
+    A->>DB: Marcar asistencia diaria si ENTRY alumno (ATTENDANCE_ENTRY_GRACE_MINUTES)
+    A-->>C: 201 + detalle persona
   end
 ```
 
@@ -561,21 +593,27 @@ sequenceDiagram
 
 ### 4.4. Desarrollo del frontend (objetivo específico 4)
 
-El cliente es una **SPA** con **React 18**, **Vite 6**, **Tailwind CSS 3**, **React Router DOM v7**, **Axios** con interceptores JWT y refresco silencioso, y estado de sesión centralizado en almacenamiento del navegador. La navegación autenticada aplica **control de políticas de privacidad** obligatorio y **filtros de interfaz por rol** coherentes con la lista permitida en servidor; la **autorización real** permanece en los guardias JWT y de roles del backend.
+**Propósito de la fase (OE4).** Verificar que padres, docentes, administrativos y alumnos puedan completar en interfaz los flujos críticos definidos en OE1, con ergonomía acorde a escritorio y móvil.
 
-Las capacidades físicas combinadas incluyen captura por **cámara** para QR, render de credencial QR, **Web NFC** en navegadores compatibles (principalmente Chromium/Android; iOS limitado frente a Core NFC nativo), **mapas Mapbox** con variables `VITE_*` tipadas en compilación, y **FCM web** mediante *service worker* y canal entre pestañas para coordinar navegación tras una notificación.
+El cliente es una **SPA** con **React 18**, **Vite 6**, **Tailwind CSS 3** y **React Router DOM v7**. La sesión se gestiona con interceptores de token y refresco silencioso; la navegación autenticada exige **aceptación de políticas de privacidad** y **filtros por rol** alineados al servidor, sin confundir interfaz con autorización real —esta última permanece en los guardias del *backend*.
 
-El modo **PWA** (*service worker* FCM) se documenta técnico como extensión, no como certificación oficial de instalabilidad institucional. Los flujos de circuito utilizan **geolocalización continua del navegador** cuando el usuario otorga permiso.
+**Acceso físico en plantel.** Se combinan captura por cámara para QR, render de credencial y **Web NFC** donde el navegador lo permite (Chromium/Android; limitaciones en iOS frente a NFC nativo). Esto acerca la operación de portería a dispositivos que el personal ya porta, sin exigir hardware propietario adicional en el alcance del grado.
 
-Las extensiones multi‑institución, visitas, reuniones y anotaciones amplían alcance ejecutado conforme a la sección 3.5 sin alterar objetivos FTG formales. El inventario de pantallas, scripts y variables del cliente figura en los **Anexos 06 y 07**.
+**Circuito y comunicación.** Los flujos familiares usan **geolocalización del navegador** cuando el usuario otorga permiso y mapas con degradación elegante si faltan credenciales externas. Las notificaciones web emplean *service worker* y canal entre pestañas; no se certifica instalación PWA completa en el alcance actual.
+
+Las extensiones multi‑institución, visitas, reuniones y anotaciones amplían alcance ejecutado conforme a la sección 3.5 sin alterar objetivos FTG formales. El inventario de pantallas figura en los **Anexos 06 y 07**.
+
+**Lectura operativa.** OE4 hace usable lo que OE3 gobierna en servidor: el plantel puede operar portería y familias pueden iniciar circuito desde el móvil con retroalimentación clara.
 
 ### 4.5. Validación y cierre técnico (objetivo específico 5)
 
-Se instrumentaron **47** casos **E2E** con **Jest** y **PostgreSQL** real repartidos en **tres especificaciones** (desglose y umbrales en **Anexo 10**).
+**Propósito de la fase (OE5).** Obtener evidencia reproducible de que los flujos críticos se comportan según las reglas publicadas y dejar instrumentado el plan para medir desempeño y usabilidad en campo.
 
-La **integración continua del backend** instala dependencias, compila el servicio y ejecuta la suite E2E contra **PostgreSQL 16** (**Anexo 07**). **No** existe aún una puerta equivalente de compilación y revisión estática del **cliente web** —brecha reconocida y priorizada en capítulo 7.
+Se instrumentaron **47** casos **E2E** con **Jest** y **PostgreSQL** real repartidos en **tres especificaciones** (desglose en **Anexo 10**). La **integración continua del backend** compila el servicio y ejecuta la suite E2E contra **PostgreSQL 16** (**Anexo 07**).
 
-La medición SUS, métricas de latencia bajo carga real e instrumentación de las hipótesis de la sección 1.2.6 quedan como **plan de medición** detallado en **Anexo 10** (no como resultados cuantitativos cerrados en este TDG).
+**No** existe aún una puerta equivalente de compilación y revisión estática del **cliente web** —brecha reconocida y priorizada en capítulo 7. La medición SUS, métricas de latencia bajo carga real e instrumentación de las hipótesis de la sección 1.2.6 quedan como **plan de medición** en **Anexo 10**, no como resultados cuantitativos cerrados en este TDG.
+
+**Lectura operativa.** OE5 no sustituye un piloto institucional, pero demuestra que el producto resiste regresiones técnicas y que las afirmaciones del texto pueden contrastarse con pruebas automatizadas.
 
 ---
 
@@ -583,13 +621,25 @@ La medición SUS, métricas de latencia bajo carga real e instrumentación de la
 
 ### 5.1. Síntesis frente a la pregunta de investigación
 
-La pregunta de la sección 1.1.4 interrogó cómo una aplicación AlfaNetworks sobre **NestJS**, **PostgreSQL**, **QR/NFC/Web NFC** puede **optimizar** seguridad física, datos personales y administración escolar privada en México, en marco LFPDPPP/INAI. La respuesta de este capítulo afirma, con soporte documental–repositorio, que **Escuela Pass materializa ese “cómo” en un caso verificable**: **241 rutas REST**, **49 entidades**, **47 E2E** y **cartera de controles** resumida en la sección 4.3.1. La contribución ingenieril no es sólo pantallas sino **trazabilidad** —matriz RF/RNF (Anexo 00), obligación de aceptación de políticas de privacidad en cliente, auditoría con retención y dominios institucionalmente típicos (asistencias duales, importaciones Excel, SLA en reportes). El límite explícito: la **optimización económico–operativa** prometida en porcentajes de la propuesta inicial **no se declara cerrada**, sino **hipotecada** por pilotaje (secciones 1.2.6 y 5.3; Anexo 10).
+La pregunta de fondo del trabajo —por qué importa intervenir en seguridad física, coordinación familiar y administración escolar en instituciones privadas mexicanas— encuentra respuesta en la problemática de la **Tabla 1** y en la justificación por impactos del capítulo 1. Los resultados obtenidos evidencian que es posible **reducir la fragmentación operativa** mediante un canal único con roles diferenciados, **mejorar la trazabilidad** de accesos, circuito de salida, asistencias y cartera, y **ofrecer apoyos documentados** al tratamiento de datos personales, sin sustituir el criterio pedagógico ni la asesoría jurídica de la institución.
 
-### 5.2. Cumplimiento por objetivo específico (lectura narrada)
+En cuanto a la pregunta formal de la sección 1.1.4, la respuesta técnica afirma, con soporte documental–repositorio, que **Escuela Pass materializa el “cómo” en un caso verificable**: **241 rutas REST**, **49 entidades**, **47 pruebas E2E** y la cartera de controles resumida en la sección 4.3.1. La contribución no es sólo un conjunto de pantallas, sino **trazabilidad** —matriz RF/RNF (Anexo 00), aceptación de políticas de privacidad, auditoría con retención y dominios típicos del sector (asistencias duales, importaciones Excel, SLA en reportes). El límite explícito: la **optimización económico–operativa** en porcentajes de la propuesta inicial **no se declara cerrada**, sino **hipotecada** por pilotaje (secciones 1.2.6 y 5.4; Anexo 10).
 
-Los cinco objetivos FTG funcionan como capas acumulativas más que como episodios aislados. **OE1** ancló lenguaje de negocio y reglas públicas ante familias y docentes; sin esa capa, el resto sería especulación. **OE2** transmutó actores y RF en modelos contrastables con evidencias del repositorio: ER de 49 tablas, UML y recorrido de interfaz alineados a rutas reales. **OE3** consolidó el corazón transaccional: NestJS modular, migraciones, *schedulers* y mitigaciones OWASP alineadas (Top 10 web 2021 + API Top 10 2023). **OE4** produjo un cliente coherente con la realidad móvil escolar (cámara, geolocalización, Mapbox degradable, FCM opcional). **OE5** selló el argumento con **integración continua** y **E2E** numéricamente acotados, sin confundir automatización con validación humana de usabilidad.
+### 5.2. Interpretación de los resultados
 
-### 5.3. Hipótesis cuantitativas de la FTG: estado al cierre académico
+| Eje de lectura | Qué se evidenció | Problema que atenúa | Beneficio concreto |
+| --- | --- | --- | --- |
+| Operación integrada | Un solo producto cubre portería, circuito familiar, académico, finanzas y comunicación con reglas publicadas | Dispersión de registros y canales informales | Menor duplicidad de datos y mayor capacidad de reconstruir hechos |
+| Seguridad y acceso | Credenciales QR/NFC, antiduplicación de escaneo, autorización en servidor | Accesos frágiles y disputas en portería | Registros consultables y decisiones alineadas a identidad digital |
+| Salida coordinada | Circuito operado por padre/tutor con estados explícitos y apoyo de ubicación | Incertidumbre familiar en horarios críticos | Visibilidad ordenada para familias y personal de portería |
+| Datos personales | Políticas versionadas, aceptaciones con marca temporal, auditoría | Riesgos LFPDPPP y confianza debilitada | Evidencia técnica de diligencia; no sustituye asesoría jurídica |
+| Validación ingenieril | 47 E2E, CI del *backend*, inventarios en anexos | Afirmaciones no contrastables con código | Reproducibilidad académica y base para piloto institucional |
+
+### 5.3. Cumplimiento por objetivo específico (lectura narrada)
+
+Los cinco objetivos FTG funcionan como capas acumulativas. **OE1** fijó lenguaje de negocio y reglas públicas; sin esa capa, el resto sería especulación. **OE2** entregó modelos contrastables con el repositorio (ER, UML, interfaz). **OE3** consolidó el núcleo transaccional con arquitectura modular, migraciones y mitigaciones de seguridad documentadas. **OE4** acercó esos flujos a dispositivos reales de familias y portería. **OE5** aportó evidencia automatizada reproducible y un plan explícito de medición en campo, sin confundir prueba técnica con usabilidad validada por usuarios finales.
+
+### 5.4. Hipótesis cuantitativas de la FTG: estado al cierre académico
 
 Las **Tabla A** de la sección 1.2.6 resume expectativas de la propuesta. Al cierre documental:
 
@@ -597,11 +647,11 @@ Las **Tabla A** de la sección 1.2.6 resume expectativas de la propuesta. Al cie
 - El **instrumento** candidato será combinación de trazas operativas y de auditoría, encuestas SUS por rol y hojas de registro piloto definidas en el **Anexo 10 — sección 9.1** (*Hipótesis económico‑operativas de la FTG ↔ instrumentación ↔ entorno*).
 - El **contraste honesto**: el proyecto **cumple OE5** mediante prueba técnica automatizada —no mediante evidencia contable de −35 % o ROI a 12 meses.
 
-### 5.4. Límites de la evidencia de medición
+### 5.5. Límites de la evidencia de medición
 
 Las pruebas E2E prueban **correctitud contractual** sobre PostgreSQL típico de integración continua —no **stress** multisitio ni patrones XSS en producción endurecida. El *lockout* en memoria y la excepción declarada para el rol **ADMIN** de plataforma son decisiones válidas pero imponen supuestos de despliegue (réplicas frente a instancia única, confianza operativa del rol ADMIN). Finalmente, **métricas de productividad institucional** dependen del contexto organizacional ajeno al repositorio versionado.
 
-### 5.5. Papel de las decisiones técnicas evolutivas
+### 5.6. Papel de las decisiones técnicas evolutivas
 
 Las trayectorias **Railway**, **Mapbox** con validación **Haversine** en servidor, bibliotecas QR adoptadas y **padre/tutor como operador RF3** no son improvisaciones tardías: cerraron fricciones reales (**motivo–problema–beneficio**, la sección 2.5). Su efecto observable es una **demostrabilidad** mayor del producto **sin erosionar la pregunta de investigación** —que permanece nominalmente centrada en México y tratamiento LFPDPPP, con Colombia según la sección 1.1.6 como extensión documentada no ejecutada aquí.
 
@@ -609,11 +659,25 @@ Las trayectorias **Railway**, **Mapbox** con validación **Haversine** en servid
 
 ## 6. CONCLUSIONES
 
-Escuela Pass demuestra, al término de este trabajo de grado, que es posible **integrar de forma ingenieril** —en una única aplicación producto SPA + API modular— seguridad física por credenciales, circuito familia–portería con geodatos tratados de forma consciente, gobierno académico–financiero y cumplimiento **asistido** mediante privacidad versionada y auditoría. La conclusión no es ornamental: el **paso decisivo** fue **exigir correspondencia texto–código** (numeración estable de entidades, rutas REST y lista E2E) que permite una **auditoría fundamentada** sin invocación retórica.
+### 6.1. Conclusión general
 
-Respecto a los objetivos específicos, puede afirmarse con confianza académica que **OE1–OE4 están satisfechos en entregables** coherentes con la FTG, y que **OE5 está satisfecho como validación automatizada reproducible más plan de campo futuro**. La **literatura económico–operativa proyectada en la FTG permanece pendiente**, y ello **no debilita** la tesis sino que **demarca con transparencia** la frontera entre **ingeniería de software probada mediante integración continua versionada** y **consultoría de optimización institucional medida a escala de años**.
+Al término de este trabajo de grado, el proyecto permitió demostrar la viabilidad de atender —mediante una plataforma web trazable— la fragmentación entre seguridad en portería, coordinación con familias, administración escolar y tratamiento responsable de datos personales en instituciones educativas privadas de México. Los resultados muestran una mejora en la **capacidad de registro y consulta** de actos sensibles y una base para reducir procesos manuales dispersos, siempre dentro de los límites operativos declarados (sin pasarela automática, sin sustituir asesoría jurídica, sin métricas de ahorro ya medidas en campo).
 
-Frente a la pregunta de investigación, la síntesis final es afirmativa con matices: **sí existe un camino técnico** —desarrollado aquí— para mejorar seguridad física **y** soporte a la LFPDPPP vía proceso; **esa mejora cuantitativa global** debe probarse después con pilotos estadísticos y no puede adjudicársele valor todavía sin mediciones.
+### 6.2. Conclusiones por objetivo específico
+
+| OE | Logro principal | Impacto alcanzado | Límite reconocido |
+| --- | --- | --- | --- |
+| OE1 | RF/RNF, actores y reglas de negocio documentados y trazables (Anexos 00, 01, 02) | Lenguaje común empresa–institución–academia | No sustituye estudio estadístico de campo en planteles |
+| OE2 | Arquitectura, ER, UML y prototipos alineados al código (Anexos 03–06) | Modelos auditables frente al repositorio | Decisiones de seguridad con deuda BFF/cookies pendiente |
+| OE3 | *Backend* modular desplegable con 241 operaciones HTTP y persistencia versionada | Núcleo transaccional único para dominios escolares | Excepción operativa del rol ADMIN documentada como riesgo |
+| OE4 | Cliente por rol con flujos móviles críticos (portería, circuito, consultas) | Acercamiento a operación real con dispositivos habituales | CI del *frontend* aún no equivalente al del *backend* |
+| OE5 | 47 E2E y CI del *backend*; plan SUS y métricas (Anexo 10) | Evidencia reproducible de correctitud contractual | Usabilidad y hipótesis cuantitativas FTG pendientes de piloto |
+
+### 6.3. Aporte académico e investigativo
+
+Desde el ámbito académico, el trabajo fortalece competencias de arquitectura de software, seguridad informática, ingeniería de requisitos y validación automatizada en un **caso real** con empresa vinculada. El **paso decisivo** metodológico fue exigir **correspondencia texto–código** (entidades, rutas REST, lista E2E) que permite auditoría fundamentada sin retórica vacía.
+
+Frente a la pregunta de investigación, la síntesis final es **afirmativa con matices**: **sí existe un camino técnico** —desarrollado y documentado aquí— para mejorar seguridad física, coordinación familiar y administración escolar con apoyos al marco LFPDPPP/INAI; **la mejora cuantitativa global** en porcentajes de la propuesta debe probarse después con pilotos institucionales y no puede adjudicarse como resultado cerrado de este grado. Las líneas de trabajo futuro se desarrollan en el capítulo 7.
 
 ---
 
@@ -815,7 +879,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 ## 1. Propósito
 
-Esta matriz documenta la relación entre la propuesta aceptada, la implementación en el repositorio, las operaciones de la interfaz **REST** (Representational State Transfer; Fielding, 2000) sobre el prefijo documental `api/v1`, configurable mediante la variable de entorno `API_PREFIX`, las pantallas del cliente web y los entregables del trabajo de grado. La traza sigue el espíritu de la práctica recomendada de la **IEEE Std 830-1998** sobre especificación de requerimientos (IEEE, 1998) y se complementa con la documentación viva del contrato HTTP en formato **OpenAPI** 3.1.0 (OpenAPI Initiative, 2021), de forma que cada requerimiento quede vinculado a artefactos concretos del repositorio y del cliente.
+Esta matriz documenta la relación entre la problemática institucional descrita en el **capítulo 1** del TDG (sección 1.1 y **Tabla 1**), la propuesta aceptada, la implementación en el repositorio, las operaciones de la interfaz **REST** (Representational State Transfer; Fielding, 2000) sobre el prefijo documental `api/v1`, configurable mediante la variable de entorno `API_PREFIX`, las pantallas del cliente web y los entregables del trabajo de grado. La traza sigue el espíritu de la práctica recomendada de la **IEEE Std 830-1998** sobre especificación de requerimientos (IEEE, 1998) y se complementa con la documentación viva del contrato HTTP en formato **OpenAPI** 3.1.0 (OpenAPI Initiative, 2021), de forma que cada requerimiento quede vinculado a artefactos concretos del repositorio y del cliente.
 
 **Nota de acrónimos.** Para evitar repetir definiciones, este anexo emplea las siglas **RF** (requerimiento funcional), **RNF** (requerimiento no funcional), **API** (Application Programming Interface), **REST**, **JWT** (JSON Web Token; IETF, 2015), **QR** (Quick Response), **NFC** (Near Field Communication), **GPS** (Global Positioning System), **FCM** (Firebase Cloud Messaging), **SMTP** (Simple Mail Transfer Protocol), **CI** (Continuous Integration), **E2E** (*end-to-end*), **DDL** (Data Definition Language), **LFPDPPP** (Cámara de Diputados, 2010) e **INAI** (INAI, s. f.). El glosario consolidado se encuentra al **final del texto principal** del TDG (entrada **Glosario de acrónimos**, tras **Referencias**).
 
@@ -955,7 +1019,13 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 Este anexo se redacta siguiendo el espíritu de la práctica recomendada de la **IEEE Std 830-1998** para especificaciones de requerimientos de software (IEEE, 1998), con criterios de calidad alineados con la **ISO/IEC 25010:2011** (ISO, 2011) y referencias normativas de protección de datos personales en México (Cámara de Diputados, 2010; INAI, s. f.). Las siglas usadas a continuación se definen en su primera mención y se consolidan en el glosario del cuerpo principal: **RF** (requerimiento funcional), **RNF** (requerimiento no funcional), **API** (Application Programming Interface), **REST** (Representational State Transfer; Fielding, 2000), **JWT** (JSON Web Token; IETF, 2015), **QR** (Quick Response), **NFC** (Near Field Communication), **GPS** (Global Positioning System), **SPA** (Single-Page Application), **FCM** (Firebase Cloud Messaging), **SMTP** (Simple Mail Transfer Protocol), **DDL** (Data Definition Language), **LFPDPPP** (Ley Federal de Protección de Datos Personales en Posesión de los Particulares).
 
-**Escuela Pass** es una aplicación web institucional de AlfaNetworks orientada a la administración y seguridad escolar. La solución combina una API construida con NestJS (NestJS Team, s. f.) sobre PostgreSQL (PostgreSQL Global Development Group, s. f.), una SPA con React (React Team, s. f.) y Vite (Vite Team, s. f.), control de acceso por QR y NFC, circuito de recogida iniciado por padres o tutores con apoyo de GPS, comunicación por avisos y notificaciones, gestión académica, pagos con verificación humana, reportes y despliegue en plataforma como servicio.
+### 1.0. Contexto del problema (alineado al capítulo 1 del TDG)
+
+El documento principal desarrolla primero la **problemática humana e institucional**: fragmentación entre portería, salida coordinada con familias, gestión académico–administrativa y comunicación; riesgos sobre datos de menores; y consecuencias sintetizadas en la **Tabla 1** del capítulo 1. Este anexo **operacionaliza** ese planteamiento en requerimientos medibles (RF/RNF, reglas y criterios de aceptación).
+
+### 1.0.1. Alcance de la solución documentada
+
+**Escuela Pass** es la aplicación web institucional de AlfaNetworks que responde a esa problemática: administración y seguridad escolar en un canal único con roles diferenciados. Incluye control de acceso por QR y NFC, circuito de recogida iniciado por padres o tutores con apoyo de GPS, comunicación por avisos y notificaciones, gestión académica, pagos con verificación humana, reportes y despliegue en plataforma como servicio. El detalle de la pila tecnológica (NestJS, PostgreSQL, React, Vite, etc.) figura en el **capítulo 2.4** y en los **Anexos 03, 07 y 08**.
 
 La interpretación oficial del RF3 es que los padres o tutores actúan como conductores del circuito de recogida desde la aplicación web móvil; no se trata de una flota independiente de vehículos escolares administrada por terceros. La geolocalización se usa como apoyo informativo para el mapa y la estimación de llegada y puede registrar automáticamente la llegada al radio del plantel; las autorizaciones institucionales y la confirmación final continúan siendo acciones explícitas.
 
@@ -963,11 +1033,13 @@ La enumeración RF1–RF8 y RNF1–RNF6 de la FTG se expresa aquí en términos 
 
 ### 1.1. Pregunta de investigación (texto de la propuesta)
 
-La propuesta formal plantea la siguiente pregunta, la cual orienta el alcance y la argumentación del trabajo de grado en su conjunto (cuerpo principal y anexos):
+**Pregunta de fondo (síntesis del capítulo 1, sección 1.1.4).** ¿Por qué las instituciones educativas privadas en México requieren un mecanismo integrado que mejore la seguridad física en el plantel, la coordinación con familias y la administración escolar, sin comprometer la protección de datos personales?
+
+**Pregunta formal de la propuesta FTG** —orienta el alcance y la argumentación del trabajo de grado en su conjunto (cuerpo principal y anexos):
 
 > ¿Cómo el desarrollo de una aplicación web de AlfaNetworks basada en arquitecturas escalables con NestJS, PostgreSQL, tecnologías NFC y QR puede optimizar los procesos de seguridad física, protección de datos sensibles y administración escolar en instituciones educativas privadas de México, cumpliendo con los estándares normativos de protección de datos personales?
 
-Los requerimientos RF/RNF y las reglas de este documento constituyen la operacionalización técnica y documental de esa pregunta; el marco legal aplicable al tratamiento de datos en el caso mexicano se desarrolla en el **capítulo de Marco referencial** del texto principal del TDG (LFPDPPP y normativa conexa). Los **cinco objetivos específicos** aprobados en la **FTG** se desarrollan en el TDG sin añadir objetivos formales adicionales; los anexos son **entregables** bajo esos cinco objetivos.
+Los requerimientos RF/RNF y las reglas de este documento constituyen la operacionalización técnica y documental de esa pregunta; la **interpretación de resultados** frente a los objetivos específicos se consolida en el **capítulo 5** del TDG (secciones 5.2 y 5.3). El marco legal aplicable al tratamiento de datos en el caso mexicano se desarrolla en el **capítulo de Marco referencial** del texto principal (LFPDPPP y normativa conexa). Los **cinco objetivos específicos** aprobados en la **FTG** se desarrollan en el TDG sin añadir objetivos formales adicionales; los anexos son **entregables** bajo esos cinco objetivos, con **propósito investigativo por fase** en la **Tabla 2** del capítulo 2.
 
 ---
 
@@ -1066,7 +1138,7 @@ Los **módulos backend** citados corresponden a los *bounded contexts* registrad
 | Código | Criterio medible (HTTP / regla) | Módulos backend (Anexo 03) | Rutas API representativas (Anexo 08) | Rutas y pantallas UI (Anexo 06) |
 | --- | --- | --- | --- | --- |
 | RF1 | `POST .../auth/login` responde **200** con *tokens* ante credenciales válidas; **401** ante credenciales inválidas o cuenta inactiva. `GET .../auth/me` con *Bearer* válido responde **200**. `POST .../auth/forgot-password` y `POST .../auth/reset-password` completan el flujo documentado. Aceptación de políticas bajo `.../privacy/*`. | `AuthModule`, `PrivacyModule`, `AuditModule` (donde aplica registro) | `auth/login`, `auth/me`, `auth/refresh`, `auth/logout`, `auth/forgot-password`, `auth/reset-password`, `privacy/*` | `/login`, `/recuperar-contrasena`, `/restablecer-contrasena`, `/app`, `/app/perfil`; `PrivacyGate` en aplicación autenticada |
-| RF2 | `POST .../access-events/scan` responde **201** ante credencial y método válidos; **400**/**403**/**404** según DTO, rol o credencial; un segundo escaneo equivalente en ventana breve puede responder con indicación de duplicado sin crear evento repetido (regla en servicio de acceso). Asignación NFC: `POST .../access-events/credentials/nfc` (roles administrativos). | `AccessModule` | `access-events/scan`, `access-events/my-qr`, `access-events/credentials/nfc`, consultas de credenciales y eventos | `/app/acceso/escaner` (`EscanerAccesoPage`) |
+| RF2 | `POST .../access-events/scan` responde **201** ante credencial y método válidos; **400**/**403**/**404** según DTO, rol o credencial; un segundo escaneo del mismo usuario en la misma escuela dentro de ~10 s responde **201** con `duplicate=true` sin insertar evento nuevo. Asignación NFC: `POST .../access-events/credentials/nfc` (roles administrativos). | `AccessModule` | `access-events/scan`, `access-events/my-qr`, `access-events/credentials/nfc`, consultas de credenciales y eventos | `/app/acceso/escaner` (`EscanerAccesoPage`) |
 | RF3 | Creación y ciclo de solicitud bajo `.../circuit-requests` con **201** en creación válida; actualización de GPS, avance de padre, señal docente y cambios de estado según implementación; confirmación de entrega explícita. Reglas: una solicitud operacional abierta por estudiante y día; operador familiar es padre/tutor. Los avisos en bandeja asociados al flujo se materializan según la implementación del dominio de circuito (persistencia de notificaciones). | `CircuitModule`, `VehiclesModule`, `DepartureConsentModule` | `circuit-requests`, `circuit-requests/today`, `circuit-requests/:id/map`, `circuit-requests/:id/gps`, `circuit-requests/:id/parent-progress`, `circuit-requests/:id/status`, `circuit-requests/:id/confirm-delivered`, `departure-consent/*` según dominio | `/app/circuito` (`CircuitPadrePage`), `/app/circuito/hoy` (`CircuitTodayPage`), `/app/circuito/:id` (`CircuitDetailPage`) |
 | RF4 | Operaciones CRUD y consultas institucionales bajo `school/*` y `schools/*` retornan **200**/**201** según caso; **403** ante cruces de institución o rol. Importaciones y cargas acotadas a roles autorizados; entrega controlada de archivos con `files/*` cuando aplique. | `SchoolModule`, `SchoolsModule`, `SettingsModule`, `UploadsModule`, `FilesModule` | `school/*`, `schools/*`, `settings/*`, `uploads/*`, `files/*` | `/app/gestion-escolar`, `/app/escuelas`, `/app/institucion`, `/app/importaciones` |
 | RF5 | Registro y consultas de asistencia, actividades y calificaciones con respuestas coherentes (**200**/**201**); boletines y documentos bajo rutas académicas; periodos cerrados aplican reglas de negocio (**400** cuando corresponda). | `AttendanceModule`, `ClassAttendanceModule`, `ActivitiesModule`, `AcademicPeriodsModule`, `ReportCardsModule`, `DocumentsModule`, `SchedulesModule`, `ClassSessionsModule`, `SchoolCalendarModule`, `ExportsModule` | `attendance/*`, `class-attendance/*`, `activities/*`, `academic-periods/*`, `report-cards/*`, `documents/*`, `schedules/*`, `class-sessions/*`, `calendar/*` | `/app/horario`, `/app/modulos/academico`, `/app/modulos/calificaciones-docente`, `/app/modulos/mis-calificaciones`, `/app/modulos/boletines`, `/app/modulos/periodos-academicos` |
@@ -1096,7 +1168,7 @@ Los **módulos backend** citados corresponden a los *bounded contexts* registrad
 | Autenticación | Tras un umbral de intentos fallidos de inicio de sesión, la cuenta puede quedar temporalmente bloqueada; la ventana y el umbral son los definidos en implementación (*lockout* en servicio de autenticación). |
 | Autenticación | La renovación de sesión (`refresh`) mantiene una política de **un *refresh* activo por usuario** con rotación al renovar, simplificando revocación y coherencia de sesión en el MVP. |
 | Multiinstitución | Los usuarios no globales solo pueden operar datos de su escuela, grupo, hijo o asignación. |
-| Acceso (QR/NFC) | Un segundo registro de escaneo equivalente dentro de una **ventana breve** (orden de diez segundos en la implementación actual) se trata como duplicado y no debe generar un nuevo evento de acceso idéntico. |
+| Acceso (QR/NFC) | Un segundo escaneo del **mismo usuario** en la **misma escuela** dentro de una **ventana breve** (~10 s en la implementación actual) responde **201** con `duplicate=true` y **no** inserta un nuevo evento (independiente del tipo ENTRY/EXIT). |
 | Credenciales | Solo puede existir **una** credencial NFC activa por usuario; un UID NFC activo no puede reasignarse a otro usuario sin revocar la asignación previa. |
 | Circuito | Un estudiante solo puede tener una solicitud operacional abierta por día. |
 | Circuito | El padre o tutor solicitante es quien opera el avance familiar; el personal escolar opera la salida institucional. |
@@ -1182,7 +1254,7 @@ El marco normativo y técnico de referencia para los acuerdos abarca la **Ley Fe
 
 ### 2. Antecedentes
 
-El proyecto **Escuela Pass** se desarrolla como trabajo de grado en el marco del programa de **Ingeniería Informática** del **Área de Programas Informáticos y Telecomunicaciones (APIT)**, con base en una **Ficha de Trabajo de Grado (FTG)** previamente aprobada que establece la pregunta de investigación, el objetivo general, los cinco objetivos específicos y los requerimientos funcionales y no funcionales del sistema. La empresa **AlfaNetworks** actúa como contraparte funcional del producto y aporta lineamientos de negocio, contexto institucional sobre el sector de escuelas privadas en México y validación práctica del alcance entregable.
+El proyecto **Escuela Pass** se desarrolla como trabajo de grado en el marco del programa de **Ingeniería Informática** del **Área de Programas Informáticos y Telecomunicaciones (APIT)**, con base en una **Ficha de Trabajo de Grado (FTG)** previamente aprobada que establece la pregunta de investigación, el objetivo general, los cinco objetivos específicos y los requerimientos funcionales y no funcionales del sistema. Las sesiones documentadas aquí parten de la **problemática institucional** sintetizada en la **Tabla 1** del **capítulo 1** del TDG y de los acuerdos que operacionalizan esa necesidad en RF/RNF (**Anexo 01**). La empresa **AlfaNetworks** actúa como contraparte funcional del producto y aporta lineamientos de negocio, contexto institucional sobre el sector de escuelas privadas en México y validación práctica del alcance entregable.
 
 ### 3. Asistentes
 
@@ -1287,11 +1359,11 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **API** (Application Programming Interface), **REST** (Representational State Transfer; Fielding, 2000), **SPA** (Single-Page Application), **JWT** (JSON Web Token; IETF, 2015), **JSON** (JavaScript Object Notation), **CORS** (Cross-Origin Resource Sharing), **CSP** (Content Security Policy), **CSRF** (Cross-Site Request Forgery), **BFF** (Backend for Frontend), **PaaS** (Platform as a Service), **CDN** (Content Delivery Network), **ORM** (Object-Relational Mapper), **DDL** (Data Definition Language), **TLS** (Transport Layer Security), **HTTPS** (Hypertext Transfer Protocol Secure), **QR** (Quick Response), **NFC** (Near Field Communication), **GPS** (Global Positioning System), **FCM** (Firebase Cloud Messaging), **SMTP** (Simple Mail Transfer Protocol), **STRIDE** (Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege).
 
-Escuela Pass es una aplicación web institucional de AlfaNetworks orientada a la administración y seguridad escolar. La solución combina una API construida con NestJS (NestJS Team, s. f.) sobre PostgreSQL (PostgreSQL Global Development Group, s. f.), una SPA con React (React Team, s. f.) y Vite (Vite Team, s. f.), control de acceso por QR y NFC, circuito de recogida iniciado por padres o tutores con apoyo de GPS, comunicación por avisos y notificaciones, gestión académica, pagos, reportes y despliegue en infraestructura PaaS. El estilo arquitectónico REST adoptado para los contratos HTTP sigue la propuesta de Fielding (2000) y se documenta de forma viva mediante OpenAPI 3.1.0 (OpenAPI Initiative, 2021).
+Este anexo documenta la **respuesta técnica** al problema planteado en el capítulo 1 del TDG: una arquitectura modular que concentra identidad, acceso físico, circuito familiar, operación académico–administrativa y comunicación en un producto desplegable. **Escuela Pass** es la aplicación web institucional de AlfaNetworks orientada a la administración y seguridad escolar; el detalle de módulos, contratos HTTP y despliegue se desarrolla en las secciones siguientes.
 
 La interpretación oficial del RF3 es que los padres o tutores actúan como conductores del circuito de recogida desde la aplicación web móvil; no se trata de una flota independiente de vehículos escolares administrada por terceros. La geolocalización se usa como apoyo informativo para el mapa y la estimación de tiempo de llegada (ETA), y puede registrar automáticamente la llegada al radio del plantel; las autorizaciones institucionales y la confirmación final continúan siendo acciones explícitas.
 
-La arquitectura sigue una separación cliente-servidor: una SPA React/Vite consume una API REST NestJS (JSON, cabecera `Authorization: Bearer` con token JWT) bajo un prefijo global configurable (`API_PREFIX`, documentalmente `api/v1`). PostgreSQL concentra la persistencia mediante un ORM (TypeORM, s. f.; Elmasri & Navathe, 2016), mientras Firebase Cloud Messaging (Firebase, s. f.), SMTP, Mapbox (Mapbox, s. f.) y el almacenamiento de archivos actúan como servicios complementarios con degradación elegante cuando faltan credenciales. La política de seguridad pragmática se inspira en el OWASP Top 10 (OWASP Foundation, 2021).
+La arquitectura sigue una separación cliente-servidor: una SPA React/Vite consume una API REST NestJS (JSON, cabecera `Authorization: Bearer` con token JWT) bajo un prefijo global configurable (`API_PREFIX`, documentalmente `api/v1`). PostgreSQL concentra la persistencia mediante un ORM (TypeORM, s. f.; Elmasri & Navathe, 2016), mientras Firebase Cloud Messaging (Firebase, s. f.), SMTP, Mapbox (Mapbox, s. f.) y el almacenamiento de archivos actúan como servicios complementarios con degradación elegante cuando faltan credenciales. El estilo REST (Fielding, 2000) se documenta mediante OpenAPI 3.1.0 (OpenAPI Initiative, 2021). La política de seguridad pragmática se inspira en el OWASP Top 10 (OWASP Foundation, 2021). La narrativa por objetivo específico y las decisiones evolutivas del proyecto figuran en el **capítulo 4** y la **sección 2.5** del TDG.
 
 ## 2. Vista lógica
 
@@ -1490,7 +1562,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **ER** (Entity-Relationship), **DDL** (Data Definition Language), **DML** (Data Manipulation Language), **PK** (Primary Key, llave primaria), **FK** (Foreign Key, llave foránea), **UUID** (Universally Unique Identifier), **ORM** (Object-Relational Mapper), **SQL** (Structured Query Language), **JSONB** (JavaScript Object Notation Binary), **CRUD** (Create, Read, Update, Delete).
 
-El modelo entidad-relación organiza la información crítica de Escuela Pass en dominios institucionales, académicos, financieros, de seguridad física y comunicación, siguiendo los principios del modelo relacional propuesto por Codd (1970) y formalizado en la literatura contemporánea sobre fundamentos de bases de datos (Elmasri & Navathe, 2016). La persistencia se materializa en PostgreSQL (PostgreSQL Global Development Group, s. f.) y se gestiona desde el servicio mediante TypeORM (TypeORM, s. f.). La fuente primaria de nombres de tabla y relaciones son las cuarenta y nueve entidades TypeORM registradas en `buildTypeOrmConfig()` (`src/config/typeorm.config.ts`), con definición en archivos bajo `src/database/entities/`, aplicadas mediante la cadena de migraciones en `src/database/migrations/` y la política de alineación descrita en el **Anexo 03** (persistencia y sección 12.1).
+Este anexo materializa en esquema relacional los dominios que el **capítulo 4** (OE3) y la **Tabla 6** del TDG describen a nivel de actores y responsabilidades: identidad, acceso físico, circuito familiar, operación académico–administrativa y comunicación. El modelo entidad-relación organiza esa información en dominios institucionales, académicos, financieros, de seguridad física y comunicación, siguiendo los principios del modelo relacional propuesto por Codd (1970) y formalizado en la literatura contemporánea sobre fundamentos de bases de datos (Elmasri & Navathe, 2016). La persistencia se materializa en PostgreSQL (PostgreSQL Global Development Group, s. f.) y se gestiona desde el servicio mediante TypeORM (TypeORM, s. f.). La fuente primaria de nombres de tabla y relaciones son las cuarenta y nueve entidades TypeORM registradas en `buildTypeOrmConfig()` (`src/config/typeorm.config.ts`), con definición en archivos bajo `src/database/entities/`, aplicadas mediante la cadena de migraciones en `src/database/migrations/` y la política de alineación descrita en el **Anexo 03** (persistencia y sección 12.1). La trazabilidad RF/RNF ↔ tablas se cruza con el **Anexo 00** y el **Anexo 01**.
 
 ---
 
@@ -1727,7 +1799,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **UML** (Unified Modeling Language; OMG, 2017), **OMG** (Object Management Group), **API** (Application Programming Interface), **REST** (Representational State Transfer; Fielding, 2000), **JWT** (JSON Web Token), **QR** (Quick Response), **NFC** (Near Field Communication), **FCM** (Firebase Cloud Messaging), **GPS** (Global Positioning System), **E2E** (*end-to-end*).
 
-Este anexo agrupa los diagramas UML que explican el comportamiento del sistema a nivel de actores, flujos críticos y organización del backend. Sigue la notación normativa **UML 2.5.1** publicada por la **Object Management Group** (OMG, 2017) y se apoya en literatura aplicada a la modelación orientada a objetos (Booch et al., 2007; Pressman & Maxim, 2020). Complementa los requerimientos del **Anexo 01**, la arquitectura del **Anexo 03**, el modelo de datos del **Anexo 04**, el inventario de interfaz del **Anexo 06** y el **informe de pruebas** del **Anexo 10**, sin sustituir el código ni los contratos HTTP del **Anexo 08**.
+Este anexo agrupa los diagramas UML que explican el comportamiento del sistema a nivel de actores, flujos críticos y organización del backend, en coherencia con la **Tabla 6** del **capítulo 4** (OE2) y la narrativa por objetivo específico del mismo capítulo. Sigue la notación normativa **UML 2.5.1** publicada por la **Object Management Group** (OMG, 2017) y se apoya en literatura aplicada a la modelación orientada a objetos (Booch et al., 2007; Pressman & Maxim, 2020). Complementa los requerimientos del **Anexo 01**, la arquitectura del **Anexo 03**, el modelo de datos del **Anexo 04**, el inventario de interfaz del **Anexo 06** y el **informe de pruebas** del **Anexo 10**, sin sustituir el código ni los contratos HTTP del **Anexo 08**.
 
 ---
 
@@ -1847,8 +1919,8 @@ Los casos de uso se enumeran por actor cubriendo todos los flujos accesibles a c
 
 1. El docente o el personal de seguridad opera el escáner del cliente web sobre la cámara del dispositivo.
 2. El cliente decodifica la credencial QR y envía la lectura al servicio.
-3. El servicio valida la credencial, el contexto institucional (escuela, grupo si aplica) y aplica la regla de ventana de duplicidad: dentro de los segundos posteriores a una lectura idéntica, no se genera un nuevo evento.
-4. El servicio persiste el evento de acceso y, cuando corresponde, marca asistencia diaria automáticamente o registra tardanza si la lectura ocurre fuera del horario tolerado.
+3. El servicio valida la credencial, el contexto institucional (escuela, grupo si aplica) y aplica la regla de ventana de duplicidad (~10 s): si ya hubo un escaneo del mismo usuario en la escuela, responde **201** con `duplicate=true` y el evento previo, sin insertar otro registro.
+4. Si el escaneo es válido, persiste el evento de acceso y, para **alumno** con **ENTRY**, marca o actualiza **asistencia diaria** (`attendance_records`) con estado presente o retardo según `ATTENDANCE_ENTRY_GRACE_MINUTES`; la asistencia por sesión de clase se registra por flujos docentes, no por este escaneo.
 5. El cliente muestra al operador un mensaje de confirmación o alerta según el resultado.
 
 *[Figura 3. Diagrama de secuencia del escaneo QR de credencial con regla antiduplicación y marcado automático de asistencia. Recomendado: Lucidchart con Lucid AI.]*
@@ -2015,7 +2087,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **UI** (User Interface), **UX** (User Experience), **SPA** (Single-Page Application), **WCAG** (Web Content Accessibility Guidelines), **CSS** (Cascading Style Sheets), **DOM** (Document Object Model), **SUS** (System Usability Scale).
 
-Este anexo describe los criterios de interfaz, el inventario de pantallas implementadas en el cliente React (React Team, s. f.) con Vite (Vite Team, s. f.) y el encaminamiento declarado en código. Los criterios UX adoptados se inspiran en las heurísticas de usabilidad clásicas (Nielsen, 1994), los principios de diseño centrado en el usuario (Norman, 2013), las pautas de accesibilidad WCAG 2.2 (W3C, 2023) y el enfoque pragmático de simplicidad propuesto por Krug (2014). La medición de usabilidad planificada se apoya en la SUS (Brooke, 1996) y sus benchmarks contemporáneos (Lewis & Sauro, 2018). Complementa los requerimientos del **Anexo 01**, la arquitectura del **Anexo 03**, los diagramas del **Anexo 05**, los contratos HTTP del **Anexo 08**, el **manual de usuario** del **Anexo 09** y el **informe de pruebas y métricas** del **Anexo 10**.
+Este anexo describe los criterios de interfaz, el inventario de pantallas implementadas en el cliente React (React Team, s. f.) con Vite (Vite Team, s. f.) y el encaminamiento declarado en código, como entregable del **OE4** desarrollado en el **capítulo 4** del TDG (lectura operativa de usabilidad por rol). Los criterios UX adoptados se inspiran en las heurísticas de usabilidad clásicas (Nielsen, 1994), los principios de diseño centrado en el usuario (Norman, 2013), las pautas de accesibilidad WCAG 2.2 (W3C, 2023) y el enfoque pragmático de simplicidad propuesto por Krug (2014). La medición de usabilidad planificada se apoya en la SUS (Brooke, 1996) y sus benchmarks contemporáneos (Lewis & Sauro, 2018); la **interpretación** de esos resultados frente a RNF5 se consolida en el **capítulo 5** (sección 5.2) y en el **Anexo 10**. Complementa los requerimientos del **Anexo 01**, la arquitectura del **Anexo 03**, los diagramas del **Anexo 05**, los contratos HTTP del **Anexo 08**, el **manual de usuario** del **Anexo 09** y el **informe de pruebas y métricas** del **Anexo 10**.
 
 ---
 
@@ -2223,7 +2295,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **CLI** (Command Line Interface), **ENV** (Environment, variables de entorno), **CI/CD** (Continuous Integration / Continuous Deployment), **DNS** (Domain Name System), **TLS** (Transport Layer Security), **HTTPS** (Hypertext Transfer Protocol Secure), **PaaS** (Platform as a Service), **CDN** (Content Delivery Network), **ORM** (Object-Relational Mapper), **SMTP** (Simple Mail Transfer Protocol), **FCM** (Firebase Cloud Messaging), **JWT** (JSON Web Token).
 
-Este anexo describe requisitos, instalación local, base de datos, despliegue, mantenimiento y variables críticas del monorepo Escuela Pass: API construida con NestJS (NestJS Team, s. f.) sobre Node.js (OpenJS Foundation, s. f.) y PostgreSQL (PostgreSQL Global Development Group, s. f.) con TypeORM (TypeORM, s. f.); cliente con React (React Team, s. f.) y Vite (Vite Team, s. f.). El despliegue de referencia se realiza sobre Railway para servicio y base, con alojamiento estático del cliente en Vercel u homólogo, y la integración continua se automatiza en GitHub Actions (GitHub, s. f.). Profundiza en lo operativo sin duplicar el detalle de módulos y rutas HTTP: ese nivel de referencia vive en `docs/technical-setup.md`, el **Anexo 03** (arquitectura) y el **Anexo 08** (API). El detalle de pantallas y rutas del cliente está en el **Anexo 06**. La sección 13 consolida líneas de mejora profesionales y académicas.
+Este anexo describe requisitos, instalación local, base de datos, despliegue, mantenimiento y variables críticas del monorepo Escuela Pass: API construida con NestJS (NestJS Team, s. f.) sobre Node.js (OpenJS Foundation, s. f.) y PostgreSQL (PostgreSQL Global Development Group, s. f.) con TypeORM (TypeORM, s. f.); cliente con React (React Team, s. f.) y Vite (Vite Team, s. f.). Corresponde a la fase de **despliegue** del discurso FTG (mapeada en la **Tabla 2** del capítulo 2 como actividad transversal de **OE3–OE4**, no como un sexto objetivo formal). El despliegue de referencia se realiza sobre Railway para servicio y base, con alojamiento estático del cliente en Vercel u homólogo, y la integración continua se automatiza en GitHub Actions (GitHub, s. f.). Profundiza en lo operativo sin duplicar el detalle de módulos y rutas HTTP: ese nivel de referencia vive en `docs/technical-setup.md`, el **Anexo 03** (arquitectura) y el **Anexo 08** (API). El detalle de pantallas y rutas del cliente está en el **Anexo 06**. La sección 13 consolida líneas de mejora profesionales y académicas.
 
 *[Figura 1. Diagrama de despliegue real: API Node.js/NestJS sobre Railway con PostgreSQL administrada y cliente estático en Vercel con CDN, integraciones opcionales (FCM, Mapbox, SMTP). Recomendado: Lucidchart con asistencia de Lucid AI o Eraser AI.]*
 
@@ -2503,7 +2575,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **API** (Application Programming Interface), **REST** (Representational State Transfer; Fielding, 2000), **HTTP** (Hypertext Transfer Protocol), **HTTPS** (Hypertext Transfer Protocol Secure), **URI** (Uniform Resource Identifier), **JSON** (JavaScript Object Notation), **MIME** (Multipurpose Internet Mail Extensions), **JWT** (JSON Web Token; IETF, 2015), **CORS** (Cross-Origin Resource Sharing), **DTO** (Data Transfer Object), **OpenAPI** (Open API Initiative, 2021), **PDF** (Portable Document Format), **XLSX** (Office Open XML Spreadsheet), **RFC** (Request for Comments).
 
-Este anexo resume la API REST del backend NestJS para el trabajo de grado: dominios, seguridad, formatos de respuesta, trazabilidad por RF y catálogo de rutas inferidas del código. El estilo arquitectónico REST sigue la propuesta de Fielding (2000); la autenticación adopta el formato JWT especificado en el RFC 7519 (IETF, 2015); la seguridad de la API se alinea con las recomendaciones de la OWASP Foundation (2023) en su API Security Top 10. La especificación viva es OpenAPI 3.1.0 / Swagger en `GET /docs` cuando el despliegue la habilita (OpenAPI Initiative, 2021); ante discrepancias de redacción entre este texto y Swagger, prevalece Swagger. Las rutas del cliente que consumen estos contratos están en el **Anexo 06**; el modelo persistido, en el **Anexo 04**. La sección 12 consolida líneas de mejora profesionales y académicas vinculadas a contratos HTTP y documentación de la API.
+Este anexo resume la API REST del backend NestJS para el trabajo de grado: dominios, seguridad, formatos de respuesta, trazabilidad por RF y catálogo de rutas inferidas del código. Constituye la evidencia contractual del **OE3** narrado en el **capítulo 4** y enlazado en la **matriz del Anexo 00**. El estilo arquitectónico REST sigue la propuesta de Fielding (2000); la autenticación adopta el formato JWT especificado en el RFC 7519 (IETF, 2015); la seguridad de la API se alinea con las recomendaciones de la OWASP Foundation (2023) en su API Security Top 10. La especificación viva es OpenAPI 3.1.0 / Swagger en `GET /docs` cuando el despliegue la habilita (OpenAPI Initiative, 2021); ante discrepancias de redacción entre este texto y Swagger, prevalece Swagger. Las rutas del cliente que consumen estos contratos están en el **Anexo 06**; el modelo persistido, en el **Anexo 04**. La sección 12 consolida líneas de mejora profesionales y académicas vinculadas a contratos HTTP y documentación de la API.
 
 *[Figura 2. Captura de Swagger/OpenAPI con todas las etiquetas de dominio expandidas. Recomendado: captura del entorno de desarrollo o staging con datos sintéticos.]*
 
@@ -2982,7 +3054,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **UI** (User Interface), **UX** (User Experience), **OTP** (One-Time Password), **RSVP** (*Répondez s'il vous plaît*, confirmación de asistencia), **FCM** (Firebase Cloud Messaging), **QR** (Quick Response), **NFC** (Near Field Communication), **SUS** (System Usability Scale), **WCAG** (Web Content Accessibility Guidelines), **PDF** (Portable Document Format), **XLSX** (Office Open XML Spreadsheet).
 
-Este anexo orienta a los usuarios finales —personal de plataforma, administración escolar, docentes, familias y estudiantes— en el uso de la aplicación web Escuela Pass: acceso, módulos visibles por rol, flujos habituales y respuesta ante mensajes frecuentes. Los criterios de redacción siguen las heurísticas de usabilidad de Nielsen (1994), los principios de diseño centrado en el usuario (Norman, 2013) y la sensibilidad de accesibilidad de la WCAG 2.2 (W3C, 2023). La medición de usabilidad planificada se apoya en la SUS (Brooke, 1996; Lewis & Sauro, 2018). Complementa los requerimientos del **Anexo 01**, el inventario de pantallas del **Anexo 06**, la instalación y variables del **Anexo 07** y los contratos REST del **Anexo 08**. La navegación efectiva del menú lateral procede de `frontend/src/navigation/navConfig.ts` y el árbol de rutas de `frontend/src/App.tsx`; ante duda sobre disponibilidad de una pantalla, prevalece el comportamiento del despliegue (incluido `RoleGate`). La sección 16 consolida líneas de mejora profesionales y académicas vinculadas al manual, a la interfaz y a la trazabilidad RF/RNF.
+Este anexo orienta a los usuarios finales —personal de plataforma, administración escolar, docentes, familias y estudiantes— en el uso de la aplicación web Escuela Pass: acceso, módulos visibles por rol, flujos habituales y respuesta ante mensajes frecuentes. Traduce al lenguaje operativo la **lectura operativa** del **capítulo 4** (OE4) y los actores de la **Tabla 6**, sin sustituir políticas internas ni asesoría jurídica (límite explícito del **capítulo 5** y **6**). Los criterios de redacción siguen las heurísticas de usabilidad de Nielsen (1994), los principios de diseño centrado en el usuario (Norman, 2013) y la sensibilidad de accesibilidad de la WCAG 2.2 (W3C, 2023). La medición de usabilidad planificada se apoya en la SUS (Brooke, 1996; Lewis & Sauro, 2018). Complementa los requerimientos del **Anexo 01**, el inventario de pantallas del **Anexo 06**, la instalación y variables del **Anexo 07** y los contratos REST del **Anexo 08**. La navegación efectiva del menú lateral procede de `frontend/src/navigation/navConfig.ts` y el árbol de rutas de `frontend/src/App.tsx`; ante duda sobre disponibilidad de una pantalla, prevalece el comportamiento del despliegue (incluido `RoleGate`). La sección 16 consolida líneas de mejora profesionales y académicas vinculadas al manual, a la interfaz y a la trazabilidad RF/RNF.
 
 ---
 
@@ -3288,7 +3360,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **E2E** (*end-to-end*), **CI** (Continuous Integration), **CD** (Continuous Deployment), **KPI** (Key Performance Indicator), **SLA** (Service Level Agreement), **SUS** (System Usability Scale; Brooke, 1996), **UMUX** (Usability Metric for User Experience; Lewis & Sauro, 2018), **RNF** (requerimiento no funcional), **JWT** (JSON Web Token), **PDF** (Portable Document Format), **XLSX** (Office Open XML Spreadsheet).
 
-Este anexo consolida la estrategia de pruebas, la trazabilidad entre requerimientos y evidencias automáticas o manuales, las métricas propuestas para acreditar los requerimientos no funcionales de eficiencia de desempeño y usabilidad, y los riesgos conocidos de cobertura. La estructura sigue la práctica recomendada de la **IEEE Std 829-2008** sobre documentación de pruebas de software (IEEE, 2008), articulada con el modelo de calidad **ISO/IEC 25010:2011** (ISO, 2011). Complementa la **matriz del Anexo 00**, los criterios del **Anexo 01**, la arquitectura y limitaciones del **Anexo 03**, los diagramas del **Anexo 05**, el inventario de interfaz del **Anexo 06** y el **manual del Anexo 09**. Los contratos HTTP de referencia están en el **Anexo 08**; la puesta en marcha y el *pipeline*, en el **Anexo 07**. La sección 13 reúne líneas de mejora profesionales y académicas del plan de validación.
+Este anexo consolida la estrategia de pruebas, la trazabilidad entre requerimientos y evidencias automáticas o manuales, las métricas propuestas para acreditar los requerimientos no funcionales de eficiencia de desempeño y usabilidad, y los riesgos conocidos de cobertura. La estructura sigue la práctica recomendada de la **IEEE Std 829-2008** sobre documentación de pruebas de software (IEEE, 2008), articulada con el modelo de calidad **ISO/IEC 25010:2011** (ISO, 2011). Complementa la **matriz del Anexo 00**, los criterios del **Anexo 01**, la arquitectura y limitaciones del **Anexo 03**, los diagramas del **Anexo 05**, el inventario de interfaz del **Anexo 06** y el **manual del Anexo 09**. Los contratos HTTP de referencia están en el **Anexo 08**; la puesta en marcha y el *pipeline*, en el **Anexo 07**. La **interpretación institucional de los resultados de validación** (qué mejoró, qué problema atenúa, vínculo con OE1–OE5) se desarrolla en el **capítulo 5** del TDG (secciones 5.2 y 5.3); este anexo aporta la evidencia técnica reproducible (E2E, CI) y el plan de medición de campo. La sección 13 reúne líneas de mejora profesionales y académicas del plan de validación.
 
 *[Figura 7. Plantilla del cuestionario System Usability Scale (SUS) traducida al español para evaluación de usabilidad con usuarios piloto, conforme a Brooke (1996) y benchmarks de Lewis y Sauro (2018). Recomendado: documento Word o Google Forms con escala Likert de 1 a 5.]*
 
@@ -3481,7 +3553,7 @@ La siguiente plantilla se completa al ejecutar la suite en una sesión específi
 
 *Nota:* Esta tabla es **síntesis**; el detalle vive en los `it(...)` de cada spec y en la **matriz del Anexo 00**.
 
-### 9.1. Hipótesis económico‑operativas de la FTG ↔ instrumentación ↔ entorno (cierre de las secciones 1.2.6 y 5.3)
+### 9.1. Hipótesis económico‑operativas de la FTG ↔ instrumentación ↔ entorno (cierre de las secciones 1.2.6 y 5.4)
 
 | Hipótesis sintetizada del texto FTG (*no medida aquí*) | Instrumento propuesto | Entorno piloto recomendado |
 | --- | --- | --- |

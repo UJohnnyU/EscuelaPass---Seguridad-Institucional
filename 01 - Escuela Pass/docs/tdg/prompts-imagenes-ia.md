@@ -70,8 +70,8 @@ Usar IDs globales en Word si el programa exige unicidad (colisiones frecuentes e
 | ID sugerido | Cuerpo TDG | Anexo / nota | Reutilización |
 | --- | --- | --- | --- |
 | — | Fig. 1–2 portada | — | Solo APIT |
-| — | Fig. 3 orden documento | Anexo 02 opc. | Mermaid § Fig. 3 |
-| — | Fig. 4 Gantt | Anexo 01 plan | Mermaid § Fig. 4 |
+| — | Fig. 3 orden documento | [Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) | Mermaid § Fig. 3 |
+| — | Fig. 4 Gantt | [Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md) | Mermaid § Fig. 4 |
 | — | Fig. M1 capas | Complementa Fig. 5 | Verbatim maestro |
 | — | Fig. 5 capas ilustrada | Anexo 03 contexto | Mermaid § Fig. 5 |
 | — | Fig. 6 ER macro | Anexo 04 detalle | DBML macro § Fig. 6 |
@@ -112,6 +112,8 @@ Usar IDs globales en Word si el programa exige unicidad (colisiones frecuentes e
 ## Figura 3 — Orden del documento y anexos (§ 3.6)
 
 **Pie maestro v2.** *Diagrama orientativo del orden del documento y su relación con los anexos. Representación conforme **Anexo 02** u organigrama documental equivalente aprobado.*
+
+**Fuente Mermaid:** [anexos/Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) (organigrama documental; distinto del «ANEXO 02 — Actas» del maestro consolidado).
 ### A) Mermaid (mermaid.live)
 
 ```mermaid
@@ -147,7 +149,7 @@ flowchart TD
 
 **Pie maestro v2.** *Cronograma Gantt del proyecto Escuela Pass (24/02/2026–21/06/2026). Representación conforme plan de trabajo del **Anexo 01** o figura institucional equivalente.*
 
-Alinear barras a **Tabla 2b** (siete fases FTG). Si existe **Anexo 01** con fechas oficiales, sustituir las duraciones siguientes; si no, marcar `[PENDIENTE: fechas Anexo 01]` en el documento Word.
+Alinear barras a **Tabla 2b** (siete fases FTG). Fechas oficiales y Gantt fuente: [anexos/Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md).
 
 ### A) Mermaid (`gantt`)
 
@@ -197,7 +199,7 @@ Menú **+ Más figuras → Gantt**. Replicar las **siete secciones** anteriores.
 ```mermaid
 flowchart TB
   subgraph Cliente["Cliente web (React + Vite + Tailwind)"]
-    SPA[SPA / PWA + Service Worker FCM]
+    SPA[SPA + Service Worker FCM]
     QR[html5-qrcode / qrcode.react / Web NFC]
     MAP[Mapbox GL + Geolocalización]
   end
@@ -228,7 +230,7 @@ flowchart TB
 
 **CLI:** `npx @mermaid-js/mermaid-cli -i Figura-M1.mmd -o Figura-M1.png`
 
-**Nota.** `typeorm_migrations` **sí** aparece en **M1** (detalle técnico de persistencia). **No** va en **Figura 6** (macro por dominios).
+**Nota.** `typeorm_migrations` **sí** aparece en **M1** (detalle técnico de persistencia). **No** va en **Figura 6** (macro por dominios). El cliente usa **service worker FCM**; no se afirma PWA instalable sin `manifest.json` en el repositorio.
 
 ---
 
@@ -752,9 +754,9 @@ Cada fila de las tablas del maestro L1740–1827 se representa en **exactamente 
 | Gestionar políticas de privacidad versionadas | RF1 | §2.1 |
 | Configurar credenciales NFC para usuarios | RF2 | §2.1 |
 
-**Personal administrativo** — ver tablas en § Figura 7-RF1 … RF8 (19 filas §2.2 repartidas).
+**Personal administrativo** — ver tablas en § Figura 7-RF1 … RF8 (18 filas §2.2 repartidas).
 
-**Docente, Padre o tutor, Alumno** — idem (14 + 17 + 9 filas).
+**Docente, Padre o tutor, Alumno** — idem (13 + 16 + 9 filas).
 
 ### Checklist coherencia TDG (antes de exportar)
 
@@ -874,7 +876,7 @@ Diagrama casos de uso UML 2.5.1 RF1 Identidad sesion y privacidad, Escuela Pass.
 
 ### Figura 7-RF2 — Control de acceso QR/NFC
 
-**Actores:** Administrador plataforma, Docente, Alumno. **Nota:** antiduplicación breve entre lecturas (maestro L498).
+**Actores:** Administrador plataforma, Docente, Alumno. **Nota:** antiduplicación ~10 s (mismo usuario/escuela); respuesta **201** + `duplicate=true` (maestro L498).
 
 | Elipse | Actor | §2 |
 | --- | --- | --- |
@@ -889,7 +891,7 @@ Diagrama casos de uso UML 2.5.1 RF1 Identidad sesion y privacidad, Escuela Pass.
 #### Prompt IA (RF2)
 
 ```text
-UML RF2 Control acceso QR/NFC Escuela Pass. Actores: Administrador de plataforma, Docente, Alumno. Sistema: RF2 Acceso. Elipses: Configurar credenciales NFC (Admin); Escanear credencial QR/NFC en clase (Docente); Consultar credencial QR personal (Alumno). Nota: ventana antiduplicacion ~10 s entre lecturas equivalentes. Nota: Requiere sesion Fig 7-RF1. Sin pasarela. Fondo blanco. Pie continuacion RF2.
+UML RF2 Control acceso QR/NFC Escuela Pass. Actores: Administrador de plataforma, Docente, Alumno. Sistema: RF2 Acceso. Elipses: Configurar credenciales NFC (Admin); Escanear credencial QR/NFC en clase (Docente); Consultar credencial QR personal (Alumno). Nota: ventana antiduplicacion ~10 s mismo usuario misma escuela respuesta 201 duplicate=true sin nuevo evento. Nota: Requiere sesion Fig 7-RF1. Sin pasarela. Fondo blanco. Pie continuacion RF2.
 ```
 
 **Criterios.** Tres elipses §2; coherente Fig. 9 / E2E scan.
@@ -1074,18 +1076,18 @@ sequenceDiagram
   U->>C: Escanear credencial
   C->>A: POST /access-events/scan
   A->>DB: Validar credencial + ventana antiduplicación (~10s)
-  alt Duplicado reciente
-    A-->>C: 409 / mensaje controlado
+  alt Duplicado reciente (mismo usuario, misma escuela)
+    A-->>C: 201 + duplicate=true (sin nuevo evento)
   else Válido
     A->>DB: Insertar evento acceso
-    A->>DB: Marcar asistencia diaria / sesión según reglas
-    A-->>C: 201 + detalle
+    A->>DB: Marcar asistencia diaria si ENTRY alumno (ATTENDANCE_ENTRY_GRACE_MINUTES)
+    A-->>C: 201 + detalle persona
   end
 ```
 
 ### draw.io (Fig. 9 formal — `A05-SEQ-2`)
 
-Lifelines: *Personal portería*, *EscanerAccesoPage*, *AccessEvents*, *PostgreSQL*. Mensajes: `POST /access-events/scan`; **alt** 409 duplicado ~10 s vs 201; nota `ATTENDANCE_ENTRY_GRACE_MINUTES` opcional.
+Lifelines: *Personal portería*, *EscanerAccesoPage*, *AccessEvents*, *PostgreSQL*. Mensajes: `POST /access-events/scan`; **alt** 201 + `duplicate=true` (~10 s, mismo usuario/escuela) vs 201 + evento nuevo; asistencia automática solo en `attendance_records` (ENTRY alumno); nota `ATTENDANCE_ENTRY_GRACE_MINUTES`.
 
 **Criterios de aceptación.** Endpoint y códigos HTTP alineados al maestro §4.3.
 
@@ -1311,7 +1313,7 @@ TableGroup comunicacion [color: #ede9fe] {
 Table notices { id uuid [pk] school_id uuid [ref: > schools.id] }
 Table notifications { id uuid [pk] user_id uuid [ref: > users.id] }
 Table user_fcm_tokens { id uuid [pk] user_id uuid [ref: > users.id] }
-Table meetings { id uuid [pk] school_id uuid [ref: > schools.id] created_by_user_id uuid [ref: > users.id] }
+Table meetings { id uuid [pk] school_id uuid [ref: > schools.id] organizer_user_id uuid [ref: > users.id] }
 Table meeting_participants { id uuid [pk] meeting_id uuid [ref: > meetings.id] user_id uuid [ref: > users.id] }
 Table external_visits { id uuid [pk] school_id uuid [ref: > schools.id] }
 Table external_visit_groups {
@@ -1528,13 +1530,15 @@ flowchart TB
 
 ## Coherencia numérica y verificación QA
 
-| Métrica | Maestro | Repo (verificado) |
+| Métrica | Maestro | Repo (verificado 2026-05-21) |
 | --- | --- | --- |
-| Entidades | 49 | 49 archivos en `src/database/entities/` |
-| Controladores | 32 | 32 `@Controller` |
-| E2E | 47 | ejecutar `npm run test:e2e` |
+| Entidades | 49 | **49** (`src/database/entities/*.entity.ts`) |
+| Controladores | 32 | **32** (`@Controller` en `src/modules`) |
+| E2E | 47 | **46 passed, 1 skipped, 47 total** — `npm run test:e2e` exit 0 |
 | Rutas REST | 241 | Anexo 08 / Swagger |
-| Módulos dominio | 37 | narrativa maestro (recontar imports si se exige precisión) |
+| Módulos dominio | 37 | 32 imports directos en `AppModule` + módulos anidados (Anexo 03) |
+
+**Auditoría documental (2026-05-21):** M3/M9 alineados a **201 + `duplicate=true`**; asistencia por escaneo solo `attendance_records`; ER-5 `organizer_user_id`; M1 sin etiqueta PWA; anexos [Anexo_01](anexos/Anexo_01_Plan_trabajo_y_cronograma.md) y [Anexo_02](anexos/Anexo_02_Orden_documento_y_anexos.md) para Fig. 3–4.
 
 **Comandos sugeridos (PowerShell, raíz `01 - Escuela Pass`):**
 
@@ -1552,8 +1556,18 @@ npm run test:e2e
 
 **Checklist final antes de entregar TDG**
 
-- [ ] Matriz de numeración aplicada en Word (IDs `A05-*`, `A04-ER-*`, `A06-*`).  
+**Documentación (repo) — listo para exportar figuras:**
+
+- [x] M3/M9 y reglas RF2: **201** + `duplicate=true` (~10 s); sin HTTP 409 en escaneo.  
+- [x] Fig. 6 DBML macro y Anexo 04 ER-5: `organizer_user_id` en `meetings`.  
+- [x] Fig. 3–4: fuentes [Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) y [Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md).  
+- [x] E2E verde: 46 passed / 1 skipped (2026-05-21).
+
+**Maquetación Word (manual):**
+
+- [ ] Matriz de numeración global (IDs `A05-*`, `A04-ER-*`, `A06-*`) — ver § Matriz de numeración.  
+- [ ] Exportar Mermaid/draw.io/dbdiagram a PNG e incrustar con **pie literal** del maestro.  
 - [ ] Fig. 4 milestone **2026-06-21** y siete fases Tabla 2b.  
 - [ ] Fig. 5 sin Express; sin flecha API→Mapbox.  
-- [ ] **Fig. 7:** texto puente Word + 7-Índice (pie literal maestro) + 7-RF1…RF8; checklist 67/67 §2.  
-- [ ] Anexo 04: cinco PNG con FK visibles; Anexo 10: seis capturas con comandos de la tabla § Anexo 10.
+- [ ] **Fig. 7:** texto puente + 7-Índice + 7-RF1…RF8; 67/67 filas Anexo 05 §2.  
+- [ ] Anexo 04: cinco PNG con FK; Anexo 10: seis capturas (comandos § Anexo 10).
