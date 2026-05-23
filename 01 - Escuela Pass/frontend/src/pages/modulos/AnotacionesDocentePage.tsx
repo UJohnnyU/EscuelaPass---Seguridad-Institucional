@@ -252,7 +252,7 @@ export function AnotacionesDocentePage() {
   };
 
   return (
-    <div className="max-w-5xl animate-fade-in space-y-8">
+    <div className="mx-auto w-full min-w-0 max-w-5xl animate-fade-in space-y-8">
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900">Anotaciones a estudiantes</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
@@ -272,7 +272,7 @@ export function AnotacionesDocentePage() {
         </div>
       )}
 
-      <section className="rounded border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Nueva anotación</h2>
         {loading ? (
           <p className="mt-4 text-sm text-slate-600">Cargando grupos…</p>
@@ -284,11 +284,11 @@ export function AnotacionesDocentePage() {
           </p>
         ) : (
           <form className="mt-4 space-y-4" onSubmit={(e) => void submit(e)}>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
               {platformAdmin && (
-                <label className="flex flex-col gap-2 text-sm sm:col-span-2">
+                <label className="flex min-w-0 flex-col gap-2 text-sm sm:col-span-2">
                   <span className="text-slate-700">Institución (filtro)</span>
-                  <div className="max-w-md">
+                  <div className="min-w-0 w-full max-w-md">
                     <SmartSelect
                       options={schoolFilterOptions}
                       value={schoolFilter}
@@ -298,9 +298,9 @@ export function AnotacionesDocentePage() {
                   </div>
                 </label>
               )}
-              <label className="flex flex-col gap-2 text-sm">
+              <label className="flex min-w-0 flex-col gap-2 text-sm">
                 <span className="text-slate-700">Grupo</span>
-                <div>
+                <div className="min-w-0 w-full">
                   <SmartSelect
                     loadOptions={loadGroupOptions}
                     value={groupId}
@@ -310,9 +310,9 @@ export function AnotacionesDocentePage() {
                   />
                 </div>
               </label>
-              <label className="flex flex-col gap-2 text-sm">
+              <label className="flex min-w-0 flex-col gap-2 text-sm">
                 <span className="text-slate-700">Estudiante</span>
-                <div>
+                <div className="min-w-0 w-full">
                   <SmartSelect
                     options={studentSelectOptions}
                     value={studentId}
@@ -324,10 +324,10 @@ export function AnotacionesDocentePage() {
                 </div>
               </label>
             </div>
-            <label className="flex flex-col gap-2 text-sm">
+            <label className="flex min-w-0 flex-col gap-2 text-sm">
               <span className="font-medium text-slate-700">Gravedad</span>
               <select
-                className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-xs"
+                className="box-border w-full min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-xs"
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value as 'LEVE' | 'MODERADA' | 'GRAVE')}
               >
@@ -336,20 +336,20 @@ export function AnotacionesDocentePage() {
                 <option value="GRAVE">{SEVERITY_LABEL.GRAVE}</option>
               </select>
             </label>
-            <label className="flex flex-col gap-2 text-sm">
+            <label className="flex min-w-0 flex-col gap-2 text-sm">
               <span className="font-medium text-slate-700">Título breve</span>
               <input
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                className="box-border w-full min-w-0 max-w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Ej. Comportamiento en clase, entrega de tarea…"
                 maxLength={200}
               />
             </label>
-            <label className="flex flex-col gap-2 text-sm">
+            <label className="flex min-w-0 flex-col gap-2 text-sm">
               <span className="font-medium text-slate-700">Descripción</span>
               <textarea
-                className="min-h-[100px] w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                className="box-border min-h-[100px] w-full min-w-0 max-w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Detalle objetivo de la situación y, si aplica, acuerdos con el estudiante."

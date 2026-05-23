@@ -126,12 +126,12 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <section className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-700">
         <h2 className="font-serif text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
         {description && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{description}</p>}
       </div>
-      <div className="p-5">{children}</div>
+      <div className="min-w-0 p-5">{children}</div>
     </section>
   );
 }

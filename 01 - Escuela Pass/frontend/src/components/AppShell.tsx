@@ -95,7 +95,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
+    <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Desktop: fijo al viewport; el contenido principal usa lg:pl-60 */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:h-screen lg:w-60 lg:min-h-0 lg:flex-col lg:overflow-hidden border-r border-slate-800 bg-slate-950 text-slate-100">
         <div className="shrink-0 border-b border-slate-800 px-4 py-5">
@@ -139,12 +139,12 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden lg:pl-60">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/95 lg:hidden">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="rounded border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700"
+              className="rounded border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-main-menu"
             >
@@ -244,7 +244,7 @@ export function AppShell() {
           </div>
         )}
 
-        <header className="hidden items-center justify-between gap-4 border-b border-slate-200/80 bg-white px-8 py-4 lg:flex">
+        <header className="hidden items-center justify-between gap-4 border-b border-slate-200/80 bg-white px-8 py-4 dark:border-slate-700/80 dark:bg-slate-900 lg:flex">
           <div className="flex min-w-0 items-center gap-3">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-slate-200">
               {user?.avatarUrl ? (
@@ -291,7 +291,7 @@ export function AppShell() {
           </div>
         </main>
 
-        <footer className="border-t border-slate-200/80 bg-white px-4 py-6 text-center text-[11px] text-slate-500 lg:px-10">
+        <footer className="border-t border-slate-200/80 bg-white px-4 py-6 text-center text-[11px] text-slate-500 dark:border-slate-700/80 dark:bg-slate-900 dark:text-slate-400 lg:px-10">
           Escuela Pass — plataforma para instituciones educativas. La información se muestra de forma clara y acotada a
           su perfil.
         </footer>

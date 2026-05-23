@@ -1212,26 +1212,26 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
         const recs = ch.records ?? [];
         const recordsForDisplay = [...recs].sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate));
         return (
-          <div key={ch.studentId} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={ch.studentId} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="font-medium text-slate-900">{ch.studentName ?? ch.fullName ?? 'Alumno'}</p>
-                {ch.matricula && <p className="text-xs text-slate-500">Matrícula: {ch.matricula}</p>}
+                <p className="font-medium text-slate-900 dark:text-slate-100">{ch.studentName ?? ch.fullName ?? 'Alumno'}</p>
+                {ch.matricula && <p className="text-xs text-slate-500 dark:text-slate-400">Matrícula: {ch.matricula}</p>}
               </div>
             </div>
             {recordsForDisplay.length > 0 ? (
               <div className={`mt-3 ${SCROLLABLE_PANEL_BODY}`}>
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-slate-100 dark:divide-slate-700">
                 {recordsForDisplay.map((r) => (
                   <li key={r.attendanceDate} className="flex items-center justify-between py-2 text-sm">
-                    <span className="text-slate-700">{fmtDate(r.attendanceDate)}</span>
+                    <span className="text-slate-700 dark:text-slate-300">{fmtDate(r.attendanceDate)}</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                         r.status === 'PRESENTE'
-                          ? 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
                           : r.status === 'RETARDO'
-                            ? 'bg-amber-100 text-amber-900'
-                            : 'bg-red-100 text-red-800'
+                            ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
                       }`}
                     >
                       {r.status === 'PRESENTE' ? 'Presente' : r.status === 'RETARDO' ? 'Retardo' : 'Ausente'}
@@ -1242,30 +1242,30 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
               </ul>
               </div>
             ) : (
-              <p className="mt-3 text-sm text-slate-500">Sin registro diario de ingreso a la jornada.</p>
+              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Sin registro diario de ingreso a la jornada.</p>
             )}
-            <div className="mt-4 border-t border-slate-100 pt-3">
+            <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-700">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Asistencia por clase</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Asistencia por clase</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Confirmada por cada docente en su sesión; es independiente del ingreso por QR/NFC.
                   </p>
                 </div>
                 {classRecordsLoading ? (
-                  <span className="text-[11px] text-slate-400">Cargando…</span>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">Cargando…</span>
                 ) : null}
               </div>
               {(classRecordsByStudent[ch.studentId] ?? []).length > 0 ? (
-                <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-100 bg-slate-50/60 px-3">
+                <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-100 bg-slate-50/60 px-3 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/80">
                   {(classRecordsByStudent[ch.studentId] ?? []).slice(0, 8).map((r) => (
                     <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                       <div className="min-w-0">
-                        <p className="font-medium text-slate-800">
+                        <p className="font-medium text-slate-800 dark:text-slate-200">
                           {r.subjectName ?? 'Clase'}
-                          {r.teacherName ? <span className="font-normal text-slate-500"> · {r.teacherName}</span> : null}
+                          {r.teacherName ? <span className="font-normal text-slate-500 dark:text-slate-400"> · {r.teacherName}</span> : null}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {fmtDate(r.attendanceDate)}
                           {r.startTime ? ` · ${r.startTime.slice(0, 5)}${r.endTime ? `-${r.endTime.slice(0, 5)}` : ''}` : ''}
                         </p>
@@ -1273,10 +1273,10 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                           r.status === 'PRESENTE'
-                            ? 'bg-emerald-100 text-emerald-800'
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
                             : r.status === 'RETARDO'
-                              ? 'bg-amber-100 text-amber-900'
-                              : 'bg-red-100 text-red-800'
+                              ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
                         }`}
                       >
                         {r.status === 'PRESENTE' ? 'Presente' : r.status === 'RETARDO' ? 'Retardo' : 'Ausente'}
@@ -1286,7 +1286,7 @@ export function AttendanceChildrenView({ data }: { data: unknown }) {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                <p className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-400">
                   Aún no hay asistencias por clase registradas para este estudiante.
                 </p>
               )}

@@ -260,21 +260,21 @@ export function SmartSelect({
   }
 
   return (
-    <div ref={rootRef} className="relative" onKeyDown={onKeyDown}>
+    <div ref={rootRef} className="relative min-w-0 w-full" onKeyDown={onKeyDown}>
       <button
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-        className="flex w-full items-center justify-between rounded border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-900 dark:disabled:text-slate-500"
+        className="flex w-full min-w-0 items-center justify-between rounded border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-900 dark:disabled:text-slate-500"
         onClick={() => {
           if (disabled) return;
           setOpen((v) => !v);
           setQuery('');
         }}
       >
-        <span className="truncate">{selected?.label ?? placeholder}</span>
+        <span className="min-w-0 flex-1 truncate">{selected?.label ?? placeholder}</span>
         <span className="ml-2 shrink-0 text-xs text-slate-500 dark:text-slate-400">{open ? '▲' : '▼'}</span>
       </button>
       {open && (

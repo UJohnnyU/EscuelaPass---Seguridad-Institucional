@@ -1269,10 +1269,10 @@ export function AcademicoPage() {
               </p>
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex min-w-0 sm:min-w-[12rem] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
+                <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Grupo
-                    <div className="mt-0.5">
+                    <div className="mt-0.5 min-w-0 w-full">
                       <SmartSelect
                         options={teacherGroupSelectOptions}
                         value={selectedTeacherGroupId}
@@ -1281,10 +1281,10 @@ export function AcademicoPage() {
                       />
                     </div>
                   </label>
-                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
+                  <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Vista
                     <select
-                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                      className="box-border w-full min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       value={attendancePeriod}
                       onChange={(e) => setAttendancePeriod(e.target.value as 'day' | 'week' | 'month')}
                     >
@@ -1293,18 +1293,18 @@ export function AcademicoPage() {
                       <option value="month">Mes</option>
                     </select>
                   </label>
-                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
+                  <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Fecha de referencia
                     <input
                       type="date"
-                      className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                      className="box-border w-full min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                       value={attendanceRefDate}
                       onChange={(e) => setAttendanceRefDate(e.target.value)}
                     />
                   </label>
-                  <label className="flex min-w-0 sm:min-w-[12rem] max-w-md flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
+                  <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
                     Estudiante
-                    <div className="mt-0.5">
+                    <div className="mt-0.5 min-w-0 w-full">
                       <SmartSelect
                         options={attendanceStudentSelectOptions}
                         value={attendanceStudentFilter}
@@ -1379,13 +1379,13 @@ export function AcademicoPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-end gap-3">
-                      <p className="text-sm text-slate-600 dark:text-slate-400 dark:[&_strong]:text-slate-100">
+                    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+                      <p className="text-sm text-slate-600 dark:text-slate-400 dark:[&_strong]:text-slate-100 sm:col-span-2 lg:col-span-1">
                         Fecha: <strong>{teacherAttendance.date}</strong>
                       </p>
-                      <label className="flex min-w-0 sm:min-w-[16rem] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
+                      <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2 lg:col-span-1">
                         Sesión (opcional para registro por clase)
-                        <div className="mt-0.5">
+                        <div className="mt-0.5 min-w-0 w-full">
                           <SmartSelect
                             options={attendanceSessionSelectOptions}
                             value={selectedAttendanceSessionId}
@@ -1395,7 +1395,7 @@ export function AcademicoPage() {
                         </div>
                       </label>
                       {selectedAttendanceSessionId ? (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 sm:col-span-2">
                           <button
                             type="button"
                             disabled={savingAttendanceBulk || !teacherAttendance.canEdit || teacherAttendance.nonInstructionalDay}

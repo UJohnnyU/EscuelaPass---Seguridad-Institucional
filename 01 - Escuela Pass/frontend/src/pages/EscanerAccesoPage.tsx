@@ -375,7 +375,7 @@ export function EscanerAccesoPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in space-y-8">
+    <div className="mx-auto w-full min-w-0 max-w-3xl animate-fade-in space-y-8">
       <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-6 text-white shadow-sm dark:border-slate-700 sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Control de acceso</p>
         <h1 className="mt-1 font-serif text-3xl font-semibold tracking-tight">Escáner de acceso</h1>
@@ -582,7 +582,7 @@ export function EscanerAccesoPage() {
         <details
           open={showCredPanel}
           onToggle={(e) => setShowCredPanel((e.currentTarget as HTMLDetailsElement).open)}
-          className="group rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+          className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
         >
           <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 text-sm font-semibold text-slate-800 outline-none marker:content-none dark:text-slate-100 [&::-webkit-details-marker]:hidden">
             <span>Gestión de credenciales NFC</span>
@@ -596,7 +596,7 @@ export function EscanerAccesoPage() {
             </p>
 
             {/* Vincular UID de tarjeta física */}
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-sm dark:border-slate-600 dark:from-slate-900 dark:to-slate-900/80">
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-sm dark:border-slate-600 dark:from-slate-900 dark:to-slate-900/80">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Vincular chip físico (UID de tarjeta)</h3>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Busque a la persona y pegue o escanee el UID hexadecimal del dispositivo NFC.
@@ -611,10 +611,10 @@ export function EscanerAccesoPage() {
                   {credMsg}
                 </p>
               )}
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div>
+              <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="min-w-0">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">Usuario</label>
-                  <div className="mt-1">
+                  <div className="mt-1 min-w-0">
                     <SmartSelect
                       loadOptions={loadAssignableUsers}
                       value={assignUserId}
@@ -625,14 +625,14 @@ export function EscanerAccesoPage() {
                     />
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">UID NFC (hex, del chip)</label>
                   <input
                     type="text"
                     placeholder="Ej. A1B2C3D4E5F6…"
                     value={assignNfcUid}
                     onChange={(e) => setAssignNfcUid(e.target.value.toUpperCase())}
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 font-mono text-sm shadow-inner dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className="mt-1 box-border w-full max-w-full min-w-0 rounded-xl border border-slate-300 px-4 py-2.5 font-mono text-sm shadow-inner dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   />
                   {nfcIsSupported() && (
                     <div className="mt-2 flex flex-wrap gap-2">
