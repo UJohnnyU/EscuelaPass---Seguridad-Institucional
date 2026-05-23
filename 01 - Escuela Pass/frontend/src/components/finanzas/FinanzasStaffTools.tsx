@@ -69,6 +69,7 @@ import { isPlatformAdmin } from '@/lib/roles';
 import { SmartSelect } from '@/components/SmartSelect';
 import { DATA_TABLE_HEAD, DATA_TABLE_SEARCH_INPUT, DataTableScroll } from '@/components/DataTableScroll';
 import { openProtectedFile } from '@/lib/protected-files';
+import { todayInAppTimezone } from '@/lib/app-date';
 
 type PaymentConcept = {
   id: string;
@@ -199,7 +200,7 @@ export function FinanzasStaffTools() {
   const [asStudent, setAsStudent] = useState('');
   const [asConcept, setAsConcept] = useState('');
   const [asAmount, setAsAmount] = useState('');
-  const [asDue, setAsDue] = useState(() => new Date().toISOString().slice(0, 10));
+  const [asDue, setAsDue] = useState(() => todayInAppTimezone());
   const [asDesc, setAsDesc] = useState('');
 
   const canPickSchool = platformAdmin;

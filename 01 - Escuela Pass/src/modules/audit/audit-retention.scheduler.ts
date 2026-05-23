@@ -63,6 +63,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
+import { getAppTimeZone } from '../../common/local-date';
 import { AuditLogEntity } from '../../database/entities/audit-log.entity';
 
 /**
@@ -71,7 +72,7 @@ import { AuditLogEntity } from '../../database/entities/audit-log.entity';
  * típicas (un ciclo escolar + un año fiscal completo) sin acumular PII
  * indefinidamente. Configurable vía `AUDIT_RETENTION_MONTHS`.
  *
- * Se ejecuta una vez al día a las 03:30 (hora del servidor) para minimizar
+ * Se ejecuta una vez al día a las 03:30 en APP_TIMEZONE para minimizar
  * impacto en horarios institucionales activos.
  */
 @Injectable()
@@ -83,7 +84,7 @@ export class AuditRetentionScheduler {
     private readonly auditRepository: Repository<AuditLogEntity>
   ) {}
 
-  @Cron('30 3 * * *')
+  @Cron('30 3 * * *', { timeZone: getAppTimeZone() })
   async pruneOldEntries(): Promise<void> {
     const months = this.retentionMonths();
     const cutoff = new Date();

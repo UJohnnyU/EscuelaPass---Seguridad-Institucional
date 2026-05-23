@@ -97,7 +97,7 @@ import { UpdateTeacherCircuitSignalDto } from './dto/update-teacher-circuit-sign
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { DepartureConsentService } from '../departure-consent/departure-consent.service';
-import { DEFAULT_CIRCUIT_TIMEZONE, getCircuitTimezone, todayYmdInCircuitTimezone } from './circuit-calendar';
+import { DEFAULT_CIRCUIT_TIMEZONE, circuitCalendarDate, getCircuitTimezone, todayYmdInCircuitTimezone } from './circuit-calendar';
 
 /** TypeORM + PostgreSQL: `UPDATE`/`DELETE` con `repository.query` devuelve `[rows, rowCount]`, no `rows` solo. */
 function pgMutationReturningRows<R>(raw: unknown): R[] {
@@ -287,7 +287,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
     const month = parts.find((p) => p.type === 'month')?.value;
     const day = parts.find((p) => p.type === 'day')?.value;
     return {
-      date: year && month && day ? `${year}-${month}-${day}` : asOf.toISOString().slice(0, 10),
+      date: year && month && day ? `${year}-${month}-${day}` : circuitCalendarDate(asOf),
       weekday: weekdayMap[weekdayText] ?? 0,
       hour,
       minute

@@ -82,6 +82,7 @@ import { EventNotificationsService } from '../events-core/event-notifications.se
 import { CreateExternalVisitDto } from './dto/create-external-visit.dto';
 import { RescheduleExternalVisitDto } from './dto/reschedule-external-visit.dto';
 import { UpdateExternalVisitDto } from './dto/update-external-visit.dto';
+import { calendarDateInTimeZone } from '../../common/local-date';
 
 type VisitRow = ExternalVisitEntity & {
   groupIds: string[];
@@ -467,7 +468,7 @@ export class ExternalVisitsService {
     scheduledAt: Date,
     groupIds: string[]
   ): Promise<void> {
-    const ymd = scheduledAt.toISOString().slice(0, 10);
+    const ymd = calendarDateInTimeZone(scheduledAt);
     const rows = await this.dataSource.query<{ id: string }[]>(
       `SELECT id
        FROM school_non_instructional_days

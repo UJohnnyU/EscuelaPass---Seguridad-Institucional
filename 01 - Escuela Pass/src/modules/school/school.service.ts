@@ -74,6 +74,7 @@ import ExcelJS, { DataValidation } from 'exceljs';
 import { extname } from 'path';
 import { IsNull, Repository } from 'typeorm';
 import { resolveUploadFile } from '../../lib/uploads-path';
+import { todayInAppTimezone } from '../../common/local-date';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
@@ -800,7 +801,7 @@ export class SchoolService {
   }
 
   private todayIsoDate(): string {
-    return new Date().toISOString().slice(0, 10);
+    return todayInAppTimezone();
   }
 
   private assertStudentLifecycleTransitionAllowed(

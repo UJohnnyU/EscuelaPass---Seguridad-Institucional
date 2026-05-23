@@ -78,7 +78,7 @@ import { RegisterAttendanceDto } from './dto/register-attendance.dto';
 import { RegisterBulkAttendanceDto } from './dto/register-bulk-attendance.dto';
 import { AuditService } from '../audit/audit.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
-import { todayLocalISODate } from '../../common/local-date';
+import { calendarDateInTimeZone, todayInAppTimezone } from '../../common/local-date';
 
 const MAX_ATTENDANCE_RANGE_DAYS = 100;
 
@@ -174,8 +174,8 @@ export class AttendanceService {
       throw new BadRequestException('Solo puede registrar asistencia de estudiantes en estado ACTIVO');
     }
 
-    const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayLocalISODate();
-    const today = todayLocalISODate();
+    const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayInAppTimezone();
+    const today = todayInAppTimezone();
     if (
       (role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO) &&
       dateStr !== today
@@ -255,8 +255,8 @@ export class AttendanceService {
    * Registra asistencia de varios alumnos en una sola petición, vinculada a una sesión académica.
    */
   async registerBulkBySession(dto: RegisterBulkAttendanceDto, registeredByUserId: string, role: UserRole) {
-    const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayLocalISODate();
-    const today = todayLocalISODate();
+    const dateStr = dto.attendanceDate?.slice(0, 10) ?? todayInAppTimezone();
+    const today = todayInAppTimezone();
     if (
       (role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO) &&
       dateStr !== today
@@ -366,7 +366,7 @@ export class AttendanceService {
       });
     }
 
-    const date = parseISODatePart(opts.date ?? todayLocalISODate());
+    const date = parseISODatePart(opts.date ?? todayInAppTimezone());
     const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
     const hasJ = await this.hasJustificationColumn();
     const justExpr = hasJ ? 'a.is_justified' : 'NULL::boolean';
@@ -428,7 +428,7 @@ export class AttendanceService {
       studentIdFilter ? [groupId, studentIdFilter] : [groupId]
     );
 
-    const today = todayLocalISODate();
+    const today = todayInAppTimezone();
     const staffDayOnly =
       role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO;
     return {
@@ -535,7 +535,7 @@ export class AttendanceService {
     const parent = await this.parentsRepository.findOne({ where: { userId: parentUserId } });
     if (!parent) throw new ForbiddenException('Perfil padre no encontrado');
 
-    const date = dateStr?.slice(0, 10) ?? todayLocalISODate();
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
 
     const children = await this.studentsRepository
       .createQueryBuilder('s')
@@ -604,7 +604,7 @@ export class AttendanceService {
     const today = date;
     const since = new Date(today);
     since.setDate(since.getDate() - 30);
-    const sinceISO = since.toISOString().slice(0, 10);
+    const sinceISO = calendarDateInTimeZone(since);
 
     const recentRows = studentIds.length
       ? await this.attendanceRepository

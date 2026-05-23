@@ -63,6 +63,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, MoreThan, Repository } from 'typeorm';
+import { getAppTimeZone } from '../../common/local-date';
 import {
   ExternalVisitAudienceScope,
   ExternalVisitEntity,
@@ -85,7 +86,7 @@ import { EventNotificationsService } from '../events-core/event-notifications.se
  * Cron:
  *  - Cada 15 min: detecta eventos a 24h y 1h y envía recordatorios push+in-app.
  *    Para reuniones excluye participantes con rsvp = DECLINADA.
- *  - Diario 00:05: marca como REALIZADA eventos PROGRAMADA/REPROGRAMADA/EN_CURSO
+ *  - Diario 00:05 (APP_TIMEZONE): marca como REALIZADA eventos PROGRAMADA/REPROGRAMADA/EN_CURSO
  *    cuya fecha + duración ya pasó.
  */
 @Injectable()
@@ -107,7 +108,7 @@ export class EventRemindersScheduler {
     private readonly notifier: EventNotificationsService
   ) {}
 
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron(CronExpression.EVERY_30_MINUTES, { timeZone: getAppTimeZone() })
   async runReminders(): Promise<void> {
     try {
       await this.sendVisitReminders(24);
@@ -119,7 +120,7 @@ export class EventRemindersScheduler {
     }
   }
 
-  @Cron('5 0 * * *')
+  @Cron('5 0 * * *', { timeZone: getAppTimeZone() })
   async autoFinalize(): Promise<void> {
     try {
       await this.autoFinalizeVisits();

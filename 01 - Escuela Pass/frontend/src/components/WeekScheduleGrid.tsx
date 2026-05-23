@@ -60,6 +60,7 @@ licencias.
 */
 
 import { useMemo } from 'react';
+import { formatDateYmd, todayInAppTimezone } from '@/lib/app-date';
 
 export type WeekScheduleEvent = {
   id: string;
@@ -290,7 +291,7 @@ export function WeekScheduleGrid({
   const hasAnyEvent = events.length > 0;
 
   const todayWeekday = useMemo(() => new Date().getDay(), []);
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayISO = useMemo(() => todayInAppTimezone(), []);
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-slate-950/30">
@@ -521,7 +522,7 @@ export function buildWeekDays(fromISO: string, dayOffByISO?: Map<string, string 
   for (let i = 0; i < 7; i += 1) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = formatDateYmd(d);
     const off = dayOffByISO?.get(iso);
     days.push({
       weekday: d.getDay(),

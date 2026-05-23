@@ -93,6 +93,7 @@ import { hasRole, isAdmin, isPlatformAdmin } from '@/lib/roles';
 import { uploadReportEvidence } from '@/lib/uploads-api';
 import { DATA_TABLE_HEAD, DATA_TABLE_SCROLL, SCROLLABLE_PANEL_BODY } from '@/components/DataTableScroll';
 import axios from 'axios';
+import { formatDateYmd, mondayWeekRangeYmd } from '@/lib/app-date';
 
 function parseReportEvidence(message?: string | null): { cleanMessage: string; evidenceUrls: string[] } {
   const raw = String(message ?? '');
@@ -704,16 +705,7 @@ export function FinanzasPage() {
 }
 
 export function AcademicoPage() {
-  const weekRangeISO = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const day = start.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    start.setDate(start.getDate() + diff);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
-  };
+  const weekRangeISO = () => mondayWeekRangeYmd(0);
   type ParentScheduleSlot = {
     id: string;
     weekday: number;
@@ -2081,7 +2073,7 @@ export function AdministracionPage() {
       { action?: string; entityType?: string | null; count: number; latestAt?: string }
     >();
     for (const item of topActions) {
-      const dateKey = item.createdAt ? new Date(item.createdAt).toISOString().slice(0, 10) : 'sin-fecha';
+      const dateKey = item.createdAt ? formatDateYmd(new Date(item.createdAt)) : 'sin-fecha';
       const key = `${dateKey}|${item.action ?? 'x'}|${item.entityType ?? 'x'}`;
       const prev = buckets.get(key);
       if (!prev) {
@@ -2930,12 +2922,7 @@ type TeacherSelfSlot = {
 };
 
 function teacherTodayWeekRange(): string {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const day = start.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + diff);
-  return start.toISOString().slice(0, 10);
+  return mondayWeekRangeYmd(0).from;
 }
 
 function teacherWeekRangeBounds(): { from: string; to: string } {

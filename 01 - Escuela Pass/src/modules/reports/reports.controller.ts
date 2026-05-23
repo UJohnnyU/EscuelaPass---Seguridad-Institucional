@@ -67,6 +67,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { ReportsService } from './reports.service';
+import { todayInAppTimezone } from '../../common/local-date';
 
 type JwtUser = { userId: string; email: string; role: UserRole; schoolId?: string | null };
 
@@ -135,7 +136,7 @@ export class ReportsController {
     @Query('to') to: string | undefined,
     @Query('schoolId') schoolId: string | undefined
   ) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayInAppTimezone();
     let sid = schoolId?.trim() || undefined;
     if (req.user.role === UserRole.ADMINISTRATIVO) {
       const mine = req.user.schoolId?.trim() || undefined;

@@ -87,6 +87,7 @@ import { MeetingRsvpDto } from './dto/meeting-rsvp.dto';
 import { MeetingStatusDto } from './dto/meeting-status.dto';
 import { RescheduleMeetingDto } from './dto/reschedule-meeting.dto';
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
+import { calendarDateInTimeZone } from '../../common/local-date';
 
 type ParticipantRow = MeetingParticipantEntity & {
   fullName: string;
@@ -464,7 +465,7 @@ export class MeetingsService {
     administrativeOnly: boolean
   ): Promise<void> {
     if (administrativeOnly) return;
-    const ymd = scheduledAt.toISOString().slice(0, 10);
+    const ymd = calendarDateInTimeZone(scheduledAt);
     const rows = await this.dataSource.query<{ id: string }[]>(
       `SELECT id
        FROM school_non_instructional_days

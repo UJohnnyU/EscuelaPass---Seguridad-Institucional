@@ -88,6 +88,7 @@ import { SchoolCalendarService } from '../school-calendar/school-calendar.servic
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { FcmService } from '../fcm/fcm.service';
 import { minutesSinceMidnightInTimeZone, parseTimeToMinutes } from '../../common/shift-schedule';
+import { todayInAppTimezone } from '../../common/local-date';
 
 @Injectable()
 export class AccessService {
@@ -252,7 +253,7 @@ export class AccessService {
         originalEvent: duplicate
       };
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayInAppTimezone();
     if (user.role === UserRole.ALUMNO) {
       const already = await this.eventsRepository.findOne({
         where: {

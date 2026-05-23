@@ -61,6 +61,7 @@ licencias.
 
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { getAppTimeZone } from '../../common/local-date';
 import { NoticesService } from './notices.service';
 
 @Injectable()
@@ -69,7 +70,7 @@ export class NoticesRemindersScheduler {
 
   constructor(private readonly noticesService: NoticesService) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_HOUR, { timeZone: getAppTimeZone() })
   async runCriticalReadReminders() {
     try {
       const result = await this.noticesService.sendCriticalReadReminders({

@@ -69,6 +69,7 @@ import {
   WeekScheduleEvent,
   WeekScheduleGrid
 } from '@/components/WeekScheduleGrid';
+import { formatDateYmd, getAppTimeZone, mondayWeekRangeYmd } from '@/lib/app-date';
 
 type SlotRow = {
   id: string;
@@ -138,27 +139,21 @@ type NotifRow = {
 };
 
 function weekRangeISO(offsetWeeks: number): { from: string; to: string; label: string } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const day = start.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + diff + offsetWeeks * 7);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  const label = `${start.toLocaleDateString('es', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('es', {
+  const { from, to } = mondayWeekRangeYmd(offsetWeeks);
+  const start = new Date(`${from}T12:00:00.000Z`);
+  const end = new Date(`${to}T12:00:00.000Z`);
+  const tz = getAppTimeZone();
+  const label = `${start.toLocaleDateString('es', { day: 'numeric', month: 'short', timeZone: tz })} – ${end.toLocaleDateString('es', {
     day: 'numeric',
     month: 'short',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: tz
   })}`;
-  return { from: fmt(start), to: fmt(end), label };
+  return { from, to, label };
 }
 
 function localDateISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return formatDateYmd(d);
 }
 
 function parseFlexibleInstant(iso: string): Date {

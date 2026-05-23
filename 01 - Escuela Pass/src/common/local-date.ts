@@ -82,19 +82,22 @@ export function todayInAppTimezone(): string {
   return calendarDateInTimeZone(new Date());
 }
 
-/**
- * Fecha calendario en la zona horaria del proceso (p. ej. servidor).
- * Preferible a `toISOString().slice(0, 10)` (UTC) para reglas de negocio por día escolar.
- *
- * Nota: los cierres automáticos (pagos, periodos, asistencia al cierre de jornada) usan
- * `todayInAppTimezone()` según `APP_TIMEZONE`. El registro manual de asistencia por docente
- * usa esta función; si el servidor no está en la misma zona que `APP_TIMEZONE`, conviene
- * alinear ambos en el futuro.
- */
+/** Año calendario (YYYY) en la zona institucional. */
+export function calendarYearInTimeZone(
+  instant: Date = new Date(),
+  timeZone: string = getAppTimeZone()
+): number {
+  return Number(calendarDateInTimeZone(instant, timeZone).slice(0, 4));
+}
+
+/** Suma días a una fecha YYYY-MM-DD (sin desfase por UTC). */
+export function addCalendarDaysYmd(isoDate: string, deltaDays: number): string {
+  const d = new Date(`${isoDate}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Alias de `todayInAppTimezone()` (reglas de negocio por día escolar en APP_TIMEZONE). */
 export function todayLocalISODate(): string {
-  const n = new Date();
-  const y = n.getFullYear();
-  const m = String(n.getMonth() + 1).padStart(2, '0');
-  const d = String(n.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return todayInAppTimezone();
 }

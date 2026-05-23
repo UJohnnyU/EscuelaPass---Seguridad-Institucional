@@ -67,6 +67,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { DepartureConsentService } from './departure-consent.service';
 import { SetDepartureConsentDto } from './dto/set-departure-consent.dto';
+import { todayInAppTimezone } from '../../common/local-date';
 
 type JwtUser = { userId: string; email: string; role: UserRole };
 
@@ -90,7 +91,7 @@ export class DepartureConsentController {
   @Post('parent/set')
   @Roles(UserRole.PADRE)
   setForParent(@Req() req: Request & { user: JwtUser }, @Body() dto: SetDepartureConsentDto) {
-    const date = (dto.date ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const date = (dto.date ?? todayInAppTimezone()).slice(0, 10);
     return this.service.setAutonomousForParent(req.user.userId, dto.studentId, date, dto.active);
   }
 

@@ -75,7 +75,7 @@ import { ParentEntity } from '../../database/entities/parent.entity';
 import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
-import { todayLocalISODate } from '../../common/local-date';
+import { addCalendarDaysYmd, todayInAppTimezone } from '../../common/local-date';
 import { AuditService } from '../audit/audit.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
 import { RegisterBulkClassAttendanceDto } from './dto/register-bulk-class-attendance.dto';
@@ -84,7 +84,7 @@ import { RegisterClassAttendanceDto } from './dto/register-class-attendance.dto'
 const MAX_CLASS_ATTENDANCE_RANGE_DAYS = 100;
 
 function parseISODatePart(raw?: string): string {
-  return (raw?.trim() || todayLocalISODate()).slice(0, 10);
+  return (raw?.trim() || todayInAppTimezone()).slice(0, 10);
 }
 
 function countCalendarDaysInclusive(from: string, to: string): number {
@@ -541,7 +541,7 @@ export class ClassAttendanceService {
   }
 
   private assertStaffCanEditDate(dateStr: string, role: UserRole) {
-    if ((role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO) && dateStr !== todayLocalISODate()) {
+    if ((role === UserRole.DOCENTE || role === UserRole.ADMINISTRATIVO) && dateStr !== todayInAppTimezone()) {
       throw new ForbiddenException('Solo puede modificar asistencias del dia actual');
     }
   }
@@ -695,9 +695,6 @@ export class ClassAttendanceService {
   }
 
   private daysBefore(to: string, days: number): string {
-    const [y, m, d] = to.split('-').map((x) => Number.parseInt(x, 10));
-    const date = new Date(y, m - 1, d);
-    date.setDate(date.getDate() - days);
-    return date.toISOString().slice(0, 10);
+    return addCalendarDaysYmd(to, -days);
   }
 }

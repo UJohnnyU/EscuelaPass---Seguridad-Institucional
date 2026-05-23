@@ -69,7 +69,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
-import { calendarDateInTimeZone, todayInAppTimezone } from '../../common/local-date';
+import { calendarDateInTimeZone, calendarYearInTimeZone, todayInAppTimezone } from '../../common/local-date';
 import {
   AcademicPeriodEntity,
   AcademicPeriodStatus
@@ -421,7 +421,7 @@ export class AcademicPeriodsService {
   }
 
   /**
-   * Vuelve a ACTIVO un periodo CERRADO solo si el cierre fue en el año calendario en curso (zona del servidor).
+   * Vuelve a ACTIVO un periodo CERRADO solo si el cierre fue en el año calendario en curso (APP_TIMEZONE).
    * Marca `reopenedAt`: si no se cierra de nuevo a mano antes del 1 de enero del año siguiente, el cron lo cerrará.
    */
   async reopen(id: string, userId: string, role: UserRole): Promise<AcademicPeriodListItem> {
@@ -436,7 +436,7 @@ export class AcademicPeriodsService {
     }
     const closedAt = row.closedAt instanceof Date ? row.closedAt : new Date(row.closedAt);
     const now = new Date();
-    if (closedAt.getFullYear() !== now.getFullYear()) {
+    if (calendarYearInTimeZone(closedAt) !== calendarYearInTimeZone(now)) {
       throw new BadRequestException(
         'Solo puede reabrir periodos cerrados en el año calendario actual (el año en que se cerraron).'
       );

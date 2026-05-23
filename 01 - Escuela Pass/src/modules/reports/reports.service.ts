@@ -70,6 +70,7 @@ import { PaymentRecordEntity } from '../../database/entities/payment-record.enti
 import { TeacherEntity, TeacherLifecycleStatus } from '../../database/entities/teacher.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
+import { calendarDateInTimeZone, todayInAppTimezone } from '../../common/local-date';
 
 @Injectable()
 export class ReportsService {
@@ -90,7 +91,7 @@ export class ReportsService {
   ) {}
 
   async attendanceToday(groupId: string, userId: string, role: UserRole, dateStr?: string) {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     await this.assertCanViewGroup(userId, role, groupId);
 
     const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
@@ -120,7 +121,7 @@ export class ReportsService {
   }
 
   async classAttendanceByGroup(groupId: string, userId: string, role: UserRole, dateStr?: string) {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     await this.assertCanViewGroup(userId, role, groupId);
 
     const rows = await this.attendanceRepository.manager.query<
@@ -205,7 +206,7 @@ export class ReportsService {
   }
 
   async circuitToday(status: CircuitStatus | undefined, dateStr?: string, schoolId?: string) {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     const sid = schoolId?.trim();
 
     const qb = this.circuitRepository
@@ -248,7 +249,7 @@ export class ReportsService {
 
     const byDay: Record<string, { total: number; ENTRY: number; EXIT: number }> = {};
     for (const ev of events) {
-      const day = new Date(ev.eventTime).toISOString().slice(0, 10);
+      const day = calendarDateInTimeZone(new Date(ev.eventTime));
       if (!byDay[day]) byDay[day] = { total: 0, ENTRY: 0, EXIT: 0 };
       byDay[day].total++;
       if (ev.eventType in byDay[day]) {

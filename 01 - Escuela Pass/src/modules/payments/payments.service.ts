@@ -77,13 +77,18 @@ import { PaymentRecordEntity } from '../../database/entities/payment-record.enti
 import { NotificationEntity } from '../../database/entities/notification.entity';
 import { StudentEntity, StudentLifecycleStatus } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
-import { todayInAppTimezone } from '../../common/local-date';
+import { todayInAppTimezone, calendarDateInTimeZone } from '../../common/local-date';
 import { FcmService } from '../fcm/fcm.service';
 import { CreateConceptDto } from './dto/create-concept.dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { RejectVoucherDto } from './dto/reject-voucher.dto';
 import { UpdateConceptDto } from './dto/update-concept.dto';
 import { UploadVoucherDto } from './dto/upload-voucher.dto';
+
+function dateColumnYmd(value: string | Date): string {
+  if (typeof value === 'string') return value.slice(0, 10);
+  return calendarDateInTimeZone(value);
+}
 
 export type DebtAdminListItem = {
   id: string;
@@ -305,7 +310,7 @@ export class PaymentsService {
       dueDate:
         typeof r.dueDate === 'string'
           ? r.dueDate.slice(0, 10)
-          : new Date(r.dueDate as unknown as Date).toISOString().slice(0, 10),
+          : dateColumnYmd(r.dueDate as unknown as Date),
       uploadedAt: r.uploadedAt ? new Date(r.uploadedAt).toISOString() : null,
       verifiedAt: r.verifiedAt ? new Date(r.verifiedAt).toISOString() : null,
       createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null
@@ -379,7 +384,7 @@ export class PaymentsService {
       dueDate:
         typeof r.dueDate === 'string'
           ? r.dueDate.slice(0, 10)
-          : new Date(r.dueDate as unknown as Date).toISOString().slice(0, 10),
+          : dateColumnYmd(r.dueDate as unknown as Date),
       status: r.status as PaymentStatus,
       description: r.description,
       voucherPath: r.voucherPath,
@@ -537,7 +542,7 @@ export class PaymentsService {
     }
     const staff = await this.staffRepository.findOne({ where: { userId } });
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = calendarDateInTimeZone(now);
     debt.status = PaymentStatus.PAGADO;
     debt.notes = null;
     debt.verifiedAt = now;
@@ -690,7 +695,7 @@ export class PaymentsService {
       const dueDateYmd =
         typeof row.dueDate === 'string'
           ? row.dueDate.slice(0, 10)
-          : new Date(row.dueDate as unknown as Date).toISOString().slice(0, 10);
+          : dateColumnYmd(row.dueDate as unknown as Date);
       if (dueDateYmd >= today) continue;
       if (row.status !== PaymentStatus.VENCIDO) {
         await this.debtsRepository.update({ id: row.id }, { status: PaymentStatus.VENCIDO });

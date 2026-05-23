@@ -72,6 +72,7 @@ import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
 import { createSchoolGroupsLoadOptions } from '@/lib/schoolGroupsSelect';
 import { invalidateSessionCachePrefix, readSessionCache, writeSessionCache } from '@/lib/sessionFetchCache';
+import { getAppTimeZone, mondayWeekRangeYmd, todayInAppTimezone } from '@/lib/app-date';
 import { useAuth } from '@/context/useAuth';
 import { isPlatformAdmin } from '@/lib/roles';
 
@@ -95,20 +96,17 @@ type SubjectRow = { id: string; name: string };
 type CalEntity = { id: string; exceptionDate: string; reason: string | null; groupId?: string | null };
 
 function weekRangeISO(offsetWeeks: number): { from: string; to: string; label: string } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const day = start.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + diff + offsetWeeks * 7);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  const label = `${start.toLocaleDateString('es', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('es', {
+  const { from, to } = mondayWeekRangeYmd(offsetWeeks);
+  const start = new Date(`${from}T12:00:00.000Z`);
+  const end = new Date(`${to}T12:00:00.000Z`);
+  const tz = getAppTimeZone();
+  const label = `${start.toLocaleDateString('es', { day: 'numeric', month: 'short', timeZone: tz })} – ${end.toLocaleDateString('es', {
     day: 'numeric',
     month: 'short',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: tz
   })}`;
-  return { from: fmt(start), to: fmt(end), label };
+  return { from, to, label };
 }
 
 export function StaffScheduleBrowsePage() {
@@ -126,7 +124,7 @@ export function StaffScheduleBrowsePage() {
   const [err, setErr] = useState<string | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
-  const [instDate, setInstDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [instDate, setInstDate] = useState(() => todayInAppTimezone());
   const [instReason, setInstReason] = useState('');
   const [instSaving, setInstSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);

@@ -84,11 +84,10 @@ import { ActivitiesService } from '../activities/activities.service';
 import { MeetingsService } from '../meetings/meetings.service';
 import { NoticesService } from '../notices/notices.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
+import { addCalendarDaysYmd, todayInAppTimezone } from '../../common/local-date';
 
 function addCalendarDays(isoDate: string, deltaDays: number): string {
-  const d = new Date(`${isoDate}T12:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + deltaDays);
-  return d.toISOString().slice(0, 10);
+  return addCalendarDaysYmd(isoDate, deltaDays);
 }
 
 @Injectable()
@@ -198,7 +197,7 @@ export class DashboardService {
   }
 
   async summary(dateStr?: string, schoolId?: string) {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     const sid = schoolId?.trim();
     const nonInstructionalDay = await this.schoolCalendarService.isGloballyNonInstructional(date);
 
@@ -330,7 +329,7 @@ export class DashboardService {
    * `schoolScope`: si se indica, todas las métricas quedan acotadas a esa institución (administrativo).
    */
   async adminPanel(referenceDateStr?: string, windowDaysStr?: string, schoolScope?: string | null) {
-    const endDate = referenceDateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const endDate = referenceDateStr?.slice(0, 10) ?? todayInAppTimezone();
     const sid = schoolScope?.trim() || undefined;
     const parsedDays = Number.parseInt(windowDaysStr ?? '7', 10);
     const windowDays = parsedDays === 15 || parsedDays === 30 ? parsedDays : 7;
@@ -477,7 +476,7 @@ export class DashboardService {
   }
 
   async actionableKpis(dateStr?: string, schoolId?: string) {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     const sid = schoolId?.trim() || undefined;
     const summary = await this.summary(date, sid);
 

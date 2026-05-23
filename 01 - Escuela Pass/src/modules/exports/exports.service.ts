@@ -76,6 +76,7 @@ import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { resolveUploadFile } from '../../lib/uploads-path';
 import { InstitutionProfile, SettingsService } from '../settings/settings.service';
 import { SchoolCalendarService } from '../school-calendar/school-calendar.service';
+import { todayInAppTimezone } from '../../common/local-date';
 
 type AttendanceExportRow = {
   matricula: string;
@@ -183,7 +184,7 @@ export class ExportsService {
   }
 
   async exportAttendanceXlsx(groupId: string, userId: string, role: UserRole, dateStr?: string) {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     await this.assertCanViewGroup(userId, role, groupId);
     const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
     if (cal.nonInstructional) {
@@ -284,7 +285,7 @@ export class ExportsService {
     headers: string[];
     rows: AttendanceExportRow[];
   }> {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     await this.assertCanViewGroup(userId, role, groupId);
 
     const cal = await this.schoolCalendarService.getNonInstructionalForGroupDate(date, groupId);
@@ -419,7 +420,7 @@ export class ExportsService {
     headers: string[];
     rows: ClassAttendanceExportRow[];
   }> {
-    const date = dateStr?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+    const date = dateStr?.slice(0, 10) ?? todayInAppTimezone();
     await this.assertCanViewGroup(userId, role, groupId);
 
     const raw = await this.groupsRepository.manager.query<

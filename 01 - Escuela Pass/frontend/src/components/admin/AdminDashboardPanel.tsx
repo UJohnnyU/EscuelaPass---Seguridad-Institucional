@@ -63,6 +63,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getUserFacingMessage } from '@/lib/api-errors';
+import { todayInAppTimezone } from '@/lib/app-date';
 
 type PanelSummary = {
   date: string;
@@ -159,7 +160,7 @@ export function AdminDashboardPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [refDate, setRefDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [refDate, setRefDate] = useState(() => todayInAppTimezone());
   const hasDataRef = useRef(false);
 
   const load = useCallback(async () => {

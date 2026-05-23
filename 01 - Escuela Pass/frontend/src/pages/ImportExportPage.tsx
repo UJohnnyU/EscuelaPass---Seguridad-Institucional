@@ -68,6 +68,7 @@ import { Panel } from '@/components/ValueView';
 import { useAuth } from '@/context/useAuth';
 import { hasRole, isAdmin, isPlatformAdmin } from '@/lib/roles';
 import { DATA_TABLE_HEAD, DataTableScroll } from '@/components/DataTableScroll';
+import { todayInAppTimezone } from '@/lib/app-date';
 
 type Group = {
   id: string;
@@ -130,7 +131,7 @@ export function ImportExportPage() {
   const [schoolFilter, setSchoolFilter] = useState('');
   const [groupId, setGroupId] = useState('');
   const [exportGroupLabel, setExportGroupLabel] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => todayInAppTimezone());
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
