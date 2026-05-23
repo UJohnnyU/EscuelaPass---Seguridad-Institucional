@@ -9,6 +9,6 @@ export class AssignNfcCredentialDto {
   @ApiProperty({ description: 'UID del tag NFC (hexadecimal, 4–14 bytes = 8–28 chars)' })
   @IsString()
   @Length(4, 40)
-  @Matches(/^[0-9A-Fa-f:]+$/, { message: 'nfcUid debe contener solo caracteres hexadecimales' })
+  @Matches(/^[0-9A-Fa-f:-]+$/, { message: 'nfcUid debe contener solo caracteres hexadecimales' })
   nfcUid!: string;
 }

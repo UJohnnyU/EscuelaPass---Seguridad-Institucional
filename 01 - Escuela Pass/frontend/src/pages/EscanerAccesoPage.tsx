@@ -62,25 +62,9 @@ function normalizeNfcUidInput(raw: string): string {
   return raw.trim().replace(/[:-]/g, '').toUpperCase();
 }
 
+/** UID hardware del chip (serialNumber), sin texto NDEF ni separadores. */
 function extractNfcCredentialValue(event: NDEFReadingEvent): string {
-  for (const record of event.message.records) {
-    if (record.recordType === 'text') {
-      try {
-        if (typeof record.toText === 'function') {
-          const text = record.toText().trim();
-          if (text) return text;
-        }
-        if (record.data) {
-          const enc = new TextDecoder('utf-8');
-          const text = enc.decode(record.data).trim();
-          if (text) return text;
-        }
-      } catch {
-        // continúa con el siguiente registro o usa el serial
-      }
-    }
-  }
-  return event.serialNumber.replace(/:/g, '').toUpperCase();
+  return normalizeNfcUidInput(event.serialNumber);
 }
 
 export function EscanerAccesoPage() {
@@ -89,6 +73,7 @@ export function EscanerAccesoPage() {
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const nfcAbortRef = useRef<AbortController | null>(null);
+  const assignNfcAbortRef = useRef<AbortController | null>(null);
 
   const [scanning, setScanning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -109,6 +94,7 @@ export function EscanerAccesoPage() {
   const [credMsg, setCredMsg] = useState<string | null>(null);
   const [assignUserId, setAssignUserId] = useState('');
   const [assignNfcUid, setAssignNfcUid] = useState('');
+  const [assignNfcReading, setAssignNfcReading] = useState(false);
   const [showCredPanel, setShowCredPanel] = useState(false);
   const [credSearchQ, setCredSearchQ] = useState('');
   const [credRole, setCredRole] = useState('');
@@ -205,12 +191,21 @@ export function EscanerAccesoPage() {
     setNfcInfo(null);
   }, []);
 
+  const stopAssignNfcRead = useCallback(() => {
+    if (assignNfcAbortRef.current) {
+      assignNfcAbortRef.current.abort();
+      assignNfcAbortRef.current = null;
+    }
+    setAssignNfcReading(false);
+  }, []);
+
   useEffect(() => {
     return () => {
       void stopCamera();
       stopNfc();
+      stopAssignNfcRead();
     };
-  }, [stopCamera, stopNfc]);
+  }, [stopCamera, stopNfc, stopAssignNfcRead]);
 
   async function handleDecoded(text: string) {
     setErr(null);
@@ -228,19 +223,25 @@ export function EscanerAccesoPage() {
   }
 
   async function handleNfcRead(credentialValue: string) {
+    const normalized = normalizeNfcUidInput(credentialValue);
+    if (!normalized) {
+      setNfcErr('No se pudo leer el UID del chip NFC.');
+      setNfcInfo(null);
+      return;
+    }
     setNfcErr(null);
-    setNfcInfo(`Tarjeta detectada: ${credentialValue}`);
+    setNfcInfo(`UID detectado: ${normalized}`);
     try {
       const { data } = await api.post<ScanResponse>('/api/v1/access-events/scan', {
         method: 'NFC',
-        credentialValue,
+        credentialValue: normalized,
         eventType
       });
       stopNfc();
       setResult(data);
     } catch (e) {
       setNfcErr(getUserFacingMessage(e));
-      setNfcInfo(null);
+      setNfcInfo(`UID detectado: ${normalized}`);
     }
   }
 
@@ -328,6 +329,47 @@ export function EscanerAccesoPage() {
         /* cancelado por el usuario */
       } else {
         setNfcErr(`No se pudo iniciar el lector NFC: ${msg}`);
+      }
+    }
+  }
+
+  async function startAssignNfcRead() {
+    setCredErr(null);
+    if (!nfcIsSupported()) {
+      setCredErr(
+        'NFC no está disponible en este navegador. Use Chrome en Android con NFC activado o pegue el UID manualmente.'
+      );
+      return;
+    }
+    stopAssignNfcRead();
+    stopNfc();
+    const controller = new AbortController();
+    assignNfcAbortRef.current = controller;
+    setAssignNfcReading(true);
+    try {
+      const ndef = new window.NDEFReader!();
+      await ndef.scan({ signal: controller.signal });
+      ndef.onreading = (event: NDEFReadingEvent) => {
+        const uid = extractNfcCredentialValue(event);
+        if (!uid) {
+          setCredErr('No se pudo leer el UID del chip NFC.');
+          return;
+        }
+        setAssignNfcUid(uid);
+        setCredMsg(`UID leído del chip: ${uid}`);
+        stopAssignNfcRead();
+      };
+      ndef.onerror = () => {
+        setCredErr('Error al leer la tarjeta NFC. Acerque la tarjeta de nuevo.');
+      };
+    } catch (e) {
+      assignNfcAbortRef.current = null;
+      setAssignNfcReading(false);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('Permission')) {
+        setCredErr('Permiso NFC denegado. Habilite el permiso de NFC para este sitio en el navegador.');
+      } else if (!msg.includes('abort')) {
+        setCredErr(`No se pudo iniciar el lector NFC: ${msg}`);
       }
     }
   }
@@ -592,19 +634,46 @@ export function EscanerAccesoPage() {
                     onChange={(e) => setAssignNfcUid(e.target.value.toUpperCase())}
                     className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 font-mono text-sm shadow-inner dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   />
+                  {nfcIsSupported() && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {!assignNfcReading ? (
+                        <button
+                          type="button"
+                          disabled={credBusy}
+                          onClick={() => void startAssignNfcRead()}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                        >
+                          Leer chip NFC
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={stopAssignNfcRead}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                        >
+                          Cancelar lectura
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <button
                 type="button"
                 disabled={credBusy || !assignUserId.trim() || !assignNfcUid.trim()}
                 onClick={async () => {
+                  const normalizedUid = normalizeNfcUidInput(assignNfcUid);
+                  if (!normalizedUid) {
+                    setCredErr('Ingrese un UID NFC válido.');
+                    return;
+                  }
                   setCredErr(null);
                   setCredMsg(null);
                   setCredBusy(true);
                   try {
                     await api.post('/api/v1/access-events/credentials/nfc', {
                       targetUserId: assignUserId.trim(),
-                      nfcUid: assignNfcUid.trim()
+                      nfcUid: normalizedUid
                     });
                     setCredMsg('Credencial NFC vinculada correctamente.');
                     setAssignUserId('');

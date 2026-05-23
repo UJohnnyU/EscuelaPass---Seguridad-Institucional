@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { AuditService } from '../audit/audit.service';
 import {
   AccessCredentialEntity,
@@ -414,31 +414,60 @@ export class AccessService {
     if (!normalizedUid) {
       throw new BadRequestException('UID NFC no válido');
     }
-    // Check the NFC UID is not already taken by another active credential
-    const existingForUid = await this.credentialsRepository.findOne({
-      where: { credentialType: CredentialType.NFC, credentialValue: normalizedUid, status: CredentialStatus.ACTIVE }
-    });
-    if (existingForUid && existingForUid.userId !== targetUserId) {
-      throw new BadRequestException('Este UID NFC ya está asignado a otro usuario');
-    }
 
-    // Revoke previous active NFC credential for this user
-    const existingForUser = await this.credentialsRepository.findOne({
-      where: { userId: targetUserId, credentialType: CredentialType.NFC, status: CredentialStatus.ACTIVE }
-    });
-    if (existingForUser) {
-      existingForUser.status = CredentialStatus.REVOKED;
-      await this.credentialsRepository.save(existingForUser);
-    }
+    try {
+      return await this.credentialsRepository.manager.transaction(async (em) => {
+        const credRepo = em.getRepository(AccessCredentialEntity);
 
-    const credential = this.credentialsRepository.create({
-      userId: targetUserId,
-      credentialType: CredentialType.NFC,
-      credentialValue: normalizedUid,
-      status: CredentialStatus.ACTIVE
-    });
-    await this.credentialsRepository.save(credential);
-    return { message: 'Credencial NFC asignada', credentialId: credential.id, nfcUid: normalizedUid, userId: targetUserId };
+        const existingForUid = await credRepo.findOne({
+          where: { credentialType: CredentialType.NFC, credentialValue: normalizedUid }
+        });
+        if (
+          existingForUid?.status === CredentialStatus.ACTIVE &&
+          existingForUid.userId !== targetUserId
+        ) {
+          throw new BadRequestException('Este UID NFC ya está asignado a otro usuario');
+        }
+
+        const existingForUser = await credRepo.findOne({
+          where: { userId: targetUserId, credentialType: CredentialType.NFC, status: CredentialStatus.ACTIVE }
+        });
+        if (existingForUser && existingForUser.id !== existingForUid?.id) {
+          existingForUser.status = CredentialStatus.REVOKED;
+          await credRepo.save(existingForUser);
+        }
+
+        let credential: AccessCredentialEntity;
+        if (existingForUid) {
+          existingForUid.userId = targetUserId;
+          existingForUid.status = CredentialStatus.ACTIVE;
+          credential = await credRepo.save(existingForUid);
+        } else {
+          credential = credRepo.create({
+            userId: targetUserId,
+            credentialType: CredentialType.NFC,
+            credentialValue: normalizedUid,
+            status: CredentialStatus.ACTIVE
+          });
+          credential = await credRepo.save(credential);
+        }
+
+        return {
+          message: 'Credencial NFC asignada',
+          credentialId: credential.id,
+          nfcUid: normalizedUid,
+          userId: targetUserId
+        };
+      });
+    } catch (err) {
+      if (err instanceof QueryFailedError) {
+        const code = (err.driverError as { code?: string } | undefined)?.code;
+        if (code === '23505') {
+          throw new BadRequestException('Este UID NFC ya está registrado');
+        }
+      }
+      throw err;
+    }
   }
 
   /** RF2 — Listar credenciales activas de una institución (filtros opcionales). */
