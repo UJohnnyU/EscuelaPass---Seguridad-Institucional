@@ -7,9 +7,9 @@
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 ![Status](https://img.shields.io/badge/status-producción%20%2F%20TDG-blue)
 
-**Escuela Pass** es una plataforma web institucional para la **administración, operación diaria y seguridad escolar**. Integra control de accesos con **NFC** y **QR**, circuito de recogida con **geolocalización**, gestión académica, finanzas, comunicación y auditoría en un mismo sistema multi-rol y multi-colegio.
+**Escuela Pass** es una plataforma web institucional para la **administración, operación diaria y seguridad escolar** en colegios privados de **México** (con perspectiva de expansión regional). Integra control de accesos con **NFC** y **QR**, circuito de recogida con **geolocalización**, gestión académica, finanzas, comunicación y auditoría en un mismo sistema multi-rol y multi-colegio.
 
-Proyecto desarrollado como **Trabajo de Grado** por **Murillo Martínez Jhon Kevin** (Politécnico Colombiano Jaime Isaza Cadavid — POLI JIC). El código fuente es **software propietario**; consulte [LICENSE](LICENSE) para condiciones de uso.
+Desarrollada como **Trabajo de Grado** en el Politécnico Colombiano Jaime Isaza Cadavid (POLI JIC) por **Murillo Martínez Jhon Kevin**. El código fuente es **software propietario**; consulte [LICENSE](LICENSE) para condiciones de uso.
 
 ## Características principales
 
@@ -81,7 +81,9 @@ Requisitos: **Node.js 20+** y **PostgreSQL**. Para esquema inicial puede usarse 
 
 ## Privacidad y cumplimiento
 
-El diseño contempla buenas prácticas de protección de datos personales en contexto institucional colombiano (referencia **Ley 1581 de 2012**), con controles de acceso por rol, minimización de exposición de PII y registro de eventos relevantes.
+El diseño contempla buenas prácticas de protección de datos personales en contexto institucional **mexicano**, con referencia a la **LFPDPPP** (Ley Federal de Protección de Datos Personales en Posesión de los Particulares). En el código se aplican controles de acceso por rol, minimización de exposición de PII, redacción en logs y registro de eventos relevantes (módulos `privacy` y `audit`).
+
+La zona horaria operativa predeterminada es **`America/Mexico_City`** (`APP_TIMEZONE`).
 
 ## Licencia y contacto
 
