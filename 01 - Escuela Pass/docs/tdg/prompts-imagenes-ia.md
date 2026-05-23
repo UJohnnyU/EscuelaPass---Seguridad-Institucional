@@ -1,4 +1,4 @@
-﻿# Figuras TDG‑2 Escuela Pass — Mermaid / draw.io / dbdiagram.io
+# Figuras TDG‑2 Escuela Pass — Mermaid / draw.io / dbdiagram.io
 
 **Fuente normativa.** [TDG-2_Escuela_Pass_borrador_maestro_v2.md](TDG-2_Escuela_Pass_borrador_maestro_v2.md). Ante colisión de numeración entre anexos y cuerpo, usar en Word **numeración global** o **Figura X — Anexo YY** según APIT.
 
@@ -15,7 +15,8 @@
 - Pie de figura: **copiar del maestro v2** (no improvisar pies legales).  
 - Fondo **claro**; tipografía legible impresa (evitar franjas horizontales ilegibles).  
 - Datos **sintéticos** en capturas; sin menores reales ni marcas ajenas.  
-- No inventar tablas, rutas ni módulos: contrastar con repo y anexos técnicos.  
+- No inventar tablas, rutas ni módulos: contrastar con el maestro v2, [`navConfig.ts`](../../frontend/src/navigation/navConfig.ts), [`App.tsx`](../../frontend/src/App.tsx), `AppShell` / `NotificationsBadge` y los controladores del servicio.  
+- **Comunicación (RF7):** bandeja en `/app/modulos/comunicacion`; acceso habitual por **campana** en cabecera, tarjetas de **Inicio** según rol y `linkPath` de notificaciones (la campana es panel desplegable, no la pantalla completa).  
 - **Figuras 1–2 y 10:** plantillas APIT + asset **AlfaNetworks** (sin IA generativa).
 
 **Flujo de trabajo recomendado.**
@@ -70,8 +71,8 @@ Usar IDs globales en Word si el programa exige unicidad (colisiones frecuentes e
 | ID sugerido | Cuerpo TDG | Anexo / nota | Reutilización |
 | --- | --- | --- | --- |
 | — | Fig. 1–2 portada | — | Solo APIT |
-| — | Fig. 3 orden documento | [Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) | Mermaid § Fig. 3 |
-| — | Fig. 4 Gantt | [Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md) | Mermaid § Fig. 4 |
+| — | Fig. 3 orden documento | Mermaid § Fig. 3 (misma referencia que el pie del maestro v2 §3.6) |
+| — | Fig. 4 Gantt | Mermaid § Fig. 4 (misma referencia que el pie del maestro v2 §2.7) |
 | — | Fig. M1 capas | Complementa Fig. 5 | Verbatim maestro |
 | — | Fig. 5 capas ilustrada | Anexo 03 contexto | Mermaid § Fig. 5 |
 | — | Fig. 6 ER macro | Anexo 04 detalle | DBML macro § Fig. 6 |
@@ -111,9 +112,9 @@ Usar IDs globales en Word si el programa exige unicidad (colisiones frecuentes e
 
 ## Figura 3 — Orden del documento y anexos (§ 3.6)
 
-**Pie maestro v2.** *Diagrama orientativo del orden del documento y su relación con los anexos. Representación conforme **Anexo 02** u organigrama documental equivalente aprobado.*
+**Pie maestro v2.** *Diagrama orientativo del orden del documento y su relación con los anexos. Representación conforme a los diagramas Mermaid de la guía de figuras (§ Fig. 3) u organigrama documental equivalente aprobado.*
 
-**Fuente Mermaid:** [anexos/Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) (organigrama documental; distinto del «ANEXO 02 — Actas» del maestro consolidado).
+**Fuente Mermaid:** diagrama siguiente (homónimo al pie del maestro v2 §3.6).
 ### A) Mermaid (mermaid.live)
 
 ```mermaid
@@ -147,9 +148,9 @@ flowchart TD
 
 ## Figura 4 — Cronograma Gantt (§ 3.7)
 
-**Pie maestro v2.** *Cronograma Gantt del proyecto Escuela Pass (24/02/2026–21/06/2026). Representación conforme plan de trabajo del **Anexo 01** o figura institucional equivalente.*
+**Pie maestro v2.** *Cronograma Gantt del proyecto Escuela Pass (24/02/2026–21/06/2026). Representación conforme a los diagramas Mermaid de la guía de figuras (§ Fig. 4) o figura institucional equivalente.*
 
-Alinear barras a **Tabla 2b** (siete fases FTG). Fechas oficiales y Gantt fuente: [anexos/Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md).
+Alinear barras a **Tabla 2b** (siete fases FTG). Fuente Mermaid: diagrama siguiente (homónimo al pie del maestro v2 §2.7).
 
 ### A) Mermaid (`gantt`)
 
@@ -695,11 +696,11 @@ flowchart LR
 
 | Actor en diagrama | Rol | Aparece en láminas |
 | --- | --- | --- |
-| Administrador de plataforma | `ADMIN` | Índice, RF1, RF2, RF4, RF8 |
-| Personal administrativo | `ADMINISTRATIVO` | Índice, RF1, RF3–RF8 |
+| Administrador de plataforma | `ADMIN` | Índice, RF1, RF2, RF3, RF4, RF6, RF8 |
+| Personal administrativo | `ADMINISTRATIVO` | Índice, RF1, **RF2**, RF3–RF8 |
 | Docente | `DOCENTE` | Índice, RF1, RF2, RF3, RF4, RF5, RF7, RF8 |
-| Padre o tutor | `PADRE` | Índice, RF1, RF3–RF7 |
-| Alumno | `ALUMNO` | Índice, RF1, RF2, RF3, RF5, RF7 |
+| Padre o tutor | `PADRE` | Índice, RF1, RF3–RF7 (**sin RF2** — no escanea en portería ni opera escáner) |
+| Alumno | `ALUMNO` | Índice, RF1, RF3, RF5, **RF6**, RF7 (**sin RF2 en índice**; credencial QR en **Mi perfil**, lámina RF2) |
 
 ### Requerimientos funcionales (etiquetas de lámina)
 
@@ -721,11 +722,11 @@ Cada fila de las tablas del maestro L1740–1827 se representa en **exactamente 
 | §2 maestro | Filas | Láminas donde van las elipses |
 | --- | --- | --- |
 | §2.1 Administrador plataforma | 11 | RF1 (6), RF2 (1), RF4 (3), RF8 (2) |
-| §2.2 Personal administrativo | 18 | RF1 (2), RF3 (1), RF4 (9), RF5 (2), RF6 (2), RF7 (1), RF8 (1) |
+| §2.2 Personal administrativo | 20 | RF1 (2), RF2 (2), RF3 (1), RF4 (9), RF5 (2), RF6 (2), RF7 (1), RF8 (1) |
 | §2.3 Docente | 13 | RF1 (2), RF2 (1), RF3 (1), RF4 (1), RF5 (6), RF7 (1), RF8 (1) |
 | §2.4 Padre o tutor | 16 | RF1 (2), RF3 (8), RF4 (2), RF5 (2), RF6 (1), RF7 (1) |
-| §2.5 Alumno | 9 | RF1 (2), RF2 (1), RF3 (1), RF5 (4), RF7 (2) |
-| **Total filas inventario** | **67** (11+18+13+16+9 en maestro §2.1–2.5) | **8 láminas RF + índice** |
+| §2.5 Alumno | 8 | RF1 (2), RF2 (1), RF3 (1), RF5 (2), RF7 (2) |
+| **Total filas inventario** | **68** (11+20+13+16+8 en maestro §2.1–2.5) | **8 láminas RF + índice** |
 
 ### Reglas de negocio (maestro L498) → nota en lámina
 
@@ -753,19 +754,23 @@ Cada fila de las tablas del maestro L1740–1827 se representa en **exactamente 
 | Consultar bitácora de auditoría | RF1 | §2.1 |
 | Gestionar políticas de privacidad versionadas | RF1 | §2.1 |
 | Configurar credenciales NFC para usuarios | RF2 | §2.1 |
+| Escanear credencial QR/NFC en plantel | RF2 | §2.1 (API `POST access-events/scan`; menú **Escáner de acceso**) |
 
-**Personal administrativo** — ver tablas en § Figura 7-RF1 … RF8 (18 filas §2.2 repartidas).
+**Personal administrativo** — veinte filas §2.2; escaneo y credenciales NFC en lámina **7-RF2** (misma API que administrador de plataforma).
 
-**Docente, Padre o tutor, Alumno** — idem (13 + 16 + 9 filas).
+**Docente, Padre o tutor, Alumno** — tablas §2.3–§2.5 (13 + 16 + 8 filas).
 
 ### Checklist coherencia TDG (antes de exportar)
 
 - [ ] Texto puente pegado en Word sobre la primera lámina.
 - [ ] Pie literal maestro solo en **7-Índice** (o 7-RF1 si no hay índice).
 - [ ] Los cinco actores visibles en **7-Índice**.
-- [ ] 67/67 filas §2 cubiertas en RF1–RF8.
+- [ ] 68/68 filas §2 cubiertas en RF1–RF8.
+- [ ] RF2 índice: **A2→RF2** (administrativo); **sin A4→RF2** (padre); **sin A5→RF2** (alumno solo en lámina RF2).
+- [ ] RF2 lámina: actores escaneo = Admin + Administrativo + Docente; NFC = Admin + Administrativo.
 - [ ] RF3: padre/tutor inicia; sin conductor escolar.
-- [ ] RF6: sin pasarela en nota y elipses.
+- [ ] RF6: sin pasarela en nota y elipses; menú **Finanzas** visible para `ALUMNO` y `PADRE`.
+- [ ] RF7 UI: campana + Inicio por rol + `linkPath`; matriz § RF7.
 - [ ] Cada PNG legible al 100 % zoom impresión Word.
 
 ---
@@ -800,6 +805,7 @@ flowchart LR
   A1 --> RF4
   A1 --> RF8
   A2 --> RF1
+  A2 --> RF2
   A2 --> RF3
   A2 --> RF4
   A2 --> RF5
@@ -820,9 +826,9 @@ flowchart LR
   A4 --> RF6
   A4 --> RF7
   A5 --> RF1
-  A5 --> RF2
   A5 --> RF3
   A5 --> RF5
+  A5 --> RF6
   A5 --> RF7
 ```
 
@@ -837,7 +843,7 @@ flowchart LR
 #### Prompt IA (índice)
 
 ```text
-Diagrama UML índice Escuela Pass. Sin casos de uso (sin elipses). Izquierda: cinco actores en español (Administrador de plataforma, Personal administrativo, Docente, Padre o tutor, Alumno). Derecha: rectángulo «Sistema Escuela Pass» con ocho cajas internas RF1 Identidad, RF2 Acceso QR/NFC, RF3 Circuito familiar, RF4 Gestion escolar, RF5 Academico, RF6 Finanzas sin pasarela, RF7 Avisos, RF8 Tableros. Líneas de asociación actor-caja según participación real del producto. Fondo blanco, legible impreso. Nota: desglose detallado en laminas 7-RF1 a 7-RF8.
+Diagrama UML índice Escuela Pass. Sin casos de uso (sin elipses). Izquierda: cinco actores. Derecha: «Sistema Escuela Pass» con RF1–RF8. Asociaciones macro (producto real): Admin→RF1,RF2,RF3,RF4,RF6,RF8; Personal administrativo→RF1,RF2,RF3–RF8; Docente→RF1,RF2,RF3–RF5,RF7,RF8; Padre→RF1,RF3–RF7 (NO RF2); Alumno→RF1,RF3,RF5,RF6,RF7 (NO RF2 en índice; QR en Mi perfil). Fondo blanco. Nota: láminas 7-RF1…RF8 con elipses.
 ```
 
 **Criterios.** Cinco actores; ocho RF visibles; sin elipses; pie literal maestro.
@@ -876,13 +882,13 @@ Diagrama casos de uso UML 2.5.1 RF1 Identidad sesion y privacidad, Escuela Pass.
 
 ### Figura 7-RF2 — Control de acceso QR/NFC
 
-**Actores:** Administrador plataforma, Docente, Alumno. **Nota:** antiduplicación ~10 s (mismo usuario/escuela); respuesta **201** + `duplicate=true` (maestro L498).
+**Actores en lámina:** Administrador de plataforma, **Personal administrativo**, Docente, Alumno. **Excluido:** Padre o tutor (no escanea en portería; su flujo es RF3 circuito). **Nota:** antiduplicación ~10 s (mismo usuario/escuela); respuesta **201** + `duplicate=true` (maestro L498). **API:** `POST /api/v1/access-events/scan` → `@Roles(ADMIN, ADMINISTRATIVO, DOCENTE)`; NFC → `ADMIN` y `ADMINISTRATIVO`. **UI:** `/app/acceso/escaner` (menú **Escáner de acceso**); QR del alumno en `/app/perfil` (`GET my-qr`).
 
-| Elipse | Actor | §2 |
+| Elipse | Actor(es) | §2 / código |
 | --- | --- | --- |
-| Configurar credenciales NFC para usuarios | Administrador plataforma | §2.1 |
-| Escanear credencial QR/NFC en clase | Docente | §2.3 |
-| Consultar credencial QR personal | Alumno | §2.5 |
+| Configurar credenciales NFC para usuarios | Administrador plataforma, Personal administrativo | §2.1, §2.2 + API `credentials/nfc` |
+| Escanear credencial QR/NFC en plantel o clase | Administrador plataforma, Personal administrativo, Docente | §2.1, §2.2, §2.3 + menú escáner |
+| Consultar credencial QR personal | Alumno | §2.5 — pantalla **Mi perfil**, no escáner |
 
 **Relación opcional:** `Escanear QR/NFC` `<<extend>>` asistencia docente (solo si legible; detalle en RF5).
 
@@ -891,10 +897,10 @@ Diagrama casos de uso UML 2.5.1 RF1 Identidad sesion y privacidad, Escuela Pass.
 #### Prompt IA (RF2)
 
 ```text
-UML RF2 Control acceso QR/NFC Escuela Pass. Actores: Administrador de plataforma, Docente, Alumno. Sistema: RF2 Acceso. Elipses: Configurar credenciales NFC (Admin); Escanear credencial QR/NFC en clase (Docente); Consultar credencial QR personal (Alumno). Nota: ventana antiduplicacion ~10 s mismo usuario misma escuela respuesta 201 duplicate=true sin nuevo evento. Nota: Requiere sesion Fig 7-RF1. Sin pasarela. Fondo blanco. Pie continuacion RF2.
+UML RF2 Control acceso QR/NFC Escuela Pass. Actores: Administrador de plataforma, Personal administrativo, Docente, Alumno. SIN Padre o tutor. Sistema RF2 Acceso. Elipses: Configurar credenciales NFC (Admin y Administrativo); Escanear credencial QR/NFC en plantel o clase (Admin, Administrativo, Docente); Consultar credencial QR personal (Alumno, via Mi perfil). Nota antiduplicacion ~10 s respuesta 201 duplicate=true. Ruta UI escaner /app/acceso/escaner. Requiere sesion RF1. Fondo blanco. Pie continuacion RF2.
 ```
 
-**Criterios.** Tres elipses §2; coherente Fig. 9 / E2E scan.
+**Criterios.** Cuatro actores; tres elipses; coherente `access.controller.ts`, `navConfig` y E2E scan.
 
 ---
 
@@ -978,12 +984,11 @@ UML RF4 Gestion escolar e importaciones Escuela Pass. Actores: Administrador pla
 | Consultar asistencia, calificaciones, boletines y horario del hijo | Padre o tutor | §2.4 |
 | Consultar horario y calendario académico | Alumno | §2.5 |
 | Consultar calificaciones y boletines propios | Alumno | §2.5 |
-| Consultar asistencia diaria y por clase | Alumno | §2.5 |
 
 #### Prompt IA (RF5)
 
 ```text
-UML RF5 Asistencia actividades calificaciones Escuela Pass. Actores: Personal administrativo, Docente, Padre o tutor, Alumno. Administrativo: periodos academicos; boletines PDF. Docente: consultar asignaciones horario; asistencia diaria grupo; asistencia sesion clase; actividades academicas; calificaciones; reabrir actividad justificada. Padre: justificar inasistencia excusa; consultar asistencia calificaciones boletines horario hijo. Alumno: horario calendario; calificaciones boletines; asistencia propia. Requiere sesion RF1. Pie continuacion RF5.
+UML RF5 Asistencia actividades calificaciones Escuela Pass. Actores: Personal administrativo, Docente, Padre o tutor, Alumno. Administrativo: periodos academicos; boletines PDF. Docente: consultar asignaciones horario; asistencia diaria grupo; asistencia sesion clase; actividades academicas; calificaciones; reabrir actividad justificada. Padre: justificar inasistencia excusa; consultar asistencia calificaciones boletines horario hijo (Academico). Alumno: horario calendario; calificaciones boletines. Requiere sesion RF1. Pie continuacion RF5.
 ```
 
 **Criterios.** Asistencia dual docente; boletines administrativo.
@@ -1024,13 +1029,27 @@ UML RF6 Finanzas y comprobantes Escuela Pass SIN pasarela bancaria automatica. A
 
 **Nota:** FCM opcional (degradación controlada si no hay credenciales).
 
+**UI — matriz de descubrimiento:**
+
+| Vía | Componente | Roles | Comportamiento |
+| --- | --- | --- | --- |
+| Campana (header) | `NotificationsBadge` en `AppShell` | Todos autenticados | Panel con no leídas; al pulsar ítem con `linkPath` → `navigate(linkPath)` (FCM/eventos suelen usar `/app/modulos/comunicacion?notification=…`; académicas → calificaciones/boletines; pagos → finanzas). **Sin** botón «Ver bandeja completa» en el panel. |
+| Inicio — tarjetas | `AppHomePage` | `ALUMNO` | Card «Notificaciones recientes» → comunicación |
+| Inicio — tarjetas | `AppHomePage` | `PADRE` | Cards «Anotaciones recientes» y «Notificaciones recientes»; modal anotación → «Ir a comunicación» |
+| Inicio — tarjetas | `AppHomePage` | `DOCENTE` | Card «Notificaciones recientes» |
+| Inicio — atajo | `AppHomePage` | `ADMIN` (`HomePlatformAdmin`) | «Comunicación institucional» en accesos rápidos |
+| Inicio — panel escuela | `AdminDashboardPanel` | `ADMINISTRATIVO` | **Sin** enlace directo a comunicación (solo circuito del día / informes); staff llega por campana, URL o publicación si ya está en la ruta |
+| Menú lateral | `navConfig.ts` | — | Comunicación no figura como ítem del sidebar |
+| Ruta directa | `App.tsx` | Todos | `/app/modulos/comunicacion` → `ComunicacionPage` (bandeja + publicar avisos si staff) |
+| Horario | `StudentSchedulePage` | Quien use `/app/horario` | Lista avisos **en la misma página** (no redirige a comunicación) |
+
 #### Prompt IA (RF7)
 
 ```text
-UML RF7 Avisos notificaciones reportes Escuela Pass. Actores: Personal administrativo, Docente, Padre o tutor, Alumno. Elipses: atender reportes administrativos SLA (Administrativo); consultar avisos notificaciones (Docente); recibir avisos push opcional (Padre); consultar avisos institucionales y notificaciones personales (Alumno). FCM opcional. Requiere sesion RF1. Pie continuacion RF7.
+UML RF7 Avisos notificaciones reportes Escuela Pass. Actores: Personal administrativo, Docente, Padre o tutor, Alumno. Elipses segun maestro Anexo 05 §2. Nota UI: bandeja /app/modulos/comunicacion; acceso por campana NotificationsBadge (panel y linkPath), tarjetas en Inicio por rol y deep links FCM. FCM opcional. Requiere sesion RF1. Pie continuacion RF7.
 ```
 
-**Criterios.** SLA administrativo; push no obligatorio en diagrama.
+**Criterios.** SLA administrativo; capturas: campana abierta + tarjeta Inicio + pantalla Comunicación.
 
 ---
 
@@ -1056,7 +1075,7 @@ UML RF8 Tableros reportes exportaciones Escuela Pass. Actores: Administrador pla
 ### Criterios de aceptación (conjunto Figura 7)
 
 - Nueve láminas en orden: Índice → RF1 … RF8.  
-- **67/67** filas Anexo 05 §2 representadas en RF1–RF8.  
+- **68/68** filas Anexo 05 §2 representadas en RF1–RF8.  
 - Cinco actores (Tabla 6); RF3 padre/tutor; RF6 sin pasarela.  
 - UML 2.5.1; pies según convención hub.  
 - Coherencia matriz RF maestro L832–839 y texto §4.1 L469–500.
@@ -1069,7 +1088,7 @@ UML RF8 Tableros reportes exportaciones Escuela Pass. Actores: Administrador pla
 
 ```mermaid
 sequenceDiagram
-  participant U as Usuario portería
+  participant U as Operador acceso (Admin/Administrativo/Docente)
   participant C as Cliente (EscanerAccesoPage)
   participant A as API access-events
   participant DB as PostgreSQL
@@ -1087,7 +1106,7 @@ sequenceDiagram
 
 ### draw.io (Fig. 9 formal — `A05-SEQ-2`)
 
-Lifelines: *Personal portería*, *EscanerAccesoPage*, *AccessEvents*, *PostgreSQL*. Mensajes: `POST /access-events/scan`; **alt** 201 + `duplicate=true` (~10 s, mismo usuario/escuela) vs 201 + evento nuevo; asistencia automática solo en `attendance_records` (ENTRY alumno); nota `ATTENDANCE_ENTRY_GRACE_MINUTES`.
+Lifelines: *Operador acceso* (`ADMIN` | `ADMINISTRATIVO` | `DOCENTE` — **no** `PADRE` ni `ALUMNO`), *EscanerAccesoPage*, *AccessEvents*, *PostgreSQL*. Mensajes: `POST /access-events/scan`; **alt** 201 + `duplicate=true` (~10 s, mismo usuario/escuela) vs 201 + evento nuevo; asistencia automática solo en `attendance_records` (ENTRY alumno); nota `ATTENDANCE_ENTRY_GRACE_MINUTES`.
 
 **Criterios de aceptación.** Endpoint y códigos HTTP alineados al maestro §4.3.
 
@@ -1417,18 +1436,51 @@ Docente → API `activities` → validar periodo → cierre inmutable o 4xx.
 
 ## Anexo 06 — Prototipos UI (8 figuras)
 
+**Menú lateral real** (`frontend/src/navigation/navConfig.ts`, filtrado por `navVisibleForRole`). Orden de captura recomendado: sidebar completo + pantalla de Inicio (tarjetas RF7).
+
+| Rol | Etiquetas visibles en sidebar (orden del código) |
+| --- | --- |
+| `ALUMNO` | Inicio · Mi perfil · Reuniones · Visitas externas · Finanzas · Mis calificaciones · Boletines · Horario · Institución |
+| `PADRE` | Inicio · Mi perfil · Reuniones · Visitas externas · Finanzas · Académico · Calificaciones · Boletines · Circuito (familia) · Institución |
+| `DOCENTE` | Inicio · Mi perfil · Reuniones · Visitas externas · Anotaciones (docente) · Académico · Actividades y notas · Boletines · Horario · Escáner de acceso · Circuito del día · Institución |
+| `ADMINISTRATIVO` | Inicio · Mi perfil · Reuniones · Visitas externas · Anotaciones (docente) · Finanzas · Académico · Periodos académicos · Actividades y notas · Boletines · Horario · Administración e informes · Institución · Grupos y personas · Importar y exportar · Escáner de acceso · Circuito del día |
+| `ADMIN` | Inicio · Mi perfil · Reuniones · Visitas externas · Anotaciones (docente) · Finanzas · Periodos académicos · Actividades y notas · Boletines · Horario · Administración e informes · Institución · Grupos y personas · **Escuelas** · Importar y exportar · Escáner de acceso · Circuito del día |
+
+**Notas para prototipos / capturas**
+
+- **RF7:** capturar **campana** (header) + tarjetas de Inicio hacia `/app/modulos/comunicacion` (ALUMNO, PADRE, DOCENTE, ADMIN); **ADMINISTRATIVO** suele entrar por campana o URL directa.
+- **RF2:** escáner solo en Admin, Administrativo y Docente; alumno muestra QR en **Mi perfil** (`PerfilPage`).
+- **Importar:** menú solo Admin/Administrativo; `RoleGate` también permite `DOCENTE` en ruta — no mostrar en sidebar docente salvo que el producto cambie.
+
 | ID | Pie maestro (resumen) | Herramienta | Ruta / nota |
 | --- | --- | --- | --- |
 | A06-1 | Login + recuperar contraseña | Captura o Figma | `/login` |
-| A06-2 | Tablero ADMIN plataforma | Captura | multi-escuela |
-| A06-3 | Tablero administrativo | Captura | nómina/finanzas/calendario |
-| A06-4 | Tablero docente | Captura | asistencia/actividades |
-| A06-5 | Vista padre/tutor | Captura móvil | circuito, hijos |
-| A06-6 | Vista alumno | Captura | QR, horario, calificaciones |
-| A06-7 | Escáner QR/NFC | Captura móvil | `/app/acceso/escaner` |
-| A06-8 | Mapa circuito Mapbox | Captura móvil | datos sintéticos |
+| A06-2 | Tablero ADMIN plataforma | Captura | `/app` + sidebar tabla `ADMIN`; `/app/escuelas` |
+| A06-3 | Tablero administrativo | Captura | `/app` + sidebar `ADMINISTRATIVO`; gestión escolar/finanzas |
+| A06-4 | Tablero docente | Captura | `/app` + sidebar `DOCENTE`; actividades, escáner |
+| A06-5 | Vista padre/tutor | Captura móvil | `/app/circuito`; sidebar `PADRE` (sin escáner) |
+| A06-6 | Vista alumno | Captura | `/app/perfil` (QR); sidebar `ALUMNO` |
+| A06-7 | Escáner QR/NFC (*Figura 7 del Anexo 06*) | Captura móvil | `/app/acceso/escaner` — **Admin, Administrativo o Docente** |
+| A06-8 | Mapa circuito Mapbox | Captura móvil | circuito activo; datos sintéticos |
 
-**Criterios.** UI español; datos ficticios; sin menores reales.
+**Inicio alumno (`HomeAlumno`).** Tarjetas visibles: «Últimas calificaciones» → `/app/modulos/mis-calificaciones`; «Mis boletines» → `/app/modulos/boletines`; «Notificaciones recientes» → `/app/modulos/comunicacion`. Capturar sidebar `ALUMNO` + Inicio con las tres tarjetas.
+
+### Capturas complementarias (maestro Anexo 06 §6)
+
+Además de **A06-1…8** (§4 del anexo), el maestro lista pantallas para el anexo maquetado. Pueden numerarse como figuras locales del Anexo 06 o reutilizarse en **Anexo 09 §14**.
+
+| ID | Pantalla (maestro §6) | Ruta / nota |
+| --- | --- | --- |
+| A06-9 | Gestión escolar | `/app/gestion-escolar` |
+| A06-10 | Calificaciones docente | `/app/modulos/calificaciones-docente` |
+| A06-11 | Mis calificaciones (padre/alumno) | `/app/modulos/mis-calificaciones` |
+| A06-12 | Finanzas | `/app/modulos/finanzas` (padre: deudas; alumno: conceptos) |
+| A06-13 | Boletines | `/app/modulos/boletines` |
+| A06-14 | Comunicación | Campana en cabecera + `/app/modulos/comunicacion` |
+| A06-15 | Inicio por rol | `/app` — tarjetas RF7 según rol (ver notas RF7 arriba) |
+| A06-16 | Circuito del día (staff) | `/app/circuito/hoy` |
+
+**Criterios.** UI español; datos ficticios; sin menores reales; sidebar idéntico a `navConfig.ts`.
 
 ---
 
@@ -1460,13 +1512,15 @@ flowchart LR
 
 **Orden PDF:** **A08-A** resumen → **A08-B** tags + Bearer → **A08-C** capas seguridad.
 
+Las **241 operaciones** del inventario están en el **maestro Anexo 08 §10** (tabla textual al copiar el TDG a Word). Las figuras **A08-A** y **A08-B** ilustran la UI de Swagger (`/docs`); **no** se requiere una captura por endpoint.
+
 | ID | Contenido | Entrega |
 | --- | --- | --- |
-| A08-A | Swagger módulos | Captura docs |
-| A08-B | Tags expandidas | Captura mosaico |
-| A08-C | Seguridad capas | Mermaid + draw.io |
+| A08-A | Swagger módulos (pie maestro Fig. 1 Anexo 08) | Captura `/docs` |
+| A08-B | Todas las etiquetas de dominio expandidas (pie maestro Fig. 2 Anexo 08) | Captura scroll o mosaico |
+| A08-C | Seguridad por capas (pie maestro Fig. 3 Anexo 08) | Mermaid + draw.io |
 
-**Checklist.** Dev/staging; Bearer; datos sintéticos; tags alineados a `AppModule`.
+**Checklist.** Dev/staging; Bearer; datos sintéticos; tags alineados a `AppModule`; catálogo §10 del maestro como fuente de las 241 rutas.
 
 ```mermaid
 flowchart TB
@@ -1493,18 +1547,18 @@ flowchart TB
 
 ## Anexo 09 — Guía de pantallas (8 figuras)
 
-| Fig. | Ruta maestro | Rol |
+| Fig. | Ruta maestro | Rol (producto) |
 | --- | --- | --- |
 | 1 | `/login` | todos |
-| 2 | shell autenticado | por rol |
-| 3 | `/app/circuito` | padre |
-| 4 | `/app/acceso/escaner` | docente/staff |
-| 5 | `/app/modulos/calificaciones-docente` | docente |
-| 6 | `/app/modulos/finanzas` | padre/admin |
-| 7 | `/app/modulos/administracion` o inicio | administrativo |
-| 8 | (opc.) RF7 Reportar problema | nota ADMIN §16 |
+| 2 | shell autenticado + sidebar | ver tabla Anexo 06 por rol |
+| 3 | `/app/circuito` | `PADRE` |
+| 4 | `/app/acceso/escaner` | `ADMIN`, `ADMINISTRATIVO`, `DOCENTE` |
+| 5 | `/app/modulos/calificaciones-docente` | `DOCENTE` (+ Admin/Administrativo en menú) |
+| 6 | `/app/modulos/finanzas` | `PADRE`, `ALUMNO`, `ADMIN`, `ADMINISTRATIVO` |
+| 7 | `/app/modulos/administracion` | `ADMIN`, `ADMINISTRATIVO` |
+| 8 | `/app/modulos/comunicacion` | Todos (ruta directa). Descubrimiento: **campana** + Inicio (ALUMNO/PADRE/DOCENTE/ADMIN) — ver matriz RF7 en § Figura 7-RF7 |
 
-**Prioridad:** capturas reales.
+**Prioridad:** capturas del cliente en ejecución, con sidebar e Inicio coherentes con `navConfig.ts` y el maestro v2 (Anexo 06 / 09).
 
 ---
 
@@ -1530,15 +1584,15 @@ flowchart TB
 
 ## Coherencia numérica y verificación QA
 
-| Métrica | Maestro | Repo (verificado 2026-05-21) |
+| Métrica | Maestro | Repo |
 | --- | --- | --- |
 | Entidades | 49 | **49** (`src/database/entities/*.entity.ts`) |
 | Controladores | 32 | **32** (`@Controller` en `src/modules`) |
-| E2E | 47 | **46 passed, 1 skipped, 47 total** — `npm run test:e2e` exit 0 |
+| E2E | 47 | **46 passed, 1 skipped, 47 total** — `npm run test:e2e` |
 | Rutas REST | 241 | Anexo 08 / Swagger |
 | Módulos dominio | 37 | 32 imports directos en `AppModule` + módulos anidados (Anexo 03) |
 
-**Auditoría documental (2026-05-21):** M3/M9 alineados a **201 + `duplicate=true`**; asistencia por escaneo solo `attendance_records`; ER-5 `organizer_user_id`; M1 sin etiqueta PWA; anexos [Anexo_01](anexos/Anexo_01_Plan_trabajo_y_cronograma.md) y [Anexo_02](anexos/Anexo_02_Orden_documento_y_anexos.md) para Fig. 3–4.
+**Coherencia con el maestro:** escaneo **201** + `duplicate=true` (~10 s); RF2 índice sin padre/alumno; RF7 por campana, Inicio y deep links; Fig. 3–4 desde § Fig. 3 y § Fig. 4 de esta guía.
 
 **Comandos sugeridos (PowerShell, raíz `01 - Escuela Pass`):**
 
@@ -1558,10 +1612,11 @@ npm run test:e2e
 
 **Documentación (repo) — listo para exportar figuras:**
 
-- [x] M3/M9 y reglas RF2: **201** + `duplicate=true` (~10 s); sin HTTP 409 en escaneo.  
+- [x] M3/M9 y RF2: **201** + `duplicate=true` (~10 s).  
 - [x] Fig. 6 DBML macro y Anexo 04 ER-5: `organizer_user_id` en `meetings`.  
-- [x] Fig. 3–4: fuentes [Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) y [Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md).  
-- [x] E2E verde: 46 passed / 1 skipped (2026-05-21).
+- [x] Fig. 3–4: Mermaid en § Fig. 3 y § Fig. 4 (pies del maestro v2 §3.6 y §2.7).  
+- [x] E2E: 46 passed / 1 skipped.  
+- [x] Fig. 7-Índice / RF2 / RF5 alumno / Anexo 06 menús: coherentes con maestro v2 y `navConfig.ts`.
 
 **Maquetación Word (manual):**
 
@@ -1569,5 +1624,5 @@ npm run test:e2e
 - [ ] Exportar Mermaid/draw.io/dbdiagram a PNG e incrustar con **pie literal** del maestro.  
 - [ ] Fig. 4 milestone **2026-06-21** y siete fases Tabla 2b.  
 - [ ] Fig. 5 sin Express; sin flecha API→Mapbox.  
-- [ ] **Fig. 7:** texto puente + 7-Índice + 7-RF1…RF8; 67/67 filas Anexo 05 §2.  
+- [ ] **Fig. 7:** texto puente + 7-Índice + 7-RF1…RF8; 68/68 filas Anexo 05 §2.  
 - [ ] Anexo 04: cinco PNG con FK; Anexo 10: seis capturas (comandos § Anexo 10).

@@ -96,7 +96,7 @@ Anexos 00–10 (sección final del documento)
 | Figura M3 | Diagrama textual **Mermaid** — secuencia escaneo QR/NFC y asistencia (sección 4.3). |
 | Figura M4 | Diagrama textual **Mermaid** — secuencia circuito padre/tutor ↔ personal (secciones 4.3 a 4.4). |
 | Figura 6 | Modelo entidad–relación resumido por dominios funcionales (sección 3.1). |
-| Figura 7 | Diagrama UML de casos de uso por actor institucional (sección 4.1). |
+| Figura 7 | Diagrama UML de casos de uso por actor institucional (sección 4.1). En el **Anexo 06** la numeración local reutiliza otras figuras (p. ej. escáner); en la maquetación Word conviene numeración global o subtítulo de anexo. |
 | Figura 8 | Diagrama UML de secuencia del circuito de recogida familiar (sección 4.3). |
 | Figura 9 | Diagrama UML de secuencia del escaneo de credencial QR/NFC (sección 4.3). |
 | Figura 10 | Licencia del proyecto Escuela Pass conforme instructivo institucional y acuerdo empresa–institución (sección 8). |
@@ -218,7 +218,7 @@ Quedan fuera del núcleo problemático central, salvo notas en anexos: pasarelas
 
 #### 1.1.6. Delimitación geográfica: México prioritario y marco latinoamericano (Colombia)
 
-La institución educativa del autor y la empresa vinculada orientan este TDG como **caso México–primero**, donde el problema operativo de portería, circuito familiar y LFPDPPP constituye el núcleo de validación práctica del producto **Escuela Pass**. Sin embargo, la **propuesta original** mencionaba cobertura analítica y perspectivas comparativas con **América Latina**, incluyendo referencias regulatorias como la **Ley 1581 de 2012** de Colombia sobre protección de datos personales (*Habeas Data* aplicable al sector privado). Esa mención **no contradice** el foco mexicano: el software se documenta ante la **LFPDPPP** (Cámara de Diputados, 2010) y lineamientos del **INAI** (INAI, s. f.) como ordenamiento aplicable al despliegue descrito.
+La institución educativa del autor y la empresa vinculada orientan este TDG como **caso México–primero**, donde el problema operativo de portería, circuito familiar y LFPDPPP constituye el núcleo de validación práctica del producto **Escuela Pass**. Sin embargo, la **propuesta original** mencionaba cobertura analítica y perspectivas comparativas con **América Latina**, incluyendo referencias regulatorias como la **Ley 1581 de 2012** de Colombia (Congreso de la República de Colombia, 2012) sobre protección de datos personales (*Habeas Data* aplicable al sector privado). Esa mención **no contradice** el foco mexicano: el software se documenta ante la **LFPDPPP** (Cámara de Diputados, 2010) y lineamientos del **INAI** (INAI, s. f.) como ordenamiento aplicable al despliegue descrito.
 
 **Motivo.** Conservar idioma institucional y citas multinacionales de la FTG fortalece el posicionamiento académico **sin dispersar obligaciones jurídicas**: Colombia queda como **evolución de producto / documentación jurídica localizada** cuando un cliente institucional exija soporte Ley 1581; el núcleo de ingeniería (RBAC, privacidad versionada, auditoría, minimización por rol) es **compatible** con ambos marcos a nivel de buenas prácticas, siempre pendiente la **adaptación textual** del aviso de privacidad y del responsable del tratamiento ante abogados locales.
 
@@ -339,13 +339,13 @@ Cada una de estas decisiones se retoma en los capítulos **4 y 5** (desarrollo y
 
 ### 2.6. Estructura del documento (representación gráfica)
 
-*[Figura 3. Diagrama orientativo del orden del documento y su relación con los anexos. Representación conforme [Anexo_02_Orden_documento_y_anexos.md](anexos/Anexo_02_Orden_documento_y_anexos.md) u organigrama documental equivalente aprobado.]*
+*[Figura 3. Diagrama orientativo del orden del documento y su relación con los anexos. Representación conforme a los diagramas Mermaid de la [guía de figuras](prompts-imagenes-ia.md) (§ Fig. 3) u organigrama documental equivalente aprobado.]*
 
 ### 2.7. Cronograma
 
 El cronograma del proyecto —desde el 24/02/2026 hasta el 21/06/2026— se presenta como diagrama de Gantt elaborado con herramienta de gestión de proyectos.
 
-*[Figura 4. Cronograma Gantt del proyecto Escuela Pass (24/02/2026–21/06/2026). Representación conforme [Anexo_01_Plan_trabajo_y_cronograma.md](anexos/Anexo_01_Plan_trabajo_y_cronograma.md) (plan de trabajo) o figura institucional equivalente.]*
+*[Figura 4. Cronograma Gantt del proyecto Escuela Pass (24/02/2026–21/06/2026). Representación conforme a los diagramas Mermaid de la [guía de figuras](prompts-imagenes-ia.md) (§ Fig. 4) o figura institucional equivalente.]*
 
 ---
 
@@ -421,7 +421,7 @@ El ordenamiento mexicano en materia de protección de datos personales en posesi
 
 En el tratamiento de datos de **menores**, la titularidad y la representación legal son sensibles: el sistema puede **instrumentar** aceptaciones versionadas de avisos, **bitácoras de auditoría** persistentes y segregación por rol; no puede **substituir** el criterio del responsable del tratamiento ni la revisión jurídica del texto aplicable. El software no sustituye asesoría jurídica.
 
-**Perspectiva colombiana (marco paralelo).** Colombia regula la protección de datos personales mediante la **Ley 1581 de 2012**, reglamentos y jurisprudencia de la autoridad nacional; el principio general de tratamiento licito, proporcional y con finalidad declarada guarda **analogía** con la LFPDPPP para fines de ingeniería (minimización, finalidad, seguridad técnica, conservación limitada). En este TDG, Colombia se documenta como **horizonte de expansión**: el diseño técnico (RBAC, consentimiento versionado, trazabilidad) es **neutral** respecto del país una vez definidos textualmente los avisos locales; cualquier cliente colombiano requeriría **pack legal** institucional y eventual ajuste de políticas sin reescritura obligatoria del núcleo de código descrito aquí.
+**Perspectiva colombiana (marco paralelo).** Colombia regula la protección de datos personales mediante la **Ley 1581 de 2012** (Congreso de la República de Colombia, 2012), reglamentos y jurisprudencia de la autoridad nacional; el principio general de tratamiento licito, proporcional y con finalidad declarada guarda **analogía** con la LFPDPPP para fines de ingeniería (minimización, finalidad, seguridad técnica, conservación limitada). En este TDG, Colombia se documenta como **horizonte de expansión**: el diseño técnico (RBAC, consentimiento versionado, trazabilidad) es **neutral** respecto del país una vez definidos textualmente los avisos locales; cualquier cliente colombiano requeriría **pack legal** institucional y eventual ajuste de políticas sin reescritura obligatoria del núcleo de código descrito aquí.
 
 ### 3.3. Antecedentes
 
@@ -498,8 +498,9 @@ Las conversaciones con la contraparte empresarial consensuaron cinco grandes fam
 flowchart LR
   ADMIN(["ADMIN"]) --> schools(["schools / settings / audit"])
   ADM(["ADMINISTRATIVO"]) --> roster(["school / payments / calendar / visits..."])
+  ADM --> scan(["access-events scan"])
   DOC(["DOCENTE"]) --> academics(["attendance / class-attendance / activities..."])
-  DOC --> scan(["access-events scan"])
+  DOC --> scan
   PADRE(["PADRE"]) --> circuit(["circuit-requests / parents"])
   PADRE --> fin(["payments uploads"])
   ALU(["ALUMNO"]) --> self(["grades / credential view"])
@@ -510,7 +511,7 @@ flowchart LR
 | Actor | Responsabilidades macroscópicas |
 | --- | --- |
 | Administrador de plataforma | Operación multi‑institución, alta de escuelas y administradores; **excepción documentada del guardián de roles** para soporte técnico (véase la sección 4.3). |
-| Personal administrativo | Nómina, finanzas, calendario, reportes, visitas externas, agenda institucional y operación del circuito en portería. |
+| Personal administrativo | Nómina, finanzas, calendario, reportes, visitas externas, agenda institucional, operación del circuito en portería, escaneo de credencial QR/NFC y gestión de credenciales NFC. |
 | Docente | Asistencia diaria y por sesión de clase, actividades, calificaciones, anotaciones, escaneo de credencial QR/NFC/Web NFC y apoyo al circuito. |
 | Padre o tutor | **Inicia** circuito, vehículos, consentimientos, consultas académicas/finanzas/comunicaciones. |
 | Alumno | Consultas autorizadas sobre horario, calificaciones, boletines y credencial. |
@@ -520,6 +521,8 @@ Las reglas de negocio publicadas incluyen ventana antiduplicación breve (~10 s)
 **Lectura operativa.** Para la institución, OE1 dejó escrito qué puede exigir el software en portería, salida familiar y administración sin ambigüedad; ese inventario condiciona todo el desarrollo posterior.
 
 *[Figura 7. Diagrama UML de casos de uso del sistema Escuela Pass agrupado por los cinco actores institucionales, conforme a la notación UML 2.5.1 (OMG, 2017). Representación conforme **Anexo 05**.]*
+
+*La Figura 7 del presente capítulo se presenta desglosada en las láminas 7-Índice y 7-RF1 a 7-RF8, organizadas por requerimiento funcional (RF1–RF8), conservando los cinco actores institucionales y el inventario exhaustivo de casos de uso del **Anexo 05**, sección 2. Los diagramas exportables y criterios de maquetación figuran en la [guía de figuras](prompts-imagenes-ia.md) (§ Figura 7).*
 
 ### 4.2. Diseño del sistema, datos e interfaz (objetivo específico 2)
 
@@ -547,7 +550,7 @@ El inventario ejecutable resume: **37** módulos en la composición raíz del se
 
 #### 4.3.1. Seguridad pragmática del producto (síntesis)
 
-En términos de riesgo institucional, la seguridad del producto busca reducir accesos indebidos, abuso de interfaces y exposición de archivos sensibles. El endurecimiento sigue líneas OWASP habituales a nivel aplicación: **cabeceras HTTP** endurecidas, **CORS** parametrizado por entorno, **limitación global de tasa** de peticiones con reglas adicionales en rutas sensibles de autenticación, **validación estricta** de objetos de entrada, **hash bcrypt** de contraseñas, **JWT de acceso y *refresh*** con política de rotación acorde al servicio de autenticación y consulta del estado del usuario en cada solicitud autenticada, **bloqueo temporal por intentos fallidos** de inicio de sesión (en memoria del proceso), **validación binaria** de archivos subidos más controles de tamaño y tipo declarado, **separación entre buckets públicos y privados** con descarga autenticada del contenido sensible, **política declarada de soporte** para el rol plataforma **ADMIN** que atraviesa listas de roles de escuela —sin ocultar el riesgo operativo— y **respuestas HTTP coherentes** alineadas con *Problem Details* donde aplica. El detalle por artefacto, variables y rutas figura en **Anexo 03 sección 4.1** y enlaces al contrato en **Anexo 08**.
+En términos de riesgo institucional, la seguridad del producto busca reducir accesos indebidos, abuso de interfaces y exposición de archivos sensibles. El endurecimiento sigue líneas OWASP habituales a nivel aplicación: **cabeceras HTTP** endurecidas, **CORS** parametrizado por entorno, **limitación global de tasa** de peticiones con reglas adicionales en rutas sensibles de autenticación, **validación estricta** de objetos de entrada, **hash bcrypt** de contraseñas, **JWT de acceso y *refresh*** con política de rotación acorde al servicio de autenticación y consulta del estado del usuario en cada solicitud autenticada, **bloqueo temporal por intentos fallidos** de inicio de sesión (en memoria del proceso), **validación binaria** de archivos subidos más controles de tamaño y tipo declarado, **separación entre buckets públicos y privados** con descarga autenticada del contenido sensible, **política declarada de soporte** para el rol plataforma **ADMIN** que atraviesa listas de roles de escuela —sin ocultar el riesgo operativo— y **respuestas HTTP coherentes** alineadas con *Problem Details* (Internet Engineering Task Force, 2016) donde aplica. El detalle por artefacto, variables y rutas figura en **Anexo 03 sección 4.1** y enlaces al contrato en **Anexo 08**.
 
 #### 4.3.2. Persistencia, migraciones y *schedulers*
 
@@ -557,7 +560,7 @@ Operan **39** migraciones TypeORM con sincronización automática del esquema **
 
 ```mermaid
 sequenceDiagram
-  participant U as Usuario portería
+  participant U as Operador acceso (Admin/Administrativo/Docente)
   participant C as Cliente (EscanerAccesoPage)
   participant A as API access-events
   participant DB as PostgreSQL
@@ -705,7 +708,7 @@ Las recomendaciones se priorizan por **retorno esperado ante riesgo residual** p
 
 ## REFERENCIAS
 
-*Formato APA séptima edición con sangría colgante de 0.5 pulgadas. Las fechas de recuperación de fuentes electrónicas se verifican al cierre editorial del documento.*
+*Formato APA séptima edición con sangría colgante de 0.5 pulgadas. En fuentes web, el enlace apunta al documento, norma, estándar o artículo citado (no al dominio genérico del editor). Las fechas «Consultado el…» aplican a documentación técnica y sitios sin fecha de publicación fija.*
 
 Booch, G., Rumbaugh, J., & Jacobson, I. (2007). *El lenguaje unificado de modelado: guía del usuario* (2.ª ed.). Addison‑Wesley.
 
@@ -717,7 +720,7 @@ Congreso de la República de Colombia. (2012, 25 de octubre). *Ley 1581 de 2012 
 
 Codd, E. F. (1970). A relational model of data for large shared data banks. *Communications of the ACM*, *13*(6), 377–387. https://doi.org/10.1145/362384.362685
 
-Consejo Nacional de Evaluación de la Política de Desarrollo Social. (2024). *Estudio diagnóstico del derecho a la educación 2024*. CONEVAL. https://www.coneval.org.mx (consultar en el sitio oficial la ficha o PDF específico del estudio y actualizar el enlace definitivo en la versión para entrega)
+Consejo Nacional de Evaluación de la Política de Desarrollo Social. (2024). *Estudio diagnóstico del derecho a la educación 2024*. CONEVAL. https://www.coneval.org.mx/EvaluacionDS/PP/CEIPP/IEPSM/Documents/Derechos_Sociales_2024/EDDE_2024_IF.pdf
 
 Drumond, C. (2026). *Scrum: ¿qué es Scrum?*. Atlassian. https://www.atlassian.com/es/agile/scrum
 
@@ -725,15 +728,15 @@ Elmasri, R., & Navathe, S. B. (2016). *Fundamentals of database systems* (7.ª e
 
 Fielding, R. T. (2000). *Architectural styles and the design of network‑based software architectures* [Tesis doctoral, University of California, Irvine]. https://www.ics.uci.edu/~fielding/pubs/dissertation/top.htm
 
-Firebase. (s. f.). *Firebase Cloud Messaging — Admin SDK documentation*. Google. Consultado el 14 de mayo de 2026, en https://firebase.google.com/docs/cloud-messaging
+Firebase. (s. f.). *Firebase Cloud Messaging — Admin SDK documentation*. Google. Consultado el 21 de mayo de 2026, en https://firebase.google.com/docs/cloud-messaging
 
-GitHub. (s. f.). *GitHub Actions documentation*. Consultado el 14 de mayo de 2026, en https://docs.github.com/actions
+GitHub. (s. f.). *GitHub Actions documentation*. Consultado el 21 de mayo de 2026, en https://docs.github.com/en/actions
 
-Institute of Electrical and Electronics Engineers. (1998). *IEEE Std 830‑1998: Recommended practice for software requirements specifications*. IEEE.
+Institute of Electrical and Electronics Engineers. (1998). *IEEE Std 830‑1998: Recommended practice for software requirements specifications*. IEEE. https://doi.org/10.1109/IEEESTD.1998.88286
 
-Institute of Electrical and Electronics Engineers. (2008). *IEEE Std 829‑2008: Standard for software and system test documentation*. IEEE.
+Institute of Electrical and Electronics Engineers. (2008). *IEEE Std 829‑2008: Standard for software and system test documentation*. IEEE. https://doi.org/10.1109/IEEESTD.2008.4578383
 
-Instituto Nacional de Transparencia, Acceso a la Información y Protección de Datos Personales. (s. f.). *Normativa y guías en materia de protección de datos personales*. Gobierno de México. Consultado el 14 de mayo de 2026, en https://home.inai.org.mx
+Instituto Nacional de Transparencia, Acceso a la Información y Protección de Datos Personales. (s. f.). *Documentos y guías para el sector privado en materia de protección de datos personales*. Gobierno de México. Consultado el 21 de mayo de 2026, en https://home.inai.org.mx/?page_id=3418
 
 International Organization for Standardization. (2011). *ISO/IEC 25010:2011 — Systems and software engineering — Systems and software Quality Requirements and Evaluation (SQuaRE) — System and software quality models*. ISO. https://www.iso.org/standard/35733.html
 
@@ -745,19 +748,19 @@ Krug, S. (2014). *Don't make me think, revisited: A common sense approach to web
 
 Laudon, K. C., & Laudon, J. P. (2018). *Sistemas de información gerencial* (15.ª ed.). Pearson Educación.
 
-Lewis, J. R., & Sauro, J. (2018). Item benchmarks for the System Usability Scale. *Journal of Usability Studies*, *13*(3), 158–167.
+Lewis, J. R., & Sauro, J. (2018). Item benchmarks for the System Usability Scale. *Journal of Usability Studies*, *13*(3), 158–167. https://doi.org/10.5555/3290965.3290968
 
-Mapbox. (s. f.). *Mapbox GL JS documentation*. Consultado el 14 de mayo de 2026, en https://docs.mapbox.com/mapbox-gl-js
+Mapbox. (s. f.). *Mapbox GL JS documentation*. Consultado el 21 de mayo de 2026, en https://docs.mapbox.com/mapbox-gl-js
 
-Manciu, A.-M. (2025, marzo 11). Kinderpedia: An all-in-one school management software for daycares and preschools parents will love — review. Kinderpedia. Consultado el 18 de mayo de 2026, en https://www.kinderpedia.co/blog/the-best-all-in-one-tool-for-modern-day-care-and-after-school-programs-parents-review
+Manciu, A.-M. (2025, marzo 11). Kinderpedia: An all-in-one school management software for daycares and preschools parents will love — review. Kinderpedia. https://www.kinderpedia.co/blog/the-best-all-in-one-tool-for-modern-day-care-and-after-school-programs-parents-review
 
 Martínez Reyes, Á., Rivera López, M., González Pineda, S., & Torres Ramírez, L. E. (2025). Competencias digitales docentes en escuelas privadas mexicanas en el contexto post pandémico. *Revista de Innovación Educativa*, *22*(42), 1–24.
 
-MetaRed. (2024). *Madurez digital de las instituciones de educación superior en Iberoamérica*. Universia. https://www.metared.org
+MetaRed. (2024). *Modelo UDigital: madurez digital para universidades e instituciones de educación superior* [Resumen del modelo]. MetaRed TIC. https://www.metared.org/global/udigital.html
 
-Ministerio de Educación Nacional de Colombia. (2024). *Informe de gestión 2024*. MEN. https://www.mineducacion.gov.co
+Ministerio de Educación Nacional de Colombia. (2024). *Informes de gestión — vigencia 2024*. MEN. https://www.mineducacion.gov.co/portal/micrositios-institucionales/Modelo-Integrado-de-Planeacion-y-Gestion/385377:
 
-NestJS Team. (s. f.). *NestJS documentation*. Consultado el 14 de mayo de 2026, en https://docs.nestjs.com
+NestJS Team. (s. f.). *NestJS documentation*. Consultado el 21 de mayo de 2026, en https://docs.nestjs.com
 
 Nielsen, J. (1994). *Usability engineering*. Academic Press.
 
@@ -765,37 +768,37 @@ Norman, D. A. (2013). *The design of everyday things* (Edición revisada y ampli
 
 Object Management Group. (2017). *OMG Unified Modeling Language (UML) — Version 2.5.1*. OMG. https://www.omg.org/spec/UML/2.5.1
 
-OnTrack School. (2024). *Informe sobre rutas escolares en Bogotá (Colombia)*. OnTrack School. https://www.ontrackschool.com (sitio del producto; localizar informe o comunicado específico citado y sustituir URL al cierre editorial)
+OnTrack School. (2024). *Diagnóstico de movilidad escolar en colegios (análisis Bogotá 2018–2024)*. OnTrack Global. https://ontrack.global/diagnostico-de-movilidad-escolar/
 
 OpenAPI Initiative. (2021). *OpenAPI Specification version 3.1.0*. Linux Foundation. https://spec.openapis.org/oas/v3.1.0
 
-OpenJS Foundation. (s. f.). *Node.js documentation*. Consultado el 14 de mayo de 2026, en https://nodejs.org/en/docs
+OpenJS Foundation. (s. f.). *Node.js documentation*. Consultado el 21 de mayo de 2026, en https://nodejs.org/en/docs
 
-Organización de las Naciones Unidas para la Educación, la Ciencia y la Cultura. (2024). *Transformación digital de la educación: guías y perspectivas*. UNESCO. https://unesdoc.unesco.org
+Organización de las Naciones Unidas para la Educación, la Ciencia y la Cultura. (2024). *Six pillars for the digital transformation of education: A common framework* (J. Normén-Smith, F. van Cappelle & D. Evans, Eds.). UNESCO. https://unesdoc.unesco.org/ark:/48223/pf0000391299
 
-OWASP Foundation. (2021). *OWASP Top 10: 2021 — Web application security risks*. https://owasp.org/Top10
+OWASP Foundation. (2021). *OWASP Top 10: 2021 — Web application security risks*. https://owasp.org/Top10/
 
-OWASP Foundation. (2023). *OWASP API Security Top 10*. https://owasp.org/API-Security
+OWASP Foundation. (2023). *OWASP API Security Top 10 — 2023*. https://owasp.org/API-Security/editions/2023/en/0x00-header/
 
-PostgreSQL Global Development Group. (s. f.). *PostgreSQL documentation*. Consultado el 14 de mayo de 2026, en https://www.postgresql.org/docs
+PostgreSQL Global Development Group. (s. f.). *PostgreSQL 16 documentation*. Consultado el 21 de mayo de 2026, en https://www.postgresql.org/docs/16/
 
 Pressman, R. S., & Maxim, B. R. (2020). *Ingeniería del software: un enfoque práctico* (9.ª ed.). McGraw‑Hill.
 
-React Team. (s. f.). *React documentation*. Meta Open Source. Consultado el 14 de mayo de 2026, en https://react.dev
+React Team. (s. f.). *React documentation*. Meta Open Source. Consultado el 21 de mayo de 2026, en https://react.dev
 
-Santhosh, K. (2025). *Best school management software in 2025*. Cloudi5 Technologies. https://www.cloudi5.com
+Santhosh, K. (2025, 21 de mayo). *Best school management software in 2025: Top features & tools*. Cloudi5 Technologies. https://www.cloudi5.com/blog/best-school-management-software-in-2025-top-features-tools-414
 
 Schwaber, K., & Sutherland, J. (2020). *The Scrum Guide* (Versión noviembre 2020). https://scrumguides.org/scrum-guide.html
 
-Skolable. (2026). *Plataforma integral para gestión escolar*. https://www.skolable.com
+Skolable. (2026). *Plataforma de logística, seguridad y comunicación escolar*. Skolable. https://www.skolable.com
 
 Stallings, W., & Brown, L. (2018). *Computer security: Principles and practice* (4th ed.). Pearson.
 
-TypeORM. (s. f.). *TypeORM documentation*. Consultado el 14 de mayo de 2026, en https://typeorm.io
+TypeORM. (s. f.). *TypeORM documentation*. Consultado el 21 de mayo de 2026, en https://typeorm.io
 
-Vite Team. (s. f.). *Vite documentation*. Consultado el 14 de mayo de 2026, en https://vitejs.dev
+Vite Team. (s. f.). *Vite documentation*. Consultado el 21 de mayo de 2026, en https://vite.dev
 
-World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 2.2*. W3C. https://www.w3.org/TR/WCAG22
+World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 2.2*. W3C. https://www.w3.org/TR/WCAG22/
 
 ---
 
@@ -810,38 +813,71 @@ World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 
 | ARCO | Derechos de Acceso, Rectificación, Cancelación y Oposición al tratamiento de datos personales. |
 | APIT | Programas Informáticos y Telecomunicaciones (área curricular del programa de Ingeniería Informática). |
 | BFF | Backend for Frontend (capa intermedia entre el cliente y el servicio). |
+| CD | Continuous Deployment (despliegue continuo). |
 | CDN | Content Delivery Network (red de distribución de contenidos). |
 | CI | Continuous Integration (integración continua). |
+| CLI | Command Line Interface (interfaz de línea de comandos). |
+| CORS | Cross-Origin Resource Sharing (intercambio de recursos entre orígenes). |
+| CRUD | Create, Read, Update, Delete (operaciones básicas de persistencia). |
+| CSRF | Cross-Site Request Forgery (falsificación de petición en sitios cruzados). |
 | CSP | Content Security Policy (política de seguridad de contenidos). |
 | DDL | Data Definition Language (lenguaje de definición de datos). |
+| DML | Data Manipulation Language (lenguaje de manipulación de datos). |
 | DOF | Diario Oficial de la Federación (México). |
+| DTO | Data Transfer Object (objeto de transferencia de datos). |
+| E2E | End-to-end (prueba de extremo a extremo). |
+| ENV | Environment (variables de entorno del sistema o del despliegue). |
 | ER | Entity-Relationship (modelo entidad-relación). |
 | FCM | Firebase Cloud Messaging (mensajería en la nube de Firebase). |
+| FK | Foreign Key (llave foránea). |
 | FTG | Ficha de Trabajo de Grado. |
 | GPS | Global Positioning System (sistema de posicionamiento global). |
 | HTTP / HTTPS | Hypertext Transfer Protocol / Secure (protocolo de transferencia de hipertexto, seguro). |
 | INAI | Instituto Nacional de Transparencia, Acceso a la Información y Protección de Datos Personales. |
 | ISO/IEC | International Organization for Standardization / International Electrotechnical Commission. |
 | IEEE | Institute of Electrical and Electronics Engineers. |
+| JSON | JavaScript Object Notation (formato de intercambio de datos). |
+| JSONB | JavaScript Object Notation Binary (tipo JSON binario en PostgreSQL). |
 | JWT | JSON Web Token (norma RFC 7519). |
+| KPI | Key Performance Indicator (indicador clave de desempeño). |
 | LFPDPPP | Ley Federal de Protección de Datos Personales en Posesión de los Particulares (México, 2010). |
+| MIME | Multipurpose Internet Mail Extensions (tipos de contenido en HTTP). |
 | MVP | Minimum Viable Product (producto mínimo viable). |
 | NFC | Near Field Communication (comunicación de campo cercano). |
+| OE | Objetivo específico (OE1–OE5 en la FTG y el TDG). |
 | ORM | Object-Relational Mapper (mapeador objeto-relacional). |
+| OSM | OpenStreetMap (mapa base alternativo sin proveedor comercial). |
+| OTP | One-Time Password (contraseña de un solo uso). |
 | OWASP | Open Worldwide Application Security Project. |
 | PaaS | Platform as a Service (plataforma como servicio). |
+| PDF | Portable Document Format (formato de documento portable). |
+| PIN | Problema, Idea o Necesidad (marco de planteamiento en §1.1.2). |
+| PK | Primary Key (llave primaria). |
+| PWA | Progressive Web App (aplicación web progresiva). |
 | QR | Quick Response (código de respuesta rápida). |
+| RBAC | Role-Based Access Control (control de acceso basado en roles). |
 | REST | Representational State Transfer (transferencia de estado representacional). |
+| RF | Requerimiento funcional (RF1–RF8 en la FTG). |
 | RFC | Request for Comments (estándares publicados por la IETF). |
+| RNF | Requerimiento no funcional (RNF1–RNF6 en la FTG). |
+| ROI | Return on Investment (retorno de la inversión; hipótesis de la FTG). |
+| RSVP | Confirmación de asistencia (*répondez s'il vous plaît*). |
 | SLA | Service Level Agreement (acuerdo de nivel de servicio). |
+| SMTP | Simple Mail Transfer Protocol (protocolo de correo electrónico). |
 | SPA | Single-Page Application (aplicación de página única). |
 | SQL | Structured Query Language (lenguaje estructurado de consultas). |
 | STRIDE | Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege (modelo de amenazas). |
 | SUS | System Usability Scale (escala de usabilidad de sistemas, Brooke 1996). |
 | TDG | Trabajo de Grado. |
+| TLS | Transport Layer Security (capa de seguridad de transporte). |
 | UI / UX | User Interface / User Experience (interfaz y experiencia de usuario). |
 | UML | Unified Modeling Language (lenguaje unificado de modelado). |
+| UMUX | Usability Metric for User Experience (métrica de usabilidad complementaria a SUS). |
+| URI | Uniform Resource Identifier (identificador uniforme de recursos). |
+| UUID | Universally Unique Identifier (identificador único universal). |
 | WCAG | Web Content Accessibility Guidelines (pautas de accesibilidad para el contenido web). |
+| XSS | Cross-Site Scripting (inyección de scripts entre sitios). |
+| XLSX | Office Open XML Spreadsheet (hoja de cálculo Excel). |
 
 ---
 
@@ -894,12 +930,12 @@ El detalle exhaustivo de la API REST se presenta en el **Anexo 08 — Documentac
 | Código | Requerimiento | Módulos y evidencia en backend | Rutas API representativas | Pantallas y componentes principales | Estado |
 | --- | --- | --- | --- | --- | --- |
 | RF1 | Autenticación con roles y *tokens* JWT | `auth`, estrategia JWT, *guards* por rol; flujo de recuperación y restablecimiento de contraseña con envío de correo (SMTP); aceptación de avisos de privacidad y registro de auditoría donde aplica | `POST api/v1/auth/login`, `POST api/v1/auth/refresh`, `POST api/v1/auth/logout`, `POST api/v1/auth/forgot-password`, `POST api/v1/auth/reset-password`; `GET api/v1/privacy/current-policy`, aceptaciones de privacidad | `LoginPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `AuthProvider`, `ProtectedRoute`, `PrivacyGate` | Cumplido |
-| RF2 | Control de accesos por código QR y NFC | `access-events`, credenciales (`QR` y `NFC`), registro de eventos de acceso con método de lectura; asignación de UID NFC a usuario | `POST api/v1/access-events/scan`, `POST api/v1/access-events/credentials/nfc`, consultas de credenciales y eventos | `EscanerAccesoPage`, modales de resultado de lectura | Cumplido |
+| RF2 | Control de accesos por código QR y NFC | `access-events`, credenciales (`QR` y `NFC`), registro de eventos de acceso con método de lectura; asignación de UID NFC a usuario | `POST api/v1/access-events/scan`, `POST api/v1/access-events/credentials/nfc`, consultas de credenciales y eventos | `EscanerAccesoPage` (ADMIN, ADMINISTRATIVO, DOCENTE); credencial QR del alumno en `PerfilPage` (`GET my-qr`) | Cumplido |
 | RF3 | Circuito de recogida con apoyo de geolocalización | `circuit-requests`, `parents/vehicles`, `departure-consent`, notificaciones; la recogida es operada por **padres o tutores**, no por un conductor institucional | `api/v1/circuit-requests` (creación y ciclo de estados), actualización de ubicación y estados operativos; consentimientos de salida | `CircuitPadrePage`, `CircuitTodayPage`, `CircuitDetailPage`, mapas y seguimiento | Cumplido con precisión de negocio: operador del circuito familiar es padre/tutor |
 | RF4 | Gestión escolar institucional | `school`, `schools`, `uploads`, `settings`, importación y catálogos; persistencia de trabajos de importación (`import_job`); en alcance ampliado: multiinstitución y configuración | `api/v1/school/...`, `api/v1/schools/...`, `api/v1/uploads/...`, `api/v1/settings/...` | `SchoolRosterPage`, `SchoolsAdminPage`, `InstitutionPage`, `ImportExportPage` | Cumplido y ampliado |
-| RF5 | Asistencia, actividades y calificaciones; boletines | `attendance`, `class-attendance`, `activities`, `academic-periods`, `report-cards`, `documents`, `exports`, `class-sessions`, `schedules` | `api/v1/attendance/...`, `api/v1/class-attendance/...`, `api/v1/activities/...`, `api/v1/report-cards/...`, exportaciones | `CalificacionesDocentePage`, `MisCalificacionesPage`, `BoletinesPage`, `PeriodosAcademicosPage`, `ScheduleHubPage` | Cumplido y ampliado |
+| RF5 | Asistencia, actividades y calificaciones; boletines | `attendance`, `class-attendance`, `activities`, `academic-periods`, `report-cards`, `documents`, `exports`, `class-sessions`, `schedules` | `api/v1/attendance/...`, `api/v1/class-attendance/...`, `api/v1/activities/...`, `api/v1/report-cards/...`, exportaciones | `CalificacionesDocentePage`, `MisCalificacionesPage`, `BoletinesPage`, `PeriodosAcademicosPage`, `ScheduleHubPage` (alumno, docente, staff); `AcademicoPage` (padre: asistencia y horario de hijos; docente y administrativo: registro por grupo) | Cumplido y ampliado |
 | RF6 | Pagos y gestión de colegiaturas (sin pasarela bancaria automática en el alcance documentado) | `payments`, `uploads`, `files`, reportes de cartera; modelo de datos: deudas, pagos, conceptos y ajustes (tablas en el Anexo 04) | `api/v1/payments/...`, carga de comprobantes y archivos privados | `FinanzasPage`, `FinanzasStaffTools` | Cumplido en los términos de la propuesta |
-| RF7 | Avisos y notificaciones *push* | `notices`, `notifications`, integración FCM; correo transaccional vía `mail` donde otros módulos lo requieren | `api/v1/notices`, `api/v1/notifications/...`, registro de *tokens* | `NotificationsBadge`, `FcmBootstrap`, bandejas y listados de avisos | Cumplido |
+| RF7 | Avisos y notificaciones *push* | `notices`, `notifications`, integración FCM; correo transaccional vía `mail` donde otros módulos lo requieren | `api/v1/notices`, `api/v1/notifications/...`, registro de *tokens* | `ComunicacionPage`; `NotificationsBadge` en cabecera del *shell*; tarjetas en `AppHomePage`; registro FCM (`FcmBootstrap`) | Cumplido |
 | RF8 | Panel y reportes para la gestión | `dashboard` (resumen institucional), `dashboards` (paneles por rol u homólogos de *home*), `reports`, `exports` | `api/v1/dashboard/...`, `api/v1/dashboards/...`, `api/v1/reports/...`, `api/v1/exports/...` | `AppHomePage`, paneles por rol, exportaciones | Cumplido y ampliado |
 | RNF1 | Backend NestJS y persistencia PostgreSQL con TypeORM | `AppModule`, configuración TypeORM, migraciones bajo `src/database/` | `GET api/v1/health` como señal de servicio; configuración desplegada según `railway.toml` y variables de entorno | No aplica pantalla específica | Cumplido |
 | RNF2 | Interfaz *responsive* | Frontend React, Vite, diseño por componentes y *shell* de aplicación | Consumo de API desde cliente bajo mismos contratos | `AppShell`, páginas por rol y flujos móviles | Cumplido |
@@ -970,7 +1006,7 @@ Las validaciones de la última columna se apoyan, cuando corresponde, en las esp
 | Identificación y sesión | Todos los roles | `auth`, validación JWT, renovación y cierre de sesión; recuperación y restablecimiento de contraseña | `LoginPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `AuthProvider`, `ProtectedRoute` | `test/app.e2e-spec.ts`; límites de petición en `test/auth-throttle-ip.e2e-spec.ts` |
 | Escaneo de acceso institucional | ADMIN, ADMINISTRATIVO, DOCENTE | `access-events`, credenciales QR y NFC, persistencia de eventos | `EscanerAccesoPage`, retroalimentación de lectura | `test/app.e2e-spec.ts` (escaneo y vínculo con asistencia); `test/phase7-closure.e2e-spec.ts` (deduplicación de escaneos y credenciales) |
 | Circuito de recogida familiar | PADRE, DOCENTE, ADMINISTRATIVO | `circuit-requests`, `parents/vehicles`, `departure-consent`, notificaciones | `CircuitPadrePage`, `CircuitTodayPage`, `CircuitDetailPage` | Escenarios de circuito en `test/app.e2e-spec.ts` |
-| Asistencia diaria y por clase | DOCENTE, ADMINISTRATIVO, padres/alumnos según pantalla | `attendance`, `class-attendance`, reportes de asistencia | Vinculadas a módulos académicos y reportes | `test/app.e2e-spec.ts` |
+| Asistencia diaria y por clase | DOCENTE, ADMINISTRATIVO (registro); PADRE (consulta en Académico) | `attendance`, `class-attendance`, reportes de asistencia | `AcademicoPage`, módulos académicos y reportes | `test/app.e2e-spec.ts` |
 | Calificaciones, actividades y boletines | DOCENTE, ALUMNO, PADRE, administración | `activities`, `report-cards`, `documents`, `exports` | `CalificacionesDocentePage`, `MisCalificacionesPage`, `BoletinesPage` | `test/app.e2e-spec.ts` |
 | Pagos y comprobantes | PADRE, ADMINISTRATIVO | `payments`, `uploads`, `files` | `FinanzasPage`, `FinanzasStaffTools` | `test/app.e2e-spec.ts` |
 | Comunicación, avisos y *push* | Según rol | `notices`, `notifications`, FCM en cliente | Bandejas, *badge* de notificaciones | `test/app.e2e-spec.ts` y pruebas según entorno (Anexo 10) |
@@ -1126,7 +1162,7 @@ La **especificación ejecutable** de la API REST se expone además en **OpenAPI/
 | RF2 | Un escaneo QR o NFC válido registra entrada o salida y deja traza; credenciales inválidas o ajenas al contexto institucional son rechazadas. |
 | RF3 | Un padre o tutor crea solicitud, actualiza avance y ubicación cuando aplica; el personal visualiza el estado y se confirma o cancela según reglas de negocio. |
 | RF4 | La administración crea y actualiza grupos, materias, estudiantes, docentes, padres y asignaciones dentro de los límites de su rol e institución; los flujos de importación masiva dejan trazabilidad de trabajo en persistencia (`import_job` / Anexo 04). |
-| RF5 | Docente o administración registra asistencia y calificaciones; padre o alumno consultan información autorizada. |
+| RF5 | Docente o administración registra asistencia y calificaciones; padre consulta asistencia y horario de hijos; alumno consulta calificaciones y boletines autorizados. |
 | RF6 | La administración gestiona deudas y conceptos; el padre o tutor autorizado carga comprobante; la administración verifica o rechaza sin pasarela bancaria automática. |
 | RF7 | Un aviso institucional genera consulta en bandeja; si el cliente registra *token* FCM, puede recibir notificación *push* según configuración; el personal autorizado puede gestionar **reportes administrativos** ligados a la comunicación institucional. |
 | RF8 | Panel y reportes entregan indicadores operativos y exportaciones permitidas al rol. |
@@ -1138,12 +1174,12 @@ Los **módulos backend** citados corresponden a los *bounded contexts* registrad
 | Código | Criterio medible (HTTP / regla) | Módulos backend (Anexo 03) | Rutas API representativas (Anexo 08) | Rutas y pantallas UI (Anexo 06) |
 | --- | --- | --- | --- | --- |
 | RF1 | `POST .../auth/login` responde **200** con *tokens* ante credenciales válidas; **401** ante credenciales inválidas o cuenta inactiva. `GET .../auth/me` con *Bearer* válido responde **200**. `POST .../auth/forgot-password` y `POST .../auth/reset-password` completan el flujo documentado. Aceptación de políticas bajo `.../privacy/*`. | `AuthModule`, `PrivacyModule`, `AuditModule` (donde aplica registro) | `auth/login`, `auth/me`, `auth/refresh`, `auth/logout`, `auth/forgot-password`, `auth/reset-password`, `privacy/*` | `/login`, `/recuperar-contrasena`, `/restablecer-contrasena`, `/app`, `/app/perfil`; `PrivacyGate` en aplicación autenticada |
-| RF2 | `POST .../access-events/scan` responde **201** ante credencial y método válidos; **400**/**403**/**404** según DTO, rol o credencial; un segundo escaneo del mismo usuario en la misma escuela dentro de ~10 s responde **201** con `duplicate=true` sin insertar evento nuevo. Asignación NFC: `POST .../access-events/credentials/nfc` (roles administrativos). | `AccessModule` | `access-events/scan`, `access-events/my-qr`, `access-events/credentials/nfc`, consultas de credenciales y eventos | `/app/acceso/escaner` (`EscanerAccesoPage`) |
+| RF2 | `POST .../access-events/scan` responde **201** ante credencial y método válidos; **400**/**403**/**404** según DTO, rol o credencial; un segundo escaneo del mismo usuario en la misma escuela dentro de ~10 s responde **201** con `duplicate=true` sin insertar evento nuevo. Asignación NFC: `POST .../access-events/credentials/nfc` (roles administrativos). | `AccessModule` | `access-events/scan`, `access-events/my-qr`, `access-events/credentials/nfc`, consultas de credenciales y eventos | `/app/acceso/escaner` (`EscanerAccesoPage`, ADMIN, ADMINISTRATIVO, DOCENTE); `/app/perfil` (QR del alumno) |
 | RF3 | Creación y ciclo de solicitud bajo `.../circuit-requests` con **201** en creación válida; actualización de GPS, avance de padre, señal docente y cambios de estado según implementación; confirmación de entrega explícita. Reglas: una solicitud operacional abierta por estudiante y día; operador familiar es padre/tutor. Los avisos en bandeja asociados al flujo se materializan según la implementación del dominio de circuito (persistencia de notificaciones). | `CircuitModule`, `VehiclesModule`, `DepartureConsentModule` | `circuit-requests`, `circuit-requests/today`, `circuit-requests/:id/map`, `circuit-requests/:id/gps`, `circuit-requests/:id/parent-progress`, `circuit-requests/:id/status`, `circuit-requests/:id/confirm-delivered`, `departure-consent/*` según dominio | `/app/circuito` (`CircuitPadrePage`), `/app/circuito/hoy` (`CircuitTodayPage`), `/app/circuito/:id` (`CircuitDetailPage`) |
 | RF4 | Operaciones CRUD y consultas institucionales bajo `school/*` y `schools/*` retornan **200**/**201** según caso; **403** ante cruces de institución o rol. Importaciones y cargas acotadas a roles autorizados; entrega controlada de archivos con `files/*` cuando aplique. | `SchoolModule`, `SchoolsModule`, `SettingsModule`, `UploadsModule`, `FilesModule` | `school/*`, `schools/*`, `settings/*`, `uploads/*`, `files/*` | `/app/gestion-escolar`, `/app/escuelas`, `/app/institucion`, `/app/importaciones` |
-| RF5 | Registro y consultas de asistencia, actividades y calificaciones con respuestas coherentes (**200**/**201**); boletines y documentos bajo rutas académicas; periodos cerrados aplican reglas de negocio (**400** cuando corresponda). | `AttendanceModule`, `ClassAttendanceModule`, `ActivitiesModule`, `AcademicPeriodsModule`, `ReportCardsModule`, `DocumentsModule`, `SchedulesModule`, `ClassSessionsModule`, `SchoolCalendarModule`, `ExportsModule` | `attendance/*`, `class-attendance/*`, `activities/*`, `academic-periods/*`, `report-cards/*`, `documents/*`, `schedules/*`, `class-sessions/*`, `calendar/*` | `/app/horario`, `/app/modulos/academico`, `/app/modulos/calificaciones-docente`, `/app/modulos/mis-calificaciones`, `/app/modulos/boletines`, `/app/modulos/periodos-academicos` |
+| RF5 | Registro y consultas de asistencia, actividades y calificaciones con respuestas coherentes (**200**/**201**); boletines y documentos bajo rutas académicas; periodos cerrados aplican reglas de negocio (**400** cuando corresponda). | `AttendanceModule`, `ClassAttendanceModule`, `ActivitiesModule`, `AcademicPeriodsModule`, `ReportCardsModule`, `DocumentsModule`, `SchedulesModule`, `ClassSessionsModule`, `SchoolCalendarModule`, `ExportsModule` | `attendance/*`, `class-attendance/*`, `activities/*`, `academic-periods/*`, `report-cards/*`, `documents/*`, `schedules/*`, `class-sessions/*`, `calendar/*` | `/app/horario` (alumno, docente, staff); `/app/modulos/academico` (padre, docente, administrativo); `/app/modulos/calificaciones-docente`, `/app/modulos/mis-calificaciones`, `/app/modulos/boletines`, `/app/modulos/periodos-academicos` |
 | RF6 | Creación y consulta de deudas y registros de pago; carga de comprobante con **201**/**200** según endpoint; verificación o rechazo por personal autorizado; archivos sensibles vía `files/*` autenticado. Sin integración de pasarela automática. | `PaymentsModule`, `UploadsModule`, `FilesModule` | `payments/*`, `uploads/*`, `files/*` | `/app/modulos/finanzas` (`FinanzasPage`, herramientas de personal) |
-| RF7 | Publicación y consulta de avisos; bandeja de notificaciones; registro de *token* FCM; flujos de **reportes administrativos** bajo `notifications/admin-reports/*` (roles según Anexo 08); correo transaccional desde dominios que consumen `MailModule` cuando está configurado. | `NoticesModule`, `MailModule` | `notices`, `notifications/*`, `notifications/admin-reports/*`, registro FCM | `/app/modulos/comunicacion`, componentes de avisos en `/app` |
+| RF7 | Publicación y consulta de avisos; bandeja de notificaciones; registro de *token* FCM; flujos de **reportes administrativos** bajo `notifications/admin-reports/*` (roles según Anexo 08); correo transaccional desde dominios que consumen `MailModule` cuando está configurado. | `NoticesModule`, `MailModule` | `notices`, `notifications/*`, `notifications/admin-reports/*`, registro FCM | `/app/modulos/comunicacion` (`ComunicacionPage`); campana (`NotificationsBadge`); tarjetas en `/app` (`AppHomePage`) |
 | RF8 | Indicadores en `dashboard/*` y `dashboards/*`; reportes y exportaciones (`reports/*`, `exports/*`) con tipos MIME documentados; **403** ante rol insuficiente. | `DashboardModule`, `ReportsModule`, `ExportsModule` | `dashboard/*`, `dashboards/*`, `reports/*`, `exports/*` | `/app` (`AppHomePage`, paneles por rol), secciones de administración según navegación |
 
 **Contratos de error generales (verificación):** **400** datos o estado inválido; **401** no autenticado o sesión inválida; **403** permisos insuficientes; **404** recurso ausente; **429** límite de peticiones.
@@ -1844,6 +1880,8 @@ Los casos de uso se enumeran por actor cubriendo todos los flujos accesibles a c
 | Recibir y atender reportes administrativos con seguimiento por SLA | Tickets internos. |
 | Consultar tablero institucional, reportes operativos y exportaciones | Indicadores y descargas. |
 | Operar el circuito desde el lado institucional (autorizar salida, confirmar entrega, cancelar) | RF3 lado escuela. |
+| Escanear credencial QR/NFC en plantel o clase | Misma operación que docente y administrador de plataforma; menú **Escáner de acceso**. |
+| Configurar y listar credenciales NFC | Asignación de UID a usuarios de la institución. |
 | Subir logos institucionales y administrar archivos | Recursos visuales y documentales. |
 
 ### 2.3. Docente
@@ -1894,7 +1932,6 @@ Los casos de uso se enumeran por actor cubriendo todos los flujos accesibles a c
 | Consultar su credencial de acceso QR personal | Para presentación en portería. |
 | Consultar su horario y calendario académico | Lecturas autorizadas. |
 | Consultar sus calificaciones por actividad y boletines | Solo del propio alumno. |
-| Consultar su asistencia diaria y por clase | Solo del propio alumno. |
 | Consultar avisos institucionales que le aplican | Bandeja personal. |
 | Recibir notificaciones personales | Push opcional. |
 | Consultar consentimiento de salida del día | Si la institución lo expone. |
@@ -2093,7 +2130,7 @@ Este anexo describe los criterios de interfaz, el inventario de pantallas implem
 
 ## 2. Criterios de diseño
 
-La interfaz se implementa como **SPA** *responsive*, priorizando **móvil** para padres y tutores y **escritorio** para administración y docentes cuando el flujo lo favorece. Se prioriza **navegación por rol**, formularios comprensibles, **retroalimentación** ante errores y carga, y **consistencia** de componentes dentro del *shell* (`AppShell`, Tailwind).
+La interfaz se implementa como **SPA** *responsive*, priorizando **móvil** para padres y tutores y **escritorio** para administración y docentes cuando el flujo lo favorece. Se prioriza **navegación por rol** —menú lateral filtrado en `navConfig.ts`, **campana de notificaciones** en el *shell* (`NotificationsBadge`) y **tablero de inicio** por perfil (`AppHomePage`)—, formularios comprensibles, **retroalimentación** ante errores y carga, y **consistencia** de componentes dentro del *shell* (`AppShell`, Tailwind).
 
 ---
 
@@ -2107,9 +2144,9 @@ La interfaz se implementa como **SPA** *responsive*, priorizando **móvil** para
 | Circuito (padre/tutor) | Crear solicitud, seguimiento, mapa informativo | `CircuitPadrePage`; mapa vía `ParentTrackingMap` en flujos de detalle |
 | Circuito (personal) | Solicitudes del día, detalle, transiciones | `CircuitTodayPage`, `CircuitDetailPage` |
 | Gestión escolar | Nómina, escuelas (plataforma), importación | `SchoolRosterPage`, `SchoolsAdminPage`, `ImportExportPage` |
-| Académico | Periodos, calificaciones, boletines, horarios | `PeriodosAcademicosPage`, `CalificacionesDocentePage`, `MisCalificacionesPage`, `BoletinesPage`, `ScheduleHubPage` |
+| Académico | Periodos, calificaciones, boletines, horarios; asistencia y horario de hijos (padre) | `AcademicoPage` (padre, docente, administrativo); `PeriodosAcademicosPage`, `CalificacionesDocentePage`, `MisCalificacionesPage`, `BoletinesPage`, `ScheduleHubPage` (alumno, docente, staff) |
 | Finanzas | Cartera, comprobantes y herramientas según rol | `FinanzasPage`, `FinanzasStaffTools` |
-| Comunicación | Avisos y notificaciones; registro FCM | `ComunicacionPage`, `NotificationsBadge`, `FcmBootstrap` |
+| Comunicación | Bandeja en `/app/modulos/comunicacion`; campana en cabecera; accesos desde Inicio según rol | `ComunicacionPage`, `NotificationsBadge`, `FcmBootstrap`, tarjetas en `AppHomePage` |
 | Agenda | Visitas externas y reuniones | `VisitasPage`, `ReunionesPage` |
 | Institución y perfil | Datos institucionales, perfil y credencial | `InstitutionPage`, `PerfilPage` |
 | Administración y anotaciones | Módulos operativos de apoyo | `AdministracionPage`, `AnotacionesDocentePage`, `AcademicoPage` |
@@ -2130,7 +2167,7 @@ La interfaz se implementa como **SPA** *responsive*, priorizando **móvil** para
 
 *[Figura 6. Vista del Alumno con horario, calificaciones, boletines y credencial QR personal. Recomendado: Figma con Figma AI o captura del cliente en ejecución.]*
 
-*[Figura 7. Escáner de credenciales QR y NFC en el navegador con retroalimentación de lectura. Recomendado: captura del cliente en ejecución con dispositivo móvil.]*
+*[Figura 7 del Anexo 06. Escáner de credenciales QR y NFC en el navegador con retroalimentación de lectura. Recomendado: captura del cliente en ejecución con dispositivo móvil.]*
 
 *[Figura 8. Mapa del circuito de recogida con indicador de proximidad al plantel apoyado en Mapbox. Recomendado: captura del cliente en ejecución sobre dispositivo móvil con datos sintéticos.]*
 
@@ -2138,7 +2175,7 @@ La interfaz se implementa como **SPA** *responsive*, priorizando **móvil** para
 
 ## 5. Evidencia gráfica (Figma o capturas)
 
-Las figuras de la **sección 4** pueden sustentarse con **capturas del frontend en ejecución** o con **tableros en Figma** derivados de esas pantallas. La nomenclatura de rutas y roles en el material gráfico sigue la de las secciones 9 y 10 de este anexo para mantener coherencia con el cuerpo del trabajo y con los anexos relacionados.
+Las figuras de la **sección 4** son el núcleo por rol (ocho prototipos); la tabla de la **sección 6** lista capturas complementarias para el anexo maquetado (gestión escolar, calificaciones, finanzas, boletines, comunicación e inicio por rol). Pueden sustentarse con **capturas del frontend en ejecución** o con **tableros en Figma** derivados de esas pantallas. Los diagramas técnicos y las especificaciones de captura se elaboran según la [guía de figuras](prompts-imagenes-ia.md) (§ Anexo 06), con **pies literales** de este maestro. La nomenclatura de rutas y roles en el material gráfico sigue la de las secciones 9 y 10 de este anexo.
 
 ---
 
@@ -2157,6 +2194,8 @@ Las figuras de la **sección 4** pueden sustentarse con **capturas del frontend 
 | Mis calificaciones | Consulta padre/alumno | Evidenciar consulta autorizada |
 | Finanzas | Deudas, comprobantes, herramientas staff | Evidenciar RF6 |
 | Boletines | Informes académicos consolidados | Evidenciar reportes académicos |
+| Comunicación | Campana de notificaciones y pantalla de bandeja (`/app/modulos/comunicacion`) | Evidenciar RF7 |
+| Inicio por rol | Tarjetas de avisos y accesos contextuales en `AppHomePage` | Mostrar descubrimiento fuera del menú lateral |
 
 ---
 
@@ -2217,9 +2256,22 @@ Las rutas bajo **`/app`** exigen usuario autenticado (`ProtectedRoute` más *she
 | `circuito`, `circuito/hoy`, `circuito/:id` | `circuit-requests/*`, `parents/*`, `departure-consent/*` | Máquina de estados y pertenencias escolares validadas servidor |
 | `modulos/finanzas` | `payments/*`, `uploads/*`, `files/*` | Cartera segregada por tutor; PDF/comprobantes vía rutas privadas |
 | `escuelas` | `schools/*` | Operación multi‑institución; uso intensivo rol **ADMIN** |
+| `modulos/comunicacion` | `notices/*`, `notifications/*` | Bandeja y publicación de avisos; acceso habitual vía campana o Inicio |
 | `/login` (pública) | `auth/*` | Rutas públicas acotadas; *throttle* configurado |
 
 *Nota:* la **autorización fina** de cada operación sigue dependiendo de la API y de la lógica interna de cada página; esta tabla describe **solo** el encaminamiento y los componentes de página asociados en el cliente.
+
+### 9.1. Menú lateral por rol (`navConfig.ts`)
+
+La visibilidad depende de `navVisibleForRole` en `frontend/src/navigation/navConfig.ts`. La ruta `/app/modulos/comunicacion` **no** figura en el menú; el acceso a avisos se realiza por la campana, por tarjetas en Inicio o por URL directa.
+
+| Rol | Etiquetas visibles en el menú lateral (orden del código) |
+| --- | --- |
+| `ALUMNO` | Inicio · Mi perfil · Reuniones · Visitas externas · Finanzas · Mis calificaciones · Boletines · Horario · Institución |
+| `PADRE` | Inicio · Mi perfil · Reuniones · Visitas externas · Finanzas · Académico · Calificaciones · Boletines · Circuito (familia) · Institución |
+| `DOCENTE` | Inicio · Mi perfil · Reuniones · Visitas externas · Anotaciones (docente) · Académico · Actividades y notas · Boletines · Horario · Escáner de acceso · Circuito del día · Institución |
+| `ADMINISTRATIVO` | Inicio · Mi perfil · Reuniones · Visitas externas · Anotaciones (docente) · Finanzas · Periodos académicos · Actividades y notas · Boletines · Horario · Administración e informes · Institución · Grupos y personas · Importar y exportar · Escáner de acceso · Circuito del día |
+| `ADMIN` | Inicio · Mi perfil · Reuniones · Visitas externas · Anotaciones (docente) · Finanzas · Periodos académicos · Actividades y notas · Boletines · Horario · Administración e informes · Institución · Grupos y personas · Escuelas · Importar y exportar · Escáner de acceso · Circuito del día |
 
 ---
 
@@ -2633,7 +2685,7 @@ Este anexo resume la API REST del backend NestJS para el trabajo de grado: domin
 
 ## 6. Uso del anexo en el TDG
 
-Para no inflar el documento principal: **exportar** la especificación OpenAPI desde `/docs` o adjuntar **capturas** con todas las etiquetas expandidas. Los **DTO** y esquemas detallados permanecen en Swagger o en el JSON exportado.
+Para no inflar el documento principal: **exportar** la especificación OpenAPI desde `/docs` o adjuntar **capturas** con todas las etiquetas expandidas (figuras 1 y 2 de este anexo). El **catálogo completo de las 241 operaciones** está en la **sección 10** (tabla inferida del código); esas filas **no** requieren una captura de pantalla por ruta. Los **DTO** y esquemas detallados permanecen en Swagger o en el JSON exportado.
 
 ---
 
@@ -2667,7 +2719,8 @@ Para no inflar el documento principal: **exportar** la especificación OpenAPI d
 
 ## 9. Evidencia gráfica recomendada
 
-- Captura de **Swagger** con **Bearer** configurado y tags principales visibles.
+- Captura de **Swagger** con **Bearer** configurado y tags principales visibles (figura 1).
+- Captura con **todas las etiquetas de dominio expandidas** en `/docs` (figura 2); el inventario tabular de rutas es la **sección 10**, no sustituye estas capturas.
 - Ejemplo de **login** y de flujo **circuito**; respuesta de **dashboard**; descarga **PDF** o **Excel** con cabeceras relevantes.
 
 [Figura 1. Swagger Escuela Pass con módulos principales]
@@ -2957,7 +3010,7 @@ La configuración actual incorpora `addSecurityRequirements('access-token')` a n
 
 La **sección 8** resume códigos HTTP; el **cuerpo JSON** de error puede variar entre `ValidationPipe` (*Bad Request* con detalle de campos), excepciones de dominio y errores genéricos.
 
-- **Profesional:** adoptar un **formato único** (p. ej. `{ "statusCode", "message", "code" }` o Problem Details *RFC 7807*) y documentarlo en OpenAPI (`@ApiResponse`).  
+- **Profesional:** adoptar un **formato único** (p. ej. `{ "statusCode", "message", "code" }` o *Problem Details* conforme RFC 7807; Internet Engineering Task Force, 2016) y documentarlo en OpenAPI (`@ApiResponse`).  
 - **Académico:** vincular ese formato con la **experiencia de usuario** en el **Anexo 06** (mensajes en pantalla) y con pruebas E2E que assertan estructura.
 
 ### 12.5 Paginación, filtros y cargas masivas
@@ -3054,7 +3107,7 @@ Facultad de Ingenierías — Politécnico Colombiano Jaime Isaza Cadavid
 
 **Nota de acrónimos del anexo.** **UI** (User Interface), **UX** (User Experience), **OTP** (One-Time Password), **RSVP** (*Répondez s'il vous plaît*, confirmación de asistencia), **FCM** (Firebase Cloud Messaging), **QR** (Quick Response), **NFC** (Near Field Communication), **SUS** (System Usability Scale), **WCAG** (Web Content Accessibility Guidelines), **PDF** (Portable Document Format), **XLSX** (Office Open XML Spreadsheet).
 
-Este anexo orienta a los usuarios finales —personal de plataforma, administración escolar, docentes, familias y estudiantes— en el uso de la aplicación web Escuela Pass: acceso, módulos visibles por rol, flujos habituales y respuesta ante mensajes frecuentes. Traduce al lenguaje operativo la **lectura operativa** del **capítulo 4** (OE4) y los actores de la **Tabla 6**, sin sustituir políticas internas ni asesoría jurídica (límite explícito del **capítulo 5** y **6**). Los criterios de redacción siguen las heurísticas de usabilidad de Nielsen (1994), los principios de diseño centrado en el usuario (Norman, 2013) y la sensibilidad de accesibilidad de la WCAG 2.2 (W3C, 2023). La medición de usabilidad planificada se apoya en la SUS (Brooke, 1996; Lewis & Sauro, 2018). Complementa los requerimientos del **Anexo 01**, el inventario de pantallas del **Anexo 06**, la instalación y variables del **Anexo 07** y los contratos REST del **Anexo 08**. La navegación efectiva del menú lateral procede de `frontend/src/navigation/navConfig.ts` y el árbol de rutas de `frontend/src/App.tsx`; ante duda sobre disponibilidad de una pantalla, prevalece el comportamiento del despliegue (incluido `RoleGate`). La sección 16 consolida líneas de mejora profesionales y académicas vinculadas al manual, a la interfaz y a la trazabilidad RF/RNF.
+Este anexo orienta a los usuarios finales —personal de plataforma, administración escolar, docentes, familias y estudiantes— en el uso de la aplicación web Escuela Pass: acceso, módulos visibles por rol, flujos habituales y respuesta ante mensajes frecuentes. Traduce al lenguaje operativo la **lectura operativa** del **capítulo 4** (OE4) y los actores de la **Tabla 6**, sin sustituir políticas internas ni asesoría jurídica (límite explícito del **capítulo 5** y **6**). Los criterios de redacción siguen las heurísticas de usabilidad de Nielsen (1994), los principios de diseño centrado en el usuario (Norman, 2013) y la sensibilidad de accesibilidad de la WCAG 2.2 (W3C, 2023). La medición de usabilidad planificada se apoya en la SUS (Brooke, 1996; Lewis & Sauro, 2018). Complementa los requerimientos del **Anexo 01**, el inventario de pantallas del **Anexo 06**, la instalación y variables del **Anexo 07** y los contratos REST del **Anexo 08**. La navegación combina el **menú lateral** (`navConfig.ts`), la **campana de notificaciones** en el *shell* y el **tablero de inicio** según rol, sobre el árbol de rutas de `frontend/src/App.tsx`; ante duda sobre disponibilidad de una pantalla, prevalece el comportamiento del despliegue (incluido `RoleGate`). La sección 16 consolida líneas de mejora profesionales y académicas vinculadas al manual, a la interfaz y a la trazabilidad RF/RNF.
 
 ---
 
@@ -3081,7 +3134,7 @@ Perfil orientado a la **operación multi-escuela** cuando el usuario no está ac
 - Acceder a **auditoría** y herramientas ampliadas según lo expuesto en panel e informes cuando la implementación lo habilite (**API** en **Anexo 08**).
 - Revisar **privacidad** y cumplimiento del flujo de consentimiento informado acorde al **Anexo 03**.
 
-Entradas de menú típicas además de **Inicio** y **Mi perfil**: **Escuelas**, **Grupos y personas**, **Importar y exportar**, **Institución**, **Administración e informes**, **Circuito del día**, **Escáner de acceso**, módulos académicos y de comunicación según `navConfig`.
+Entradas de menú típicas además de **Inicio** y **Mi perfil**: **Escuelas**, **Grupos y personas**, **Importar y exportar**, **Institución**, **Administración e informes**, **Circuito del día**, **Escáner de acceso**, módulos académicos. Para **avisos y bandeja completa**, use la **campana** de notificaciones, las tarjetas de **Inicio** (accesos rápidos) o **`/app/modulos/comunicacion`** para publicar avisos institucionales.
 
 *Nota de interfaz:* la acción **Reportar problema** del *shell* se muestra a usuarios con rol distinto de `ADMIN` (`AppShell.tsx`); el administrador de plataforma canaliza incidencias por los módulos institucionales o la comunicación operativa.
 
@@ -3095,7 +3148,7 @@ Entradas de menú típicas además de **Inicio** y **Mi perfil**: **Escuelas**, 
 - **Calendario institucional, visitas y reuniones:** **`/app/modulos/visitas-externas`**, **`/app/modulos/reuniones`**, **`/app/modulos/periodos-academicos`**, **`/app/institucion`** según corresponda.
 - **Circuito del día** y seguimiento operativo — **`/app/circuito/hoy`**, detalle **`/app/circuito/:id`**.
 - **Panel e informes** — **`/app/modulos/administracion`**.
-- **Comunicación, avisos y reportes administrativos** (RF7) — **`/app/modulos/comunicacion`**; según permisos puede mostrarse también el flujo de **reportes internos** hacia administración. El *shell* ofrece **Reportar problema** a roles distintos de `ADMIN`.
+- **Comunicación, avisos y reportes administrativos** (RF7) — consultar por la **campana** o desde **Inicio**; publicar y administrar la bandeja en **`/app/modulos/comunicacion`**. Según permisos puede mostrarse también el flujo de **reportes internos** hacia administración. El *shell* ofrece **Reportar problema** a roles distintos de `ADMIN`.
 - **Escáner de acceso** (personal habilitado) — **`/app/acceso/escaner`**.
 
 ---
@@ -3109,16 +3162,16 @@ Entradas de menú típicas además de **Inicio** y **Mi perfil**: **Escuelas**, 
 - **Circuito de recogida:** **`/app/circuito/hoy`**, detalle **`/app/circuito/:id`**; apoyo al flujo RF3 según reglas institucionales.
 - **Anotaciones de atención** — **`/app/modulos/anotaciones-docente`**.
 - **Escáner de acceso** — **`/app/acceso/escaner`** (RF2).
-- **Importar y exportar** — **`/app/importaciones`** (cuando la institución habilita el rol en la importación).
-- **Comunicación y agenda:** **`/app/modulos/comunicacion`**, **`/app/modulos/reuniones`**, **`/app/modulos/visitas-externas`** pueden alcanzarse por **URL directa** o enlaces contextuales aunque no aparezcan en el menú lateral para ese rol; la **API** define al final qué operaciones están permitidas. **Reportar problema** en el *shell* está disponible para roles distintos de `ADMIN`.
+- **Importar y exportar** — **`/app/importaciones`** (en el menú para administración; el docente puede usar la ruta para **plantillas y exportación** de sus grupos; la carga masiva de nómina queda reservada a administración).
+- **Comunicación** — tarjetas de **Inicio** (notificaciones recientes) y **campana**; publicación de avisos en **`/app/modulos/comunicacion`**. **Reuniones** y **visitas externas** en el menú lateral. **Reportar problema** en el *shell* está disponible para roles distintos de `ADMIN`.
 
 ---
 
 ## 7. Padre o tutor (`PADRE`)
 
 - **Inicio**, **Mi perfil** (incluye gestión de **consentimiento de salida** vinculado al circuito cuando la institución lo usa) y **`/app/circuito`** para **solicitud y seguimiento** del circuito de recogida (RF3), incluyendo variantes de **solo consentimiento** según la solicitud.
-- **Comunicación:** avisos y notificaciones — **`/app/modulos/comunicacion`**; registro de notificaciones *push* depende de permisos del navegador y FCM configurado. Puede usar **Reportar problema** en el *shell* (no aplica al rol `ADMIN`).
-- **Académico** (vista familia) — **`/app/modulos/academico`**.
+- **Comunicación:** avisos y notificaciones — **campana**, tarjetas de **Inicio** (notificaciones y anotaciones recientes) y bandeja en **`/app/modulos/comunicacion`**; registro de notificaciones *push* depende de permisos del navegador y FCM configurado. Puede usar **Reportar problema** en el *shell* (no aplica al rol `ADMIN`).
+- **Académico** (vista familia) — **`/app/modulos/academico`**: asistencia de los hijos, horario semanal, calendario y excusas (no use **`/app/horario`**, reservado a alumno, docente y personal de plantel).
 - **Calificaciones** de los hijos — entrada de menú **Calificaciones** → **`/app/modulos/mis-calificaciones`**.
 - **Boletines** — **`/app/modulos/boletines`**.
 - **Finanzas:** deudas y carga de **comprobantes** — **`/app/modulos/finanzas`**.
@@ -3128,10 +3181,11 @@ Entradas de menú típicas además de **Inicio** y **Mi perfil**: **Escuelas**, 
 
 ## 8. Alumno (`ALUMNO`)
 
+- **Comunicación** — **campana** de notificaciones, tarjeta «Notificaciones recientes» en **Inicio** y bandeja en **`/app/modulos/comunicacion`**.
 - **Horario** — **`/app/horario`**.
 - **Mis calificaciones** — **`/app/modulos/mis-calificaciones`**.
 - **Boletines** — **`/app/modulos/boletines`**.
-- **Finanzas** (deudas propias) — **`/app/modulos/finanzas`**.
+- **Finanzas** — **`/app/modulos/finanzas`**: consulta de **conceptos de cobro** publicados por la escuela.
 - **Visitas externas** y **reuniones** — **`/app/modulos/visitas-externas`**, **`/app/modulos/reuniones`** (entradas comunes del menú para todos los autenticados en `navConfig`).
 - **Credencial QR** u otro mecanismo de acceso físico, si la institución habilita el flujo: consulta desde **Mi perfil** según implementación (RF2).
 
@@ -3163,7 +3217,7 @@ Para cerrar la brecha entre **comprensibilidad** declarada (**RNF5**) y verifica
 ## 10. Flujo guiado — padre o tutor
 
 1. Iniciar sesión en **`/login`**.
-2. Revisar **Inicio**, **comunicación** y bandeja de notificaciones.
+2. Revisar **Inicio**, la **campana** de notificaciones o las tarjetas que enlazan a **comunicación**.
 3. Consultar información académica en **`/app/modulos/academico`**, **Calificaciones** y **Boletines**.
 4. Crear o seguir **solicitud de circuito** en **`/app/circuito`**; abrir **detalle** en **`/app/circuito/:id`** cuando aplique.
 5. Actualizar **avance o ubicación** solo si el flujo de la solicitud lo solicita (mapa o estados según pantalla).
@@ -3174,7 +3228,7 @@ Para cerrar la brecha entre **comprensibilidad** declarada (**RNF5**) y verifica
 
 ## 11. Flujo guiado — docente
 
-1. Iniciar sesión y revisar **Inicio** (`/app`).
+1. Iniciar sesión y revisar **Inicio** (`/app`) y la **campana** de notificaciones.
 2. Consultar **Horario** o **`/app/modulos/academico`** según la jornada.
 3. Registrar **asistencia** y **actividades** desde los flujos del módulo académico y **`/app/modulos/calificaciones-docente`**.
 4. Gestionar **Circuito del día** en **`/app/circuito/hoy`** y **detalle** en **`/app/circuito/:id`**.
@@ -3230,7 +3284,7 @@ Las **figuras 1–5** del **Anexo 06** pueden reutilizarse si mantienen la misma
 
 Referencias bajo prefijo **`/app`** salvo nota; la visibilidad en el menú lateral depende de `navVisibleForRole` en `navConfig.ts`.
 
-**Nota:** La tabla resume **rutas habituales**; no todas tienen **`RoleGate`** en `App.tsx` (véase **sección 16.1**). La denegación definitiva de una operación la emite la **API** con **403** o mensaje de negocio.
+**Nota:** La tabla resume **rutas habituales**; no todas tienen **`RoleGate`** en `App.tsx` (véase **sección 16.1**). La denegación definitiva de una operación la emite la **API** con **403** o mensaje de negocio. El acceso a comunicación y avisos suele ser por **menú lateral**, **campana** o **tarjetas en Inicio**, según el rol.
 
 | Perfil | Rutas / módulos prioritarios |
 | --- | --- |
@@ -3255,9 +3309,8 @@ No toda ruta bajo `/app` tiene **`RoleGate`** en el cliente: varias pantallas ex
 
 ### 16.2 RF7: comunicación, reportes administrativos y “Reportar problema”
 
-El **Anexo 01** exige avisos, notificaciones y **reportes administrativos** (`notifications/admin-reports/*`). En interfaz, parte del flujo vive en **`/app/modulos/comunicacion`** (`Operativos.tsx`) y el *shell* expone **Reportar problema** (`AppShell.tsx`) a todos los roles **excepto** `ADMIN`, que no ve ese botón en la implementación actual.  
+El **Anexo 01** exige avisos, notificaciones y **reportes administrativos** (`notifications/admin-reports/*`). En interfaz, la bandeja y la publicación de avisos viven en **`/app/modulos/comunicacion`**; el descubrimiento cotidiano combina la **campana**, el **Inicio** por rol y los *deep links* de notificación (véase **secciones 4–8** de este anexo). El *shell* expone **Reportar problema** a todos los roles **excepto** `ADMIN`.  
 
-- **Profesional:** incluir en versiones futuras del manual una **mini-subsección** o captura dedicada a ese flujo para auditores que busquen RF7 literal.  
 - **Académico:** enlazar en el **Anexo 10** un escenario de prueba o encuesta que mencione este canal (cierre de bucle RNF5).
 
 ### 16.3 Privacidad, consentimiento y marco normativo en el texto del producto
