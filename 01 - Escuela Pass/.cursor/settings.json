@@ -1,0 +1,13 @@
+{
+  "plugins": {
+    "firebase": {
+      "enabled": true
+    },
+    "clickup": {
+      "enabled": true
+    },
+    "postman": {
+      "enabled": true
+    }
+  }
+}
