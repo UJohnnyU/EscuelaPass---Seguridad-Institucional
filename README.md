@@ -5,11 +5,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
-![Status](https://img.shields.io/badge/status-producción%20%2F%20TDG-blue)
+![Status](https://img.shields.io/badge/status-producción-blue)
 
 **Escuela Pass** es una plataforma web institucional para la **administración, operación diaria y seguridad escolar** en colegios privados de **México** (con perspectiva de expansión regional). Integra control de accesos con **NFC** y **QR**, circuito de recogida con **geolocalización**, gestión académica, finanzas, comunicación y auditoría en un mismo sistema multi-rol y multi-colegio.
 
-Desarrollada como **Trabajo de Grado** en el Politécnico Colombiano Jaime Isaza Cadavid (POLI JIC) por **Murillo Martínez Jhon Kevin**. El código fuente es **software propietario**; consulte [LICENSE](LICENSE) para condiciones de uso.
+Copyright © 2026 **Murillo Martínez Jhon Kevin**. El código es **software propietario**; consulte [LICENSE](LICENSE) para condiciones de uso.
 
 ## Características principales
 
@@ -59,7 +59,8 @@ Desarrollada como **Trabajo de Grado** en el Politécnico Colombiano Jaime Isaza
 | [`01 - Escuela Pass/frontend/`](01%20-%20Escuela%20Pass/frontend/) | Interfaz web responsive con navegación por rol |
 | [`01 - Escuela Pass/scripts/`](01%20-%20Escuela%20Pass/scripts/) | Utilidades de base de datos y seeds (**solo dev/staging**) |
 | [`.github/workflows/`](.github/workflows/) | CI del backend (build, lint, pruebas E2E con PostgreSQL 16) |
-| [`LICENSE`](LICENSE) | Licencia propietaria y autorización académica POLI JIC |
+| [`LICENSE`](LICENSE) | Licencia propietaria |
+| [`01 - Escuela Pass/docs/technical-setup.md`](01%20-%20Escuela%20Pass/docs/technical-setup.md) | Configuración técnica, variables de entorno y despliegue |
 
 ## Inicio rápido
 
@@ -77,7 +78,7 @@ npm install
 npm run dev
 ```
 
-Requisitos: **Node.js 20+** y **PostgreSQL**. Para esquema inicial puede usarse `npm run db:apply` (greenfield) o migraciones TypeORM según el entorno. Detalle operativo en [`01 - Escuela Pass/README.md`](01%20-%20Escuela%20Pass/README.md).
+Requisitos: **Node.js 20+** y **PostgreSQL**. Para esquema inicial puede usarse `npm run db:apply` (greenfield) o migraciones TypeORM según el entorno. Detalle en [`01 - Escuela Pass/docs/technical-setup.md`](01%20-%20Escuela%20Pass/docs/technical-setup.md) y [`01 - Escuela Pass/README.md`](01%20-%20Escuela%20Pass/README.md).
 
 ## Privacidad y cumplimiento
 
@@ -90,7 +91,6 @@ La zona horaria operativa predeterminada es **`America/Mexico_City`** (`APP_TIME
 Copyright © 2026 **Murillo Martínez Jhon Kevin**. **All Rights Reserved.**
 
 - Uso, copia, modificación o explotación comercial requieren **autorización escrita** del titular.
-- El **POLI JIC** dispone de autorización limitada, no exclusiva y sin fines de lucro, para archivo y consulta académica de la versión entregada como Trabajo de Grado.
 - Los componentes de terceros se rigen por sus propias licencias (ver `package.json` de backend y frontend).
 
 Consultas de licenciamiento: **jhonkevinmurillom@gmail.com**

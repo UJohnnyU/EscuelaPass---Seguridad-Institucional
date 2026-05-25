@@ -69,7 +69,7 @@ Aplicación institucional: control de accesos, circuito de recogida, comunicaci�
 |------|-----------|
 | `src/` | API NestJS (TypeORM, módulos por dominio). |
 | `frontend/` | SPA React (Vite). |
-| `docs/` | Documentación técnica, runbooks y convenciones. |
+| `docs/` | Documentación técnica operativa (`technical-setup.md`). |
 | `scripts/` | Utilidades Node (BD, seeds de demo — **solo dev/staging**). |
 | `escuela_pass_schema_v4.sql` | DDL de referencia completo para greenfield (`npm run db:apply`). |
 | `src/database/baseline/typeorm-baseline-v3.sql` | DDL histórico **solo** para la primera migración TypeORM y E2E (ver carpeta `baseline/`). |
@@ -81,13 +81,9 @@ Aplicación institucional: control de accesos, circuito de recogida, comunicaci�
 3. API: `npm install` y `npm run start:dev` (desde esta carpeta).
 4. Web: `cd frontend`, `npm install`, `npm run dev`.
 
-Despliegue Railway y checklist: [`docs/releases/README.md`](docs/releases/README.md).
+Despliegue Railway: ver [`docs/technical-setup.md`](docs/technical-setup.md) y `railway.toml`.
 
 ## Artefactos que no son de producción operativa
 
 - Seeds (`scripts/database/*.sql`, `seed-full-demo.cjs`, etc.): ver cabezales en cada archivo; no ejecutar en producción sin criterio.
 - `typeorm-baseline-v3.sql`: no sustituye al esquema v4 como documentación del estado actual del producto.
-
-## Convención de comentarios en código
-
-Ver [`docs/CODESTYLE-COMMENTS.md`](docs/CODESTYLE-COMMENTS.md). Índice breve de documentación: [`docs/README.md`](docs/README.md).

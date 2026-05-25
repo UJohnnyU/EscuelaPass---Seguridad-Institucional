@@ -96,19 +96,17 @@ GRANT USAGE, CREATE ON SCHEMA public TO escuela_pass_app;
 - `npm run migration:show` — `migration:create` — `migration:generate` — `migration:run` — `migration:revert`
 - Carpeta: `src/database/migrations/` (el baseline inicial sigue siendo `1712050000000-BaselineSchema.ts`, apoyado en `src/database/baseline/typeorm-baseline-v3.sql`).
 
-### Política de cambios de esquema (equipo y TDG)
+### Política de cambios de esquema
 
 Objetivo: **una sola verdad versionada** en evolución diaria; los otros caminos son de apoyo o de *bootstrap*.
 
 | Situación | Acción esperada |
 | ---------- | ---------------- |
-| **Nueva tabla, columna, índice o restricción** en producción o ramas compartidas | **1)** Migración TypeORM en `src/database/migrations/` (revisada en PR). **2)** Entidad u homólogo en `src/database/entities/` alineado. **3)** Actualizar el **Anexo 04** en `docs/tdg/redaccion-activa/04-modelo-er.md` (inventario §8 y texto si aplica). |
+| **Nueva tabla, columna, índice o restricción** en producción o ramas compartidas | **1)** Migración TypeORM en `src/database/migrations/` (revisada en PR). **2)** Entidad u homólogo en `src/database/entities/` alineado. **3)** Actualizar `scripts/database/escuela_pass_schema_v4.sql` si el cambio debe reflejarse en greenfield. |
 | Parche idempotente ya acordado para entornos rezagados | Puede vivir en `ensureRuntimeSchema` **solo** si está **alineado** con una migración existente o pendiente; no debe ser la vía habitual de nuevas funcionalidades. |
 | **Greenfield** (base vacía, laboratorio) | Opción A: `npm run db:apply` sobre `scripts/database/escuela_pass_schema_v4.sql` + datos de prueba según scripts permitidos. Luego alinear con migraciones antes de simular producción. |
 | **Base ya gobernada por migraciones** | No reaplicar el SQL v4 completo encima. Usar `migration:run` / arranque que ejecuta migraciones pendientes. |
-| Tras **release** con cambios de datos | *Smoke* (`smoke:ci-local` o equivalente) y, si aplica, comparación del esquema real con el inventario del Anexo 04. |
-
-El **Anexo 07** (`docs/tdg/redaccion-activa/07-manual-tecnico.md`, §13.1) desarrolla el contexto académico y de riesgos; **este apartado** es la checklist operativa del repositorio.
+| Tras **release** con cambios de datos | *Smoke* (`smoke:ci-local` o equivalente) y revisión manual de migraciones aplicadas en el entorno. |
 
 ## Frontend (`frontend/`)
 
@@ -226,7 +224,7 @@ Comprobantes bajo `uploads/comprobantes/` (o subcarpeta bajo `UPLOADS_DIR`). En 
 
 ## Despliegue (Railway)
 
-Ver `railway.toml` y [`docs/releases/runbook-railway-v1.3.md`](./releases/runbook-railway-v1.3.md): `DATABASE_URL`, JWT, `FRONTEND_URL`, volumen **`UPLOADS_DIR=/data`**, variables de correo/push si se usan. El `startCommand` es `npm run start:prod`.
+Ver `railway.toml` en la raíz del backend: `DATABASE_URL`, JWT, `FRONTEND_URL`, volumen **`UPLOADS_DIR=/data`**, variables de correo/push si se usan. El `startCommand` es `npm run start:prod`.
 
 ## Comandos rápidos
 
@@ -264,5 +262,4 @@ En el repositorio Git padre: **`.github/workflows/backend-ci.yml`** con `working
 ## Lecturas relacionadas
 
 - [`README.md`](../README.md) — estructura del monorepo y puesta en marcha breve.
-- [`docs/releases/README.md`](./releases/README.md) — entregas y runbooks.
-- [`docs/CODESTYLE-COMMENTS.md`](./CODESTYLE-COMMENTS.md) — convención de comentarios en código.
+- [`README.md`](../../README.md) — visión general del producto en el repositorio Git padre.
