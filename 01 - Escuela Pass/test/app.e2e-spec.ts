@@ -131,10 +131,11 @@ describe('App (e2e)', () => {
 
   const authHeader = (token: string) => ({ Authorization: `Bearer ${token}` });
 
+  const appTimeZone = (): string => process.env.APP_TIMEZONE?.trim() || 'America/Mexico_City';
+
   const circuitTodayYmd = (): string => {
-    const tz = process.env.APP_TIMEZONE?.trim() || 'America/Mexico_City';
     const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
+      timeZone: appTimeZone(),
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
@@ -144,6 +145,69 @@ describe('App (e2e)', () => {
     const d = parts.find((p) => p.type === 'day')?.value;
     if (!y || !m || !d) return new Date().toISOString().slice(0, 10);
     return `${y}-${m}-${d}`;
+  };
+
+  const minutesSinceMidnightAppTz = (instant: Date = new Date()): number => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: appTimeZone(),
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(instant);
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+    return hour * 60 + minute;
+  };
+
+  const sqlTimeFromMinutes = (totalMinutes: number): string => {
+    const clamped = Math.max(0, Math.min(totalMinutes, 23 * 60 + 59));
+    const hh = String(Math.floor(clamped / 60)).padStart(2, '0');
+    const mm = String(clamped % 60).padStart(2, '0');
+    return `${hh}:${mm}:00`;
+  };
+
+  const restoreSeedStateAfterPhase7 = async () => {
+    const today = circuitTodayYmd();
+    await db.query(
+      `UPDATE users SET status = true, can_access_campus = true
+       WHERE email IN (
+         'admin@escuelapass.local',
+         'administrativo@escuelapass.local',
+         'docente1@escuelapass.local',
+         'padre1@escuelapass.local',
+         'alumno1@escuelapass.local'
+       )`
+    );
+    await db.query(`UPDATE students SET lifecycle_status = 'ACTIVO'`);
+    await db.query(`UPDATE teachers SET lifecycle_status = 'ACTIVO'`);
+    await db.query(
+      `UPDATE students s
+       SET group_id = g.id
+       FROM groups g, users u
+       WHERE s.user_id = u.id
+         AND u.email = 'alumno1@escuelapass.local'
+         AND g.name = '1A'
+         AND g.school_year = '2026-2027'`
+    );
+    await db.query(
+      `UPDATE access_credentials SET status = 'ACTIVE'
+       WHERE user_id IN (
+         SELECT id FROM users WHERE email IN (
+           'alumno1@escuelapass.local','docente1@escuelapass.local'
+         )
+       )`
+    );
+    await db.query(`UPDATE schools SET circuit_enabled = true`);
+    await db.query(
+      `UPDATE circuit_requests
+       SET status = 'CANCELADO'::circuit_status,
+           teacher_signal = NULL,
+           parent_confirm_deadline_at = NULL,
+           parent_confirm_deadline_started_at = NULL
+       WHERE status::text IN ('PENDIENTE','PADRE_EN_CAMINO','NOTIFICADO_LLEGADA','AUTORIZADO_SALIR','EN_CAMINO')`
+    );
+    await db.query(`UPDATE academic_periods SET status = 'ACTIVE', closed_at = NULL, closed_by = NULL`);
+    await db.query(`DELETE FROM school_non_instructional_days WHERE exception_date = $1::date`, [today]);
   };
 
   const registerAttendancePresentToday = async (adminToken: string, studentId: string) => {
@@ -159,6 +223,19 @@ describe('App (e2e)', () => {
       .expect((res) => {
         expect([200, 201]).toContain(res.status);
       });
+  };
+
+  const cancelOpenCircuitsForStudent = async (studentId: string) => {
+    await db.query(
+      `UPDATE circuit_requests
+       SET status = 'CANCELADO'::circuit_status,
+           teacher_signal = NULL,
+           parent_confirm_deadline_at = NULL,
+           parent_confirm_deadline_started_at = NULL
+       WHERE student_id = $1
+         AND status::text IN ('PENDIENTE','PADRE_EN_CAMINO','NOTIFICADO_LLEGADA','AUTORIZADO_SALIR','EN_CAMINO')`,
+      [studentId]
+    );
   };
 
   const getStudentByEmail = async (token: string, email: string) => {
@@ -334,6 +411,9 @@ describe('App (e2e)', () => {
       database: process.env.DB_NAME,
       ssl: (process.env.DB_SSL ?? 'false') === 'true' ? { rejectUnauthorized: false } : undefined
     });
+
+    // phase7-closure.e2e-spec.ts corre antes en la suite completa y deja estado compartido.
+    await restoreSeedStateAfterPhase7();
   });
 
   afterAll(async () => {
@@ -465,12 +545,12 @@ describe('App (e2e)', () => {
 
     const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
 
-    const date = new Date().toISOString().slice(0, 10);
+    const date = circuitTodayYmd();
+    await db.query(`DELETE FROM school_non_instructional_days WHERE exception_date = $1::date`, [date]);
     await db.query(
       `DELETE FROM access_events
        WHERE user_id = $1
-         AND event_date = $2
-         AND event_type = 'ENTRY'`,
+         AND event_date = $2`,
       [student.userId, date]
     );
     await db.query(
@@ -488,7 +568,10 @@ describe('App (e2e)', () => {
         credentialValue: 'QR_ALUMNO_0001',
         eventType: 'ENTRY'
       })
-      .expect(201);
+      .expect(201)
+      .expect((res) => {
+        expect(res.body.duplicate).not.toBe(true);
+      });
 
     const list = await request(app.getHttpServer())
       .get(`/${apiPrefix}/attendance/groups/${student.groupId}`)
@@ -561,7 +644,7 @@ describe('App (e2e)', () => {
   it('access scan: ENTRY tardio marca RETARDO sin pisar asistencia manual', async () => {
     const admin = await login('admin@escuelapass.local', 'Admin123*');
     const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
-    const date = new Date().toISOString().slice(0, 10);
+    const date = circuitTodayYmd();
     const school = await sqlOne<{
       school_id: string;
       shift_matutino_start: string | null;
@@ -574,25 +657,32 @@ describe('App (e2e)', () => {
       [student.id]
     );
 
-    await db.query(
-      `DELETE FROM access_events WHERE user_id = $1 AND event_date = $2 AND event_type = 'ENTRY'`,
-      [student.userId, date]
-    );
-    await db.query(`DELETE FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`, [
-      student.id,
-      date
-    ]);
+    const lateShiftStart = sqlTimeFromMinutes(minutesSinceMidnightAppTz() - 120);
 
+    const clearAccessDay = async () => {
+      await db.query(`DELETE FROM school_non_instructional_days WHERE exception_date = $1::date`, [date]);
+      await db.query(`DELETE FROM access_events WHERE user_id = $1 AND event_date = $2::date`, [
+        student.userId,
+        date
+      ]);
+      await db.query(`DELETE FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`, [
+        student.id,
+        date
+      ]);
+    };
+
+    await clearAccessDay();
     await db.query(
-      `UPDATE schools SET shift_matutino_start = '00:00:00', shift_matutino_end = '23:59:00' WHERE id = $1`,
-      [school.school_id]
+      `UPDATE schools SET shift_matutino_start = $2, shift_matutino_end = '23:59:00' WHERE id = $1`,
+      [school.school_id, lateShiftStart]
     );
     try {
-      await request(app.getHttpServer())
+      const scanLate = await request(app.getHttpServer())
         .post(`/${apiPrefix}/access-events/scan`)
         .set(authHeader(admin.accessToken))
         .send({ method: 'QR', credentialValue: 'QR_ALUMNO_0001', eventType: 'ENTRY' })
         .expect(201);
+      expect(scanLate.body.duplicate).not.toBe(true);
 
       const row = await sqlOne<{ status: string; notes: string | null }>(
         `SELECT status::text, notes FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`,
@@ -600,6 +690,42 @@ describe('App (e2e)', () => {
       );
       expect(row.status).toBe('RETARDO');
       expect(String(row.notes ?? '')).toContain('AUTO_ACCESS_SCAN:QR:ENTRY');
+
+      await db.query(`DELETE FROM access_events WHERE user_id = $1 AND event_date = $2::date`, [
+        student.userId,
+        date
+      ]);
+      await request(app.getHttpServer())
+        .post(`/${apiPrefix}/attendance/register`)
+        .set(authHeader(admin.accessToken))
+        .send({
+          studentId: student.id,
+          status: 'PRESENTE',
+          attendanceDate: date,
+          notes: 'e2e-manual-retardo'
+        })
+        .expect(201);
+
+      const manualBefore = await sqlOne<{ status: string; notes: string | null }>(
+        `SELECT status::text, notes FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`,
+        [student.id, date]
+      );
+      expect(manualBefore.status).toBe('PRESENTE');
+
+      const scanAfterManual = await request(app.getHttpServer())
+        .post(`/${apiPrefix}/access-events/scan`)
+        .set(authHeader(admin.accessToken))
+        .send({ method: 'QR', credentialValue: 'QR_ALUMNO_0001', eventType: 'ENTRY' })
+        .expect(201);
+      expect(scanAfterManual.body.duplicate).not.toBe(true);
+
+      const manualAfter = await sqlOne<{ status: string; notes: string | null }>(
+        `SELECT status::text, notes FROM attendance_records WHERE student_id = $1 AND attendance_date = $2::date`,
+        [student.id, date]
+      );
+      expect(manualAfter.status).toBe('PRESENTE');
+      expect(String(manualAfter.notes ?? '')).toContain('e2e-manual-retardo');
+      expect(String(manualAfter.notes ?? '')).not.toContain('AUTO_ACCESS_SCAN:QR:ENTRY');
     } finally {
       await db.query(
         `UPDATE schools SET shift_matutino_start = $2, shift_matutino_end = $3 WHERE id = $1`,
@@ -920,6 +1046,7 @@ describe('App (e2e)', () => {
     const parent = await getParentByEmail(admin.accessToken, 'padre1@escuelapass.local');
     const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
 
+    await cancelOpenCircuitsForStudent(student.id);
     await registerAttendancePresentToday(admin.accessToken, student.id);
 
     const created = await request(app.getHttpServer())
@@ -959,16 +1086,13 @@ describe('App (e2e)', () => {
       .expect(200);
     expect(p1.body.status).toBe('PADRE_EN_CAMINO');
 
-    const p2 = await request(app.getHttpServer())
-      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/parent-progress`)
+    const gpsArrival = await request(app.getHttpServer())
+      .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/gps`)
       .set(authHeader(padre.accessToken))
-      .send({
-        status: 'NOTIFICADO_LLEGADA',
-        parentGpsLatitude: schoolLat,
-        parentGpsLongitude: schoolLng
-      })
+      .send({ parentGpsLatitude: schoolLat, parentGpsLongitude: schoolLng })
       .expect(200);
-    expect(p2.body.status).toBe('NOTIFICADO_LLEGADA');
+    expect(gpsArrival.body.autoTransitioned).toBe(true);
+    expect(gpsArrival.body.status).toBe('NOTIFICADO_LLEGADA');
 
     await request(app.getHttpServer())
       .patch(`/${apiPrefix}/circuit-requests/${created.body.requestId}/cancel`)
@@ -982,6 +1106,7 @@ describe('App (e2e)', () => {
     const parent = await getParentByEmail(admin.accessToken, 'padre1@escuelapass.local');
     const student = await getStudentByEmail(admin.accessToken, 'alumno1@escuelapass.local');
 
+    await cancelOpenCircuitsForStudent(student.id);
     await registerAttendancePresentToday(admin.accessToken, student.id);
 
     const created = await request(app.getHttpServer())
@@ -1009,14 +1134,14 @@ describe('App (e2e)', () => {
       .send({ status: 'PADRE_EN_CAMINO' })
       .expect(200);
     await request(app.getHttpServer())
-      .patch(`/${apiPrefix}/circuit-requests/${requestId}/parent-progress`)
+      .patch(`/${apiPrefix}/circuit-requests/${requestId}/gps`)
       .set(authHeader(padre.accessToken))
-      .send({
-        status: 'NOTIFICADO_LLEGADA',
-        parentGpsLatitude: schoolLat,
-        parentGpsLongitude: schoolLng
-      })
-      .expect(200);
+      .send({ parentGpsLatitude: schoolLat, parentGpsLongitude: schoolLng })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.status).toBe('NOTIFICADO_LLEGADA');
+        expect(res.body.autoTransitioned).toBe(true);
+      });
 
     for (const status of ['AUTORIZADO_SALIR', 'EN_CAMINO'] as const) {
       await request(app.getHttpServer())
