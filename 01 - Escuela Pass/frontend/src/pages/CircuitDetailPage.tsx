@@ -509,9 +509,46 @@ export function CircuitDetailPage() {
           {row.status === 'PADRE_EN_CAMINO' && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                Mapa en vivo — tu ubicación se comparte automáticamente
+                {parentGpsOnThisDevice
+                  ? 'Mapa en vivo — tu ubicación se comparte automáticamente'
+                  : 'Continúe el recorrido en su teléfono móvil'}
               </p>
-              {schoolGeo ? (
+              {!parentGpsOnThisDevice ? (
+                <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-4 py-5 shadow-sm ring-1 ring-sky-100 dark:border-sky-800/50 dark:from-sky-950/80 dark:to-slate-900">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+                    <div className="mx-auto shrink-0 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 sm:mx-0">
+                      <QRCodeSVG
+                        value={typeof window !== 'undefined' ? window.location.href : ''}
+                        size={132}
+                        level="M"
+                        marginSize={1}
+                        className="block"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
+                      <p className="text-base font-semibold text-sky-950 dark:text-sky-100">Continúe en su teléfono móvil</p>
+                      <p className="text-sm leading-relaxed text-sky-900/90 dark:text-sky-200/90">
+                        El mapa en vivo y la detección automática de llegada requieren GPS del móvil. Abra este
+                        enlace en su celular o escanee el código.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(window.location.href);
+                            setMsg('Enlace copiado. Péguelo en el navegador de su móvil.');
+                          } catch {
+                            setError('No pudimos copiar al portapapeles. Copie la dirección de la barra del navegador.');
+                          }
+                        }}
+                        className="w-full rounded-lg border border-sky-300 bg-white px-4 py-2.5 text-sm font-medium text-sky-950 hover:bg-sky-50 sm:w-auto dark:border-sky-600 dark:bg-slate-800 dark:text-sky-100"
+                      >
+                        Copiar enlace de esta solicitud
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : schoolGeo ? (
                 <ParentTrackingMap
                   circuitRequestId={id}
                   schoolLatitude={schoolGeo.schoolLatitude}
@@ -520,44 +557,7 @@ export function CircuitDetailPage() {
                   onAutoTransitioned={() => void reload()}
                 />
               ) : (
-                !parentGpsOnThisDevice ? (
-                  <div className="rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-4 py-5 shadow-sm ring-1 ring-sky-100 dark:border-sky-800/50 dark:from-sky-950/80 dark:to-slate-900">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
-                      <div className="mx-auto shrink-0 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 sm:mx-0">
-                        <QRCodeSVG
-                          value={typeof window !== 'undefined' ? window.location.href : ''}
-                          size={132}
-                          level="M"
-                          marginSize={1}
-                          className="block"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
-                        <p className="text-base font-semibold text-sky-950 dark:text-sky-100">Continúe en su teléfono móvil</p>
-                        <p className="text-sm leading-relaxed text-sky-900/90 dark:text-sky-200/90">
-                          El mapa en vivo y la detección automática de llegada requieren GPS del móvil. Abra este
-                          enlace en su celular o escanee el código.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(window.location.href);
-                              setMsg('Enlace copiado. Péguelo en el navegador de su móvil.');
-                            } catch {
-                              setError('No pudimos copiar al portapapeles. Copie la dirección de la barra del navegador.');
-                            }
-                          }}
-                          className="w-full rounded-lg border border-sky-300 bg-white px-4 py-2.5 text-sm font-medium text-sky-950 hover:bg-sky-50 sm:w-auto dark:border-sky-600 dark:bg-slate-800 dark:text-sky-100"
-                        >
-                          Copiar enlace de esta solicitud
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Cargando datos del mapa…</p>
-                )
+                <p className="text-sm text-slate-500 dark:text-slate-400">Cargando datos del mapa…</p>
               )}
             </div>
           )}

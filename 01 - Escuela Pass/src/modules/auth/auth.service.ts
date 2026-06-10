@@ -78,6 +78,7 @@ import { RefreshTokenEntity } from '../../database/entities/refresh-token.entity
 import { SchoolEntity } from '../../database/entities/school.entity';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { redactEmail } from '../../lib/pii-redact';
+import { resolveFrontendBaseUrl } from '../../lib/cors-origins';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
@@ -539,8 +540,7 @@ export class AuthService implements OnModuleDestroy {
     user.passwordResetExpiresAt = expiresAt;
     await this.usersRepository.save(user);
 
-    const frontendBase = (process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
-    const resetUrl = `${frontendBase}/restablecer-contrasena?token=${rawToken}`;
+    const resetUrl = `${resolveFrontendBaseUrl()}/restablecer-contrasena?token=${rawToken}`;
     await this.sendResetEmail(user.email, user.fullName, resetUrl);
 
     return { message: MSG };

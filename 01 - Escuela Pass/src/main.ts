@@ -73,6 +73,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
 import { ensureRuntimeSchema } from './database/ensure-runtime-schema';
 import { migrateUploadsToVolume } from './database/migrate-uploads';
+import { resolveCorsOrigins } from './lib/cors-origins';
 import { uploadsRootDir, uploadsSubDir } from './lib/uploads-path';
 
 async function bootstrap() {
@@ -130,13 +131,8 @@ async function bootstrap() {
   );
 
   app.use(helmet());
-  const corsRaw = process.env.CORS_ORIGIN ?? 'http://localhost:3000';
-  const corsOrigins = corsRaw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
   app.enableCors({
-    origin: corsOrigins.length <= 1 ? corsOrigins[0] ?? true : corsOrigins,
+    origin: resolveCorsOrigins(),
     credentials: true,
     /** Permite leer `X-Bulletin-Count` en el cliente (p. ej. mensaje tras descarga masiva de boletines). */
     exposedHeaders: ['X-Bulletin-Count', 'Content-Disposition']
