@@ -419,6 +419,9 @@ export function SchoolRosterPage() {
   const [aRoom, setARoom] = useState('');
   const [periods, setPeriods] = useState<AcademicPeriodRow[]>([]);
   const [classSessions, setClassSessions] = useState<ClassSessionRow[]>([]);
+  const [assignFormMessage, setAssignFormMessage] = useState<string | null>(null);
+  const [assignFormError, setAssignFormError] = useState<string | null>(null);
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
 
   const [subCode, setSubCode] = useState('');
   const [subName, setSubName] = useState('');
@@ -1225,7 +1228,42 @@ export function SchoolRosterPage() {
     if (!aTeacher || !aGroup || !aSubject) return;
     setMessage(null);
     setError(null);
+    setAssignFormMessage(null);
+    setAssignFormError(null);
+    setAssignSubmitting(true);
     try {
+      const roomNorm = aRoom.trim();
+      const startNorm = aStartTime.slice(0, 5);
+      const endNorm = aEndTime.slice(0, 5);
+      const sessionAlreadyExists =
+        aCreateSession &&
+        aPeriod &&
+        classSessions.some(
+          (s) =>
+            s.isActive &&
+            s.teacherId === aTeacher &&
+            s.groupId === aGroup &&
+            s.subjectId === aSubject &&
+            s.academicPeriodId === aPeriod &&
+            s.weekday === Number(aWeekday) &&
+            s.startTime.slice(0, 5) === startNorm &&
+            s.endTime.slice(0, 5) === endNorm &&
+            (s.room ?? '') === roomNorm
+        );
+
+      if (assignmentExistsInTable && !aCreateSession) {
+        const msg = 'Este docente ya está asignado a ese grupo y asignatura.';
+        setAssignFormMessage(msg);
+        setMessage(msg);
+        return;
+      }
+      if (assignmentExistsInTable && aCreateSession && sessionAlreadyExists) {
+        const msg = 'Esta asignación y este horario ya están registrados. Revise la tabla inferior.';
+        setAssignFormMessage(msg);
+        setMessage(msg);
+        return;
+      }
+
       const body: Record<string, unknown> = {
         teacherId: aTeacher,
         groupId: aGroup,
@@ -1238,21 +1276,6 @@ export function SchoolRosterPage() {
         if (!aPeriod || !aStartTime || !aEndTime) {
           throw new Error('Para que aparezca en horario indique periodo, día y hora.');
         }
-        const roomNorm = aRoom.trim();
-        const startNorm = aStartTime.slice(0, 5);
-        const endNorm = aEndTime.slice(0, 5);
-        const sessionAlreadyExists = classSessions.some(
-          (s) =>
-            s.isActive &&
-            s.teacherId === aTeacher &&
-            s.groupId === aGroup &&
-            s.subjectId === aSubject &&
-            s.academicPeriodId === aPeriod &&
-            s.weekday === Number(aWeekday) &&
-            s.startTime.slice(0, 5) === startNorm &&
-            s.endTime.slice(0, 5) === endNorm &&
-            (s.room ?? '') === roomNorm
-        );
         if (!sessionAlreadyExists) {
           await api.post('/api/v1/class-sessions', {
             schoolId: platformAdmin && selectedSchoolId ? selectedSchoolId : undefined,
@@ -1268,20 +1291,20 @@ export function SchoolRosterPage() {
           sessionCreated = true;
         }
       }
-      setATeacher('');
-      setAGroup('');
-      setASubject('');
-      setARoom('');
-      setMessage(
-        aCreateSession
-          ? sessionCreated
-            ? 'Docente asignado y sesión creada en el horario.'
-            : 'Docente asignado al grupo (el horario ya existía).'
-          : 'Docente asignado al grupo.'
-      );
+      const msg = aCreateSession
+        ? sessionCreated
+          ? 'Docente asignado y sesión creada en el horario.'
+          : 'Docente asignado al grupo (el horario ya existía).'
+        : 'Docente asignado al grupo.';
+      setAssignFormMessage(msg);
+      setMessage(msg);
       await refreshAll();
     } catch (err) {
-      setError(getUserFacingMessage(err, 'No se pudo crear la asignación.'));
+      const msg = getUserFacingMessage(err, 'No se pudo crear la asignación.');
+      setAssignFormError(msg);
+      setError(msg);
+    } finally {
+      setAssignSubmitting(false);
     }
   }
 
@@ -2969,13 +2992,23 @@ export function SchoolRosterPage() {
           <div>
             <button
               type="submit"
-              disabled={Boolean(assignSubmitBlockedReason)}
+              disabled={Boolean(assignSubmitBlockedReason) || assignSubmitting}
               className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Asignar
+              {assignSubmitting ? 'Asignando…' : 'Asignar'}
             </button>
             {assignSubmitBlockedReason ? (
               <p className="mt-2 text-sm text-amber-800">{assignSubmitBlockedReason}</p>
+            ) : null}
+            {assignFormMessage ? (
+              <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                {assignFormMessage}
+              </p>
+            ) : null}
+            {assignFormError ? (
+              <p className="mt-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900" role="alert">
+                {assignFormError}
+              </p>
             ) : null}
           </div>
         </form>
