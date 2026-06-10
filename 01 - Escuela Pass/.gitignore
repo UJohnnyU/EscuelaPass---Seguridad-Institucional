@@ -79,3 +79,6 @@ frontend/public/firebase-messaging-sw.js
 
 # Design assets / local images (not versioned)
 Img/
+
+# Reportes generados por scripts temporales de prueba de rendimiento (TDG)
+scripts/reports/

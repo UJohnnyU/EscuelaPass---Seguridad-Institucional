@@ -61,6 +61,7 @@ licencias.
 
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ClassSessionEntity } from '../../database/entities/class-session.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
@@ -90,6 +91,7 @@ import { SchoolService } from './school.service';
     VehiclesModule,
     AccessModule,
     TypeOrmModule.forFeature([
+      ClassSessionEntity,
       GroupEntity,
       SubjectEntity,
       SchoolEntity,

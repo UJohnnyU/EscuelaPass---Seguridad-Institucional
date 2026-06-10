@@ -160,7 +160,8 @@ Anexos 00–10 (sección final del documento)
 | Figura 7 | Diagrama UML de casos de uso por actor institucional (sección 4.1). En el **Anexo 06** la numeración local reutiliza otras figuras (p. ej. escáner); en la maquetación Word conviene numeración global o subtítulo de anexo. |
 | Figura 8 | Diagrama UML de secuencia del circuito de recogida familiar (sección 4.3). |
 | Figura 9 | Diagrama UML de secuencia del escaneo de credencial QR/NFC (sección 4.3). |
-| Figura 10 | Licencia del proyecto Escuela Pass conforme instructivo institucional y acuerdo empresa–institución (sección 8). |
+| Figura 10 | Licencia propietaria del proyecto Escuela Pass consignada en comentarios de cabecera del repositorio (sección 8). |
+| Figura 11 | Resumen de la prueba de carga simulada sobre el catálogo REST (**241** operaciones; sección 5.4; indicio **RNF4**). |
 
 | Tabla | Contenido |
 | --- | --- |
@@ -188,11 +189,7 @@ La digitalización puede aliviar parte de esa carga **si** se respetan límites 
 
 El **ámbito de aplicación** de este trabajo son las **instituciones educativas privadas en México**, donde la expectativa de calidad y transparencia se cruza con el marco de protección de datos personales y con la operación cotidiana de ingreso, permanencia y salida del plantel. La fragmentación entre canales inconexos afecta a **estudiantes y familias** (incertidumbre, exposición de datos en medios informales), al **personal administrativo y de portería** (sobrecarga, conciliación manual de cartera y asistencias) y a la **dirección institucional** (opacidad frente a supervisiones y reclamos). La **Tabla 1** del capítulo 1 sintetiza seis pares causa–consecuencia que fundamentan por qué el problema merece intervención sistemática y no sólo mejoras aisladas de oficina.
 
-Resultó **necesario** abordar el proyecto porque, sin un núcleo único de políticas y registros, resulta arduo auditar accesos, homogenizar evidencia académica y financiera y responder con diligencia bajo la LFPDPPP (Cámara de Diputados, 2010) y lineamientos del INAI (INAI, s. f.). La pregunta de investigación —formulada en la sección 1.1.4— interroga **cómo** optimizar seguridad física, protección de datos sensibles y administración escolar en ese contexto; el presente documento responde primero al **porqué** importa ese problema y después al **cómo** se materializó técnicamente la solución.
-
-### Aporte académico e investigativo
-
-Desde la formación en **Ingeniería Informática**, el trabajo aporta un caso completo de especificación trazable, arquitectura verificable e implementación contrastable con el repositorio, en línea con la práctica recomendada de la **IEEE Std 830-1998** (IEEE, 1998) y con validación reproducible mediante pruebas extremo a extremo e integración continua (Pressman & Maxim, 2020). No se trata de un ejercicio de pantallas aisladas: se documenta un producto real desarrollado con **AlfaNetworks**, con delimitación explícita de alcance, *trade-offs* y límites de medición, de modo que el lector pueda evaluar tanto el rigor ingenieril como la honestidad metodológica frente a hipótesis cuantitativas aún no medidas en campo (sección 1.2.6).
+Resultó **necesario** abordar el proyecto porque, sin un núcleo único de políticas y registros, resulta arduo auditar accesos, homogenizar evidencia académica y financiera y responder con diligencia bajo la LFPDPPP (Cámara de Diputados, 2010) y lineamientos del INAI (INAI, s. f.). La pregunta de investigación —formulada en la sección 1.1.4— interroga **cómo** optimizar seguridad física, protección de datos sensibles y administración escolar en ese contexto; el presente documento responde primero al **porqué** importa ese problema y después al **cómo** se materializó técnicamente la solución. Desde la formación en **Ingeniería Informática**, el trabajo aporta además un caso completo de especificación trazable, arquitectura verificable e implementación contrastable con el repositorio, en línea con la práctica recomendada de la **IEEE Std 830-1998** (IEEE, 1998) y con validación reproducible mediante pruebas extremo a extremo e integración continua (Pressman & Maxim, 2020). No se trata de un ejercicio de pantallas aisladas: se documenta un producto real desarrollado con **AlfaNetworks**, con delimitación explícita de alcance, *trade-offs* y límites de medición, de modo que el lector pueda evaluar tanto el rigor ingenieril como la honestidad metodológica frente a hipótesis cuantitativas aún no medidas en campo (sección 1.2.6).
 
 ### Presentación de la solución tecnológica
 
@@ -711,9 +708,17 @@ Las **Tabla A** de la sección 1.2.6 resume expectativas de la propuesta. Al cie
 - El **instrumento** candidato será combinación de trazas operativas y de auditoría, encuestas SUS por rol y hojas de registro piloto definidas en el **Anexo 10 — sección 9.1** (*Hipótesis económico‑operativas de la FTG ↔ instrumentación ↔ entorno*).
 - El **contraste honesto**: el proyecto **cumple OE5** mediante prueba técnica automatizada —no mediante evidencia contable de −35 % o ROI a 12 meses.
 
+Aunque el **piloto institucional** es posterior al cierre del grado, conviene registrar un **indicio técnico** complementario frente al **RNF4** y a los umbrales orientativos de la propuesta (**Anexo 01**). Al cierre académico se ejecutó una **prueba de carga simulada** sobre el catálogo de **241 operaciones REST** del **Anexo 08**, en entorno de integración con **PostgreSQL 16** y datos equivalentes a los de las pruebas E2E. El protocolo combinó dos momentos: (**a**) **sondeo secuencial** del contrato HTTP —**224/224** operaciones alcanzadas (**17** de borrado excluidas para no alterar la semilla)—, con respuestas de validación o autorización esperables en escrituras sin cuerpo de negocio completo; (**b**) **carga concurrente** —**10** clientes simultáneos durante **30 s**— sobre **72** lecturas `GET` que respondieron correctamente en el sondeo.
+
+![Figura 11. Resumen de la prueba de carga simulada (RNF4): catálogo de 241 rutas, sondeo secuencial y carga concurrente GET.](figuras/figura-11-prueba-carga-rnf4.png)
+
+**Figura 11.** Resumen de la prueba de carga simulada (indicio **RNF4**): catálogo **241** rutas; sondeo **224/224** alcanzadas; lecturas `GET` válidas (**72**) con percentil **95** **~37 ms** en el sondeo (p50 **~9 ms**); **6 376** peticiones bajo carga con percentil **95** **~175 ms** y **100 %** por debajo del umbral orientativo de **2 s**.
+
+La **Figura 11** condensa la evidencia numérica. En conjunto con los **47 casos E2E** y la integración continua del *backend*, apoya la lectura de que el núcleo transaccional puede mantener tiempos de respuesta razonables bajo concurrencia moderada. El ejercicio **no** acredita por sí solo las hipótesis cuantitativas de la **Tabla A** ni sustituye medición de colas en plantel real.
+
 ### 5.5. Límites de la evidencia de medición
 
-Las pruebas E2E prueban **correctitud contractual** sobre PostgreSQL típico de integración continua —no **stress** multisitio ni patrones XSS en producción endurecida. El *lockout* en memoria y la excepción declarada para el rol **ADMIN** de plataforma son decisiones válidas pero imponen supuestos de despliegue (réplicas frente a instancia única, confianza operativa del rol ADMIN). Finalmente, **métricas de productividad institucional** dependen del contexto organizacional ajeno al repositorio versionado.
+La fase de sondeo del catálogo aporta cobertura contractual; la fase de carga concurrente aporta un indicio parcial de **RNF4**. Ambas, con las pruebas E2E, operan sobre PostgreSQL típico de integración continua, pero **no** equivalen a un **stress** multisitio ni a patrones XSS en producción endurecida. El *lockout* en memoria y la excepción declarada para el rol **ADMIN** de plataforma son decisiones válidas pero imponen supuestos de despliegue (réplicas frente a instancia única, confianza operativa del rol ADMIN). Finalmente, **métricas de productividad institucional** dependen del contexto organizacional ajeno al repositorio versionado.
 
 ### 5.6. Papel de las decisiones técnicas evolutivas
 
@@ -729,19 +734,17 @@ Al término de este trabajo de grado, el proyecto permitió demostrar la viabili
 
 ### 6.2. Conclusiones por objetivo específico
 
-| OE | Logro principal | Impacto alcanzado | Límite reconocido |
-| --- | --- | --- | --- |
-| OE1 | RF/RNF, actores y reglas de negocio documentados y trazables (Anexos 00, 01, 02) | Lenguaje común empresa–institución–academia | No sustituye estudio estadístico de campo en planteles |
-| OE2 | Arquitectura, ER, UML y prototipos alineados al código (Anexos 03–06) | Modelos auditables frente al repositorio | Decisiones de seguridad con deuda BFF/cookies pendiente |
-| OE3 | *Backend* modular desplegable con 241 operaciones HTTP y persistencia versionada | Núcleo transaccional único para dominios escolares | Excepción operativa del rol ADMIN documentada como riesgo |
-| OE4 | Cliente por rol con flujos móviles críticos (portería, circuito, consultas) | Acercamiento a operación real con dispositivos habituales | CI del *frontend* aún no equivalente al del *backend* |
-| OE5 | 47 E2E y CI del *backend*; plan SUS y métricas (Anexo 10) | Evidencia reproducible de correctitud contractual | Usabilidad y hipótesis cuantitativas FTG pendientes de piloto |
+Respecto al **primer objetivo específico**, se documentaron los requerimientos funcionales y no funcionales, los actores institucionales y las reglas de negocio con trazabilidad verificable en los **Anexos 00, 01 y 02**. Ese logro estableció un lenguaje común entre empresa, institución y academia; no obstante, esa especificación no sustituye un estudio estadístico de campo en planteles que aún no ejecutó el piloto institucional.
 
-### 6.3. Aporte académico e investigativo
+En relación con el **segundo objetivo específico**, se entregaron arquitectura, modelo entidad–relación, diagramas UML y prototipos de interfaz alineados al código en los **Anexos 03 a 06**, lo que permitió modelos auditables frente al repositorio. Persiste como límite reconocido la deuda pendiente en endurecimiento de sesión (cookies *httpOnly*, capa BFF) documentada en el capítulo 7.
 
-Desde el ámbito académico, el trabajo fortalece competencias de arquitectura de software, seguridad informática, ingeniería de requisitos y validación automatizada en un **caso real** con empresa vinculada. El **paso decisivo** metodológico fue exigir **correspondencia texto–código** (entidades, rutas REST, lista E2E) que permite auditoría fundamentada sin retórica vacía.
+Respecto al **tercer objetivo específico**, se consolidó un *backend* modular desplegable con **241 operaciones HTTP** y persistencia versionada mediante migraciones TypeORM, entregando un núcleo transaccional único para los dominios escolares. Como límite, la excepción operativa documentada para el rol **ADMIN** de plataforma permanece como riesgo residual de despliegue.
 
-Frente a la pregunta de investigación, la síntesis final es **afirmativa con matices**: **sí existe un camino técnico** —desarrollado y documentado aquí— para mejorar seguridad física, coordinación familiar y administración escolar con apoyos al marco LFPDPPP/INAI; **la mejora cuantitativa global** en porcentajes de la propuesta debe probarse después con pilotos institucionales y no puede adjudicarse como resultado cerrado de este grado. Las líneas de trabajo futuro se desarrollan en el capítulo 7.
+Por lo que hace al **cuarto objetivo específico**, se desarrolló un cliente web por rol con flujos móviles críticos —portería, circuito de recogida, consultas familiares— que acerca la demostración a dispositivos habituales en la operación diaria. El límite reconocido es que la integración continua del *frontend* aún no alcanza el mismo nivel de automatización que la del *backend*.
+
+Finalmente, en el **quinto objetivo específico**, se ejecutaron **47 pruebas E2E**, se registró una prueba de carga simulada como indicio técnico de **RNF4** (sección 5.4) y se estableció integración continua del servicio, junto con un plan de medición SUS y métricas consignado en el **Anexo 10**. Esa evidencia aporta reproducibilidad de la correctitud contractual; la usabilidad con usuarios finales y las hipótesis cuantitativas FTG siguen pendientes de un piloto institucional medido en campo.
+
+Desde el ámbito académico, el trabajo consolida competencias en arquitectura, seguridad, requisitos y validación automatizada sobre un caso real con empresa vinculada. El aporte metodológico central fue la **correspondencia texto–código** (entidades, rutas REST, E2E), que habilita auditoría sin retórica vacía. Frente a la pregunta de investigación, la respuesta es **afirmativa con matices**: aquí quedó demostrado un camino técnico viable para reforzar seguridad física, coordinación familiar y administración escolar con apoyos LFPDPPP/INAI; los porcentajes de mejora de la propuesta exigen piloto institucional y no se declaran cerrados en este grado. Lo pendiente se orienta en el capítulo 7.
 
 ---
 
@@ -755,52 +758,82 @@ Las recomendaciones se priorizan por **retorno esperado ante riesgo residual** p
 
 3. **Sesión endurecida.** Evaluar cookies **httpOnly**, **SameSite**, capa **BFF** para no exponer el *refresh* en el navegador y CSP estrictas —mitigación explícita frente al riesgo **XSS** asociado al almacenamiento local de tokens.
 
-4. **Pruebas unitarias focalizadas.** Complementar E2E con pruebas unitarias de cartera y conciliaciones, máquinas de estado del circuito y reglas de importación desde Excel para aislar regresiones sin el costo temporal de levantar PostgreSQL completo en cada cambio versionado.
+4. **Piloto medido.** Ejecutar en el terreno la matriz hipótesis FTG del **Anexo 10** en al menos dos instituciones de tamaño medio y cerrar un modelo económico simple de ROI.
 
-5. **Piloto medido.** Ejecutar en el terreno la matriz hipótesis FTG del **Anexo 10** en al menos dos instituciones de tamaño medio y cerrar un modelo económico simple de ROI.
+5. **Medición RNF4 en piloto (opcional).** Repetir en entorno institucional, con carga real de usuarios, la caracterización de tiempos de respuesta sobre operaciones de lectura frecuentes, para complementar el indicio técnico del capítulo 5 con evidencia de **RNF4** fuera del laboratorio de integración.
+
+6. **Ampliar pruebas unitarias en lógica crítica (evolución opcional).** En módulos como **finanzas** y **circuito vial**, gran parte de la regresión hoy se detecta mediante pruebas E2E costosas en tiempo y frágiles ante cambios de datos o integraciones. Conviene, como línea de maduración del repositorio, extraer y cubrir con pruebas **unitarias** las reglas de negocio aisladas —validación **Haversine** y reglas de proximidad en el circuito, conciliación y **deudas** en cartera, máquinas de estado y reglas de importación— para acortar el ciclo de feedback sin sustituir las E2E ya existentes.
 
 ---
 
 ## 8. LICENCIA DEL PROYECTO ESCUELA PASS
 
-El presente capítulo describe la titularidad, las condiciones de uso del software desarrollado y la relación entre la entrega académica al Politécnico Colombiano Jaime Isaza Cadavid (POLI JIC) y la explotación comercial posterior del producto **Escuela Pass**.
+Debido a que, a la fecha del **29 de mayo de 2026**, la **DNDA** no ha proporcionado la configuración correspondiente para el **Politécnico Colombiano Jaime Isaza Cadavid** en el registro de los derechos patrimoniales del trabajo de grado —circunstancia señalada por el docente **Luis Fernando González Alvarán**—, **no es posible** incluir en este documento evidencia legal de ese trámite. En su lugar se reproduce la licencia consignada en los comentarios de cabecera de los archivos del repositorio del proyecto:
 
-### 8.1 Marco normativo institucional
+```
+/*
+Escuela Pass — Proprietary Software License
+Copyright (c) 2026 Murillo Martínez Jhon Kevin. All Rights Reserved.
 
-La propiedad intelectual del trabajo de grado se rige por el **Reglamento de Propiedad Intelectual** del POLI JIC. Conforme a dicho marco, los **derechos morales** sobre la obra son **intransferibles e irrenunciables** y permanecen en el autor. Los **derechos patrimoniales** se regulan según la naturaleza del proyecto. En el presente caso, el desarrollo **no constituye investigación financiada por la institución**, **no dependió de equipamiento especializado universitario como condición del proyecto** ni cuenta con **patrocinio externo formal** que implique cesión de derechos; por ello, **el autor conserva los derechos patrimoniales** sobre el software, salvo la autorización limitada descrita en la sección 8.3.
+NOTICE: This software and associated documentation files (the "Software")
+constitute proprietary intellectual property. Unauthorized use is prohibited.
 
-### 8.2 Titularidad del software
+1. GRANT OF RIGHTS
+   No license is granted to any person or entity except as expressly set
+   forth in a separate written agreement signed by the copyright holder.
 
-El **código fuente**, la **documentación técnica**, la **arquitectura** y los **artefactos de despliegue** de Escuela Pass fueron desarrollados por **Murillo Martínez Jhon Kevin** en el marco del Trabajo de Grado de Ingeniería Informática (2026).
+2. RESTRICTIONS
+   Without prior written permission from the copyright holder, you may NOT:
+   (a) copy, modify, adapt, translate, or create derivative works of the Software;
+   (b) reverse engineer, decompile, or disassemble the Software, except as
+       permitted by applicable law;
+   (c) distribute, sublicense, lease, rent, sell, or otherwise transfer the
+       Software or any portion thereof;
+   (d) use the Software for commercial purposes, including offering it as a
+       hosted service to third parties;
+   (e) remove or alter any proprietary notices, labels, or marks.
 
-**AlfaNetworks** se menciona en este documento como **contexto empresarial y caso de estudio** del producto. **No existe contrato de cesión, licencia, empleo ni compensación económica** entre el autor y AlfaNetworks respecto del software entregado; por tanto, **no se transfirieron derechos patrimoniales** a dicha organización en virtud de este trabajo de grado.
+3. THIRD-PARTY COMPONENTS
+   The Software may include or depend on third-party open-source components
+   licensed under their own terms (see package manifests and NOTICE files).
+   Those components remain governed by their respective licenses. This license
+   applies only to the original work of the copyright holder.
 
-Los componentes de terceros integrados en el repositorio conservan **sus licencias originales** y se identifican en los archivos de dependencias del proyecto.
+4. ACADEMIC REPOSITORY (POLI JIC)
+   A non-exclusive, royalty-free, limited license is granted to Politécnico
+   Colombiano Jaime Isaza Cadavid solely to archive, reproduce, and make
+   available the version of the Software submitted as part of the author's
+   degree thesis for academic, educational, and non-commercial public
+   consultation purposes, in accordance with institutional publication
+   authorization. This does not grant commercial exploitation rights to
+   the institution or to third parties.
 
-### 8.3 Autorización de publicación al POLI JIC
+5. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
+   THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY.
 
-En cumplimiento del requisito institucional de **autorización de publicación**, el autor **autoriza al Politécnico Colombiano Jaime Isaza Cadavid** a incluir el documento del Trabajo de Grado en el **repositorio institucional**, difundirlo con fines **académicos, formativos y de consulta pública** (sin ánimo de lucro) y preservar copias para archivo y evaluación. Esta autorización es **no exclusiva**, **gratuita** y **limitada**; **no confiere** al POLI JIC derecho de explotación comercial ni de sublicencia con fines de lucro.
+6. GOVERNING LAW
+   This license shall be governed by the laws of the Republic of Colombia,
+   without regard to conflict-of-law principles.
 
-### 8.4 Licencia del repositorio y explotación comercial
+7. CONTACT
+   For licensing inquiries: jhonkevinmurillom@gmail.com
 
-El software Escuela Pass se distribuye bajo **licencia propietaria** (*All Rights Reserved*), consignada en el archivo `LICENSE` del repositorio (Copyright © 2026 Murillo Martínez Jhon Kevin). Queda **prohibida** la reproducción, distribución, modificación o explotación comercial **sin autorización escrita** del titular (contacto: jhonkevinmurillom@gmail.com). El autor **se reserva** el derecho de comercializar el producto mediante SaaS, licenciamiento institucional, soporte u otros esquemas de explotación económica.
+---
 
-### 8.5 Componentes de código abierto
+Resumen en español:
+Software propietario de Murillo Martínez Jhon Kevin (2026). Queda prohibida la
+copia, modificación, distribución o explotación comercial sin autorización
+escrita. El POLI JIC cuenta con autorización limitada, no exclusiva y sin
+fines de lucro, para archivo y consulta académica de la versión entregada
+como Trabajo de Grado. Los componentes de terceros se rigen por sus propias
+licencias.
+*/
+```
 
-Escuela Pass utiliza dependencias de terceros bajo sus propias licencias (MIT, Apache 2.0, BSD, entre otras). El uso de dichas bibliotecas **no implica** que el producto completo se publique bajo la misma licencia.
-
-### 8.6 Síntesis
-
-| Aspecto | Disposición |
-|--------|-------------|
-| Derechos morales | Autor: Murillo Martínez Jhon Kevin |
-| Derechos patrimoniales | Autor, salvo autorización académica limitada al POLI JIC |
-| Repositorio institucional | Autorización no exclusiva para fines académicos y consulta |
-| Explotación comercial | Reservada al autor |
-| Licencia pública del código | Propietaria (`LICENSE` en repositorio, 2026) |
-| AlfaNetworks | Contexto de caso de estudio; sin cesión contractual de derechos |
-
-*[Figura 10. Esquema de titularidad y autorización de publicación — Escuela Pass (autor, POLI JIC y explotación comercial reservada).]*
+Esta licencia aparece, con el mismo texto, al inicio de los archivos fuente del *backend*, del *frontend* y de utilidades del repositorio **Escuela Pass**.
 
 ---
 

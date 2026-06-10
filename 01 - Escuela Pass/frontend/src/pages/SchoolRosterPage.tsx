@@ -614,6 +614,9 @@ export function SchoolRosterPage() {
       ),
     [aGroup, aSubject, aTeacher, classSessions]
   );
+  useEffect(() => {
+    if (assignmentHasActiveSession) setACreateSession(false);
+  }, [assignmentHasActiveSession]);
   const studentsGroupFilterOptions = useMemo(
     (): SmartSelectOption[] => [{ value: '', label: 'Todos los grupos' }, ...groupOptions],
     [groupOptions]
@@ -1209,27 +1212,52 @@ export function SchoolRosterPage() {
       };
       if (platformAdmin && selectedSchoolId) body.schoolId = selectedSchoolId;
       await api.post('/api/v1/school/teacher-assignments', body);
+      let sessionCreated = false;
       if (aCreateSession) {
         if (!aPeriod || !aStartTime || !aEndTime) {
           throw new Error('Para que aparezca en horario indique periodo, día y hora.');
         }
-        await api.post('/api/v1/class-sessions', {
-          schoolId: platformAdmin && selectedSchoolId ? selectedSchoolId : undefined,
-          academicPeriodId: aPeriod,
-          teacherId: aTeacher,
-          groupId: aGroup,
-          subjectId: aSubject,
-          weekday: Number(aWeekday),
-          startTime: aStartTime,
-          endTime: aEndTime,
-          room: aRoom.trim() || undefined
-        });
+        const roomNorm = aRoom.trim();
+        const startNorm = aStartTime.slice(0, 5);
+        const endNorm = aEndTime.slice(0, 5);
+        const sessionAlreadyExists = classSessions.some(
+          (s) =>
+            s.isActive &&
+            s.teacherId === aTeacher &&
+            s.groupId === aGroup &&
+            s.subjectId === aSubject &&
+            s.academicPeriodId === aPeriod &&
+            s.weekday === Number(aWeekday) &&
+            s.startTime.slice(0, 5) === startNorm &&
+            s.endTime.slice(0, 5) === endNorm &&
+            (s.room ?? '') === roomNorm
+        );
+        if (!sessionAlreadyExists) {
+          await api.post('/api/v1/class-sessions', {
+            schoolId: platformAdmin && selectedSchoolId ? selectedSchoolId : undefined,
+            academicPeriodId: aPeriod,
+            teacherId: aTeacher,
+            groupId: aGroup,
+            subjectId: aSubject,
+            weekday: Number(aWeekday),
+            startTime: aStartTime,
+            endTime: aEndTime,
+            room: roomNorm || undefined
+          });
+          sessionCreated = true;
+        }
       }
       setATeacher('');
       setAGroup('');
       setASubject('');
       setARoom('');
-      setMessage(aCreateSession ? 'Docente asignado y sesión creada en el horario.' : 'Docente asignado al grupo.');
+      setMessage(
+        aCreateSession
+          ? sessionCreated
+            ? 'Docente asignado y sesión creada en el horario.'
+            : 'Docente asignado al grupo (el horario ya existía).'
+          : 'Docente asignado al grupo.'
+      );
       await refreshAll();
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo crear la asignación.'));
@@ -2801,9 +2829,9 @@ export function SchoolRosterPage() {
           </button>
         </form>
         {aTeacher && aGroup && aSubject && assignmentHasActiveSession ? (
-          <p className="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-            Esta relación ya tiene sesión activa en horario. Puede asignar sin crear otra sesión si solo desea permisos
-            de gestión.
+          <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Este docente ya tiene una sesión activa en el horario para este grupo y asignatura. La asignación se puede
+            registrar igual; desmarque &quot;Crear sesión&quot; si no desea duplicar el horario.
           </p>
         ) : null}
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">

@@ -75,6 +75,7 @@ import { extname } from 'path';
 import { IsNull, Repository } from 'typeorm';
 import { resolveUploadFile } from '../../lib/uploads-path';
 import { todayInAppTimezone } from '../../common/local-date';
+import { ClassSessionEntity } from '../../database/entities/class-session.entity';
 import { GroupEntity } from '../../database/entities/group.entity';
 import { ImportJobEntity } from '../../database/entities/import-job.entity';
 import { ParentEntity } from '../../database/entities/parent.entity';
@@ -155,6 +156,8 @@ export class SchoolService {
     private readonly teachersRepository: Repository<TeacherEntity>,
     @InjectRepository(TeacherGroupEntity)
     private readonly teacherGroupsRepository: Repository<TeacherGroupEntity>,
+    @InjectRepository(ClassSessionEntity)
+    private readonly classSessionsRepository: Repository<ClassSessionEntity>,
     @InjectRepository(TeacherSubjectEntity)
     private readonly teacherSubjectsRepository: Repository<TeacherSubjectEntity>,
     @InjectRepository(UserEntity)
@@ -1497,6 +1500,14 @@ export class SchoolService {
       .andWhere(scopeSchoolId ? 'g.school_id = :schoolId' : '1=1', { schoolId: scopeSchoolId })
       .getOne();
     if (!row) throw new NotFoundException('Asignación no encontrada');
+
+    const sessionFilter: { teacherId: string; groupId: string; subjectId?: string } = {
+      teacherId: row.teacherId,
+      groupId: row.groupId
+    };
+    if (row.subjectId) sessionFilter.subjectId = row.subjectId;
+    await this.classSessionsRepository.delete(sessionFilter);
+
     await this.teacherGroupsRepository.delete({ id });
     return { message: 'Asignación eliminada', id };
   }
