@@ -1782,7 +1782,7 @@ export class CircuitService implements OnModuleInit, OnModuleDestroy {
   }
 
   private getSchoolRadiusKm() {
-    return Number(process.env.CIRCUIT_ARRIVAL_RADIUS_KM ?? 1.5);
+    return Number(process.env.CIRCUIT_ARRIVAL_RADIUS_KM ?? 0.2);
   }
 
   private defaultSchoolLatitude() {

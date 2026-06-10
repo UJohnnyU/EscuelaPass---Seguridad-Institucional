@@ -159,7 +159,7 @@ export function CircuitDetailPage() {
         setSchoolGeo({
           schoolLatitude: m.schoolLatitude,
           schoolLongitude: m.schoolLongitude,
-          arrivalRadiusKm: m.arrivalRadiusKm ?? 0.3
+          arrivalRadiusKm: m.arrivalRadiusKm ?? 0.2
         });
       }
     } catch {

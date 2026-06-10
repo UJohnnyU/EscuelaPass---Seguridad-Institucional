@@ -149,44 +149,66 @@ export function ParentTrackingMap({
       container: mapContainerRef.current,
       style: getMapboxStyleUrl(),
       center: [schoolLongitude, schoolLatitude],
-      zoom: 14,
+      zoom: arrivalRadiusKm <= 0.5 ? 15 : 14,
       attributionControl: false
     });
     mapRef.current = map;
     attachMapboxStyleRecovery(map);
 
-    map.on('load', () => {
-      // School zone circle
-      const zoneFeature = arrivalZoneFeature(schoolLatitude, schoolLongitude, arrivalRadiusKm);
+    const addSchoolZone = () => {
+      const radius = Number(arrivalRadiusKm);
+      const showZone = Number.isFinite(radius) && radius > 0 && radius <= 200;
+      if (!showZone) return;
+
+      const zoneFeature = arrivalZoneFeature(schoolLongitude, schoolLatitude, radius);
+      const existing = map.getSource(SOURCE_SCHOOL_ZONE);
+      if (existing && 'setData' in existing) {
+        (existing as { setData: (data: GeoJSON.Feature<GeoJSON.Polygon>) => void }).setData(zoneFeature);
+        return;
+      }
+
       map.addSource(SOURCE_SCHOOL_ZONE, { type: 'geojson', data: zoneFeature });
       const firstSymbol = findFirstSymbolLayerId(map);
-      map.addLayer(
-        {
-          id: LAYER_ZONE_FILL,
-          type: 'fill',
-          source: SOURCE_SCHOOL_ZONE,
-          paint: { 'fill-color': '#3b82f6', 'fill-opacity': 0.12 }
-        },
-        firstSymbol
-      );
-      map.addLayer(
-        {
-          id: LAYER_ZONE_LINE,
-          type: 'line',
-          source: SOURCE_SCHOOL_ZONE,
-          paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-opacity': 0.6 }
-        },
-        firstSymbol
-      );
+      const fillSpec = {
+        id: LAYER_ZONE_FILL,
+        type: 'fill' as const,
+        source: SOURCE_SCHOOL_ZONE,
+        paint: { 'fill-color': '#3b82f6', 'fill-opacity': 0.18 }
+      };
+      const lineSpec = {
+        id: LAYER_ZONE_LINE,
+        type: 'line' as const,
+        source: SOURCE_SCHOOL_ZONE,
+        paint: { 'line-color': '#2563eb', 'line-width': 2.5, 'line-opacity': 0.75 }
+      };
+      if (firstSymbol) {
+        map.addLayer(fillSpec, firstSymbol);
+        map.addLayer(lineSpec, firstSymbol);
+      } else {
+        map.addLayer(fillSpec);
+        map.addLayer(lineSpec);
+      }
+    };
 
-      // School marker (pin)
+    const addSchoolMarker = () => {
+      if (schoolMarkerRef.current) return;
       const schoolEl = mapPinElement('#dc2626', '#991b1b');
       schoolMarkerRef.current = new mapboxgl.Marker({ element: schoolEl })
         .setLngLat([schoolLongitude, schoolLatitude])
         .addTo(map);
-    });
+    };
+
+    const onStyleReady = () => {
+      addSchoolZone();
+      addSchoolMarker();
+    };
+
+    map.on('style.load', onStyleReady);
 
     return () => {
+      map.off('style.load', onStyleReady);
+      schoolMarkerRef.current?.remove();
+      schoolMarkerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
