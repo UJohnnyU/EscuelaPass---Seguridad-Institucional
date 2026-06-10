@@ -625,9 +625,19 @@ export function SchoolRosterPage() {
     () => Boolean(aTeacher && aGroup && aSubject && assignmentHasActiveSession && !assignmentExistsInTable),
     [aGroup, aSubject, aTeacher, assignmentExistsInTable, assignmentHasActiveSession]
   );
+  const assignSubmitBlockedReason = useMemo(() => {
+    if (!aTeacher || !aGroup || !aSubject) return 'Seleccione docente, grupo y asignatura.';
+    if (!aCreateSession) return null;
+    if (periods.length === 0) return 'No hay periodos académicos. Cree uno en Periodos o desmarque Crear sesión.';
+    if (!aPeriod) return 'Seleccione el periodo académico del horario.';
+    if (!aStartTime || !aEndTime) return 'Indique hora de inicio y fin de la sesión.';
+    return null;
+  }, [aCreateSession, aEndTime, aGroup, aPeriod, aStartTime, aSubject, aTeacher, periods.length]);
+
   useEffect(() => {
-    if (assignmentHasActiveSession) setACreateSession(false);
-  }, [assignmentHasActiveSession]);
+    if (periods.length === 0 && aCreateSession) setACreateSession(false);
+  }, [aCreateSession, periods.length]);
+
   const studentsGroupFilterOptions = useMemo(
     (): SmartSelectOption[] => [{ value: '', label: 'Todos los grupos' }, ...groupOptions],
     [groupOptions]
@@ -2811,148 +2821,164 @@ export function SchoolRosterPage() {
           En una operación real, asignar docente + grupo + asignatura no basta: debe existir al menos una sesión con día
           y hora para que aparezca en el horario del alumno y del docente.
         </p>
-        <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={onAssignTeacher}>
-          <label className="text-sm">
-            <span className="text-slate-700">Docente</span>
-            <div className="mt-1 min-w-[12rem]">
-              <SmartSelect
-                options={teacherOptions}
-                value={aTeacher}
-                onChange={setATeacher}
-                placeholder="— Elegir —"
-              />
-            </div>
-          </label>
-          <label className="text-sm">
-            <span className="text-slate-700">Grupo</span>
-            <div className="mt-1 min-w-[12rem]">
-              <SmartSelect
-                options={groupOptions}
-                value={aGroup}
-                onChange={setAGroup}
-                placeholder="— Elegir —"
-              />
-            </div>
-          </label>
-          <label className="text-sm">
-            <span className="text-slate-700">Asignatura</span>
-            <div className="mt-1 min-w-[14rem]">
-              <SmartSelect
-                options={assignmentSubjectOptions}
-                value={aSubject}
-                onChange={setASubject}
-                placeholder={aTeacher ? '— Elegir —' : 'Primero elige docente'}
-                emptyLabel={
-                  aTeacher
-                    ? 'Este docente no tiene asignaturas cargadas'
-                    : 'Selecciona docente para ver asignaturas'
-                }
-              />
-            </div>
-          </label>
-          <button
-            type="submit"
-            disabled={!aTeacher || !aGroup || !aSubject || (aCreateSession && (!aPeriod || !aStartTime || !aEndTime))}
-            className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70"
-          >
-            Asignar
-          </button>
-        </form>
-        {orphanedTeacherSchedule ? (
-          <div className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
-            <p>
-              Quedó un horario activo sin asignación en la tabla (suele pasar si se quitó antes de la corrección del
-              sistema). Limpie ese horario huérfano y vuelva a pulsar Asignar.
-            </p>
-            <button
-              type="button"
-              onClick={() => void onCleanupOrphanSchedule()}
-              className="mt-2 rounded border border-amber-400 bg-white px-3 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-100"
-            >
-              Eliminar horario huérfano
-            </button>
+        <form className="mt-4 space-y-4" onSubmit={onAssignTeacher}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="text-slate-700">Docente</span>
+              <div className="mt-1 min-w-[12rem]">
+                <SmartSelect
+                  options={teacherOptions}
+                  value={aTeacher}
+                  onChange={setATeacher}
+                  placeholder="— Elegir —"
+                />
+              </div>
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-700">Grupo</span>
+              <div className="mt-1 min-w-[12rem]">
+                <SmartSelect
+                  options={groupOptions}
+                  value={aGroup}
+                  onChange={setAGroup}
+                  placeholder="— Elegir —"
+                />
+              </div>
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-700">Asignatura</span>
+              <div className="mt-1 min-w-[14rem]">
+                <SmartSelect
+                  options={assignmentSubjectOptions}
+                  value={aSubject}
+                  onChange={setASubject}
+                  placeholder={aTeacher ? '— Elegir —' : 'Primero elige docente'}
+                  emptyLabel={
+                    aTeacher
+                      ? 'Este docente no tiene asignaturas cargadas'
+                      : 'Selecciona docente para ver asignaturas'
+                  }
+                />
+              </div>
+            </label>
           </div>
-        ) : aTeacher && aGroup && aSubject && assignmentHasActiveSession ? (
-          <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Este docente ya tiene una sesión activa en el horario para este grupo y asignatura. La asignación se puede
-            registrar igual; desmarque &quot;Crear sesión&quot; si no desea duplicar el horario.
-          </p>
-        ) : null}
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <label className="flex items-start gap-2 text-sm text-slate-800">
-            <input
-              type="checkbox"
-              checked={aCreateSession}
-              onChange={(e) => setACreateSession(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-slate-300"
-            />
-            <span>
-              Crear también la sesión de horario para alumnos y docente
-              <span className="block text-xs text-slate-500">
-                Desmarque solo si ya existe un horario o está registrando una asignación administrativa sin clase.
-              </span>
-            </span>
-          </label>
-          {aCreateSession ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-5">
-              <label className="text-sm sm:col-span-2">
-                <span className="text-slate-700">Periodo</span>
-                <div className="mt-1">
-                  <SmartSelect
-                    options={periodOptions}
-                    value={aPeriod}
-                    onChange={setAPeriod}
-                    placeholder="— Periodo —"
-                    emptyLabel="No hay periodos académicos"
-                  />
-                </div>
-              </label>
-              <label className="text-sm">
-                <span className="text-slate-700">Día</span>
-                <select
-                  value={aWeekday}
-                  onChange={(e) => setAWeekday(e.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                >
-                  <option value="1">Lunes</option>
-                  <option value="2">Martes</option>
-                  <option value="3">Miércoles</option>
-                  <option value="4">Jueves</option>
-                  <option value="5">Viernes</option>
-                  <option value="6">Sábado</option>
-                </select>
-              </label>
-              <label className="text-sm">
-                <span className="text-slate-700">Inicio</span>
-                <input
-                  type="time"
-                  value={aStartTime}
-                  onChange={(e) => setAStartTime(e.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="text-slate-700">Fin</span>
-                <input
-                  type="time"
-                  value={aEndTime}
-                  onChange={(e) => setAEndTime(e.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="text-sm sm:col-span-2">
-                <span className="text-slate-700">Aula (opcional)</span>
-                <input
-                  value={aRoom}
-                  onChange={(e) => setARoom(e.target.value)}
-                  maxLength={80}
-                  placeholder="Ej. A-101"
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                />
-              </label>
+          {orphanedTeacherSchedule ? (
+            <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+              <p>
+                Quedó un horario activo sin asignación en la tabla (suele pasar si se quitó antes de la corrección del
+                sistema). Limpie ese horario huérfano y vuelva a pulsar Asignar.
+              </p>
+              <button
+                type="button"
+                onClick={() => void onCleanupOrphanSchedule()}
+                className="mt-2 rounded border border-amber-400 bg-white px-3 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-100"
+              >
+                Eliminar horario huérfano
+              </button>
             </div>
+          ) : aTeacher && aGroup && aSubject && assignmentHasActiveSession ? (
+            <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Ya hay sesión activa en el horario para esta combinación. Puede crear otra franja distinta (día u hora) o
+              desmarcar &quot;Crear sesión&quot; si solo registra la asignación administrativa.
+            </p>
           ) : null}
-        </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex items-start gap-2 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                checked={aCreateSession}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setACreateSession(checked);
+                  if (checked && !aPeriod && periods.length > 0) {
+                    setAPeriod(periods.find((p) => p.status === 'ACTIVE')?.id || periods[0]?.id || '');
+                  }
+                }}
+                disabled={periods.length === 0}
+                className="mt-1 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                Crear también la sesión de horario para alumnos y docente
+                <span className="block text-xs text-slate-500">
+                  {periods.length === 0
+                    ? 'No hay periodos académicos cargados; la asignación se guardará sin horario hasta que cree un periodo.'
+                    : 'Desmarque solo si ya existe un horario o está registrando una asignación administrativa sin clase.'}
+                </span>
+              </span>
+            </label>
+            {aCreateSession ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-5">
+                <label className="text-sm sm:col-span-2">
+                  <span className="text-slate-700">Periodo</span>
+                  <div className="mt-1">
+                    <SmartSelect
+                      options={periodOptions}
+                      value={aPeriod}
+                      onChange={setAPeriod}
+                      placeholder="— Periodo —"
+                      emptyLabel="No hay periodos académicos"
+                    />
+                  </div>
+                </label>
+                <label className="text-sm">
+                  <span className="text-slate-700">Día</span>
+                  <select
+                    value={aWeekday}
+                    onChange={(e) => setAWeekday(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  >
+                    <option value="1">Lunes</option>
+                    <option value="2">Martes</option>
+                    <option value="3">Miércoles</option>
+                    <option value="4">Jueves</option>
+                    <option value="5">Viernes</option>
+                    <option value="6">Sábado</option>
+                  </select>
+                </label>
+                <label className="text-sm">
+                  <span className="text-slate-700">Inicio</span>
+                  <input
+                    type="time"
+                    value={aStartTime}
+                    onChange={(e) => setAStartTime(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="text-slate-700">Fin</span>
+                  <input
+                    type="time"
+                    value={aEndTime}
+                    onChange={(e) => setAEndTime(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                <label className="text-sm sm:col-span-2">
+                  <span className="text-slate-700">Aula (opcional)</span>
+                  <input
+                    value={aRoom}
+                    onChange={(e) => setARoom(e.target.value)}
+                    maxLength={80}
+                    placeholder="Ej. A-101"
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                  />
+                </label>
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <button
+              type="submit"
+              disabled={Boolean(assignSubmitBlockedReason)}
+              className="rounded bg-brand-900 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Asignar
+            </button>
+            {assignSubmitBlockedReason ? (
+              <p className="mt-2 text-sm text-amber-800">{assignSubmitBlockedReason}</p>
+            ) : null}
+          </div>
+        </form>
         <div className="mt-6">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
             <label className="block w-full text-sm sm:min-w-[14rem] sm:max-w-xs">
