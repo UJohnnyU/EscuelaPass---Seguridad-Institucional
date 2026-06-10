@@ -1501,15 +1501,51 @@ export class SchoolService {
       .getOne();
     if (!row) throw new NotFoundException('Asignación no encontrada');
 
-    const sessionFilter: { teacherId: string; groupId: string; subjectId?: string } = {
-      teacherId: row.teacherId,
-      groupId: row.groupId
-    };
-    if (row.subjectId) sessionFilter.subjectId = row.subjectId;
-    await this.classSessionsRepository.delete(sessionFilter);
-
+    await this.deleteClassSessionsForTeacherGroup(row.teacherId, row.groupId, row.subjectId);
     await this.teacherGroupsRepository.delete({ id });
     return { message: 'Asignación eliminada', id };
+  }
+
+  async removeOrphanedClassSessionsForTeacherGroup(
+    dto: AssignTeacherGroupDto,
+    scopeSchoolId?: string | null
+  ) {
+    const schoolId = await this.resolveSchoolIdForAssignTeacher(dto, scopeSchoolId);
+    const subjectId = dto.subjectId?.trim();
+    if (!subjectId) throw new BadRequestException('Indique docente, grupo y asignatura');
+
+    const group = await this.groupsRepository.findOne({ where: { id: dto.groupId, schoolId } });
+    if (!group) throw new NotFoundException('Grupo no encontrado');
+    const subject = await this.subjectsRepository.findOne({ where: { id: subjectId, schoolId } });
+    if (!subject) throw new NotFoundException('Materia no encontrada');
+
+    const existingAssignment = await this.teacherGroupsRepository.findOne({
+      where: { teacherId: dto.teacherId, groupId: dto.groupId, subjectId }
+    });
+    if (existingAssignment) {
+      throw new BadRequestException(
+        'La asignación sigue registrada en la tabla. Use el botón Quitar de esa fila.'
+      );
+    }
+
+    const result = await this.deleteClassSessionsForTeacherGroup(dto.teacherId, dto.groupId, subjectId);
+    if (!result.affected) {
+      throw new NotFoundException('No hay sesiones de horario huérfanas para esta combinación.');
+    }
+    return { message: 'Horario huérfano eliminado', deletedCount: result.affected };
+  }
+
+  private deleteClassSessionsForTeacherGroup(
+    teacherId: string,
+    groupId: string,
+    subjectId: string | null
+  ) {
+    const sessionFilter: { teacherId: string; groupId: string; subjectId?: string } = {
+      teacherId,
+      groupId
+    };
+    if (subjectId) sessionFilter.subjectId = subjectId;
+    return this.classSessionsRepository.delete(sessionFilter);
   }
 
   // --- Padres / tutores y vínculos con estudiantes ---

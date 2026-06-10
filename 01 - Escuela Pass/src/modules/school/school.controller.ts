@@ -469,6 +469,20 @@ export class SchoolController {
     return this.schoolService.assignTeacherGroup(dto, this.scopeSchool(req.user));
   }
 
+  @Delete('teacher-assignments/orphan-sessions')
+  removeOrphanTeacherSessions(
+    @Query('teacherId', ParseUUIDPipe) teacherId: string,
+    @Query('groupId', ParseUUIDPipe) groupId: string,
+    @Query('subjectId', ParseUUIDPipe) subjectId: string,
+    @Query('schoolId') schoolIdFilter: string | undefined,
+    @Req() req: Request & { user: JwtUser }
+  ) {
+    return this.schoolService.removeOrphanedClassSessionsForTeacherGroup(
+      { teacherId, groupId, subjectId, schoolId: schoolIdFilter?.trim() },
+      this.scopeSchool(req.user)
+    );
+  }
+
   @Delete('teacher-assignments/:id')
   removeAssignment(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

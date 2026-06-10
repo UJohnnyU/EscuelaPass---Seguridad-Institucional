@@ -614,6 +614,17 @@ export function SchoolRosterPage() {
       ),
     [aGroup, aSubject, aTeacher, classSessions]
   );
+  const assignmentExistsInTable = useMemo(
+    () =>
+      assignments.some(
+        (r) => r.teacherId === aTeacher && r.groupId === aGroup && (r.subjectId ?? '') === aSubject
+      ),
+    [aGroup, aSubject, aTeacher, assignments]
+  );
+  const orphanedTeacherSchedule = useMemo(
+    () => Boolean(aTeacher && aGroup && aSubject && assignmentHasActiveSession && !assignmentExistsInTable),
+    [aGroup, aSubject, aTeacher, assignmentExistsInTable, assignmentHasActiveSession]
+  );
   useEffect(() => {
     if (assignmentHasActiveSession) setACreateSession(false);
   }, [assignmentHasActiveSession]);
@@ -1273,6 +1284,25 @@ export function SchoolRosterPage() {
       await refreshAll();
     } catch (err) {
       setError(getUserFacingMessage(err, 'No se pudo eliminar la asignación.'));
+    }
+  }
+
+  async function onCleanupOrphanSchedule() {
+    if (!aTeacher || !aGroup || !aSubject) return;
+    setMessage(null);
+    setError(null);
+    try {
+      const params: Record<string, string> = {
+        teacherId: aTeacher,
+        groupId: aGroup,
+        subjectId: aSubject
+      };
+      if (platformAdmin && selectedSchoolId) params.schoolId = selectedSchoolId;
+      await api.delete('/api/v1/school/teacher-assignments/orphan-sessions', { params });
+      setMessage('Horario huérfano eliminado. Ya puede asignar al docente de nuevo.');
+      await refreshAll();
+    } catch (err) {
+      setError(getUserFacingMessage(err, 'No se pudo limpiar el horario huérfano.'));
     }
   }
 
@@ -2828,7 +2858,21 @@ export function SchoolRosterPage() {
             Asignar
           </button>
         </form>
-        {aTeacher && aGroup && aSubject && assignmentHasActiveSession ? (
+        {orphanedTeacherSchedule ? (
+          <div className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+            <p>
+              Quedó un horario activo sin asignación en la tabla (suele pasar si se quitó antes de la corrección del
+              sistema). Limpie ese horario huérfano y vuelva a pulsar Asignar.
+            </p>
+            <button
+              type="button"
+              onClick={() => void onCleanupOrphanSchedule()}
+              className="mt-2 rounded border border-amber-400 bg-white px-3 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-100"
+            >
+              Eliminar horario huérfano
+            </button>
+          </div>
+        ) : aTeacher && aGroup && aSubject && assignmentHasActiveSession ? (
           <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Este docente ya tiene una sesión activa en el horario para este grupo y asignatura. La asignación se puede
             registrar igual; desmarque &quot;Crear sesión&quot; si no desea duplicar el horario.
